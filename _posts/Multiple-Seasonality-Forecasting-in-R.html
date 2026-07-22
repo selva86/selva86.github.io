@@ -1,0 +1,1636 @@
+---
+title: "Sub-Daily Forecasting in R: the Multiple-Seasonality Playbook"
+description: "Forecast half-hourly and hourly data in R. Model daily and weekly seasonality together with msts, MSTL, Fourier terms and TBATS, then score the winner."
+keywords: "multiple seasonality in R, sub-daily forecasting R, msts R, TBATS R, MSTL forecasting, Fourier terms R, half-hourly forecasting, complex seasonality R, dynamic harmonic regression R"
+mathjax: false
+webr: true
+curriculum_id: "TS2-7.3"
+post_type: "C"
+auto_link_terms: "multiple seasonality|multiple seasonal periods|complex seasonality|sub-daily data|sub-daily forecasting|half-hourly data|msts()|mstl()|tbats()|TBATS model|stlf()|seasonal period|multi-seasonal time series"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Multiple Seasonality"
+sidebar_order: "52"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Sub-daily data, meaning anything recorded hourly, half-hourly or every few minutes, usually repeats on more than one cycle at once: one shape that repeats every day, and a different shape that repeats every week. A standard seasonal model can only hold one of those cycles. The playbook is to name every period your data actually has, hand them all to a model that accepts more than one, and score the candidates on a holdout before you trust any of them.</p>
+
+<h2>Why does one seasonal period fail on sub-daily data?</h2>
+
+<p>The <code>taylor</code> dataset that ships with the forecast package is half-hourly electricity demand for England and Wales, twelve complete weeks of it. Demand has an obvious daily rhythm: low overnight, high in the evening. It also has a second rhythm that is easy to miss entirely. Average each day of the week separately and it jumps straight out at you.</p>
+
+<div class="webr-container" data-block-title="Average demand by day of week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average demand by day of week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+# taylor: half-hourly electricity demand for England and Wales,
+# 12 complete weeks beginning Monday 5 June 2000.
+day_names   &lt;- c(&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;, &quot;Sat&quot;, &quot;Sun&quot;)
+day_of_week &lt;- factor(rep(day_names, each = 48, times = 12), levels = day_names)
+
+round(tapply(taylor, day_of_week, mean))
+#&gt;   Mon   Tue   Wed   Thu   Fri   Sat   Sun 
+#&gt; 30851 31349 31338 31402 30646 26501 25233 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through the code: each day holds 48 half-hourly readings, so <code>rep(day_names, each = 48, times = 12)</code> stamps a weekday label onto every one of the 4032 observations, and <code>tapply()</code> then averages the demand within each label.</p>
+
+<p>Now read the numbers. Thursday averages 31402 megawatts and Sunday averages 25233. That is a gap of over 6000 megawatts, roughly a fifth of total demand, and it has nothing to do with the time of day. It is purely about which day of the week it is. Weekdays look like each other and weekends look like each other, and the two groups are not close.</p>
+
+<p>So this series repeats on two clocks at the same time. Before going further, it helps to know exactly how much data we are holding.</p>
+
+<div class="webr-container" data-block-title="How much history is there">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How much history is there</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(observations = length(taylor),
+  days         = length(taylor) / 48,
+  weeks        = length(taylor) / 336)
+#&gt; observations         days        weeks 
+#&gt;         4032           84           12 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twelve clean weeks, 84 days, 4032 readings. That divides evenly, which will matter shortly.</p>
+
+<p>Here is the crucial idea, and it is the one thing that trips up almost everybody moving from monthly data to sub-daily data. <strong>In R, a seasonal period is a count of observations, not a length of time.</strong> Monthly data has period 12 because twelve rows make a year. Half-hourly data has period 48 because 48 rows make a day. But 336 rows make a week, and that is a perfectly real cycle too. A plain <code>ts</code> object stores one number for <code>frequency</code>, so it can hold 48 or it can hold 336. It cannot hold both.</p>
+
+<p>Let us find out what that costs. We will hold back the final two days and forecast them. Because the series starts on a Monday and runs a whole number of weeks, the last two days are exactly Saturday and Sunday, which is the hardest pair for a model that has never heard of weekends.</p>
+
+<p>The simplest possible forecast is the <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a>: predict each future point using the matching point one full cycle ago. With a period of 48, "one cycle ago" means yesterday.</p>
+
+<p>One new function appears in the block below. <code>msts()</code> is the multi-seasonal cousin of <code>ts</code>: it stores a whole vector of seasonal periods instead of a single number. The next section takes it apart properly, so for now just read <code>seasonal.periods = 48</code> as "one cycle is 48 rows" and <code>seasonal.periods = c(48, 336)</code> as "there are two cycles, one of 48 rows and one of 336".</p>
+
+<div class="webr-container" data-block-title="Seasonal naive using yesterday">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal naive using yesterday</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h    &lt;- 96
+n    &lt;- length(taylor)
+y    &lt;- as.numeric(taylor)
+test &lt;- y[(n - h + 1):n]
+
+daily_only &lt;- msts(y[1:(n - h)], seasonal.periods = 48)
+both       &lt;- msts(y[1:(n - h)], seasonal.periods = c(48, 336))
+
+round(accuracy(snaive(daily_only, h = h), test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;    RMSE     MAE    MAPE 
+#&gt; 5629.62 5011.58   19.02 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The code holds out the last 96 readings as <code>test</code>, builds two versions of the training data, and scores the period-48 forecast against the holdout. <code>accuracy()</code> returns a two-row matrix, <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> then <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, so <code>[2, ]</code> picks the test-set row, which is the one that counts.</p>
+
+<p>Three error measures come back. RMSE and MAE are both average error sizes in megawatts, with RMSE weighting the large misses more heavily. MAPE is that same error written as a percentage of actual demand, which makes it the easiest of the three to read when you do not have the scale of the series in your head.</p>
+
+<p>A MAPE of 19.02 means the forecast is off by about 19 percent on average. That is a bad forecast for a series this regular. The model is repeating Thursday and Friday onto Saturday and Sunday, and weekends simply do not look like weekdays.</p>
+
+<p>Now change one thing. Keep the same data, the same method, the same holdout, and only tell R that a week is also a cycle.</p>
+
+<div class="webr-container" data-block-title="Seasonal naive using last week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal naive using last week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(snaive(both, h = h), test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE    MAE   MAPE 
+#&gt; 619.72 474.40   1.74 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The error falls from 19.02 percent to 1.74 percent. That is roughly eleven times more accurate, from a change that involved no new model, no tuning and no extra data. All that happened is that <code>snaive()</code> now repeats last Saturday onto this Saturday instead of repeating last Thursday onto it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Naming the right seasonal period matters more than choosing a clever model.</strong> The gap between a period-48 and a period-336 seasonal naive on this data is larger than the gap between any two serious models you will fit for the rest of this tutorial, and it costs nothing to get right.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The day-of-week averages showed the weekly cycle. Now measure the daily one. Compute the average demand at each half-hour of the day, then report the peak, the trough, and the percentage gap between them.</p>
+<div class="webr-container" data-block-title="Your turn: size of the daily swing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: size of the daily swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: report the peak, the trough, and the percent gap between them.
+# Hint: ex_profile holds the average demand at each clock time.
+ex_hour    &lt;- rep(seq(0, 23.5, by = 0.5), times = 84)
+ex_profile &lt;- round(tapply(y, ex_hour, mean))
+range(ex_profile)
+#&gt; [1] 21764 35170</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Size of the daily swing solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Size of the daily swing solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hour    &lt;- rep(seq(0, 23.5, by = 0.5), times = 84)
+ex_profile &lt;- round(tapply(y, ex_hour, mean))
+
+c(peak    = max(ex_profile),
+  trough  = min(ex_profile),
+  gap_pct = round(100 * (max(ex_profile) - min(ex_profile)) / min(ex_profile), 1))
+#&gt;    peak  trough gap_pct 
+#&gt; 35170.0 21764.0    61.6 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The daily swing is 61.6 percent from trough to peak, which is much larger than the weekly swing of about 20 percent. Both are real, and a good model needs both. The daily cycle is the loud one, which is exactly why the weekly one is so easy to overlook.</p>
+
+</details>
+</section>
+
+<h2>How do you find which seasonal periods your data actually has?</h2>
+
+<p>You do not have to guess. There are two steps, and doing both is what separates a reliable answer from a hopeful one. First derive the candidate periods by arithmetic from your sampling interval, then confirm each candidate against the data itself.</p>
+
+<p>The arithmetic is the easy half. Count how many observations fall inside each natural calendar cycle.</p>
+
+<div class="webr-container" data-block-title="Derive candidate periods from the sampling rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Derive candidate periods from the sampling rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One observation every 30 minutes.
+per_hour &lt;- 60 / 30
+
+data.frame(
+  cycle  = c(&quot;day&quot;, &quot;week&quot;, &quot;year&quot;),
+  hours  = c(24, 24 * 7, 24 * 365.25),
+  period = c(24, 24 * 7, 24 * 365.25) * per_hour
+)
+#&gt;   cycle hours period
+#&gt; 1   day    24     48
+#&gt; 2  week   168    336
+#&gt; 3  year  8766  17532</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the last column. Those are the seasonal periods for half-hourly data: 48 for the day, 336 for the week, 17532 for the year. Change the sampling rate and every number changes with it. Hourly data would give 24, 168 and 8766. Five-minute data would give 288, 2016 and 105192.</p>
+
+<p><img src="screenshots/Multiple-Seasonality-Forecasting-in-R-period-ladder.webp" alt="Diagram showing how one sampling interval implies daily, weekly and annual seasonal periods" class="img-responsive img-zoomable" loading="lazy" width="1522" height="842" /></p>
+
+<p><em>Figure 1: One sampling interval implies several seasonal periods. The annual period exists but needs years of history to estimate.</em></p>
+
+<p>Arithmetic tells you which periods are possible. It cannot tell you which ones are actually present, and it certainly cannot tell you which ones are strong. For that, look at the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a>, which measures how similar the series is to a shifted copy of itself. A correlation near 1 at lag k means "the value k steps ago is an excellent guide to the value now".</p>
+
+<div class="webr-container" data-block-title="Check the candidate lags with the ACF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the candidate lags with the ACF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lags &lt;- c(1, 48, 96, 336)
+ac   &lt;- acf(y, lag.max = 400, plot = FALSE)
+
+data.frame(
+  lag         = lags,
+  means       = c(&quot;30 min ago&quot;, &quot;yesterday&quot;, &quot;2 days ago&quot;, &quot;last week&quot;),
+  correlation = round(ac$acf[lags + 1], 3)
+)
+#&gt;   lag      means correlation
+#&gt; 1   1 30 min ago       0.985
+#&gt; 2  48  yesterday       0.828
+#&gt; 3  96 2 days ago       0.653
+#&gt; 4 336  last week       0.910</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>acf()</code> call computes correlations at every lag up to 400 and stores them in <code>ac$acf</code>. The <code>+ 1</code> on the index is there because position 1 of that vector holds lag 0, so lag 48 lives at position 49.</p>
+
+<p>Look at the pattern in that last column, because it is the whole argument for multiple seasonality in a single table. Correlation decays as you go back in time: 0.985 half an hour ago, 0.828 yesterday, 0.653 two days ago. Then at 336, a full week back, it jumps back up to 0.910. <strong>The same half-hour last week predicts today better than the same half-hour two days ago does.</strong> Ordinary decay cannot produce that. Only a genuine weekly cycle can.</p>
+
+<p>One more view is worth having before you model anything, which is the shape of the average day.</p>
+
+<div class="webr-container" data-block-title="The average day, at five clock times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The average day, at five clock times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hour_of_day &lt;- rep(seq(0, 23.5, by = 0.5), times = 84)
+profile     &lt;- round(tapply(y, hour_of_day, mean))
+
+profile[c(&quot;0&quot;, &quot;6&quot;, &quot;12&quot;, &quot;17.5&quot;, &quot;22&quot;)]
+#&gt;     0     6    12  17.5    22 
+#&gt; 24042 23859 35156 33297 30330 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Demand sits near 24000 through the small hours, climbs to about 35000 by midday, stays high through the afternoon and evening, and is still at 30330 by ten at night. This is the loud cycle, the one nobody misses.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Derive, then confirm.</strong> Arithmetic gives you the candidate periods for free, but only the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ACF</a> tells you whether a candidate is real and worth the parameters it will cost. A period that shows no ACF bump is a period you should leave out of the model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Two days back scored 0.653 and one week back scored 0.910. Where does three days back sit? Compute the ACF at lag 144 and compare it with lag 336.</p>
+<div class="webr-container" data-block-title="Your turn: ACF at three days">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ACF at three days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: get the correlation at lag 144, then compare it with lag 336.
+# Hint: position 1 of ac$acf is lag 0, so add 1 to the lag you want.
+round(ac$acf[96 + 1], 3)
+#&gt; [1] 0.653</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ACF at three days solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF at three days solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(ac$acf[c(144, 336) + 1], 3)
+#&gt; [1] 0.619 0.910</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three days back is 0.619, even weaker than two days back at 0.653. The correlation keeps decaying right up until the weekly cycle brings it back. This is the signature of multiple seasonality: a series of decaying values interrupted by a sharp revival at the longer period.</p>
+
+</details>
+</section>
+
+<h2>How do you tell R about more than one seasonal period?</h2>
+
+<p>You have two containers to choose from, depending on which forecasting ecosystem you are in. The forecast package uses <code>msts()</code>, which is a <code>ts</code> that carries a vector of periods instead of a single number. The tidier fable ecosystem uses a <code>tsibble</code>, which carries real timestamps and works out the periods from them.</p>
+
+<p>We already built the <code>msts</code> version above. Here is what it is holding.</p>
+
+<div class="webr-container" data-block-title="What msts records">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What msts records</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">attributes(both)$msts
+#&gt; [1]  48 336
+frequency(both)
+#&gt; [1] 336</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line shows both periods stored side by side, exactly as we asked. The second line is the trap. <code>frequency()</code> is the old single-period accessor, and when there are several periods it returns only the largest one. If you check your data with <code>frequency()</code> and see 336, that does not confirm the daily cycle is being modelled. Always check <code>attributes(x)$msts</code> instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>frequency() reports only the largest period.</strong> On a multi-seasonal object it returns only the longest cycle and says nothing about the shorter ones, so it reports 336 whether or not the daily period was ever recorded. Use attributes to inspect what the object really holds.</div></div>
+
+<p>Printing the object shows the periods in the header, which makes it easy to sanity-check in passing.</p>
+
+<div class="webr-container" data-block-title="Printing a multi-seasonal series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Printing a multi-seasonal series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(both, 3)
+#&gt; Multi-Seasonal Time Series:
+#&gt; Start: 1 1
+#&gt; Seasonal Periods: 48 336
+#&gt; Data:
+#&gt; [1] 22262 21756 22247</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The alternative container attaches genuine timestamps to each reading. That costs a little more setup and buys you real calendar awareness, which matters a great deal once holidays and clock changes enter the picture.</p>
+
+<div class="webr-container" data-block-title="The same series as a tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same series as a tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(lubridate)
+
+elec &lt;- tsibble(
+  time   = ymd_hm(&quot;2000-06-05 00:00&quot;) + minutes(30) * (0:(n - 1)),
+  demand = y,
+  index  = time
+)
+
+elec
+#&gt; # A tsibble: 4,032 x 2 [30m] &lt;UTC&gt;
+#&gt;    time                demand
+#&gt;    &lt;dttm&gt;               &lt;dbl&gt;
+#&gt;  1 2000-06-05 00:00:00  22262
+#&gt;  2 2000-06-05 00:30:00  21756
+#&gt;  3 2000-06-05 01:00:00  22247
+#&gt;  4 2000-06-05 01:30:00  22759
+#&gt;  5 2000-06-05 02:00:00  22549
+#&gt;  6 2000-06-05 02:30:00  22313
+#&gt;  7 2000-06-05 03:00:00  22128
+#&gt;  8 2000-06-05 03:30:00  21860
+#&gt;  9 2000-06-05 04:00:00  21751
+#&gt; 10 2000-06-05 04:30:00  21336
+#&gt; # ℹ 4,022 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the <code>[30m]</code> in the header. The tsibble worked out the sampling interval by itself, from the timestamps, which means it can also tell you whether any readings are missing.</p>
+
+<div class="webr-container" data-block-title="Interval and gap checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interval and gap checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tsibble::interval(elec)
+#&gt; &lt;interval[1]&gt;
+#&gt; [1] 30m
+has_gaps(elec)
+#&gt; # A tibble: 1 × 1
+#&gt;   .gaps
+#&gt;   &lt;lgl&gt;
+#&gt; 1 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We write <code>tsibble::interval()</code> explicitly because <a class="auto-link" href="lubridate-in-R.html" title="lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever">lubridate</a> also exports a function called <code>interval()</code>, and lubridate was loaded second, so it wins. The gap check returns FALSE, confirming there are no missing half-hours anywhere in the 4032 rows. That is worth knowing before you model, for reasons we will get to in the traps section.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a version of the full series that also records the annual period, then confirm all three periods are stored.</p>
+<div class="webr-container" data-block-title="Your turn: add the annual period">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add the annual period</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: add the annual period as a third entry, then show all three.
+# Hint: the annual period for half-hourly data was in the table earlier.
+attributes(msts(y, seasonal.periods = c(48, 336)))$msts
+#&gt; [1]  48 336</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Add the annual period solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add the annual period solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_three &lt;- msts(y, seasonal.periods = c(48, 336, 17532))
+attributes(ex_three)$msts
+#&gt; [1]    48   336 17532</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> R accepts the annual period without complaint, but accepting is not the same as being able to estimate it. With only 4032 observations we hold less than a quarter of one annual cycle, so this third period is decoration. The traps section returns to why that matters.</p>
+
+</details>
+</section>
+
+<h2>How does MSTL split the series into its seasonal layers?</h2>
+
+<p>Before forecasting, it helps enormously to see the cycles separated out. MSTL does exactly that. It runs the classic STL decomposition once per seasonal period, peeling off one layer at a time, shortest period first, and leaves you with a trend, one seasonal column per period, and whatever is left over.</p>
+
+<div class="webr-container" data-block-title="Decompose into multiple seasonal layers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose into multiple seasonal layers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parts &lt;- mstl(both)
+colnames(parts)
+#&gt; [1] &quot;Data&quot;        &quot;Trend&quot;       &quot;Seasonal48&quot;  &quot;Seasonal336&quot; &quot;Remainder&quot;  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One column per period, named after the period itself, which makes the output self-documenting. <code>Seasonal48</code> is the daily shape and <code>Seasonal336</code> is the weekly shape.</p>
+
+<p>The really useful question is how much of the movement each layer explains. Comparing each column's variance with the variance of the original series answers it.</p>
+
+<div class="webr-container" data-block-title="How much variance each layer explains">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How much variance each layer explains</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(apply(parts, 2, var) / var(as.numeric(both)), 3)
+#&gt;        Data       Trend  Seasonal48 Seasonal336   Remainder 
+#&gt;       1.000       0.012       0.738       0.232       0.003 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The daily cycle accounts for 73.8 percent of the variance, the weekly cycle for 23.2 percent, the trend for barely 1 percent, and the leftover noise for 0.3 percent. This series is almost entirely seasonal.</p>
+
+<p>That 23.2 percent is the answer to the puzzle from the first section. A model that knows only the daily period is throwing away nearly a quarter of the explainable movement, which is precisely why its <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">forecast error</a> was eleven times worse.</p>
+
+<p>The layers are additive, so they sum back to the original.</p>
+
+<div class="webr-container" data-block-title="The layers add back to the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The layers add back to the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(parts, 3), 1)
+#&gt; Multi-Seasonal Time Series:
+#&gt; Start: 1 1
+#&gt; Seasonal Periods: 48 336
+#&gt; Data:
+#&gt;       Data   Trend Seasonal48 Seasonal336 Remainder
+#&gt; [1,] 22262 30213.7    -5816.4     -1765.3    -370.0
+#&gt; [2,] 21756 30213.1    -6530.6     -1650.9    -275.6
+#&gt; [3,] 22247 30212.5    -6272.5     -1533.1    -159.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Take the first row. The trend sits at 30213.7. It is just after midnight, so the daily component pulls demand down by 5816.4. It is a Monday early morning, so the weekly component pulls it down another 1765.3. The remainder trims 370. Add those four numbers together and you get 22262, which is the observed value in the <code>Data</code> column.</p>
+
+<p>Decomposition is not just diagnostics. It also gives you a forecasting method directly, via <code>stlf()</code>: forecast the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonally adjusted</a> series with <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, then add the seasonal shapes back on.</p>
+
+<div class="webr-container" data-block-title="Forecast from the decomposition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast from the decomposition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_stl &lt;- stlf(both, h = h)
+round(accuracy(fc_stl, test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE    MAE   MAPE 
+#&gt; 780.99 647.34   2.44 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A MAPE of 2.44 percent, on the same weekend holdout that broke the daily-only model. It is a genuinely good forecast, and worth noting that it is still not as good as the 1.74 we got from the plain seasonal naive. Hold that thought, because the bake-off section takes it seriously.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Decomposition turns "the model is wrong" into a number you can point at.</strong> Once you see that the weekly layer carries 23.2 percent of the variance, the eleven-fold error from ignoring it stops being a surprise and becomes arithmetic.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>mstl()</code> on <code>daily_only</code>, the version that only knows about the 48-step period, and look at which columns come back.</p>
+<div class="webr-container" data-block-title="Your turn: decompose a single-season series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: decompose a single-season series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: decompose daily_only and see which columns come back.
+# Hint: swap `both` for `daily_only`, which knows only the 48-step period.
+colnames(mstl(both))
+#&gt; [1] &quot;Data&quot;        &quot;Trend&quot;       &quot;Seasonal48&quot;  &quot;Seasonal336&quot; &quot;Remainder&quot;  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Decompose a single-season series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose a single-season series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_parts &lt;- mstl(daily_only)
+colnames(ex_parts)
+#&gt; [1] &quot;Data&quot;       &quot;Trend&quot;      &quot;Seasonal48&quot; &quot;Remainder&quot; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> There is no <code>Seasonal336</code> column. The weekly variation has not vanished, it has been swept into <code>Trend</code> and <code>Remainder</code>, where no forecasting method can use it as a repeating pattern. That is the mechanism behind the 19 percent error.</p>
+
+</details>
+</section>
+
+<h2>How does dynamic harmonic regression fit several cycles at once?</h2>
+
+<p>Decomposition handles seasonality by subtracting it. The other main strategy is to <em>describe</em> it, using smooth waves, and then run an ordinary regression. This approach is called <a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">dynamic harmonic regression</a>, and it is the workhorse for sub-daily data because it scales to long periods that would choke a <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">seasonal ARIMA</a>.</p>
+
+<p>The idea is simpler than the name suggests. Any repeating shape, however lumpy, can be built by stacking sine and cosine waves of the right sizes. The first pair completes exactly one cycle per period, the second pair completes two cycles per period, the third completes three, and so on. Add enough pairs and you can trace any shape you like. The number of pairs you use is called K, and it is the one knob you turn.</p>
+
+<p><code>fourier()</code> builds these columns for you, one set per seasonal period.</p>
+
+<div class="webr-container" data-block-title="Build Fourier columns for two periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build Fourier columns for two periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- fourier(both, K = c(2, 1))
+dim(X)
+#&gt; [1] 3936    6
+colnames(X)
+#&gt; [1] &quot;S1-48&quot;  &quot;C1-48&quot;  &quot;S2-48&quot;  &quot;C2-48&quot;  &quot;S1-336&quot; &quot;C1-336&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>K = c(2, 1)</code> asks for two pairs for the daily period and one pair for the weekly period, which gives six columns in total: <code>S</code> for sine, <code>C</code> for cosine, the number for which harmonic, and the suffix for which period. The rows match the training data.</p>
+
+<p>These are just numbers, so you can look at them.</p>
+
+<div class="webr-container" data-block-title="Look at the wave columns themselves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at the wave columns themselves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(X[, 1:4], 4), 3)
+#&gt;      S1-48 C1-48 S2-48 C2-48
+#&gt; [1,] 0.131 0.991 0.259 0.966
+#&gt; [2,] 0.259 0.966 0.500 0.866
+#&gt; [3,] 0.383 0.924 0.707 0.707
+#&gt; [4,] 0.500 0.866 0.866 0.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>S1-48</code> climbs slowly, 0.131 then 0.259 then 0.383, because it is completing one full wave over 48 steps. <code>S2-48</code> climbs twice as fast because it completes two waves over the same 48 steps. Regression then picks a coefficient for each column, and the weighted sum of all the waves becomes the fitted seasonal shape.</p>
+
+<p>Now fit one. <code>tslm()</code> is a time-series-aware linear model, so we can regress the series directly on the Fourier columns.</p>
+
+<div class="webr-container" data-block-title="Fit a harmonic regression with small K">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a harmonic regression with small K</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_small &lt;- tslm(both ~ fourier(both, K = c(10, 5)))
+fc_small  &lt;- forecast(fit_small,
+                      newdata = data.frame(fourier(both, K = c(10, 5), h = h)))
+
+round(accuracy(fc_small, test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;    RMSE     MAE    MAPE 
+#&gt; 1743.63 1491.77    6.09 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To forecast, we generate the same Fourier columns for the future using the <code>h</code> argument, then hand them over as <code>newdata</code>. Because sine and cosine waves are entirely deterministic, we always know their future values exactly, which is the reason this method extends so comfortably to long horizons.</p>
+
+<p>But 6.09 percent is poor, worse than the plain seasonal naive by a factor of three. The problem is <code>K = 5</code> for the weekly period. Five wave pairs across a week produce a very smooth shape, smooth enough to say "weekends are lower on average" but nowhere near flexible enough to give weekends a different <em>daily profile</em>. Give the weekly period far more harmonics and it gains that freedom.</p>
+
+<div class="webr-container" data-block-title="Fit a harmonic regression with larger K">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a harmonic regression with larger K</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_big &lt;- tslm(both ~ fourier(both, K = c(15, 40)))
+fc_big  &lt;- forecast(fit_big,
+                    newdata = data.frame(fourier(both, K = c(15, 40), h = h)))
+
+round(accuracy(fc_big, test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE    MAE   MAPE 
+#&gt; 848.39 677.93   2.52 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The error drops from 6.09 to 2.52 percent, purely from letting the weekly shape be more detailed. Nothing else changed.</p>
+
+<p>You should not pick K by trying values against the test set, though, because that quietly turns your holdout into training data. The honest way is a criterion computed on the training data alone. <code>CV()</code> reports several, and AICc is the one to use here: it rewards fit and penalises extra columns, so it will stop you before you add waves that only chase noise.</p>
+
+<div class="webr-container" data-block-title="Compare the two models by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two models by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(small = CV(fit_small)[&quot;AICc&quot;], big = CV(fit_big)[&quot;AICc&quot;]), 1)
+#&gt; small.AICc   big.AICc 
+#&gt;    56339.8    52723.2 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lower is better, so AICc prefers the larger K by a wide margin, agreeing with the holdout without ever having seen it. That agreement is what gives you confidence the choice will hold on future data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Choose K with AICc on the training data, never with the test set.</strong> Fit a handful of candidate K values, keep the one with the lowest AICc, and only then look at the holdout. Exercise 2 walks a grid that has a clear interior minimum, so the criterion really is picking a best point rather than always preferring more waves.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Try an in-between setting, <code>K = c(8, 25)</code>, and compare its AICc against the two above.</p>
+<div class="webr-container" data-block-title="Your turn: a third K setting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a third K setting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: report the AICc for K = c(8, 25).
+# Hint: change the K below, then read the number off.
+round(CV(fit_big)[&quot;AICc&quot;], 1)
+#&gt;    AICc 
+#&gt; 52723.2 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A third K setting solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A third K setting solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- tslm(both ~ fourier(both, K = c(8, 25)))
+round(CV(ex_fit)[&quot;AICc&quot;], 1)
+#&gt;    AICc 
+#&gt; 53009.4 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 53009.4 this sits between the two, better than <code>c(10, 5)</code> and worse than <code>c(15, 40)</code>. AICc is behaving smoothly, which is what makes a grid search over K worthwhile.</p>
+
+</details>
+</section>
+
+<h3>Why the prediction intervals are wrong without ARMA errors</h3>
+
+<p>The harmonic model gives respectable point forecasts. Its uncertainty estimates, however, are badly broken, and the reason is worth understanding because it applies to every regression you fit on a time series.</p>
+
+<p>Ordinary regression assumes the errors are independent, meaning that knowing today's error tells you nothing about tomorrow's. On half-hourly demand data that assumption is not slightly wrong, it is spectacularly wrong.</p>
+
+<div class="webr-container" data-block-title="Check the residuals for autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the residuals for autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">resid_acf &lt;- acf(residuals(fit_big), lag.max = 2, plot = FALSE)
+round(resid_acf$acf[2], 3)
+#&gt; [1] 0.953</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The correlation between consecutive residuals is 0.953. If the model is running 500 megawatts too low right now, it will almost certainly still be running too low half an hour from now. The errors arrive in long runs, not as independent scatter.</p>
+
+<p>The fix is to model the leftover structure instead of treating it as noise. Keep the same Fourier columns as regressors, but let the error term follow an ARIMA process instead of assuming it is white noise. White noise means errors drawn independently at every step, with no memory of what came before. An ARIMA error process is the opposite: today's error is built partly from the errors immediately preceding it, which is exactly the behaviour the 0.953 above is reporting.</p>
+
+<div class="webr-container" data-block-title="Add ARMA errors to the regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add ARMA errors to the regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">K        &lt;- c(10, 20)
+fit_arma &lt;- Arima(both, order = c(2, 0, 0), xreg = fourier(both, K = K))
+fc_arma  &lt;- forecast(fit_arma, xreg = fourier(both, K = K, h = h))
+
+round(acf(residuals(fit_arma), lag.max = 2, plot = FALSE)$acf[2], 3)
+#&gt; [1] 0.014</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We pass the Fourier columns through <code>xreg</code>, which is where <code>Arima()</code> expects <a class="auto-link" href="ARIMAX-in-R.html" title="ARIMAX in R: ARIMA with External Regressors (xreg)">external regressors</a>, and specify <code>order = c(2, 0, 0)</code>. Those three numbers are the count of AR terms, the number of differences, and the count of MA terms, so this asks for an AR(2) error process and nothing else: each error is predicted from the two errors immediately before it. Residual correlation collapses from 0.953 to 0.014, which is effectively zero. The model now accounts for the runs.</p>
+
+<p>Note that this block takes appreciably longer to run than the earlier ones, perhaps twenty seconds or so, because estimating an ARIMA with several dozen regressors over 3936 observations is real work. That cost is a recurring theme with this method.</p>
+
+<p>Now look at what changed in the intervals.</p>
+
+<div class="webr-container" data-block-title="Compare prediction interval widths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare prediction interval widths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_mid &lt;- tslm(both ~ fourier(both, K = c(10, 20)))
+fc_mid  &lt;- forecast(fit_mid,
+                    newdata = data.frame(fourier(both, K = c(10, 20), h = h)))
+
+data.frame(
+  step        = c(1, 96),
+  plain_ols   = round(fc_mid$upper[c(1, 96), 2]  - fc_mid$lower[c(1, 96), 2]),
+  arma_errors = round(fc_arma$upper[c(1, 96), 2] - fc_arma$lower[c(1, 96), 2])
+)
+#&gt;   step plain_ols arma_errors
+#&gt; 1    1      3348        1033
+#&gt; 2   96      3348        3323</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plain regression gives a 95 percent interval 3348 megawatts wide for the very next half-hour, and exactly the same 3348 for two days out. That is nonsense on its face. Forecasting thirty minutes ahead is obviously easier than forecasting two days ahead, and any honest interval has to widen as the horizon grows.</p>
+
+<p>The ARMA version behaves properly. It starts narrow at 1033, because the AR(2) term predicts the next error from the two most recent residuals, which have already been observed, then widens to 3323 by step 96 as the influence of those residuals decays away. Same point forecasts, sane uncertainty.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A prediction interval that does not widen with the horizon is a broken interval.</strong> It is the visible symptom of <a class="auto-link" href="Autocorrelation-in-Residuals.html" title="Autocorrelation in Residuals: Durbin-Watson & Breusch-Godfrey Tests">autocorrelated residuals</a> being treated as independent noise, and it will make you far more confident about tomorrow than you have any right to be.</div></div>
+
+<p>And what did all this buy in point accuracy? Almost nothing.</p>
+
+<div class="webr-container" data-block-title="Accuracy of the ARMA-errors version">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Accuracy of the ARMA-errors version</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(fc_arma, test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE    MAE   MAPE 
+#&gt; 985.55 808.79   3.13 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3.13 percent, slightly worse than the 2.52 from the simpler <code>c(15, 40)</code> fit, mostly because we used fewer weekly harmonics here to keep the runtime tolerable. The lesson is that ARMA errors are a fix for your uncertainty estimates, not a route to better point forecasts. If all you publish is a single number, you may not need them. If anyone downstream makes decisions from your intervals, you do.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The comparison above used 95 percent intervals, which live in column 2 of <code>upper</code> and <code>lower</code>. Column 1 holds the 80 percent intervals. Report the width of the 80 percent interval for the first forecast step.</p>
+<div class="webr-container" data-block-title="Your turn: the 80 percent interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the 80 percent interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: the width of the 80 percent interval at step 1.
+# Hint: column 1 is the 80 percent interval, column 2 is the 95 percent one.
+round(fc_arma$upper[1, 2] - fc_arma$lower[1, 2])
+#&gt;  95% 
+#&gt; 1033 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="The 80 percent interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The 80 percent interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(fc_arma$upper[1, 1] - fc_arma$lower[1, 1])
+#&gt; 80% 
+#&gt; 675 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 675 megawatts against 1033 for the 95 percent interval. A narrower interval is a weaker claim: you are saying the truth lands inside it four times in five rather than nineteen times in twenty.</p>
+
+</details>
+</section>
+
+<h2>When is TBATS worth the extra runtime?</h2>
+
+<p>TBATS is the fully automatic option, and its selling point is that it decides almost everything for you. The name packs in what it can use: <a class="auto-link" href="TBATS-Model-in-R.html" title="TBATS in R: Forecast Multiple Seasonalities">Trigonometric seasonality</a>, <a class="auto-link" href="Time-Series-Transformations-in-R.html" title="Box-Cox and Transformations for Time Series in R">Box-Cox transformation</a>, ARMA errors, Trend and Seasonal components. Crucially, it lets the seasonal shape drift slowly over time rather than forcing it to stay fixed, which is something neither MSTL nor harmonic regression does by default.</p>
+
+<p>The catch is speed. By default <code>tbats()</code> searches many combinations, with and without the Box-Cox transformation, with and without a trend, with and without ARMA errors, and fits each one. On a long sub-daily series that adds up fast. Restricting the search to a single configuration keeps it manageable.</p>
+
+<div class="webr-container" data-block-title="Fit TBATS with a restricted search">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit TBATS with a restricted search</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_tb &lt;- tbats(both, use.box.cox = FALSE, use.trend = FALSE,
+                use.arma.errors = FALSE, use.parallel = FALSE)
+fc_tb  &lt;- forecast(fit_tb, h = h)
+
+round(accuracy(fc_tb, test)[2, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;    RMSE     MAE    MAPE 
+#&gt; 1427.03 1099.24    4.36 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each <code>use.*</code> argument switched off removes a branch from the search. This restricted fit takes roughly ten seconds and lands at 4.36 percent.</p>
+
+<p>For comparison, the unrestricted <code>tbats(both)</code> on this same training data took 172 seconds on a normal laptop and scored a MAPE of 7.38, which is worse. The extra search space cost nearly three minutes and bought a less accurate forecast on this particular series. That will not always be the outcome, but it is a useful reminder that "automatic" is not a synonym for "better".</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>TBATS earns its keep when the seasonal shape drifts.</strong> Its distinguishing feature is a seasonality that evolves, so it pays off on multi-year series where the daily demand profile in 2020 genuinely differs from 2015. Over the twelve stable summer weeks here there is nothing to drift, so the flexibility only costs parameters. On long or changing series, budget the runtime and give it a proper try.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> All these MAPE values need a scale. Fit the worst reasonable benchmark, <code>meanf()</code>, which predicts the historical mean forever, and see what a completely seasonality-blind forecast scores.</p>
+<div class="webr-container" data-block-title="Your turn: the flat-mean benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the flat-mean benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: score meanf(), which forecasts the historical mean forever.
+# Hint: swap snaive for meanf in the line below.
+round(accuracy(snaive(both, h = h), test)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE   MAPE 
+#&gt; 619.72   1.74 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="The flat-mean benchmark solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The flat-mean benchmark solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(meanf(both, h = h), test)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;    RMSE    MAPE 
+#&gt; 4956.27   16.73 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 16.73 percent for a forecast that uses no seasonality at all. The period-48 seasonal naive scored 19.02, which is <em>worse than the flat mean</em>. Using the wrong seasonal period was more damaging than using none, because it confidently repeated weekday shapes onto a weekend.</p>
+
+</details>
+</section>
+
+<h2>Which model actually wins on your data?</h2>
+
+<p>Six candidates are now fitted on identical training data and scored against the identical holdout. Putting them in one table is the only way to answer the question honestly.</p>
+
+<div class="webr-container" data-block-title="The full bake-off">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The full bake-off</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">score &lt;- function(f) round(accuracy(f, test)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)], 2)
+
+data.frame(rbind(
+  `snaive (period 48)`  = score(snaive(daily_only, h = h)),
+  `snaive (period 336)` = score(snaive(both, h = h)),
+  `MSTL + ETS`          = score(fc_stl),
+  `harmonic regression` = score(fc_big),
+  `harmonic + ARMA`     = score(fc_arma),
+  `TBATS`               = score(fc_tb)
+))
+#&gt;                        RMSE  MAPE MASE
+#&gt; snaive (period 48)  5629.62 19.02 7.68
+#&gt; snaive (period 336)  619.72  1.74 0.73
+#&gt; MSTL + ETS           780.99  2.44 0.99
+#&gt; harmonic regression  848.39  2.52 1.04
+#&gt; harmonic + ARMA      985.55  3.13 1.24
+#&gt; TBATS               1427.03  4.36 1.68</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>MASE is worth reading alongside MAPE. It compares your forecast against a naive one-step benchmark, so a MASE below 1 beats that benchmark and above 1 loses to it.</p>
+
+<p>The ordering is uncomfortable and completely real. The plain seasonal naive with the correct period wins outright, and the models get <em>worse</em> as they get more sophisticated. The most expensive model in the table is the least accurate one that knows about weeks.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>On a regular series over a short horizon, the right seasonal period beats the clever model every time.</strong> Everything below the second row is paying for flexibility this data does not need. Fit the benchmark first, always, and make every fancier model prove it earns its place.</div></div>
+
+<p>Before generalising from that, check whether the ranking is an accident of the two-day horizon. Refit on a shorter training set and forecast a full week.</p>
+
+<div class="webr-container" data-block-title="Does the ranking hold at a longer horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Does the ranking hold at a longer horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h2     &lt;- 336
+train2 &lt;- msts(y[1:(n - h2)], seasonal.periods = c(48, 336))
+test2  &lt;- y[(n - h2 + 1):n]
+score2 &lt;- function(f) round(accuracy(f, test2)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)], 2)
+
+data.frame(rbind(
+  `snaive (period 336)` = score2(snaive(train2, h = h2)),
+  `MSTL + ETS`          = score2(stlf(train2, h = h2))
+))
+#&gt;                       RMSE MAPE MASE
+#&gt; snaive (period 336) 488.84 1.22 0.57
+#&gt; MSTL + ETS          574.54 1.55 0.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same ordering over a full week, so it was not a fluke of the weekend window.</p>
+
+<p><img src="screenshots/Multiple-Seasonality-Forecasting-in-R-method-choice.webp" alt="Decision diagram for choosing a multiple-seasonality forecasting method" class="img-responsive img-zoomable" loading="lazy" width="1150" height="2160" /></p>
+
+<p><em>Figure 2: Which multiple-seasonality method to reach for, and what decides it.</em></p>
+
+<p>Now, this result deserves an honest caveat rather than a victory lap. The <code>taylor</code> series is twelve consecutive summer weeks with no public holidays, no clock change and no year-on-year drift. It is about as friendly as a real series gets, and friendly series are exactly where simple methods shine. Here is where the more elaborate options do earn their keep.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seasonal naive (longest period)</td>
+<td>Always, as the benchmark. Sometimes it just wins.</td>
+</tr>
+<tr>
+<td>MSTL and <code>stlf()</code></td>
+<td>You want to see the layers, and the seasonal shape is stable.</td>
+</tr>
+<tr>
+<td>Harmonic regression</td>
+<td>You need covariates (temperature, holidays, promotions), long horizons, or many seasonal periods at once.</td>
+</tr>
+<tr>
+<td>Harmonic plus ARMA errors</td>
+<td>Anyone downstream uses your <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a>.</td>
+</tr>
+<tr>
+<td>TBATS</td>
+<td>The seasonal shape drifts across months or years, and you can afford the runtime.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one thing every row shares is that you cannot know which applies to your series without doing what we just did.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The one-week check above scored only two methods. Add the harmonic regression to it and find out whether the ranking survives the longer horizon as well.</p>
+<div class="webr-container" data-block-title="Your turn: harmonic at the one-week horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: harmonic at the one-week horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: score the K = c(15, 40) harmonic regression on train2 and test2.
+# Hint: score2() and train2 already exist; build the fit exactly as fc_big was built.
+score2(stlf(train2, h = h2))
+#&gt;   RMSE   MAPE   MASE 
+#&gt; 574.54   1.55   0.69 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Harmonic at the one-week horizon solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Harmonic at the one-week horizon solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_harm &lt;- forecast(tslm(train2 ~ fourier(train2, K = c(15, 40))),
+                    newdata = data.frame(fourier(train2, K = c(15, 40), h = h2)))
+score2(ex_harm)
+#&gt;   RMSE   MAPE   MASE 
+#&gt; 810.69   1.79   0.81 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 0.81 MASE, still third behind the seasonal naive at 0.57 and MSTL at 0.69, so the ordering is the same over a week as it was over a weekend. Notice also that the harmonic model improves in absolute terms at the longer horizon, from 2.52 percent to 1.79, because the week-long window contains five ordinary weekdays it predicts easily rather than two awkward weekend days.</p>
+
+</details>
+</section>
+
+<h2>What sub-daily traps will break your model?</h2>
+
+<p>Sub-daily data has failure modes that monthly data simply does not have, and every one of them is quiet. Nothing errors. You just get a worse forecast than you should and no clue why.</p>
+
+<p><strong>Trap one: the clocks change.</strong> Every <code>msts</code> model assumes a fixed number of observations per cycle. <a class="auto-link" href="Dates-and-Times-Drills-in-R.html" title="Dates and Times Drills: 15 R Problems That Trip Everyone Up">Daylight saving</a> time breaks that assumption twice a year.</p>
+
+<div class="webr-container" data-block-title="Count half-hours across a clock change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count half-hours across a clock change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spring &lt;- seq(ymd_hm(&quot;2024-03-31 00:00&quot;, tz = &quot;Europe/London&quot;),
+              ymd_hm(&quot;2024-04-01 00:00&quot;, tz = &quot;Europe/London&quot;) - minutes(30),
+              by = &quot;30 min&quot;)
+autumn &lt;- seq(ymd_hm(&quot;2024-10-27 00:00&quot;, tz = &quot;Europe/London&quot;),
+              ymd_hm(&quot;2024-10-28 00:00&quot;, tz = &quot;Europe/London&quot;) - minutes(30),
+              by = &quot;30 min&quot;)
+
+c(spring_day = length(spring), normal_day = 48, autumn_day = length(autumn))
+#&gt; spring_day normal_day autumn_day 
+#&gt;         46         48         50 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In March the clocks go forward and the day holds 46 half-hours. In October they go back and it holds 50. If you store local time and assume 48 per day, then from the last Sunday in March onwards every observation sits in the wrong seasonal slot, permanently. The standard defence is to store and model in UTC, where every day really does have 48 half-hours, and handle the local-time effect as a separate regressor if the behaviour genuinely follows the wall clock.</p>
+
+<p><strong>Trap two: missing rows shift everything after them.</strong> Because the seasonal period is a count of rows, one dropped reading moves every later observation one slot out of alignment.</p>
+
+<div class="webr-container" data-block-title="Detect missing readings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect missing readings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gappy &lt;- elec[-(101:110), ]
+
+nrow(gappy)
+#&gt; [1] 4022
+has_gaps(gappy)
+#&gt; # A tibble: 1 × 1
+#&gt;   .gaps
+#&gt;   &lt;lgl&gt;
+#&gt; 1 TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten readings removed and the tsibble reports it immediately. A plain vector carries no timestamps, so neither it nor <code>msts()</code> has any way to detect the loss. The repair is to restore the full time grid, which converts a silent misalignment into visible <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</p>
+
+<div class="webr-container" data-block-title="Restore the grid before modelling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restore the grid before modelling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">filled &lt;- fill_gaps(gappy)
+
+c(rows = nrow(filled), missing = sum(is.na(filled$demand)))
+#&gt;    rows missing 
+#&gt;    4032      10 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Back to 4032 rows with 10 explicit NAs. Now every reading is in its correct seasonal slot again, and you can decide how to impute the gaps as a separate, deliberate step.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A dropped row is worse than a missing value.</strong> A missing value is visible and most functions will complain about it. A dropped row silently shifts every subsequent observation into the wrong seasonal position, and the model just quietly gets worse. Always check <code>has_gaps()</code> before you build the series.</div></div>
+
+<p><strong>Trap three: you cannot estimate a cycle you have not observed twice.</strong> The annual period is real for electricity demand, but reality is not enough.</p>
+
+<div class="webr-container" data-block-title="How many cycles of each period do you hold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How many cycles of each period do you hold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(
+  period             = c(&quot;day&quot;, &quot;week&quot;, &quot;year&quot;),
+  length             = c(48, 336, 17532),
+  cycles_in_12_weeks = round(4032 / c(48, 336, 17532), 2)
+)
+#&gt;   period length cycles_in_12_weeks
+#&gt; 1    day     48              84.00
+#&gt; 2   week    336              12.00
+#&gt; 3   year  17532               0.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>84 daily cycles and 12 weekly cycles are plenty. 0.23 of an annual cycle is not a cycle at all, it is a fragment. Include the annual period anyway and the model will happily fit summer's upward slope and then extrapolate it into a fictional winter. As a rule of thumb, you want at least two complete cycles before a period is worth modelling, and preferably more.</p>
+
+<p><strong>Trap four: nested periods overlap.</strong> A week contains exactly seven days, so harmonic 7 of the weekly period is mathematically identical to harmonic 1 of the daily period. Include both and the regression is singular.</p>
+
+<div class="webr-container" data-block-title="Watch fourier() drop the duplicates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch fourier() drop the duplicates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X_nested &lt;- fourier(msts(y, seasonal.periods = c(48, 336)), K = c(2, 8))
+colnames(X_nested)
+#&gt;  [1] &quot;S1-48&quot;  &quot;C1-48&quot;  &quot;S2-48&quot;  &quot;C2-48&quot;  &quot;S1-336&quot; &quot;C1-336&quot; &quot;S2-336&quot; &quot;C2-336&quot; &quot;S3-336&quot; &quot;C3-336&quot;
+#&gt; [11] &quot;S4-336&quot; &quot;C4-336&quot; &quot;S5-336&quot; &quot;C5-336&quot; &quot;S6-336&quot; &quot;C6-336&quot; &quot;S8-336&quot; &quot;C8-336&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We asked for 8 weekly harmonics and got 7 back. Read the sequence carefully: it runs 1 through 6, then skips straight to 8. <code>S7-336</code> and <code>C7-336</code> are absent because they duplicate <code>S1-48</code> and <code>C1-48</code>, and <code>fourier()</code> drops them automatically without printing a message. This is helpful behaviour, but it means your model has slightly fewer columns than you asked for, so do not be surprised when the count does not match your arithmetic. Some other packages warn about the same collision instead of silently dropping it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Practise the gap-repair workflow on a different slice. Remove readings 500 to 520 from <code>elec</code>, restore the grid, and count the resulting missing values.</p>
+<div class="webr-container" data-block-title="Your turn: repair a different gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: repair a different gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: remove readings 500 to 520 instead, then count the NAs after repair.
+# Hint: adapt the slice in the line below.
+sum(is.na(fill_gaps(elec[-(101:110), ])$demand))
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Repair a different gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repair a different gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gappy  &lt;- elec[-(500:520), ]
+ex_filled &lt;- fill_gaps(ex_gappy)
+
+c(gap_rows = sum(is.na(ex_filled$demand)))
+#&gt; gap_rows 
+#&gt;       21 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 21 rows removed gives 21 NAs after repair. The count always matches, which makes this a quick integrity check: if <code>fill_gaps()</code> adds more rows than you expected, your timestamps have a problem beyond simple missing readings.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: the five-step playbook end to end</h2>
+
+<p>Here is the whole method on one series, start to finish. Step one is arithmetic: derive the candidate periods from the sampling rate, and check you hold enough cycles of each to bother.</p>
+
+<div class="webr-container" data-block-title="Step 1: derive and check the periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: derive and check the periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">obs_per_hour &lt;- 2
+candidates   &lt;- c(day = 24, week = 24 * 7) * obs_per_hour
+
+data.frame(period = candidates, cycles_available = round(length(y) / candidates, 1))
+#&gt;      period cycles_available
+#&gt; day      48               84
+#&gt; week    336               12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>84 daily cycles and 12 weekly cycles, both comfortably above the two-cycle minimum. The annual period is dropped here rather than carried along as decoration.</p>
+
+<p>Step two and three: hold out the final two days and score a shortlist on them. The shortlist deliberately starts with the benchmark.</p>
+
+<div class="webr-container" data-block-title="Steps 2 and 3: hold out and score a shortlist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Steps 2 and 3: hold out and score a shortlist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h_op    &lt;- 96
+train   &lt;- msts(y[1:(length(y) - h_op)], seasonal.periods = c(48, 336))
+holdout &lt;- y[(length(y) - h_op + 1):length(y)]
+
+cand_snaive &lt;- snaive(train, h = h_op)
+cand_mstl   &lt;- stlf(train, h = h_op)
+cand_harm   &lt;- forecast(tslm(train ~ fourier(train, K = c(15, 40))),
+                        newdata = data.frame(fourier(train, K = c(15, 40), h = h_op)))
+
+board &lt;- rbind(
+  `snaive (336)` = accuracy(cand_snaive, holdout)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)],
+  `MSTL + ETS`   = accuracy(cand_mstl,   holdout)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)],
+  `harmonic`     = accuracy(cand_harm,   holdout)[2, c(&quot;RMSE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)]
+)
+round(board[order(board[, &quot;MASE&quot;]), ], 2)
+#&gt;                RMSE MAPE MASE
+#&gt; snaive (336) 619.72 1.74 0.73
+#&gt; MSTL + ETS   780.99 2.44 0.99
+#&gt; harmonic     848.39 2.52 1.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sorting by MASE puts the winner on top automatically, so the choice is made by the numbers rather than by preference.</p>
+
+<p>Step four and five: refit the winner on every observation you have, including the holdout, and produce the forecast you actually ship.</p>
+
+<div class="webr-container" data-block-title="Steps 4 and 5: refit on everything and forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Steps 4 and 5: refit on everything and forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full     &lt;- msts(y, seasonal.periods = c(48, 336))
+final_fc &lt;- snaive(full, h = 48)
+
+round(head(data.frame(
+  step  = 1:48,
+  point = as.numeric(final_fc$mean),
+  lo95  = as.numeric(final_fc$lower[, 2]),
+  hi95  = as.numeric(final_fc$upper[, 2])
+), 4), 1)
+#&gt;   step point    lo95    hi95
+#&gt; 1    1 22651 21204.4 24097.6
+#&gt; 2    2 21874 20427.4 23320.6
+#&gt; 3    3 21763 20316.4 23209.6
+#&gt; 4    4 21798 20351.4 23244.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The next 24 hours of demand with 95 percent intervals, from a model chosen on evidence rather than fashion. Refitting on the full data before shipping matters: the holdout existed to <em>choose</em> the model, and once that choice is made you want the final model to have seen every observation available.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Does the weekend explain the whole gap?</h3>
+
+<p>The period-48 model scored 19.02 percent against a Saturday and Sunday holdout. Test whether that failure is specifically about weekends. Move the holdout back two days so it covers Thursday and Friday instead, then compare the period-48 and period-336 models on that midweek window. The series has 4032 observations and starts on a Monday.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: midweek holdout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: midweek holdout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: ending the training data 192 observations early puts the
+# holdout on Thursday and Friday.
+ex1_h     &lt;- 96
+ex1_start &lt;- 4032 - 96 - 96
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Midweek holdout solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Midweek holdout solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex1_h     &lt;- 96
+ex1_start &lt;- 4032 - 96 - 96
+
+ex1_train48  &lt;- msts(y[1:ex1_start], seasonal.periods = 48)
+ex1_train336 &lt;- msts(y[1:ex1_start], seasonal.periods = c(48, 336))
+ex1_test     &lt;- y[(ex1_start + 1):(ex1_start + ex1_h)]
+
+c(period48  = round(accuracy(snaive(ex1_train48,  h = ex1_h), ex1_test)[2, &quot;MAPE&quot;], 2),
+  period336 = round(accuracy(snaive(ex1_train336, h = ex1_h), ex1_test)[2, &quot;MAPE&quot;], 2))
+#&gt;  period48 period336 
+#&gt;      1.25      1.11 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 1.25 against 1.11. The daily-only model nearly catches up, because midweek days genuinely do resemble each other, so repeating Wednesday onto Thursday works fine. The weekly period only pays off when the forecast window crosses a boundary between day types. This is why a holdout that never spans a weekend would have hidden the problem completely, and why you should always check that your evaluation window contains the situations you actually care about.</p>
+
+</details>
+
+<h3>Exercise 2: Pick K properly with a grid search</h3>
+
+<p>Choosing K by trying values against the test set is cheating. Do it the honest way instead: scan a grid of K settings, compute AICc for each on the training data alone, and report the table. Use <code>both</code> as the series and try <code>c(10,10)</code>, <code>c(10,20)</code>, <code>c(15,30)</code>, <code>c(15,40)</code> and <code>c(20,50)</code>.</p>
+
+<p>One warning that will save you a confusing error. <code>tslm()</code> looks up the variables in your formula by name, so if you call it with the K value hidden inside an anonymous function (<code>sapply(grid, function(k) tslm(both ~ fourier(both, K = k)))</code>) it will fail with "object 'k' not found". Use a plain <code>for</code> loop so the variable lives where <code>tslm()</code> can find it.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: grid search over K">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: grid search over K</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: CV(fit)[&quot;AICc&quot;] extracts the criterion from a tslm fit.
+ex2_grid &lt;- list(c(10, 10), c(10, 20), c(15, 30), c(15, 40), c(20, 50))
+ex2_aicc &lt;- numeric(length(ex2_grid))
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Grid search over K solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid search over K solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex2_grid &lt;- list(c(10, 10), c(10, 20), c(15, 30), c(15, 40), c(20, 50))
+ex2_aicc &lt;- numeric(length(ex2_grid))
+
+for (i in seq_along(ex2_grid)) {
+  ex2_K       &lt;- ex2_grid[[i]]
+  ex2_fit     &lt;- tslm(both ~ fourier(both, K = ex2_K))
+  ex2_aicc[i] &lt;- CV(ex2_fit)[&quot;AICc&quot;]
+}
+
+data.frame(
+  K_day  = sapply(ex2_grid, `[`, 1),
+  K_week = sapply(ex2_grid, `[`, 2),
+  AICc   = round(ex2_aicc, 1)
+)
+#&gt;   K_day K_week    AICc
+#&gt; 1    10     10 53916.0
+#&gt; 2    10     20 53136.9
+#&gt; 3    15     30 52839.1
+#&gt; 4    15     40 52723.2
+#&gt; 5    20     50 52754.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> AICc falls to a minimum of 52723.2 at <code>c(15, 40)</code> and then rises again at <code>c(20, 50)</code>. That turning point is the important part. More harmonics are not automatically better, and the criterion found the balance without ever touching the holdout. This is also the setting that scored best on the test set earlier, which is exactly the agreement you hope to see.</p>
+
+</details>
+
+<h3>Exercise 3: Diagnose an unfamiliar series</h3>
+
+<p>Someone hands you eight weeks of hourly readings and tells you nothing about them. Recover the seasonal structure yourself. Build the series below, then use the ACF to confirm which periods are present, and decompose it to check your answer.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: recover unknown periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: recover unknown periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># An hourly series with two cycles buried in it.
+set.seed(2026)
+ex3_hours &lt;- 1:(24 * 7 * 8)
+ex3_y &lt;- 100 + 20 * sin(2*pi*ex3_hours/24) + 8 * sin(2*pi*ex3_hours/168) +
+         rnorm(length(ex3_hours), 0, 2)
+
+# Hint: for hourly data, what are the day and week periods?
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recover unknown periods solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover unknown periods solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hourly data: 24 observations per day, 168 per week.
+ex3_ac &lt;- acf(ex3_y, lag.max = 200, plot = FALSE)
+round(ex3_ac$acf[c(24, 168) + 1], 3)
+#&gt; [1] 0.921 0.861
+
+ex3_series &lt;- msts(ex3_y, seasonal.periods = c(24, 168))
+colnames(mstl(ex3_series))
+#&gt; [1] &quot;Data&quot;        &quot;Trend&quot;       &quot;Seasonal24&quot;  &quot;Seasonal168&quot; &quot;Remainder&quot;  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Strong correlation at both lag 24 and lag 168 confirms a daily and a weekly cycle, which matches how the series was built. Note that the periods are 24 and 168, not 48 and 336, because these are hourly readings rather than half-hourly. The period always depends on the sampling rate, never on the calendar alone. Decomposing with both periods recovers a <code>Seasonal24</code> and a <code>Seasonal168</code> column, closing the loop on the diagnosis.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Do I have to use msts, or will a plain ts work?</strong> A plain <code>ts</code> holds exactly one seasonal period, so it works only if your data genuinely has one. For sub-daily data that is almost never true. Use <code>msts()</code> for the forecast package or a <code>tsibble</code> for fable.</p>
+
+<p><strong>I built a tsibble. How do I actually forecast it?</strong> Every model in this tutorial comes from the forecast package and wants an <code>msts</code> object, so the tsibble here was used for its calendar checks (<code>interval()</code>, <code>has_gaps()</code>, <code>fill_gaps()</code>) rather than for fitting. To model the tsibble directly you use the <a class="auto-link" href="fable-in-R.html" title="fable in R: Tidy Time Series Forecasting with tsibble">fable package</a> instead, where the same three ideas appear as <code>STL()</code>, <code>TSLM(demand ~ fourier(period = 48, K = 15) + fourier(period = 336, K = 40))</code> and <code>ARIMA()</code> with Fourier regressors. A common and perfectly reasonable workflow is to clean and check the series as a tsibble, then hand the demand column to <code>msts()</code> for fitting.</p>
+
+<p><strong>How many seasonal periods is too many?</strong> Include a period only if you hold at least two complete cycles of it and the ACF shows a bump at that lag. In practice sub-daily series use two, the day and the week. The annual cycle needs several years of history before it is worth the parameters.</p>
+
+<p><strong>What about prophet?</strong> Prophet handles multiple seasonalities via Fourier terms too, and is available in R through the fable.prophet package. It is convenient with holidays and missing data, but the ideas here are the same ones under its hood, and on regular series it rarely beats a well-specified harmonic regression.</p>
+
+<p><strong>My timestamps are irregular, not on a fixed grid.</strong> Everything in this tutorial assumes a fixed interval, because the seasonal period is a count of rows. Aggregate to a regular grid first (round to the nearest five or fifteen minutes), then run <code>has_gaps()</code> and <code>fill_gaps()</code> before modelling.</p>
+
+<p><strong>Should I model the annual cycle if I only have a few months?</strong> No. With less than two full annual cycles the model cannot separate the annual shape from the trend, and it will extrapolate whatever slope your sample happens to contain. Wait for the data or capture the effect with covariates such as temperature instead.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Multiple-Seasonality-Forecasting-in-R-playbook.webp" alt="Diagram of the five-step playbook for forecasting sub-daily data" class="img-responsive img-zoomable" loading="lazy" width="2106" height="394" /></p>
+
+<p><em>Figure 3: The five steps, in order, for any sub-daily series.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>The tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Count the periods</td>
+<td>Multiply observations per hour by the hours in each cycle</td>
+<td>Arithmetic</td>
+</tr>
+<tr>
+<td>2. Confirm with the ACF</td>
+<td>Check for a correlation bump at each candidate lag</td>
+<td><code>acf()</code></td>
+</tr>
+<tr>
+<td>3. Build the container</td>
+<td>Store every real period in one object</td>
+<td><code>msts()</code> or <code>tsibble()</code></td>
+</tr>
+<tr>
+<td>4. Score a shortlist</td>
+<td>Benchmark first, then MSTL, then harmonic regression</td>
+<td><code>accuracy()</code> on a holdout</td>
+</tr>
+<tr>
+<td>5. Refit and forecast</td>
+<td>Retrain the winner on all data before shipping</td>
+<td><code>forecast()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The findings worth carrying away:</p>
+
+<ul>
+
+<li>A seasonal period is a count of observations, not a duration. Half-hourly data has 48 per day and 336 per week.</li>
+
+<li>Getting the period wrong cost more than any modelling choice: 19.02 percent error against 1.74 percent, from the same method on the same data.</li>
+
+<li>The daily cycle held 73.8 percent of the variance and the weekly cycle 23.2 percent. Discarding the weekly layer discards nearly a quarter of the signal.</li>
+
+<li>Harmonic regression needs generous K on the longer period, otherwise the weekly shape is too smooth to tell a weekday from a weekend.</li>
+
+<li>ARMA errors fix prediction intervals, not point forecasts. A flat interval is the symptom.</li>
+
+<li>TBATS is for seasonality that drifts. On a stable series it costs a lot of runtime for nothing.</li>
+
+<li>The seasonal naive with the right period beat every sophisticated model here, at both a two-day and a one-week horizon. Fit it first and make everything else prove itself.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. Section 12.1: Complex seasonality. <a href="https://otexts.com/fpp3/complexseasonality.html">Link</a></li>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 2nd edition. Section 11.1: Complex seasonality, covering <code>msts</code>, <code>mstl</code> and <code>tbats</code>. <a href="https://otexts.com/fpp2/complexseasonality.html">Link</a></li>
+
+<li>De Livera, A.M., Hyndman, R.J. and Snyder, R.D. Forecasting time series with complex seasonal patterns using exponential smoothing. <em>Journal of the American Statistical Association</em> 106(496), 1513-1527 (2011). The original TBATS paper. <a href="https://robjhyndman.com/papers/ComplexSeasonality.pdf">Link</a></li>
+
+<li>Hyndman, R.J. Seasonal periods. Hyndsight blog, on choosing periods for weekly, daily and sub-daily data. <a href="https://robjhyndman.com/hyndsight/seasonal-periods/">Link</a></li>
+
+<li>forecast package reference: <code>msts()</code>, multi-seasonal time series objects. <a href="https://pkg.robjhyndman.com/forecast/reference/msts.html">Link</a></li>
+
+<li>forecast package reference: <code>tbats()</code>, and its <code>use.*</code> search arguments. <a href="https://pkg.robjhyndman.com/forecast/reference/tbats.html">Link</a></li>
+
+<li>tsibble documentation: <code>fill_gaps()</code>, and how implicit missing values differ from explicit NA. <a href="https://tsibble.tidyverts.org/reference/fill_gaps.html">Link</a></li>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. Section 10.5: Dynamic harmonic regression. <a href="https://otexts.com/fpp3/dhr.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Fourier-Terms-in-R.html">Fourier Terms in R</a> goes much deeper on harmonic regression: what each sine and cosine pair contributes, how to select K, and how to fit the same models in fable.</li>
+
+<li><a href="MSTL-in-R.html">MSTL in R</a> covers multiple seasonal decomposition on its own terms, including how to read and adjust the seasonal windows.</li>
+
+<li><a href="Backtesting-Forecasts-in-R.html">Backtesting Forecasts in R</a> replaces the single holdout used here with rolling-origin evaluation, which is the more reliable way to choose between close candidates.</li>
+
+</ul>
+
+{% endraw %}
