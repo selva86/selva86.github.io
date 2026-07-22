@@ -1,0 +1,1984 @@
+---
+title: "Time Series Features with feasts: Fingerprint Thousands of Series"
+description: "Time series features in R with feasts: collapse thousands of series into one tidy table, read trend and seasonal strength, and route each series to a model."
+keywords: "time series features in R, feasts package, features() R, feat_stl, trend strength, seasonal strength, tsibble features, feature extraction time series, spectral entropy, time series clustering R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-2.5"
+post_type: "C"
+auto_link_terms: "time series features|time series features in R|feasts package|feasts|features() feasts|feat_stl|feat_acf|trend strength|seasonal strength|seasonal_strength_year|feature_set()|spectral entropy|time series feature extraction"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Time Series Features"
+sidebar_order: "37"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A time series feature is a single number that summarises a whole series, like how strongly it trends or how seasonal it is. The feasts package computes dozens of them in one call, which turns a pile of thousands of series into one ordinary table you can sort, filter, plot and cluster. This tutorial builds that idea from scratch, and every code block on this page runs in your browser.</p>
+
+<h2>What is a time series feature, and why turn a whole series into one number?</h2>
+
+<p>The <code>tourism</code> dataset that ships with the tsibble package holds 304 separate Australian tourism series, 24,320 numbers in total. Nobody can look at 304 charts and remember what they saw. So instead of looking at the series, we are going to measure them, one row of numbers per series. That single move is what this whole page is about, and it takes one function call.</p>
+
+<div class="webr-container" data-block-title="Summarise 304 series in one call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise 304 series in one call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(feasts)
+library(dplyr)
+library(ggplot2)
+
+tourism |&gt; features(Trips, feat_stl)
+#&gt; # A tibble: 304 × 12
+#&gt;    Region         State             Purpose trend_strength seasonal_strength_year seasonal_peak_year
+#&gt;    &lt;chr&gt;          &lt;chr&gt;             &lt;chr&gt;            &lt;dbl&gt;                  &lt;dbl&gt;              &lt;dbl&gt;
+#&gt;  1 Adelaide       South Australia   Busine…          0.464                  0.407                  3
+#&gt;  2 Adelaide       South Australia   Holiday          0.554                  0.619                  1
+#&gt;  3 Adelaide       South Australia   Other            0.746                  0.202                  2
+#&gt;  4 Adelaide       South Australia   Visiti…          0.435                  0.452                  1
+#&gt;  5 Adelaide Hills South Australia   Busine…          0.464                  0.179                  3
+#&gt;  6 Adelaide Hills South Australia   Holiday          0.528                  0.296                  2
+#&gt;  7 Adelaide Hills South Australia   Other            0.593                  0.404                  2
+#&gt;  8 Adelaide Hills South Australia   Visiti…          0.488                  0.254                  0
+#&gt;  9 Alice Springs  Northern Territo… Busine…          0.534                  0.251                  0
+#&gt; 10 Alice Springs  Northern Territo… Holiday          0.381                  0.832                  3
+#&gt; # ℹ 294 more rows
+#&gt; # ℹ 6 more variables: seasonal_trough_year &lt;dbl&gt;, spikiness &lt;dbl&gt;, linearity &lt;dbl&gt;,
+#&gt; #   curvature &lt;dbl&gt;, stl_e_acf1 &lt;dbl&gt;, stl_e_acf10 &lt;dbl&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what those lines did. <code>tourism</code> is the dataset, <code>Trips</code> is the column being measured, and <code>feat_stl</code> is a recipe that says which numbers to compute. The <code>features()</code> function walked through all 304 series, applied the recipe to each one, and stacked the answers into a table. The pipe <code>|&gt;</code> just passes the thing on its left into the function on its right.</p>
+
+<p>Read the shape of the result and the whole idea clicks. Going in: 24,320 rows of quarterly observations. Coming out: 304 rows, exactly one per series, with 9 measurements each. The <code>Region</code>, <code>State</code> and <code>Purpose</code> columns are still there so you always know which row describes which series.</p>
+
+<p><img src="screenshots/Time-Series-Features-in-R-flattening.webp" alt="Diagram showing 304 time series collapsing into 304 rows of features" class="img-responsive img-zoomable" loading="lazy" width="1904" height="394" /></p>
+
+<p><em>Figure 1: features() collapses every series into a single row, turning a time series problem into an ordinary table problem.</em></p>
+
+<p>That output table is the point of the whole exercise. It is a plain data frame, and everything the rest of this page does is built on that one fact.</p>
+
+<p><code>feat_stl</code> is not special. <code>features()</code> will run any summary function you hand it, including ones you already know.</p>
+
+<div class="webr-container" data-block-title="Use any summary function as a feature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use any summary function as a feature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt; features(Trips, list(avg = mean, spread = sd))
+#&gt; # A tibble: 304 × 5
+#&gt;    Region         State              Purpose     avg spread
+#&gt;    &lt;chr&gt;          &lt;chr&gt;              &lt;chr&gt;     &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 Adelaide       South Australia    Business 156.    35.6
+#&gt;  2 Adelaide       South Australia    Holiday  157.    27.1
+#&gt;  3 Adelaide       South Australia    Other     56.6   17.3
+#&gt;  4 Adelaide       South Australia    Visiting 205.    32.5
+#&gt;  5 Adelaide Hills South Australia    Business   2.66   4.30
+#&gt;  6 Adelaide Hills South Australia    Holiday   10.5    6.37
+#&gt;  7 Adelaide Hills South Australia    Other      1.40   1.65
+#&gt;  8 Adelaide Hills South Australia    Visiting  14.2   10.7
+#&gt;  9 Alice Springs  Northern Territory Business  14.6    7.20
+#&gt; 10 Alice Springs  Northern Territory Holiday   31.9   18.1
+#&gt; # ℹ 294 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>list()</code> wrapper names the outputs. <code>avg = mean</code> means "run <code>mean()</code> on each series and call the resulting column <code>avg</code>". You get one column per named function, and the column names are yours to choose.</p>
+
+<p>A feature function does not have to return a single number either. If it returns several values, you get several columns.</p>
+
+<div class="webr-container" data-block-title="One function can produce many columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One function can produce many columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt; features(Trips, quantile)
+#&gt; # A tibble: 304 × 8
+#&gt;    Region         State              Purpose     `0%`  `25%`   `50%`  `75%` `100%`
+#&gt;    &lt;chr&gt;          &lt;chr&gt;              &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 Adelaide       South Australia    Business  68.7   134.   153.    177.   242.
+#&gt;  2 Adelaide       South Australia    Holiday  108.    135.   154.    172.   224.
+#&gt;  3 Adelaide       South Australia    Other     25.9    43.9   53.8    62.5  107.
+#&gt;  4 Adelaide       South Australia    Visiting 137.    179.   206.    229.   270.
+#&gt;  5 Adelaide Hills South Australia    Business   0       0      1.26    3.92  28.6
+#&gt;  6 Adelaide Hills South Australia    Holiday    0       5.77   8.52   14.1   35.8
+#&gt;  7 Adelaide Hills South Australia    Other      0       0      0.908   2.09   8.95
+#&gt;  8 Adelaide Hills South Australia    Visiting   0.778   8.91  12.2    16.8   81.1
+#&gt;  9 Alice Springs  Northern Territory Business   1.01    9.13  13.3    18.5   34.1
+#&gt; 10 Alice Springs  Northern Territory Holiday    2.81   16.9   31.5    44.8   76.5
+#&gt; # ℹ 294 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>quantile()</code> returns five numbers (the minimum, the three quartiles and the maximum), so <code>features()</code> created five columns and named them after the percentages. This is exactly how the built-in recipes like <code>feat_stl</code> work under the hood: they are just functions that return several named numbers at once.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A feature table converts a time series problem into an ordinary table problem.</strong> Once each series is one row, ranking series, filtering them, grouping them by behaviour and spotting the strange ones are all things you already know how to do with dplyr.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the median number of trips for every series and call the resulting column <code>ex_median</code>. Show the first 5 rows.</p>
+<div class="webr-container" data-block-title="Your turn: median trips per series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: median trips per series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This recipe computes the mean. Change it to compute the median instead.
+tourism |&gt;
+  features(Trips, list(ex_median = mean)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region         State           Purpose  ex_median
+#&gt;   &lt;chr&gt;          &lt;chr&gt;           &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1 Adelaide       South Australia Business    156.
+#&gt; 2 Adelaide       South Australia Holiday     157.
+#&gt; 3 Adelaide       South Australia Other        56.6
+#&gt; 4 Adelaide       South Australia Visiting    205.
+#&gt; 5 Adelaide Hills South Australia Business      2.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median trips per series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median trips per series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt;
+  features(Trips, list(ex_median = median)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region         State           Purpose  ex_median
+#&gt;   &lt;chr&gt;          &lt;chr&gt;           &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1 Adelaide       South Australia Business    153.
+#&gt; 2 Adelaide       South Australia Holiday     154.
+#&gt; 3 Adelaide       South Australia Other        53.8
+#&gt; 4 Adelaide       South Australia Visiting    206.
+#&gt; 5 Adelaide Hills South Australia Business      1.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> Any function that takes a numeric vector and returns a number works as a feature. <code>median</code> needs no special treatment.</p>
+
+</details>
+</section>
+
+<h2>How does features() know where one series ends and the next begins?</h2>
+
+<p>The last section quietly assumed something big: that R knows the 24,320 rows of <code>tourism</code> are 304 separate series rather than one long one. That knowledge does not come from <code>features()</code>. It comes from the data structure the rows live in, called a tsibble.</p>
+
+<p>A tsibble is a data frame with two extra pieces of information attached. The <strong>index</strong> is the column holding time. The <strong>key</strong> is the set of columns that identify which series a row belongs to. Print a tsibble and both are written in the header.</p>
+
+<div class="webr-container" data-block-title="Print the tsibble and read its header">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print the tsibble and read its header</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism
+#&gt; # A tsibble: 24,320 x 5 [1Q]
+#&gt; # Key:       Region, State, Purpose [304]
+#&gt;    Quarter Region   State           Purpose  Trips
+#&gt;      &lt;qtr&gt; &lt;chr&gt;    &lt;chr&gt;           &lt;chr&gt;    &lt;dbl&gt;
+#&gt;  1 1998 Q1 Adelaide South Australia Business  135.
+#&gt;  2 1998 Q2 Adelaide South Australia Business  110.
+#&gt;  3 1998 Q3 Adelaide South Australia Business  166.
+#&gt;  4 1998 Q4 Adelaide South Australia Business  127.
+#&gt;  5 1999 Q1 Adelaide South Australia Business  137.
+#&gt;  6 1999 Q2 Adelaide South Australia Business  200.
+#&gt;  7 1999 Q3 Adelaide South Australia Business  169.
+#&gt;  8 1999 Q4 Adelaide South Australia Business  134.
+#&gt;  9 2000 Q1 Adelaide South Australia Business  154.
+#&gt; 10 2000 Q2 Adelaide South Australia Business  169.
+#&gt; # ℹ 24,310 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two lines of that header carry all the meaning. <code>[1Q]</code> says the index column steps forward one quarter at a time, so the time spacing is quarterly. <code>Key: Region, State, Purpose [304]</code> says a series is defined by a unique combination of those three columns, and there are 304 such combinations in the data.</p>
+
+<p>So "Adelaide, South Australia, Business" is one series of 80 quarters. "Adelaide, South Australia, Holiday" is a different series of 80 quarters. When <code>features()</code> runs, it splits on the key, applies your recipe to each group's <code>Trips</code> values, and returns one row per group. The count in the header is the number of rows you will get back.</p>
+
+<p>You can ask for that count directly rather than reading it off the print output.</p>
+
+<div class="webr-container" data-block-title="Count the series in a tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the series in a tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_keys(tourism)
+#&gt; [1] 304</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Most of your own data will not arrive as a tsibble, so you build one. <code>as_tsibble()</code> takes a normal data frame and tells it which column is time and which columns identify a series.</p>
+
+<div class="webr-container" data-block-title="Build a tsibble from a plain data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a tsibble from a plain data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits &lt;- data.frame(
+  month = rep(yearmonth(&quot;2023 Jan&quot;) + 0:11, 2),
+  shop  = rep(c(&quot;north&quot;, &quot;south&quot;), each = 12),
+  sales = c(100:111, 200:211)
+)
+
+visits_ts &lt;- visits |&gt; as_tsibble(index = month, key = shop)
+visits_ts
+#&gt; # A tsibble: 24 x 3 [1M]
+#&gt; # Key:       shop [2]
+#&gt;       month shop  sales
+#&gt;       &lt;mth&gt; &lt;chr&gt; &lt;int&gt;
+#&gt;  1 2023 Jan north   100
+#&gt;  2 2023 Feb north   101
+#&gt;  3 2023 Mar north   102
+#&gt;  4 2023 Apr north   103
+#&gt;  5 2023 May north   104
+#&gt;  6 2023 Jun north   105
+#&gt;  7 2023 Jul north   106
+#&gt;  8 2023 Aug north   107
+#&gt;  9 2023 Sep north   108
+#&gt; 10 2023 Oct north   109
+#&gt; # ℹ 14 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>yearmonth(&quot;2023 Jan&quot;) + 0:11</code> generates twelve consecutive months, and <code>rep(..., 2)</code> repeats them so both shops have the same calendar. <code>index = month</code> names the time column and <code>key = shop</code> says each shop is its own series. The header confirms it: <code>[1M]</code> for monthly spacing, and <code>shop [2]</code> for two series.</p>
+
+<p>Now <code>features()</code> will treat those two shops separately without being told anything extra.</p>
+
+<div class="webr-container" data-block-title="Run features on your own tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run features on your own tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits_ts |&gt; features(sales, list(ex_avg = mean))
+#&gt; # A tibble: 2 × 2
+#&gt;   shop  ex_avg
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 north   106.
+#&gt; 2 south   206.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two rows out, one per shop, exactly as the key promised. Had you left <code>key = shop</code> off, <code>as_tsibble()</code> would have complained that the month values are duplicated, because without a key it expects one row per time point.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Getting the key wrong silently changes what a series means.</strong> If you set the key to fewer columns than you should, unrelated series get merged and every feature you compute describes a blend of them. Always check the count in brackets after the key in the header matches the number of series you expect.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tsibble from the data frame below, using <code>week</code> as the index and <code>store</code> as the key, then compute each store's average <code>units</code> in a column called <code>ex_avg</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a weekly tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a weekly tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sales &lt;- data.frame(
+  week  = rep(as.Date(&quot;2024-01-01&quot;) + 7 * 0:9, 2),
+  store = rep(c(&quot;a&quot;, &quot;b&quot;), each = 10),
+  units = c(10:19, 50:41)
+)
+
+# Your turn: convert ex_sales to a tsibble, then compute each store's mean units
+head(ex_sales, 3)
+#&gt;         week store units
+#&gt; 1 2024-01-01     a    10
+#&gt; 2 2024-01-08     a    11
+#&gt; 3 2024-01-15     a    12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weekly tsibble solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weekly tsibble solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sales &lt;- data.frame(
+  week  = rep(as.Date(&quot;2024-01-01&quot;) + 7 * 0:9, 2),
+  store = rep(c(&quot;a&quot;, &quot;b&quot;), each = 10),
+  units = c(10:19, 50:41)
+)
+
+ex_ts &lt;- ex_sales |&gt; as_tsibble(index = week, key = store)
+ex_ts |&gt; features(units, list(ex_avg = mean))
+#&gt; # A tibble: 2 × 2
+#&gt;   store ex_avg
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 a       14.5
+#&gt; 2 b       45.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> The index and key are passed as bare column names, not strings. Store "b" counts down from 50 to 41, so its mean is 45.5.</p>
+
+</details>
+</section>
+
+<h2>What do trend strength and seasonal strength actually measure?</h2>
+
+<p><code>feat_stl</code> gave us <code>trend_strength</code> and <code>seasonal_strength_year</code> back in the first section without explaining them. Both are built on a technique called <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">STL decomposition</a>, short for seasonal and trend decomposition using loess, loess being the smoothing method it uses internally. Let's see that technique first on a single series before returning to the numbers.</p>
+
+<p>The idea behind decomposition is that most series are three things added together. There is a slow underlying drift called the <strong>trend</strong>. There is a repeating within-year pattern called the <strong>season</strong>. And there is whatever is left over, called the <strong>remainder</strong>. STL is an algorithm that estimates those three parts from the observed series.</p>
+
+<p>Start by pulling out one series and looking at it. <code>filter()</code> works on a tsibble the same way it works on any data frame.</p>
+
+<div class="webr-container" data-block-title="Plot a single tourism series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot a single tourism series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">snowy &lt;- tourism |&gt;
+  filter(Region == &quot;Snowy Mountains&quot;, Purpose == &quot;Holiday&quot;)
+
+ggplot(snowy, aes(x = Quarter, y = Trips)) +
+  geom_line() +
+  labs(title = &quot;Snowy Mountains holiday trips&quot;, y = &quot;Trips (thousands)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Snowy Mountains are Australia's ski fields, and the chart shows it: a tall spike every winter with quiet quarters either side, repeating for twenty years. That is about as seasonal as a real series gets.</p>
+
+<p>Now let STL split it into its three parts. <code>model(STL(Trips))</code> runs the decomposition and <code>components()</code> returns the pieces as columns.</p>
+
+<div class="webr-container" data-block-title="Split the series into trend, season and remainder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the series into trend, season and remainder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">snowy_parts &lt;- snowy |&gt;
+  model(STL(Trips)) |&gt;
+  components()
+
+snowy_parts
+#&gt; # A dable: 80 x 10 [1Q]
+#&gt; # Key:     Region, State, Purpose, .model [1]
+#&gt; # :        Trips = trend + season_year + remainder
+#&gt;    Region          State      Purpose .model Quarter Trips trend season_year remainder season_adjust
+#&gt;    &lt;chr&gt;           &lt;chr&gt;      &lt;chr&gt;   &lt;chr&gt;    &lt;qtr&gt; &lt;dbl&gt; &lt;dbl&gt;       &lt;dbl&gt;     &lt;dbl&gt;         &lt;dbl&gt;
+#&gt;  1 Snowy Mountains New South… Holiday STL(T… 1998 Q1 101.   144.       -33.6    -9.28           135.
+#&gt;  2 Snowy Mountains New South… Holiday STL(T… 1998 Q2 112.   149.       -33.6    -3.15           146.
+#&gt;  3 Snowy Mountains New South… Holiday STL(T… 1998 Q3 310.   153.       132.     25.8            179.
+#&gt;  4 Snowy Mountains New South… Holiday STL(T… 1998 Q4  89.8  156.       -64.5    -1.40           154.
+#&gt;  5 Snowy Mountains New South… Holiday STL(T… 1999 Q1 112.   147.       -33.2    -0.912          146.
+#&gt;  6 Snowy Mountains New South… Holiday STL(T… 1999 Q2 103.   137.       -34.0    -0.658          137.
+#&gt;  7 Snowy Mountains New South… Holiday STL(T… 1999 Q3 254.   135.       131.    -13.1            122.
+#&gt;  8 Snowy Mountains New South… Holiday STL(T… 1999 Q4  74.9  138.       -64.3     0.744          139.
+#&gt;  9 Snowy Mountains New South… Holiday STL(T… 2000 Q1 118.   145.       -32.9     5.72           150.
+#&gt; 10 Snowy Mountains New South… Holiday STL(T… 2000 Q2 114.   149.       -34.3    -0.446          148.
+#&gt; # ℹ 70 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>What came back is a dable, short for decomposition table. It is a tsibble with the three estimated parts added as columns and one extra header line, and that third header line spells out the arithmetic: <code>Trips = trend + season_year + remainder</code>. Look at row 3, the winter quarter of 1998. Trips were 310, the trend at that moment was 153, the seasonal effect added 132 on top, and the remainder of 25.8 covers the rest. Add the three and you get back the observed 310.</p>
+
+<p>Two things stand out in that table. The <code>season_year</code> values are enormous, swinging from about -65 to +132. The <code>remainder</code> values are tiny by comparison, mostly single digits. That imbalance is the whole story of this series, and it is exactly what the strength numbers are going to put a figure on.</p>
+
+<p>Seeing all three parts drawn separately makes the imbalance obvious.</p>
+
+<div class="webr-container" data-block-title="Draw the three components separately">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the three components separately</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+parts_long &lt;- snowy_parts |&gt;
+  as_tibble() |&gt;
+  select(Quarter, trend, season_year, remainder) |&gt;
+  pivot_longer(-Quarter, names_to = &quot;part&quot;, values_to = &quot;value&quot;)
+
+ggplot(parts_long, aes(x = Quarter, y = value)) +
+  geom_line() +
+  facet_wrap(~part, ncol = 1, scales = &quot;free_y&quot;) +
+  labs(title = &quot;STL decomposition of Snowy Mountains holiday trips&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as_tibble()</code> drops the tsibble machinery so the data behaves like a plain table, <code>select()</code> keeps the time column plus the three parts, and <code>pivot_longer()</code> stacks those three columns into one long column with a <code>part</code> label, which is the shape <code>facet_wrap()</code> needs to draw one panel per part. Note <code>scales = &quot;free_y&quot;</code>, which lets each panel use its own vertical scale. Without it the remainder panel would be a flat line squashed against the axis.</p>
+
+<h3>Turning the decomposition into a number</h3>
+
+<p>Now the definition. <strong><a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Seasonal strength</a></strong> asks: of the wiggle that the seasonal part and the remainder create together, how much of it is the season? If the season explains nearly all of it, strength is close to 1. If the season is drowned out by noise, strength is close to 0.</p>
+
+<p>"Amount of wiggle" is measured with variance, which is the average squared distance of values from their own mean. Bigger swings mean bigger variance. So the definition becomes a ratio of variances:</p>
+
+<p>$$F_S = \max\left(0,\; 1 - \frac{\operatorname{Var}(R_t)}{\operatorname{Var}(S_t + R_t)}\right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$F_S$ = seasonal strength, reported as <code>seasonal_strength_year</code></li>
+
+<li>$S_t$ = <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">the seasonal component</a> at time $t$</li>
+
+<li>$R_t$ = the remainder at time $t$</li>
+
+<li>$\operatorname{Var}$ = the variance of a set of numbers</li>
+
+</ul>
+
+<p>Read the fraction as "the share of the seasonal-plus-noise wiggle that is only noise". Subtracting it from 1 leaves the share that is genuinely seasonal. The <code>max(0, ...)</code> just stops the result dipping below zero when the season adds nothing at all.</p>
+
+<p>Trend strength is the same idea with the trend in place of the season:</p>
+
+<p>$$F_T = \max\left(0,\; 1 - \frac{\operatorname{Var}(R_t)}{\operatorname{Var}(T_t + R_t)}\right)$$</p>
+
+<p>Where $T_t$ is the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">trend component</a> at time $t$ and the other symbols mean what they did above.</p>
+
+<p>You do not have to take the formulas on faith. The components are sitting in <code>snowy_parts</code>, so compute both numbers by hand and compare them to what <code>feat_stl</code> reported.</p>
+
+<div class="webr-container" data-block-title="Reproduce the strength numbers by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce the strength numbers by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r &lt;- snowy_parts$remainder
+s &lt;- snowy_parts$season_year
+t &lt;- snowy_parts$trend
+
+c(
+  seasonal_strength = max(0, 1 - var(r) / var(s + r)),
+  trend_strength    = max(0, 1 - var(r) / var(t + r))
+)
+#&gt; seasonal_strength    trend_strength
+#&gt;         0.9674524         0.5946509</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>$</code> operator pulls a single column out as a plain numeric vector, so <code>r</code>, <code>s</code> and <code>t</code> are just lists of 80 numbers. Then the two lines are the formulas typed out literally, and <code>c()</code> bundles the results into a named vector so both print together.</p>
+
+<p>Those are the same 0.967 and 0.595 that <code>feat_stl</code> produced for this series in the very first code block. The features are not a black box. They are short arithmetic recipes run over the decomposition.</p>
+
+<p>Now the numbers mean something concrete. 0.967 says the winter spike accounts for about 97 percent of the non-trend wiggle, which is why the ski season is visible from across the room. 0.595 says the slow drift is real but far less dominant, which matches a trend line that wanders rather than climbing steadily.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Strength is a share of variance, not a slope.</strong> A series can have high trend strength while barely moving, as long as the movement it does have is smooth rather than noisy. Strength answers "how cleanly is this pattern visible", not "how big is it".</div></div>
+
+<h3>Ranking every series by seasonality</h3>
+
+<p>The payoff of one-number-per-series is that ranking is now trivial. Sort the feature table by seasonal strength and the most seasonal series in the country is the first row.</p>
+
+<div class="webr-container" data-block-title="Find the most seasonal series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the most seasonal series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stl_feats &lt;- tourism |&gt; features(Trips, feat_stl)
+
+stl_feats |&gt;
+  select(Region, Purpose, trend_strength, seasonal_strength_year) |&gt;
+  arrange(desc(seasonal_strength_year)) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 4
+#&gt;   Region           Purpose trend_strength seasonal_strength_year
+#&gt;   &lt;chr&gt;            &lt;chr&gt;            &lt;dbl&gt;                  &lt;dbl&gt;
+#&gt; 1 Snowy Mountains  Holiday          0.595                  0.967
+#&gt; 2 Great Ocean Road Holiday          0.542                  0.956
+#&gt; 3 South Coast      Holiday          0.526                  0.952
+#&gt; 4 Peninsula        Holiday          0.684                  0.928
+#&gt; 5 Phillip Island   Holiday          0.437                  0.907
+#&gt; 6 Central Coast    Holiday          0.524                  0.903</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>arrange(desc(...))</code> sorts largest first and <code>head(6)</code> keeps the top of the list. Nothing here is time series specific, it is the same dplyr you would use on a table of customers.</p>
+
+<p>The result reads like a map of Australian tourism. Every single one of the top six is a <code>Holiday</code> series, and every one is a beach or a mountain. Nobody visits the ski fields in summer or the surf coast in winter, so those series are dominated by their calendar. You did not have to know any of that in advance. The features found it.</p>
+
+<p>Flip the sort to see the other end of the scale.</p>
+
+<div class="webr-container" data-block-title="Find the least seasonal series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the least seasonal series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stl_feats |&gt;
+  select(Region, Purpose, trend_strength, seasonal_strength_year) |&gt;
+  arrange(seasonal_strength_year) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 4
+#&gt;   Region                     Purpose  trend_strength seasonal_strength_year
+#&gt;   &lt;chr&gt;                      &lt;chr&gt;             &lt;dbl&gt;                  &lt;dbl&gt;
+#&gt; 1 Goulburn                   Other             0.326                 0.0543
+#&gt; 2 Melbourne East             Other             0.464                 0.0548
+#&gt; 3 Outback                    Other             0.454                 0.111
+#&gt; 4 Australia's Golden Outback Visiting          0.491                 0.112
+#&gt; 5 Great Ocean Road           Other             0.461                 0.124
+#&gt; 6 Australia's South West     Other             0.576                 0.124</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At the bottom the pattern reverses: mostly <code>Other</code> trips to inland regions, with seasonal strength near 0.05. Travel for reasons like business relocation or medical appointments does not care what month it is, so there is no calendar signal to find. Practically, a seasonal forecasting model would be wasted effort on these six.</p>
+
+<p><code>feat_stl</code> returns two more seasonal columns that are easy to misread, so let's look at them directly.</p>
+
+<div class="webr-container" data-block-title="Check when each season peaks and troughs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check when each season peaks and troughs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stl_feats |&gt;
+  select(Region, Purpose, seasonal_peak_year, seasonal_trough_year) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 4
+#&gt;   Region         Purpose  seasonal_peak_year seasonal_trough_year
+#&gt;   &lt;chr&gt;          &lt;chr&gt;                 &lt;dbl&gt;                &lt;dbl&gt;
+#&gt; 1 Adelaide       Business                  3                    1
+#&gt; 2 Adelaide       Holiday                   1                    2
+#&gt; 3 Adelaide       Other                     2                    1
+#&gt; 4 Adelaide       Visiting                  1                    3
+#&gt; 5 Adelaide Hills Business                  3                    0
+#&gt; 6 Adelaide Hills Holiday                   2                    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>These say which quarter the seasonal component is largest in and which quarter it is smallest in. The counting starts at 0, so 0 means Q1, 1 means Q2, 2 means Q3 and 3 means Q4. Adelaide business travel peaks at 3, which is Q4, and bottoms out at 1, which is Q2. Adelaide holidays run the opposite way, peaking in Q2.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The peak and trough columns are zero-indexed positions, not quarter numbers.</strong> On monthly data the same two columns run from 0 to 11 for January through December. Add 1 before showing either number to anyone who has not read the documentation.</div></div>
+
+<p>Here is the full set of columns <code>feat_stl</code> returns, in plain language.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Column</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trend_strength</code></td>
+<td>Share of trend-plus-noise variation explained by the trend, 0 to 1</td>
+</tr>
+<tr>
+<td><code>seasonal_strength_year</code></td>
+<td>Share of season-plus-noise variation explained by the season, 0 to 1</td>
+</tr>
+<tr>
+<td><code>seasonal_peak_year</code></td>
+<td>Which season position the seasonal effect is highest in, counting from 0</td>
+</tr>
+<tr>
+<td><code>seasonal_trough_year</code></td>
+<td>Which season position the seasonal effect is lowest in, counting from 0</td>
+</tr>
+<tr>
+<td><code>spikiness</code></td>
+<td>How much the remainder is dominated by a few extreme points</td>
+</tr>
+<tr>
+<td><code>linearity</code></td>
+<td>Slope of a straight line fitted to the trend, so overall direction and steepness</td>
+</tr>
+<tr>
+<td><code>curvature</code></td>
+<td>How much the trend bends, positive for a U shape, negative for an arch</td>
+</tr>
+<tr>
+<td><code>stl_e_acf1</code></td>
+<td>Correlation of the remainder with itself one step back, leftover structure the model missed</td>
+</tr>
+<tr>
+<td><code>stl_e_acf10</code></td>
+<td>Sum of the first ten squared remainder autocorrelations, the same check over a longer window</td>
+</tr>
+</tbody>
+</table>
+
+<p>The last two are quality checks on the decomposition itself. If the remainder is genuinely random noise, both should sit near zero. Large values mean predictable structure is still hiding in the leftovers.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the 5 series with the <em>lowest</em> <code>trend_strength</code>, showing <code>Region</code>, <code>Purpose</code> and <code>trend_strength</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the flattest series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the flattest series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This sorts largest first. Make it sort smallest first instead.
+tourism |&gt;
+  features(Trips, feat_stl) |&gt;
+  select(Region, Purpose, trend_strength) |&gt;
+  arrange(desc(trend_strength)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region                 Purpose  trend_strength
+#&gt;   &lt;chr&gt;                  &lt;chr&gt;             &lt;dbl&gt;
+#&gt; 1 Australia's North West Business          0.934
+#&gt; 2 Melbourne              Holiday           0.864
+#&gt; 3 Australia's South West Holiday           0.848
+#&gt; 4 Melbourne              Other             0.826
+#&gt; 5 Experience Perth       Visiting          0.799</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Flattest series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flattest series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt;
+  features(Trips, feat_stl) |&gt;
+  select(Region, Purpose, trend_strength) |&gt;
+  arrange(trend_strength) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region       Purpose  trend_strength
+#&gt;   &lt;chr&gt;        &lt;chr&gt;             &lt;dbl&gt;
+#&gt; 1 East Coast   Other             0.157
+#&gt; 2 Murray East  Business          0.229
+#&gt; 3 Outback NSW  Holiday           0.231
+#&gt; 4 High Country Other             0.250
+#&gt; 5 Murraylands  Business          0.257</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> <code>arrange()</code> sorts ascending by default, so no <code>desc()</code> is needed. These five series are essentially noise around a flat level.</p>
+
+</details>
+</section>
+
+<h2>What do the ACF features say about a series' memory?</h2>
+
+<p>Trend and season describe a series' shape. The next family describes its <strong>memory</strong>: how much today's value tells you about tomorrow's.</p>
+
+<p>The tool for that is autocorrelation. Take the series, make a copy, slide the copy forward by some number of steps, and measure how well the two line up. That number of steps is called the <strong>lag</strong>, and the correlation you get is the autocorrelation at that lag. Do it for lag 1, lag 2, lag 3 and so on and you get the autocorrelation function, or ACF.</p>
+
+<p>Run it on the ski series, where you can predict the answer before you see it.</p>
+
+<div class="webr-container" data-block-title="Compute the ACF of one series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the ACF of one series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">snowy_acf &lt;- snowy |&gt; ACF(Trips, lag_max = 8)
+snowy_acf
+#&gt; # A tsibble: 8 x 5 [1Q]
+#&gt; # Key:       Region, State, Purpose [1]
+#&gt;   Region          State           Purpose      lag     acf
+#&gt;   &lt;chr&gt;           &lt;chr&gt;           &lt;chr&gt;   &lt;cf_lag&gt;   &lt;dbl&gt;
+#&gt; 1 Snowy Mountains New South Wales Holiday       1Q -0.382
+#&gt; 2 Snowy Mountains New South Wales Holiday       2Q -0.0691
+#&gt; 3 Snowy Mountains New South Wales Holiday       3Q -0.370
+#&gt; 4 Snowy Mountains New South Wales Holiday       4Q  0.869
+#&gt; 5 Snowy Mountains New South Wales Holiday       5Q -0.368
+#&gt; 6 Snowy Mountains New South Wales Holiday       6Q -0.0618
+#&gt; 7 Snowy Mountains New South Wales Holiday       7Q -0.344
+#&gt; 8 Snowy Mountains New South Wales Holiday       8Q  0.789</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ACF()</code> computes the correlation at each lag and <code>lag_max = 8</code> stops after eight. Each row is one lag: <code>1Q</code> means shifted by one quarter, <code>4Q</code> by four quarters, and so on.</p>
+
+<p>Read down the <code>acf</code> column and the ski season shows up directly. Lags 1, 2 and 3 are negative, because a busy winter quarter is followed by three quiet ones. Lag 4 rises to 0.869, because four quarters later it is winter again. Lag 8 is 0.789, two years on and still winter. So a value from four quarters back predicts today's value far better than the value from one quarter back does.</p>
+
+<p>The same numbers are easier to take in as a chart.</p>
+
+<div class="webr-container" data-block-title="Plot the autocorrelation by lag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the autocorrelation by lag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">snowy_acf |&gt;
+  as_tibble() |&gt;
+  ggplot(aes(x = as.numeric(lag), y = acf)) +
+  geom_col(width = 0.15) +
+  geom_hline(yintercept = 0) +
+  labs(x = &quot;Lag (quarters)&quot;, y = &quot;Autocorrelation&quot;,
+       title = &quot;Snowy Mountains holiday trips: ACF&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The spikes at lag 4 and lag 8 tower over everything else, which is the visual signature of yearly seasonality in quarterly data. <code>as.numeric(lag)</code> converts the special lag class into ordinary numbers so ggplot can put them on a continuous axis.</p>
+
+<p><code>feat_acf</code> boils that whole picture down into seven numbers, for every series at once.</p>
+
+<div class="webr-container" data-block-title="Compute ACF features for all series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute ACF features for all series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acf_feats &lt;- tourism |&gt; features(Trips, feat_acf)
+acf_feats
+#&gt; # A tibble: 304 × 10
+#&gt;    Region     State Purpose     acf1 acf10 diff1_acf1 diff1_acf10 diff2_acf1 diff2_acf10 season_acf1
+#&gt;    &lt;chr&gt;      &lt;chr&gt; &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;      &lt;dbl&gt;       &lt;dbl&gt;      &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+#&gt;  1 Adelaide   Sout… Busine…  0.0333  0.131     -0.520       0.463     -0.676       0.741      0.201
+#&gt;  2 Adelaide   Sout… Holiday  0.0456  0.372     -0.343       0.614     -0.487       0.558      0.351
+#&gt;  3 Adelaide   Sout… Other    0.517   1.15      -0.409       0.383     -0.675       0.792      0.342
+#&gt;  4 Adelaide   Sout… Visiti…  0.0684  0.294     -0.394       0.452     -0.518       0.447      0.345
+#&gt;  5 Adelaide … Sout… Busine…  0.0709  0.134     -0.580       0.415     -0.750       0.746     -0.0628
+#&gt;  6 Adelaide … Sout… Holiday  0.131   0.313     -0.536       0.500     -0.716       0.906      0.208
+#&gt;  7 Adelaide … Sout… Other    0.261   0.330     -0.253       0.317     -0.457       0.392      0.0745
+#&gt;  8 Adelaide … Sout… Visiti…  0.139   0.117     -0.472       0.239     -0.626       0.408      0.170
+#&gt;  9 Alice Spr… Nort… Busine…  0.217   0.367     -0.500       0.381     -0.658       0.587      0.315
+#&gt; 10 Alice Spr… Nort… Holiday -0.00660 2.11      -0.153       2.11      -0.274       1.55       0.729
+#&gt; # ℹ 294 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what each of the seven means.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Column</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>acf1</code></td>
+<td>Autocorrelation at lag 1, how much one period predicts the next</td>
+</tr>
+<tr>
+<td><code>acf10</code></td>
+<td>Sum of the first ten squared autocorrelations, total memory across all short lags</td>
+</tr>
+<tr>
+<td><code>diff1_acf1</code></td>
+<td>Same as <code>acf1</code> but after differencing once, so after removing the trend</td>
+</tr>
+<tr>
+<td><code>diff1_acf10</code></td>
+<td>Same as <code>acf10</code> after differencing once</td>
+</tr>
+<tr>
+<td><code>diff2_acf1</code></td>
+<td><code>acf1</code> after differencing twice, for series with a bending trend</td>
+</tr>
+<tr>
+<td><code>diff2_acf10</code></td>
+<td><code>acf10</code> after differencing twice</td>
+</tr>
+<tr>
+<td><code>season_acf1</code></td>
+<td>Autocorrelation at the seasonal lag, 4 for quarterly data and 12 for monthly</td>
+</tr>
+</tbody>
+</table>
+
+<p>Differencing means replacing each value with the change from the previous value. It strips out level and trend and leaves the wiggle, so the <code>diff1_</code> and <code>diff2_</code> columns describe a series' memory once its drift has been removed. That matters because ARIMA models work on differenced data, so those columns speak directly to how an ARIMA would see the series.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>season_acf1 is the fastest seasonality detector in the package.</strong> It is a single correlation at the seasonal lag, so it costs almost nothing to compute compared with running a full STL decomposition, and it agrees with seasonal strength on the strongly seasonal cases.</div></div>
+
+<p>Sorting by it confirms that agreement.</p>
+
+<div class="webr-container" data-block-title="Rank series by seasonal autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank series by seasonal autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acf_feats |&gt;
+  select(Region, Purpose, acf1, season_acf1) |&gt;
+  arrange(desc(season_acf1)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region           Purpose    acf1 season_acf1
+#&gt;   &lt;chr&gt;            &lt;chr&gt;     &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 Snowy Mountains  Holiday -0.382        0.869
+#&gt; 2 South Coast      Holiday -0.0443       0.861
+#&gt; 3 Great Ocean Road Holiday -0.105        0.847
+#&gt; 4 Central Coast    Holiday -0.0343       0.791
+#&gt; 5 Darwin           Holiday -0.0271       0.789</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four of these five also appeared in the seasonal strength ranking, reached by completely different arithmetic. The <code>acf1</code> column shows the flip side: strongly seasonal series have <em>negative</em> lag-1 correlation, because a peak quarter is reliably followed by a quiet one.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the 5 series with the most negative <code>acf1</code>, showing <code>Region</code>, <code>Purpose</code> and <code>acf1</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the strongest reversals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the strongest reversals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This gives the largest acf1 values. You want the most negative ones.
+tourism |&gt;
+  features(Trips, feat_acf) |&gt;
+  select(Region, Purpose, acf1) |&gt;
+  arrange(desc(acf1)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region                 Purpose   acf1
+#&gt;   &lt;chr&gt;                  &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 Australia's North West Business 0.840
+#&gt; 2 Melbourne              Other    0.674
+#&gt; 3 Melbourne              Holiday  0.664
+#&gt; 4 Brisbane               Visiting 0.608
+#&gt; 5 Melbourne East         Visiting 0.595</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Strongest reversals solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strongest reversals solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt;
+  features(Trips, feat_acf) |&gt;
+  select(Region, Purpose, acf1) |&gt;
+  arrange(acf1) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region          Purpose   acf1
+#&gt;   &lt;chr&gt;           &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 Snowy Mountains Holiday -0.382
+#&gt; 2 East Coast      Other   -0.298
+#&gt; 3 Barossa         Holiday -0.235
+#&gt; 4 High Country    Other   -0.164
+#&gt; 5 Murraylands     Other   -0.151</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> "Most negative" means ascending order, so plain <code>arrange()</code> is right. A negative <code>acf1</code> means high quarters are followed by low ones.</p>
+
+</details>
+</section>
+
+<h2>What is inside the full 48-feature fingerprint?</h2>
+
+<p>So far we have used two of the package's built-in recipes, <code>feat_stl</code> and <code>feat_acf</code>. feasts ships many more, and <code>feature_set()</code> grabs all of them at once. This is the fingerprint the title of this page promises.</p>
+
+<div class="webr-container" data-block-title="Compute all 48 features at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute all 48 features at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_feats &lt;- tourism |&gt; features(Trips, feature_set(pkgs = &quot;feasts&quot;))
+dim(all_feats)
+#&gt; [1] 304  51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>feature_set(pkgs = &quot;feasts&quot;)</code> collects every feature function the package registers. <code>dim()</code> reports rows then columns: 304 rows as always, and 51 columns, which is the 3 key columns plus 48 features. Every series in the dataset now has a 48-number fingerprint.</p>
+
+<div class="webr-container" data-block-title="List every feature name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List every feature name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setdiff(names(all_feats), c(&quot;Region&quot;, &quot;State&quot;, &quot;Purpose&quot;))
+#&gt;  [1] &quot;trend_strength&quot;         &quot;seasonal_strength_year&quot; &quot;seasonal_peak_year&quot;
+#&gt;  [4] &quot;seasonal_trough_year&quot;   &quot;spikiness&quot;              &quot;linearity&quot;
+#&gt;  [7] &quot;curvature&quot;              &quot;stl_e_acf1&quot;             &quot;stl_e_acf10&quot;
+#&gt; [10] &quot;acf1&quot;                   &quot;acf10&quot;                  &quot;diff1_acf1&quot;
+#&gt; [13] &quot;diff1_acf10&quot;            &quot;diff2_acf1&quot;             &quot;diff2_acf10&quot;
+#&gt; [16] &quot;season_acf1&quot;            &quot;pacf5&quot;                  &quot;diff1_pacf5&quot;
+#&gt; [19] &quot;diff2_pacf5&quot;            &quot;season_pacf&quot;            &quot;zero_run_mean&quot;
+#&gt; [22] &quot;nonzero_squared_cv&quot;     &quot;zero_start_prop&quot;        &quot;zero_end_prop&quot;
+#&gt; [25] &quot;lambda_guerrero&quot;        &quot;kpss_stat&quot;              &quot;kpss_pvalue&quot;
+#&gt; [28] &quot;pp_stat&quot;                &quot;pp_pvalue&quot;              &quot;ndiffs&quot;
+#&gt; [31] &quot;nsdiffs&quot;                &quot;bp_stat&quot;                &quot;bp_pvalue&quot;
+#&gt; [34] &quot;lb_stat&quot;                &quot;lb_pvalue&quot;              &quot;var_tiled_var&quot;
+#&gt; [37] &quot;var_tiled_mean&quot;         &quot;shift_level_max&quot;        &quot;shift_level_index&quot;
+#&gt; [40] &quot;shift_var_max&quot;          &quot;shift_var_index&quot;        &quot;shift_kl_max&quot;
+#&gt; [43] &quot;shift_kl_index&quot;         &quot;spectral_entropy&quot;       &quot;n_crossing_points&quot;
+#&gt; [46] &quot;longest_flat_spot&quot;      &quot;coef_hurst&quot;             &quot;stat_arch_lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>setdiff()</code> removes the three key columns from the name list so only the features remain. Forty-eight names is a lot to face at once, but they are not forty-eight unrelated ideas. They fall into six families, and once you know the families you can find what you need.</p>
+
+<p><img src="screenshots/Time-Series-Features-in-R-feature-families.webp" alt="Diagram grouping the 48 feasts features into six families" class="img-responsive img-zoomable" loading="lazy" width="2248" height="596" /></p>
+
+<p><em>Figure 2: The 48 feasts features group into six families, each answering a different question about a series.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>Question it answers</th>
+<th>Headline columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shape</td>
+<td>Does it trend? Does it repeat? Is it spiky?</td>
+<td><code>trend_strength</code>, <code>seasonal_strength_year</code>, <code>spikiness</code>, <code>curvature</code></td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>How much does the past predict the future?</td>
+<td><code>acf1</code>, <code>acf10</code>, <code>season_acf1</code>, <code>pacf5</code></td>
+</tr>
+<tr>
+<td>Stationarity</td>
+<td>Do I need to difference it before modelling?</td>
+<td><code>kpss_stat</code>, <code>pp_stat</code>, <code>ndiffs</code>, <code>nsdiffs</code>, <code>lambda_guerrero</code></td>
+</tr>
+<tr>
+<td>Stability</td>
+<td>Does its level or spread jump partway through?</td>
+<td><code>shift_level_max</code>, <code>shift_var_max</code>, <code>var_tiled_var</code></td>
+</tr>
+<tr>
+<td>Randomness</td>
+<td>Is there any signal here at all?</td>
+<td><code>spectral_entropy</code>, <code>coef_hurst</code>, <code>lb_pvalue</code>, <code>stat_arch_lm</code></td>
+</tr>
+<tr>
+<td>Sparsity</td>
+<td>Is it full of zeros or flat stretches?</td>
+<td><code>zero_run_mean</code>, <code>zero_start_prop</code>, <code>longest_flat_spot</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>One name in that table has not come up yet. <code>pacf5</code> and <code>season_pacf</code> come from the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">partial autocorrelation function</a>, which is the ACF with the indirect effects taken out: the partial autocorrelation at lag 3 measures what lag 3 tells you beyond what lags 1 and 2 already told you. <code>pacf5</code> adds up the first five squared partial autocorrelations, and <code>season_pacf</code> reports the one at the seasonal lag.</p>
+
+<p>Two of these families deserve a closer look, because they answer questions you will actually ask on the job.</p>
+
+<h3>How forecastable is each series?</h3>
+
+<p><code>spectral_entropy</code> scores how close a series is to pure random noise, on a scale from 0 to 1. Low means there is strong structure to lock onto. High means there is nothing but noise, and no model will beat a simple average.</p>
+
+<div class="webr-container" data-block-title="Find the most predictable series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the most predictable series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_feats |&gt;
+  select(Region, Purpose, spectral_entropy) |&gt;
+  arrange(spectral_entropy) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region                          Purpose spectral_entropy
+#&gt;   &lt;chr&gt;                           &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 South Coast                     Holiday            0.209
+#&gt; 2 Launceston, Tamar and the North Holiday            0.271
+#&gt; 3 Hobart and the South            Holiday            0.281
+#&gt; 4 North West                      Holiday            0.281
+#&gt; 5 Great Ocean Road                Holiday            0.289</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every one of these five is a <code>Holiday</code> series, and two of them, South Coast and Great Ocean Road, also appeared in the seasonal strength ranking earlier. Strong seasonality is strong structure, so the beach and mountain holiday series score lowest on entropy and are the easiest in the dataset to forecast.</p>
+
+<div class="webr-container" data-block-title="Find the least predictable series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the least predictable series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_feats |&gt;
+  select(Region, Purpose, spectral_entropy) |&gt;
+  arrange(desc(spectral_entropy)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region                     Purpose  spectral_entropy
+#&gt;   &lt;chr&gt;                      &lt;chr&gt;               &lt;dbl&gt;
+#&gt; 1 Adelaide Hills             Visiting                1
+#&gt; 2 Alice Springs              Other                   1
+#&gt; 3 Alice Springs              Visiting                1
+#&gt; 4 Australia's Golden Outback Other                   1
+#&gt; 5 Australia's North West     Other                   1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An entropy of exactly 1.0 is the maximum: these series are statistically indistinguishable from noise. That is genuinely useful to know before you spend an afternoon tuning an ARIMA on them.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Spectral entropy is a forecastability budget you can compute before modelling anything.</strong> Sorting thousands of series by it tells you where accurate forecasts are even possible, so you can spend modelling effort where it can pay off instead of spreading it evenly.</div></div>
+
+<h3>What preparation does each series need?</h3>
+
+<p><code>ndiffs</code> and <code>nsdiffs</code> are recommendations, not descriptions. They report how many times a series should be differenced (regular and seasonal) to make it stationary, which is the flat, stable form that ARIMA models require.</p>
+
+<div class="webr-container" data-block-title="Count the differencing each series needs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the differencing each series needs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_feats |&gt; count(ndiffs, nsdiffs)
+#&gt; # A tibble: 4 × 3
+#&gt;   ndiffs nsdiffs     n
+#&gt;    &lt;int&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1      0       0   162
+#&gt; 2      0       1    24
+#&gt; 3      1       0   105
+#&gt; 4      1       1    13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>count()</code> tallies how many series fall into each combination. 162 series need no differencing at all, 105 need one regular difference to remove a trend, 24 need one seasonal difference, and 13 need both. That single table is a preparation plan for the entire portfolio, computed in a second.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not throw all 48 features into a <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> algorithm without thinking.</strong> Many of them are strongly correlated with each other (the <code>acf</code> and <code>diff1_acf</code> columns, for example), and 80 quarterly observations is not much data to support 48 measurements. Pick the handful that match your question, or reduce the dimensions first as we do in the next section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count how many series need <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">seasonal differencing</a>, using the <code>nsdiffs</code> column.</p>
+<div class="webr-container" data-block-title="Your turn: count seasonal differencing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count seasonal differencing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The nsdiffs column is here. Replace the select/head with count(nsdiffs).
+tourism |&gt;
+  features(Trips, feature_set(pkgs = &quot;feasts&quot;)) |&gt;
+  select(Region, Purpose, nsdiffs) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   Region         Purpose  nsdiffs
+#&gt;   &lt;chr&gt;          &lt;chr&gt;      &lt;int&gt;
+#&gt; 1 Adelaide       Business       0
+#&gt; 2 Adelaide       Holiday        0
+#&gt; 3 Adelaide       Other          0
+#&gt; 4 Adelaide       Visiting       0
+#&gt; 5 Adelaide Hills Business       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal differencing count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal differencing count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt;
+  features(Trips, feature_set(pkgs = &quot;feasts&quot;)) |&gt;
+  count(nsdiffs)
+#&gt; # A tibble: 2 × 2
+#&gt;   nsdiffs     n
+#&gt;     &lt;int&gt; &lt;int&gt;
+#&gt; 1       0   267
+#&gt; 2       1    37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> 37 of the 304 series carry seasonality strong enough that a seasonal difference is recommended. The other 267 do not need one.</p>
+
+</details>
+</section>
+
+<h2>How do you find the odd series out among hundreds?</h2>
+
+<p>You now have a table of 304 rows and 48 columns. Nobody reads a table that size. But a table is something you can plot, and two features at a time makes a perfectly good map.</p>
+
+<div class="webr-container" data-block-title="Map series by trend and seasonality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map series by trend and seasonality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(stl_feats, aes(x = trend_strength, y = seasonal_strength_year,
+                      colour = Purpose)) +
+  geom_point(alpha = 0.6) +
+  labs(x = &quot;Trend strength&quot;, y = &quot;Seasonal strength&quot;,
+       title = &quot;Every tourism series on two axes&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each dot is one entire time series, positioned by how much it trends and how much it repeats. Colouring by <code>Purpose</code> shows the holiday dots (strongly seasonal) sitting high, while business and other travel spread along the bottom. Two features already separate the categories, and you never told the plot what a holiday was.</p>
+
+<h3>Compressing 48 features into two</h3>
+
+<p>Two features at a time means picking two and ignoring 46, which risks missing whatever the other 46 knew. <strong><a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">Principal component analysis</a></strong> (PCA) solves that. It builds new axes that are blends of all 48 original features, arranged so that the first axis captures as much of the spread between series as any single direction can, the second captures as much of what is left, and so on. Plot the first two and you get the best flat picture of a 48-dimensional cloud.</p>
+
+<div class="webr-container" data-block-title="Reduce 48 features to principal components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reduce 48 features to principal components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+
+pcs &lt;- all_feats |&gt;
+  select(-Region, -State, -Purpose) |&gt;
+  prcomp(scale = TRUE) |&gt;
+  augment(all_feats)
+
+pcs |&gt; select(Region, Purpose, .fittedPC1, .fittedPC2) |&gt; head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region         Purpose  .fittedPC1 .fittedPC2
+#&gt;   &lt;chr&gt;          &lt;chr&gt;         &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 Adelaide       Business     -0.868      1.25
+#&gt; 2 Adelaide       Holiday       1.00       1.26
+#&gt; 3 Adelaide       Other         4.90      -6.11
+#&gt; 4 Adelaide       Visiting      0.306      1.48
+#&gt; 5 Adelaide Hills Business     -5.00      -0.526</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three steps happen there. <code>select(-Region, -State, -Purpose)</code> drops the text columns so only numbers reach the maths. <code>prcomp(scale = TRUE)</code> finds the new axes. Then <code>augment()</code> from the broom package glues each series' position on those axes back onto the original table as <code>.fittedPC1</code> and <code>.fittedPC2</code>, so the labels travel with the coordinates.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pass scale = TRUE to prcomp on a feature table.</strong> The features have wildly different units: <code>spikiness</code> runs into the hundreds while <code>trend_strength</code> never leaves 0 to 1. Without scaling, the large-numbered features would dominate the components purely because of their units.</div></div>
+
+<p>Now plot the two new axes exactly like the previous chart.</p>
+
+<div class="webr-container" data-block-title="Plot the principal component map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the principal component map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(pcs, aes(x = .fittedPC1, y = .fittedPC2, colour = Purpose)) +
+  geom_point(alpha = 0.6) +
+  labs(x = &quot;Principal component 1&quot;, y = &quot;Principal component 2&quot;,
+       title = &quot;All 304 series compressed onto two axes&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Most of the dots sit in one dense blob near the origin, which says most Australian tourism series behave broadly alike. A handful stretch far out to the right. Those are the series that differ from the crowd on many features at once, and they are exactly what you want to find when you are managing hundreds of forecasts.</p>
+
+<h3>Naming the outliers</h3>
+
+<p>Because the labels travelled with the coordinates, finding out which series are the far-flung dots is a <code>filter()</code> away.</p>
+
+<div class="webr-container" data-block-title="Identify the outlier series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Identify the outlier series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pcs |&gt;
+  filter(.fittedPC1 &gt; 10) |&gt;
+  select(Region, State, Purpose, .fittedPC1, .fittedPC2)
+#&gt; # A tibble: 4 × 5
+#&gt;   Region                 State             Purpose  .fittedPC1 .fittedPC2
+#&gt;   &lt;chr&gt;                  &lt;chr&gt;             &lt;chr&gt;         &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 Australia's North West Western Australia Business       13.4    -11.3
+#&gt; 2 Australia's South West Western Australia Holiday        10.9      0.880
+#&gt; 3 Melbourne              Victoria          Holiday        12.3    -10.4
+#&gt; 4 South Coast            New South Wales   Holiday        11.9      9.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four series out of 304, found without plotting a single time series. The threshold of 10 was read off the chart, which is the normal way to use this: look, pick a cutoff, filter.</p>
+
+<p>An <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> flag is only useful if you can see what caused it, so plot one.</p>
+
+<div class="webr-container" data-block-title="Plot an outlier series to see why">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot an outlier series to see why</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nw_business &lt;- tourism |&gt;
+  filter(Region == &quot;Australia's North West&quot;, Purpose == &quot;Business&quot;)
+
+ggplot(nw_business, aes(x = Quarter, y = Trips)) +
+  geom_line() +
+  labs(title = &quot;Australia's North West business trips&quot;,
+       y = &quot;Trips (thousands)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chart shows what makes it unusual. Business travel to Australia's North West starts near 51 thousand trips, climbs steeply through the 2000s to a peak around 297, then falls back. That is the Western Australian mining boom and bust, and it is why this series has the highest trend strength in the whole dataset (0.934) and lands furthest from the crowd in the PCA map. Nothing else in the data looks like it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the <code>pcs</code> table to find the series with <code>.fittedPC2</code> below -8, showing <code>Region</code>, <code>Purpose</code> and both components.</p>
+<div class="webr-container" data-block-title="Your turn: find outliers on the second axis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find outliers on the second axis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add a filter() step that keeps only rows where .fittedPC2 is below -8
+pcs |&gt;
+  select(Region, Purpose, .fittedPC1, .fittedPC2) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region         Purpose  .fittedPC1 .fittedPC2
+#&gt;   &lt;chr&gt;          &lt;chr&gt;         &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 Adelaide       Business     -0.868      1.25
+#&gt; 2 Adelaide       Holiday       1.00       1.26
+#&gt; 3 Adelaide       Other         4.90      -6.11
+#&gt; 4 Adelaide       Visiting      0.306      1.48
+#&gt; 5 Adelaide Hills Business     -5.00      -0.526</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Second-axis outliers solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Second-axis outliers solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pcs |&gt;
+  filter(.fittedPC2 &lt; -8) |&gt;
+  select(Region, Purpose, .fittedPC1, .fittedPC2)
+#&gt; # A tibble: 4 × 4
+#&gt;   Region                 Purpose  .fittedPC1 .fittedPC2
+#&gt;   &lt;chr&gt;                  &lt;chr&gt;         &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 Australia's North West Business      13.4      -11.3
+#&gt; 2 Brisbane               Visiting       7.83      -8.36
+#&gt; 3 Melbourne              Holiday       12.3      -10.4
+#&gt; 4 Melbourne              Other          8.43      -8.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> These are all large-city or boom-town series. They are unusual on the second axis, which captures a different blend of features from the first.</p>
+
+</details>
+</section>
+
+<h2>How do you write your own feature function?</h2>
+
+<p>Every recipe so far shipped with the package. But <code>features()</code> has no idea whether a function came from feasts or from you. Any function that takes a numeric vector and returns named numbers will do.</p>
+
+<p>Suppose you want to know which regions have grown. Compare the average of the last four quarters against the average of the first four.</p>
+
+<div class="webr-container" data-block-title="Write a custom growth feature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a custom growth feature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">feat_growth &lt;- function(x, ...) {
+  n &lt;- length(x)
+  c(growth_ratio = mean(x[(n - 3):n]) / mean(x[1:4]))
+}
+
+tourism |&gt;
+  features(Trips, feat_growth) |&gt;
+  arrange(desc(growth_ratio)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region      State           Purpose growth_ratio
+#&gt;   &lt;chr&gt;       &lt;chr&gt;           &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 Spa Country Victoria        Other         Inf
+#&gt; 2 Upper Yarra Victoria        Other         Inf
+#&gt; 3 Whitsundays Queensland      Other         Inf
+#&gt; 4 Riverland   South Australia Other          12.0
+#&gt; 5 Bundaberg   Queensland      Other           8.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the function. <code>x</code> arrives as the series' values as a plain numeric vector, so <code>n &lt;- length(x)</code> is 80 here. <code>x[(n - 3):n]</code> is the last four values and <code>x[1:4]</code> is the first four. Dividing their means gives a ratio above 1 for growth and below 1 for decline. Wrapping it in <code>c(growth_ratio = ...)</code> gives the output column its name.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>...</code> in the signature is required, not decorative.</strong> <code>features()</code> passes extra arguments such as the series' seasonal period to every feature function. Without <code>...</code> to absorb them, your function errors out the moment <code>features()</code> calls it.</div></div>
+
+<p>Now look at what the ratio actually found. Three series came back as <code>Inf</code>, which is what R prints when you divide by zero. Those regions recorded zero "Other" trips across all of their first four quarters. That is not a growth story, it is a data story, and the feature surfaced it in one line.</p>
+
+<p>A custom feature can return more than one number, which lets you investigate properly.</p>
+
+<div class="webr-container" data-block-title="Write a feature returning two values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a feature returning two values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">feat_zeros &lt;- function(x, ...) {
+  c(zero_prop = mean(x == 0), first_nonzero = which(x &gt; 0)[1])
+}
+
+tourism |&gt;
+  features(Trips, feat_zeros) |&gt;
+  arrange(desc(zero_prop)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 5
+#&gt;   Region          State              Purpose zero_prop first_nonzero
+#&gt;   &lt;chr&gt;           &lt;chr&gt;              &lt;chr&gt;       &lt;dbl&gt;         &lt;dbl&gt;
+#&gt; 1 Kangaroo Island South Australia    Other       0.8               1
+#&gt; 2 MacDonnell      Northern Territory Other       0.75              3
+#&gt; 3 Wilderness West Tasmania           Other       0.738             1
+#&gt; 4 Wimmera         Victoria           Other       0.638             2
+#&gt; 5 Barkly          Northern Territory Other       0.625             1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>x == 0</code> produces a vector of TRUE and FALSE, and <code>mean()</code> of that gives the proportion of TRUEs, which is the share of zero quarters. <code>which(x &gt; 0)[1]</code> finds the position of the first non-zero value. Both go into one <code>c()</code> call, so <code>features()</code> makes two columns.</p>
+
+<p>The answer is stark. Kangaroo Island's "Other" series is zero in 80 percent of its quarters. Fitting a <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">seasonal ARIMA</a> to that would be nonsense, and now you know before you try.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Features expose data-quality problems before modelling does.</strong> A zero-heavy or flat-lined series will produce a model and a forecast without complaint. A two-line feature function catches it in advance, across your whole portfolio at once.</div></div>
+
+<p>Custom features mix freely with built-in ones. Pass a <code>list()</code> of recipes and the columns are joined into a single table.</p>
+
+<div class="webr-container" data-block-title="Combine custom and built-in features">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine custom and built-in features</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tourism |&gt;
+  features(Trips, list(feat_stl, feat_growth)) |&gt;
+  select(Region, Purpose, trend_strength, seasonal_strength_year, growth_ratio) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 5
+#&gt;   Region         Purpose  trend_strength seasonal_strength_year growth_ratio
+#&gt;   &lt;chr&gt;          &lt;chr&gt;             &lt;dbl&gt;                  &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1 Adelaide       Business          0.464                  0.407        1.27
+#&gt; 2 Adelaide       Holiday           0.554                  0.619        1.15
+#&gt; 3 Adelaide       Other             0.746                  0.202        2.04
+#&gt; 4 Adelaide       Visiting          0.435                  0.452        1.16
+#&gt; 5 Adelaide Hills Business          0.464                  0.179        0.973</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nine columns from <code>feat_stl</code> and one from your own function, computed in the same pass over the data. Adelaide's "Other" travel doubled over the period while its business travel grew 27 percent, and both facts sit alongside the shape features that describe them.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a feature called <code>ex_feat_range</code> that returns <code>ex_range_ratio</code>, the difference between a series' maximum and minimum divided by its mean. Rank series by it, highest first.</p>
+<div class="webr-container" data-block-title="Your turn: write a range feature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write a range feature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This returns the raw range. Divide it by mean(x) to make series comparable.
+ex_feat_range &lt;- function(x, ...) {
+  c(ex_range_ratio = max(x) - min(x))
+}
+
+tourism |&gt;
+  features(Trips, ex_feat_range) |&gt;
+  arrange(desc(ex_range_ratio)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region          State           Purpose  ex_range_ratio
+#&gt;   &lt;chr&gt;           &lt;chr&gt;           &lt;chr&gt;             &lt;dbl&gt;
+#&gt; 1 South Coast     New South Wales Holiday            647.
+#&gt; 2 Sydney          New South Wales Business           593.
+#&gt; 3 Melbourne       Victoria        Visiting           539.
+#&gt; 4 North Coast NSW New South Wales Holiday            508.
+#&gt; 5 Melbourne       Victoria        Holiday            481.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Range feature solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Range feature solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_feat_range &lt;- function(x, ...) {
+  c(ex_range_ratio = (max(x) - min(x)) / mean(x))
+}
+
+tourism |&gt;
+  features(Trips, ex_feat_range) |&gt;
+  arrange(desc(ex_range_ratio)) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Region          State              Purpose ex_range_ratio
+#&gt;   &lt;chr&gt;           &lt;chr&gt;              &lt;chr&gt;            &lt;dbl&gt;
+#&gt; 1 Wilderness West Tasmania           Other             21.5
+#&gt; 2 Kangaroo Island South Australia    Other             11.7
+#&gt; 3 Upper Yarra     Victoria           Other             11.7
+#&gt; 4 Barkly          Northern Territory Other             11.6
+#&gt; 5 Murray East     Victoria           Other             11.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> Dividing by the mean makes the measure comparable across series of very different sizes. The winners are the sparse "Other" series from the previous example, where a mostly-zero series has one large spike.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: A Feature-Based Triage Report for 304 Series</h2>
+
+<p>Everything so far has been one question at a time. Here is the workflow those pieces were building toward: compute the fingerprint once, then use it to sort every series into a bucket that tells you what to do with it.</p>
+
+<p><img src="screenshots/Time-Series-Features-in-R-triage-flow.webp" alt="Decision flow routing series to a strategy based on their features" class="img-responsive img-zoomable" loading="lazy" width="2248" height="912" /></p>
+
+<p><em>Figure 3: A feature-based routing rule sends every series to the treatment it needs.</em></p>
+
+<p>The rule reads top to bottom and stops at the first match. Data problems get caught before anything else, then genuinely seasonal series, then trending ones, and whatever is left is either noise or simple enough for a basic model.</p>
+
+<div class="webr-container" data-block-title="Triage every series by its features">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Triage every series by its features</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">triage &lt;- tourism |&gt;
+  features(Trips, feature_set(pkgs = &quot;feasts&quot;)) |&gt;
+  mutate(strategy = case_when(
+    zero_run_mean &gt; 0            ~ &quot;sparse, check the data&quot;,
+    seasonal_strength_year &gt; 0.6 ~ &quot;needs a seasonal model&quot;,
+    trend_strength &gt; 0.65        ~ &quot;trend-driven, ETS or ARIMA&quot;,
+    spectral_entropy &gt; 0.99      ~ &quot;close to noise, use a benchmark&quot;,
+    TRUE                         ~ &quot;simple model is fine&quot;
+  ))
+
+triage |&gt; count(strategy, sort = TRUE)
+#&gt; # A tibble: 5 × 2
+#&gt;   strategy                            n
+#&gt;   &lt;chr&gt;                           &lt;int&gt;
+#&gt; 1 sparse, check the data             98
+#&gt; 2 simple model is fine               81
+#&gt; 3 close to noise, use a benchmark    56
+#&gt; 4 needs a seasonal model             45
+#&gt; 5 trend-driven, ETS or ARIMA         24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>case_when()</code> checks each condition in order and assigns the label from the first one that is true, with <code>TRUE ~ ...</code> catching everything that matched nothing. <code>mutate()</code> adds the label as a new column, and <code>count(sort = TRUE)</code> tallies the buckets largest first.</p>
+
+<p>That single table is a work plan. 98 series have zero-runs and need a data conversation before any modelling. 45 genuinely need seasonal models. Only 24 are trend-driven enough to justify fitting <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">ETS or ARIMA</a> carefully. And 56 are so close to noise that a simple benchmark is the honest answer.</p>
+
+<p>Every bucket drills down, because the labels are attached to a full feature table.</p>
+
+<div class="webr-container" data-block-title="Inspect the sparse series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the sparse series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">triage |&gt;
+  filter(strategy == &quot;sparse, check the data&quot;) |&gt;
+  select(Region, Purpose, zero_run_mean, longest_flat_spot) |&gt;
+  arrange(desc(zero_run_mean)) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 4
+#&gt;   Region          Purpose zero_run_mean longest_flat_spot
+#&gt;   &lt;chr&gt;           &lt;chr&gt;           &lt;dbl&gt;             &lt;int&gt;
+#&gt; 1 Kangaroo Island Other            5.33                16
+#&gt; 2 MacDonnell      Other            4                   16
+#&gt; 3 Wilderness West Other            3.47                25
+#&gt; 4 Wimmera         Other            3.4                 10
+#&gt; 5 Lasseter        Other            2.88                10
+#&gt; 6 Barkly          Other            2.63                12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>zero_run_mean</code> is the average length of a run of consecutive zeros and <code>longest_flat_spot</code> is the longest stretch with no change at all. Kangaroo Island averages more than five zero quarters in a row and has a 16-quarter flat stretch, which is four years of no recorded travel. That is a reporting gap, not a forecasting problem, and no model would have told you so.</p>
+
+<div class="webr-container" data-block-title="Inspect the seasonal series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the seasonal series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">triage |&gt;
+  filter(strategy == &quot;needs a seasonal model&quot;) |&gt;
+  select(Region, Purpose, seasonal_strength_year, seasonal_peak_year) |&gt;
+  arrange(desc(seasonal_strength_year)) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 4
+#&gt;   Region           Purpose seasonal_strength_year seasonal_peak_year
+#&gt;   &lt;chr&gt;            &lt;chr&gt;                    &lt;dbl&gt;              &lt;dbl&gt;
+#&gt; 1 Snowy Mountains  Holiday                  0.967                  3
+#&gt; 2 Great Ocean Road Holiday                  0.956                  1
+#&gt; 3 South Coast      Holiday                  0.952                  1
+#&gt; 4 Peninsula        Holiday                  0.928                  1
+#&gt; 5 Phillip Island   Holiday                  0.907                  1
+#&gt; 6 Central Coast    Holiday                  0.903                  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>seasonal_peak_year</code> column adds a detail you would otherwise have to plot to see: the Snowy Mountains peak at position 3, which is Q4, while everywhere else peaks at position 1, which is Q2. Ski fields and beaches are busy in opposite halves of the year, and the feature table says so in a column.</p>
+
+<p>This is the shape that scales. The pipeline does not care whether it is handed 304 series or 30,000. You compute the fingerprint once, write the routing rule once, and get back a table that says where the modelling effort should go, before any model is fitted.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Rank the most seasonal holiday destinations</h3>
+
+<p>Using only the <code>Holiday</code> series, find the 3 with the highest <code>seasonal_strength_year</code>. Show <code>Region</code>, <code>State</code>, <code>seasonal_strength_year</code> and <code>seasonal_peak_year</code>. Save the result to <code>my_holiday</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter the tsibble BEFORE computing features,
+# then use feat_stl, select, arrange and head
+my_holiday &lt;- tourism |&gt; filter(Purpose == &quot;Holiday&quot;)
+n_keys(my_holiday)
+#&gt; [1] 76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_holiday &lt;- tourism |&gt;
+  filter(Purpose == &quot;Holiday&quot;) |&gt;
+  features(Trips, feat_stl) |&gt;
+  select(Region, State, seasonal_strength_year, seasonal_peak_year) |&gt;
+  arrange(desc(seasonal_strength_year)) |&gt;
+  head(3)
+
+my_holiday
+#&gt; # A tibble: 3 × 4
+#&gt;   Region           State           seasonal_strength_year seasonal_peak_year
+#&gt;   &lt;chr&gt;            &lt;chr&gt;                            &lt;dbl&gt;              &lt;dbl&gt;
+#&gt; 1 Snowy Mountains  New South Wales                  0.967                  3
+#&gt; 2 Great Ocean Road Victoria                         0.956                  1
+#&gt; 3 South Coast      New South Wales                  0.952                  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> Filtering the tsibble before <code>features()</code> means only Holiday series are measured at all, which is faster than computing all 304 and discarding three quarters of them.</p>
+
+</details>
+
+<h3>Exercise 2: Find the boom series</h3>
+
+<p>Write a custom feature <code>my_growth</code> returning <code>my_ratio</code>, the mean of the last four quarters divided by the mean of the first four. Combine it with <code>feat_stl</code>, then keep only series where <code>trend_strength</code> is above 0.7 AND <code>my_ratio</code> is above 2. Drop any infinite ratios. Sort by <code>my_ratio</code>, highest first, and save to <code>my_boom</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: n &lt;- length(x), then the last four values are x[(n - 3):n]
+# Hint: pass list(feat_stl, my_growth) to features()
+# Hint: is.finite() drops Inf values inside filter()
+my_growth &lt;- function(x, ...) {
+  c(my_ratio = NA_real_)  # replace NA_real_ with your calculation
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_growth &lt;- function(x, ...) {
+  n &lt;- length(x)
+  c(my_ratio = mean(x[(n - 3):n]) / mean(x[1:4]))
+}
+
+my_boom &lt;- tourism |&gt;
+  features(Trips, list(feat_stl, my_growth)) |&gt;
+  filter(trend_strength &gt; 0.7, my_ratio &gt; 2, is.finite(my_ratio)) |&gt;
+  select(Region, Purpose, trend_strength, my_ratio) |&gt;
+  arrange(desc(my_ratio))
+
+my_boom
+#&gt; # A tibble: 6 × 4
+#&gt;   Region                 Purpose  trend_strength my_ratio
+#&gt;   &lt;chr&gt;                  &lt;chr&gt;             &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 Australia's North West Business          0.934     3.72
+#&gt; 2 Melbourne East         Visiting          0.787     3.49
+#&gt; 3 Mackay                 Business          0.701     2.67
+#&gt; 4 Melbourne              Other             0.826     2.42
+#&gt; 5 Experience Perth       Other             0.730     2.18
+#&gt; 6 Adelaide               Other             0.746     2.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> Requiring both a high trend strength and a large growth ratio finds series that grew a lot <em>and</em> grew smoothly. The mining-boom series tops the list, and <code>is.finite()</code> removes the divide-by-zero cases from the sparse series.</p>
+
+</details>
+
+<h3>Exercise 3: Rank the states by holiday seasonality</h3>
+
+<p>For <code>Holiday</code> series only, compute <code>seasonal_strength_year</code> for each series, then group by <code>State</code> and report the mean seasonality plus the number of series per state. Sort most seasonal first and save to <code>my_states</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: features() returns a plain tibble, so group_by()
+# and summarise() work exactly as they do on any data frame
+# Hint: n() counts rows within a group
+
+my_states &lt;- tourism |&gt;
+  filter(Purpose == &quot;Holiday&quot;) |&gt;
+  features(Trips, feat_stl)
+
+# Write the group_by() and summarise() steps below
+head(my_states, 3)
+#&gt; # A tibble: 3 × 12
+#&gt;   Region State Purpose trend_strength seasonal_strength_year seasonal_peak_year seasonal_trough_year
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;chr&gt;            &lt;dbl&gt;                  &lt;dbl&gt;              &lt;dbl&gt;                &lt;dbl&gt;
+#&gt; 1 Adela… Sout… Holiday          0.554                  0.619                  1                    2
+#&gt; 2 Adela… Sout… Holiday          0.528                  0.296                  2                    1
+#&gt; 3 Alice… Nort… Holiday          0.381                  0.832                  3                    1
+#&gt; # ℹ 5 more variables: spikiness &lt;dbl&gt;, linearity &lt;dbl&gt;, curvature &lt;dbl&gt;, stl_e_acf1 &lt;dbl&gt;,
+#&gt; #   stl_e_acf10 &lt;dbl&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_states &lt;- tourism |&gt;
+  filter(Purpose == &quot;Holiday&quot;) |&gt;
+  features(Trips, feat_stl) |&gt;
+  group_by(State) |&gt;
+  summarise(
+    my_mean_seasonality = mean(seasonal_strength_year),
+    my_n = n()
+  ) |&gt;
+  arrange(desc(my_mean_seasonality))
+
+my_states
+#&gt; # A tibble: 8 × 3
+#&gt;   State              my_mean_seasonality  my_n
+#&gt;   &lt;chr&gt;                            &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Tasmania                         0.874     5
+#&gt; 2 Northern Territory               0.768     7
+#&gt; 3 New South Wales                  0.623    13
+#&gt; 4 Western Australia                0.610     5
+#&gt; 5 Queensland                       0.590    12
+#&gt; 6 South Australia                  0.538    12
+#&gt; 7 Victoria                         0.521    21
+#&gt; 8 ACT                              0.453     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<p><strong>Explanation:</strong> This is the payoff of the flattening idea. Once features are rows, <code>group_by()</code> and <code>summarise()</code> aggregate <em>across series</em>, which is not something you can do while the data is still 24,320 observations deep. Tasmania's holiday travel is the most calendar-driven in the country, and the ACT's is the least.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Do I need a tsibble, or will a plain data frame work?</h3>
+
+<p>You need a tsibble. <code>features()</code> is defined for tsibbles specifically, because it has to know which column is time and which columns split the data into separate series. Converting is one line, <code>as_tsibble(index = &lt;time column&gt;, key = &lt;id columns&gt;)</code>, as shown in the second section.</p>
+
+<h3>What is the difference between seasonal_strength_year and season_acf1?</h3>
+
+<p>They measure the same thing two different ways, and they usually agree. <code>seasonal_strength_year</code> runs a full STL decomposition and reports the share of variance the seasonal component explains. <code>season_acf1</code> is a single correlation at the seasonal lag, so it is far cheaper to compute. Use <code>season_acf1</code> when you are screening a very large number of series, and <code>seasonal_strength_year</code> when you want the interpretable 0 to 1 share.</p>
+
+<h3>Should I feed all 48 features into a clustering model?</h3>
+
+<p>Usually not. Many of the 48 are strongly correlated with each other, so clustering on the raw set effectively counts some traits several times. Either pick the handful that match your question, or run PCA first (as in the outlier section) and cluster on the first few components.</p>
+
+<h3>Why does seasonal_peak_year say 3 when the peak is in Q4?</h3>
+
+<p>Because the position counts from 0, not 1. On quarterly data, 0 is Q1, 1 is Q2, 2 is Q3 and 3 is Q4. On monthly data the same column runs 0 to 11 for January through December. Add 1 before showing the number to anyone.</p>
+
+<h3>What happens if my series are too short?</h3>
+
+<p><code>feat_stl</code> needs at least two full seasonal cycles to separate a season from a trend. Given less than that, it silently returns fewer columns: the seasonal ones simply do not appear. A six-quarter series, for example, comes back with <code>trend_strength</code> and <code>spikiness</code> but no <code>seasonal_strength_year</code> at all. Always check the column names on short data rather than assuming the usual nine are there.</p>
+
+<h3>Can series of different lengths live in the same tsibble?</h3>
+
+<p>Yes. <code>features()</code> processes each key group independently, so a tsibble holding one series of 40 quarters and another of 12 returns one row for each, with features computed over whatever data that series has. Just remember the short-series caveat above: a series too short for two seasonal cycles will be missing its seasonal columns, which shows up as <code>NA</code> once the rows are stacked together.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A feature</td>
+<td>One number summarising an entire series</td>
+</tr>
+<tr>
+<td><code>features()</code></td>
+<td>Applies a recipe to every series in a tsibble, returning one row each</td>
+</tr>
+<tr>
+<td>The key</td>
+<td>The tsibble columns that define where one series ends and the next begins</td>
+</tr>
+<tr>
+<td><code>feat_stl</code></td>
+<td>Trend and seasonal strength, peak and trough position, spikiness, linearity, curvature</td>
+</tr>
+<tr>
+<td><code>feat_acf</code></td>
+<td>Autocorrelation at lag 1, at the seasonal lag, and after differencing</td>
+</tr>
+<tr>
+<td><code>feature_set(pkgs = &quot;feasts&quot;)</code></td>
+<td>All 48 features at once, the full fingerprint</td>
+</tr>
+<tr>
+<td>Strength</td>
+<td>A share of variance from 0 to 1, not a slope</td>
+</tr>
+<tr>
+<td>PCA on features</td>
+<td>Compresses 48 columns to 2 so hundreds of series fit on one chart</td>
+</tr>
+<tr>
+<td>Custom features</td>
+<td>Any function taking a numeric vector and returning named numbers, with <code>...</code> in the signature</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use this table to go from a question to the feature that answers it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your question</th>
+<th>Feature to reach for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Does this series repeat every year?</td>
+<td><code>seasonal_strength_year</code> or <code>season_acf1</code></td>
+</tr>
+<tr>
+<td>Is it going anywhere?</td>
+<td><code>trend_strength</code> and <code>linearity</code></td>
+</tr>
+<tr>
+<td>When in the year is it busiest?</td>
+<td><code>seasonal_peak_year</code></td>
+</tr>
+<tr>
+<td>Can this be forecast at all?</td>
+<td><code>spectral_entropy</code></td>
+</tr>
+<tr>
+<td>Do I need to difference it?</td>
+<td><code>ndiffs</code> and <code>nsdiffs</code></td>
+</tr>
+<tr>
+<td>Did something break partway through?</td>
+<td><code>shift_level_max</code> and <code>shift_var_max</code></td>
+</tr>
+<tr>
+<td>Is the data even usable?</td>
+<td><code>zero_run_mean</code> and <code>longest_flat_spot</code></td>
+</tr>
+<tr>
+<td>Which series are unlike the rest?</td>
+<td>PCA on the full feature set</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd Edition. Chapter 4: Time series features. <a href="https://otexts.com/fpp3/features.html">Link</a> - the standard textbook treatment of this material, including the strength formulas used above.</li>
+
+<li>feasts package reference site: Feature Extraction And Statistics for Time Series. <a href="https://feasts.tidyverts.org/">Link</a> - the package's own site, listing every feature function it provides.</li>
+
+<li>feasts documentation: <code>feat_stl()</code> reference. <a href="https://feasts.tidyverts.org/reference/feat_stl.html">Link</a> - exact definitions and defaults for the nine columns <code>feat_stl</code> returns.</li>
+
+<li>tsibble package reference site: Tidy Temporal Data Frames. <a href="https://tsibble.tidyverts.org/">Link</a> - how index and key work, and every way to build a tsibble from data you already have.</li>
+
+<li>Wang, X., Smith, K. & Hyndman, R.J. Characteristic-based clustering for time series data. <em>Data Mining and Knowledge Discovery</em>, 13(3), 335-364 (2006). <a href="https://robjhyndman.com/papers/wang.pdf">Link</a> - the paper that introduced clustering series by their features, which is what the PCA section is a small version of.</li>
+
+<li>Hyndman, R.J., Wang, E. & Laptev, N. Large-scale unusual time series detection. <em>IEEE ICDM Workshops</em> (2015). <a href="https://robjhyndman.com/papers/icdm2015.pdf">Link</a> - how a feature space is used to flag unusual series in a portfolio of thousands.</li>
+
+<li>Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A seasonal-trend decomposition procedure based on loess. <em>Journal of Official Statistics</em>, 6(1), 3-73 (1990). <a href="https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf">Link</a> - the original STL algorithm, if you want to know how the trend and season are actually estimated.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a> - the STL machinery behind <code>trend_strength</code> and <code>seasonal_strength_year</code>, explained step by step.</li>
+
+<li><a href="fable-in-R.html">fable in R: Tidy Time Series Forecasting with tsibble</a> - fit <a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a> to every series in a tsibble at once, which is the natural next step after triage.</li>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a> - read autocorrelation plots properly and use them to choose ARIMA orders.</li>
+
+</ul>
+
