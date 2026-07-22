@@ -1,0 +1,1647 @@
+---
+title: "Cointegration in R: Engle-Granger and Error Correction"
+description: "Cointegration in R from scratch: spurious regression, the Engle-Granger two-step test, the right critical values, and error correction models that work."
+keywords: "cointegration in R, Engle-Granger test, error correction model, ECM in R, urca package, spurious regression, unit root test, speed of adjustment, Johansen test, ca.po"
+mathjax: true
+webr: true
+curriculum_id: "FR-adva-10"
+post_type: "C"
+auto_link_terms: "cointegration|cointegrated|cointegration test|Engle-Granger|Engle-Granger test|error correction model|error correction term|spurious regression|long-run equilibrium|speed of adjustment|cointegrating regression|cointegrating vector|half-life of a shock|Johansen test"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Cointegration"
+sidebar_order: "31"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Two time series are <strong>cointegrated</strong> when each one wanders freely with no fixed level of its own, yet some fixed combination of the two does not wander: the gap between them keeps getting pulled back toward a stable value. That single distinction decides whether a regression between two trending series is a real long-run relationship or a statistical mirage. This post walks you from the mirage to a fitted error correction model, one runnable block at a time, using only base R plus two small packages, <code>tseries</code> and <code>urca</code>.</p>
+
+<h2>Why do two unrelated series look so strongly related?</h2>
+
+<p>Before any theory, here is the problem that makes cointegration necessary. I am about to create two number sequences using nothing but a random number generator. They are built independently. Neither one knows the other exists. Then I will regress one on the other, and the regression will look excellent.</p>
+
+<p>Let's build them first.</p>
+
+<div class="webr-container" data-block-title="Simulate two independent random walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate two independent random walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(110)
+n_sim &lt;- 250
+
+# Each series starts at zero and takes 250 random steps.
+# cumsum() adds up the steps, so each value is the previous
+# value plus one fresh random number.
+walk_a &lt;- cumsum(rnorm(n_sim))
+walk_b &lt;- cumsum(rnorm(n_sim))
+
+round(head(data.frame(walk_a, walk_b), 3), 3)
+#&gt;   walk_a walk_b
+#&gt; 1  0.291  1.415
+#&gt; 2  1.680  1.460
+#&gt; 3  2.329  1.257</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>What the code did: <code>rnorm(250)</code> drew 250 independent random numbers, and <code>cumsum()</code> turned them into a running total. So <code>walk_a[2]</code> is <code>walk_a[1]</code> plus a fresh random number, <code>walk_a[3]</code> is <code>walk_a[2]</code> plus another one, and so on. <code>walk_b</code> was built the exact same way from a completely separate draw.</p>
+
+<p>A series built this way is called a <strong>random walk</strong>. The defining feature is that it has no home. A random walk does not have an average level that it returns to; wherever today's shock pushes it, that becomes the new starting point for tomorrow. Formally:</p>
+
+<p>\[ y_t = y_{t-1} + \varepsilon_t \]</p>
+
+<p>Here \(y_t\) is today's value, \(y_{t-1}\) is yesterday's, and \(\varepsilon_t\) is a fresh random shock with mean zero. Notice there is no term pulling \(y_t\) back to any particular number. Every shock is permanent, and they accumulate forever.</p>
+
+<p>The opposite of this is a <strong>stationary</strong> series: one whose average level, spread, and general behaviour stay the same over time. A stationary series does have a home, and it keeps returning to it. A random walk is <strong>non-stationary</strong>.</p>
+
+<p>Let's look at our two walks.</p>
+
+<div class="webr-container" data-block-title="Plot the two independent walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the two independent walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(walk_a, type = &quot;l&quot;, col = &quot;steelblue&quot;, lwd = 2,
+     ylim = range(c(walk_a, walk_b)),
+     xlab = &quot;Time&quot;, ylab = &quot;Value&quot;,
+     main = &quot;Two series built from separate random draws&quot;)
+lines(walk_b, col = &quot;tomato&quot;, lwd = 2)
+legend(&quot;topleft&quot;, legend = c(&quot;walk_a&quot;, &quot;walk_b&quot;),
+       col = c(&quot;steelblue&quot;, &quot;tomato&quot;), lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both lines drift. Because both happen to drift in a broadly similar direction over this particular stretch, they look related. They are not. Now watch what ordinary regression says about them.</p>
+
+<div class="webr-container" data-block-title="Regress one random walk on the other">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regress one random walk on the other</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spurious_fit &lt;- lm(walk_b ~ walk_a)
+summary(spurious_fit)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = walk_b ~ walk_a)
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -9.0411 -2.2911  0.3185  2.6111  9.7124 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -3.38592    0.28023  -12.08   &lt;2e-16 ***
+#&gt; walk_a       0.82999    0.02048   40.53   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 3.628 on 248 degrees of freedom
+#&gt; Multiple R-squared:  0.8689,	Adjusted R-squared:  0.8683 
+#&gt; F-statistic:  1643 on 1 and 248 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that output as you normally would. The slope on <code>walk_a</code> is 0.83 with a t-statistic of 40.53 and a p-value below \(2 \times 10^{-16}\). The R-squared is 0.8689, meaning <code>walk_a</code> supposedly explains 87 percent of the variation in <code>walk_b</code>. In a normal analysis you would write this up as a strong finding.</p>
+
+<p>It is nonsense. We built the two series from separate random draws. There is no relationship to find. This is called a <strong><a class="auto-link" href="Dynamic-Regression-in-R.html" title="Dynamic Regression in R: Regression with ARIMA Errors">spurious regression</a></strong>, and Granger and Newbold documented it in 1974 [2].</p>
+
+<p>The reason is worth understanding, because it explains everything else in this post. The t-statistic is computed as the coefficient divided by its standard error, and that standard error formula assumes the regression's leftover errors are stationary. Here they are not: subtract one random walk from a multiple of another random walk and you still have a random walk. The formula divides by a number that is far too small, so the t-statistic is inflated to a size that has nothing to do with evidence.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A big t-statistic between two wandering series measures shared drift, not a shared relationship.</strong> The usual standard error formula assumes the regression residuals settle down around zero; when both sides of the regression wander without limit the residuals wander too, the standard error comes out far too small, and the t-statistic balloons regardless of whether any real link exists.</div></div>
+
+<p>One dramatic example could just be bad luck. Let's find out how often this happens by repeating the whole experiment 500 times with fresh random walks each time.</p>
+
+<div class="webr-container" data-block-title="How often does the fake result appear?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How often does the fake result appear?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+reject &lt;- replicate(500, {
+  a &lt;- cumsum(rnorm(250))
+  b &lt;- cumsum(rnorm(250))
+  # TRUE when the slope looks &quot;significant&quot; at the 5% level
+  summary(lm(b ~ a))$coefficients[2, 4] &lt; 0.05
+})
+
+mean(reject)
+#&gt; [1] 0.878</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The code generated 500 brand new pairs of unrelated random walks, ran a regression on each pair, and recorded whether the slope came out significant at the usual 5 percent threshold. If the <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Sample-t-Test-in-R.html" title="t-Test in R: One-Sample, Two-Sample and Paired (With Examples)">t-test</a> were working correctly, roughly 5 percent of these should be significant by chance. Instead 87.8 percent of them were.</p>
+
+<p>That is the practical takeaway: when you regress one non-stationary series on another, a "significant" result is the default outcome, not evidence. Nearly nine times out of ten you will find a relationship that does not exist.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> See whether the fake relationship survives a different seed. The block below regresses <code>ex_b</code> on fresh white noise, which is stationary, so the R-squared comes out near zero. Swap that noise for the random walk <code>ex_a</code> and watch what happens.</p>
+<div class="webr-container" data-block-title="Your turn: a second spurious pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a second spurious pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: compare a stationary regressor against a random-walk one.
+# Change rnorm(250) to ex_a below, then run.
+set.seed(404)
+ex_a &lt;- cumsum(rnorm(250))
+ex_b &lt;- cumsum(rnorm(250))
+
+summary(lm(ex_b ~ rnorm(250)))$r.squared   # change rnorm(250) to ex_a</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Second spurious pair solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Second spurious pair solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lm(ex_b ~ ex_a)
+
+round(summary(ex_fit)$r.squared, 4)
+#&gt; [1] 0.3205
+
+round(coef(summary(ex_fit))[2, c(3, 4)], 4)
+#&gt;  t value Pr(&gt;|t|) 
+#&gt;  10.8151   0.0000 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A different seed gives a different R-squared, 0.32 instead of 0.87, but the same verdict: a t-statistic of 10.8 and a p-value that rounds to zero, from two series with no connection whatsoever. The size of the fake effect varies; its presence does not.</p>
+
+</details>
+</section>
+
+<h2>What does it mean for two series to be cointegrated?</h2>
+
+<p>So regressing one wandering series on another is usually a trap. But sometimes two series genuinely do move together, and we need a way to tell that case apart. Cointegration is that test.</p>
+
+<p>Here is the picture that makes it click, borrowed from Michael Murray's 1994 note in <em>The American Statistician</em> [9]. Imagine a woman walking home from a pub with her dog off the leash. Track the woman alone and her path is a random walk: she has no fixed position she returns to. Track the dog alone and the same is true. But the distance between them is not a random walk at all. Whenever the dog strays too far she calls it back, and whenever she strays the dog trots after her. The gap wobbles, but it always gets pulled back toward a small value.</p>
+
+<p>That is cointegration. Each series is non-stationary on its own, but a particular combination of them is stationary.</p>
+
+<p>Two pieces of standard vocabulary make this precise:</p>
+
+<ul>
+
+<li>A series is <strong>I(0)</strong>, read "integrated of order zero", if it is already stationary. It has a home level and returns to it.</li>
+
+<li>A series is <strong>I(1)</strong>, read "integrated of order one", if it is not stationary, but its period-to-period change is. Our random walks are I(1): the walk itself has no home, but the steps (<code>diff(walk_a)</code>) are just the original random numbers, which certainly do.</li>
+
+</ul>
+
+<p>Two I(1) series \(y_t\) and \(x_t\) are cointegrated if there is some number \(\beta\) such that</p>
+
+<p>\[ z_t = y_t - \beta x_t \]</p>
+
+<p>is I(0). The pair \((1, -\beta)\) is called the <strong>cointegrating vector</strong>, and \(z_t\) is the <strong>equilibrium gap</strong>: the amount by which the two series are currently out of line with their long-run relationship.</p>
+
+<p><img src="screenshots/Cointegration-in-R-spurious-vs-cointegrated.webp" alt="Flowchart contrasting spurious regression with cointegration" class="img-responsive img-zoomable" loading="lazy" width="2000" height="690" /></p>
+
+<p><em>Figure 1: The single question that separates a real long-run relationship from a statistical mirage.</em></p>
+
+<p>Now let's build a pair that really is cointegrated, so we have a known-good example to test against. A household's income and its spending make a natural story: spending tracks income over the long run, but in any given month a household can overspend or underspend, and that imbalance gets worked off over the following months.</p>
+
+<div class="webr-container" data-block-title="Simulate a genuinely cointegrated pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate a genuinely cointegrated pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+n_obs &lt;- 240                     # 20 years of monthly observations
+
+# Income is a random walk with a slight upward drift.
+income &lt;- 100 + cumsum(rnorm(n_obs, mean = 0.15, sd = 1))
+
+# The equilibrium gap is stationary: an AR(1) process that always
+# gets pulled back toward zero. 0.75 is how much of last month's
+# gap survives into this month.
+gap &lt;- as.numeric(arima.sim(list(ar = 0.75), n = n_obs, sd = 0.6))
+
+# Spending is 80% of income, plus that temporary gap.
+spending &lt;- 20 + 0.8 * income + gap
+
+round(head(data.frame(income, spending), 4), 2)
+#&gt;   income spending
+#&gt; 1  99.82    99.78
+#&gt; 2 100.53   100.02
+#&gt; 3 100.00   101.01
+#&gt; 4 100.37   101.53</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines did the real work. The <code>income</code> line makes a random walk with drift, so income wanders upward without ever settling at a level. The <code>gap</code> line makes a stationary AR(1) series, which means each month's gap is 75 percent of last month's plus a fresh shock, so it always decays back toward zero. The <code>spending</code> line combines them, which builds in the long-run rule "spending equals 20 plus 0.8 times income" and lets actual spending deviate from it temporarily.</p>
+
+<p>Because we wrote the simulation, we know the true answers: the cointegrating slope is exactly 0.8, the intercept is exactly 20, and 0.75 of each month's gap carries over into the next, so a quarter of it disappears every month. Later we will check whether the statistics recover them.</p>
+
+<p>Let's see what these two look like, and what their true gap looks like.</p>
+
+<div class="webr-container" data-block-title="Plot the levels and the equilibrium gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the levels and the equilibrium gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">true_spread &lt;- spending - 20 - 0.8 * income
+
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+plot(income, type = &quot;l&quot;, col = &quot;steelblue&quot;, lwd = 2,
+     ylim = range(c(income, spending)),
+     xlab = &quot;Month&quot;, ylab = &quot;Level&quot;, main = &quot;Income and spending both wander&quot;)
+lines(spending, col = &quot;darkorange&quot;, lwd = 2)
+legend(&quot;topleft&quot;, legend = c(&quot;income&quot;, &quot;spending&quot;),
+       col = c(&quot;steelblue&quot;, &quot;darkorange&quot;), lwd = 2, bty = &quot;n&quot;)
+
+plot(true_spread, type = &quot;l&quot;, col = &quot;seagreen&quot;, lwd = 1.5,
+     xlab = &quot;Month&quot;, ylab = &quot;Gap&quot;, main = &quot;But the gap between them does not&quot;)
+abline(h = 0, lty = 2)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The top panel shows two series climbing from around 100 to around 138 with no fixed level. The bottom panel shows their gap hovering around zero the whole time, crossing the dashed line again and again. That contrast is the whole idea: the pieces wander, the combination does not.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>We know the right answer for this simulated pair, which is the point.</strong> Because the gap was built as an AR(1) with coefficient 0.75, the theory says the error correction model later in this post should recover an adjustment speed of about -0.25 and a half-life of about 2.4 months. Having a known truth to check against is the only way to be sure the procedure works.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the true equilibrium gap using the coefficients we built into the simulation, then report its mean and standard deviation. The block below uses the wrong slope, 0.5, which leaves a trend behind and inflates the spread. Put the true 0.8 in and the gap collapses to something small and stationary.</p>
+<div class="webr-container" data-block-title="Your turn: measure the true gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure the true gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: recover the stationary gap using the coefficients we simulated.
+# Change 0.5 to 0.8 below, then run.
+ex_spread &lt;- spending - 20 - 0.5 * income
+round(c(mean = mean(ex_spread), sd = sd(ex_spread)), 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="True gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">True gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spread &lt;- spending - 20 - 0.8 * income
+round(c(mean = mean(ex_spread), sd = sd(ex_spread)), 3)
+#&gt;   mean     sd 
+#&gt; -0.260  0.901 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean sits at -0.26 and the standard deviation is 0.90, so the gap stays within a couple of units of zero across all 240 months. Compare that to <code>income</code>, which travels nearly 40 units over the same period. The combination is anchored even though its ingredients are not.</p>
+
+</details>
+</section>
+
+<h2>How do you confirm both series are I(1) before testing?</h2>
+
+<p>Cointegration is only a meaningful question when both series are I(1). If a series is already stationary there is nothing to cointegrate, and the whole procedure would be answering a question nobody asked. So step zero is always a unit root test on each series separately.</p>
+
+<p>The standard tool is the <strong><a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">Augmented Dickey-Fuller</a> test</strong>, <code>adf.test()</code> in the <code>tseries</code> package. Its null hypothesis is "this series has a unit root", which is another way of saying "this series is a random walk and therefore not stationary". A small p-value means you reject that, so a small p-value says stationary. A large p-value means you cannot reject it, so a large p-value says non-stationary.</p>
+
+<p>That direction trips people up, so hold on to it: <strong>large p-value means non-stationary</strong>. For a full treatment of this test and its counterpart KPSS, see the <a href="Test-Stationarity-in-R.html">stationarity testing post</a>.</p>
+
+<p>Let's run it on both of our levels.</p>
+
+<div class="webr-container" data-block-title="Unit root test on the levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unit root test on the levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(tseries))
+
+adf.test(income)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  income
+#&gt; Dickey-Fuller = -0.78656, Lag order = 6, p-value = 0.9618
+#&gt; alternative hypothesis: stationary
+
+adf.test(spending)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  spending
+#&gt; Dickey-Fuller = -1.3354, Lag order = 6, p-value = 0.8554
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both p-values are enormous: 0.9618 for income and 0.8554 for spending. Neither one lets us reject the unit root, so we treat both as non-stationary. That is exactly what we want, because we built them that way.</p>
+
+<p>Non-stationary is only half the definition of I(1). The other half is that the first difference must be stationary. <code>diff()</code> gives us the month-to-month change, and we test that too.</p>
+
+<div class="webr-container" data-block-title="Unit root test on the first differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unit root test on the first differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(diff(income))
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  diff(income)
+#&gt; Dickey-Fuller = -6.2608, Lag order = 6, p-value = 0.01
+#&gt; alternative hypothesis: stationary
+
+adf.test(diff(spending))
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  diff(spending)
+#&gt; Dickey-Fuller = -7.3441, Lag order = 6, p-value = 0.01
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both differenced series give p-values of 0.01, comfortably below 0.05, so we reject the unit root for each. Levels non-stationary, differences stationary: both series are I(1), and the cointegration question is now a legitimate one to ask.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The 0.01 p-value comes with a warning message, and that message is normal.</strong> R prints "p-value smaller than printed p-value" whenever the test statistic falls outside the table of tabulated values that the function interpolates from. It means the true p-value is smaller than 0.01, not that anything went wrong.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>adf.test() always fits both a constant and a linear time trend, whether you want one or not.</strong> That makes its <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">alternative hypothesis</a> "trend-stationary" rather than plain stationary, so it can differ from other implementations. It is the right default for raw economic series like these, but it is the wrong specification for regression residuals, which is why the next sections switch to a function that lets you control it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> We built <code>gap</code> to be stationary by construction. Confirm that the test agrees by running the ADF test on it directly.</p>
+<div class="webr-container" data-block-title="Your turn: test the simulated gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test the simulated gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: show that gap is I(0) while income is I(1).
+# Change income to gap below, then run.
+adf.test(income)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Gap stationarity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gap stationarity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(gap)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  gap
+#&gt; Dickey-Fuller = -3.9597, Lag order = 6, p-value = 0.0117
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A p-value of 0.0117 rejects the unit root, so <code>gap</code> is I(0), already stationary with no differencing needed. That is the property the whole Engle-Granger procedure is about to go looking for, except it will have to find it without knowing the true coefficients.</p>
+
+</details>
+</section>
+
+<h2>How does the Engle-Granger two-step test actually work?</h2>
+
+<p>The Engle-Granger procedure [1] turns the cointegration question into two things you already know how to do. Step one estimates the long-run relationship with <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a>. Step two checks whether the leftovers from that regression are stationary.</p>
+
+<p>The clever part is what the residuals mean. In step one we fit</p>
+
+<p>\[ y_t = \mu + \beta x_t + u_t \]</p>
+
+<p>and the fitted residual \(\hat{u}_t\) is our estimate of the equilibrium gap \(z_t\) from the previous section. So the residual is not a nuisance to be checked and forgotten. It is the exact quantity the theory cares about.</p>
+
+<p><img src="screenshots/Cointegration-in-R-engle-granger-steps.webp" alt="Flowchart of the Engle-Granger two-step procedure" class="img-responsive img-zoomable" loading="lazy" width="2248" height="330" /></p>
+
+<p><em>Figure 2: The Engle-Granger procedure end to end, from the I(1) pre-check to a fitted error correction model.</em></p>
+
+<p>You might reasonably object at this point. Section one just showed that OLS between two I(1) series produces garbage, so why are we using OLS in step one? The answer is a genuinely surprising result called <strong>super-consistency</strong>. When the two series really are cointegrated, the OLS estimate of \(\beta\) converges on the truth faster than usual, at rate \(T\) rather than the usual \(\sqrt{T}\). The point estimate is trustworthy even though the standard errors and t-statistics printed beside it are not.</p>
+
+<p>So we read the slope, and we ignore the stars.</p>
+
+<div class="webr-container" data-block-title="Step 1: the cointegrating regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: the cointegrating regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coint_fit &lt;- lm(spending ~ income)
+summary(coint_fit)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = spending ~ income)
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -2.52086 -0.67153  0.04789  0.63812  2.34866 
+#&gt; 
+#&gt; Coefficients:
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) 21.411901   0.669912   31.96   &lt;2e-16 ***
+#&gt; income       0.785180   0.005918  132.68   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 0.8912 on 238 degrees of freedom
+#&gt; Multiple R-squared:  0.9867,	Adjusted R-squared:  0.9866 
+#&gt; F-statistic: 1.76e+04 on 1 and 238 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimated slope is 0.785180 against a true value of 0.8, and the estimated intercept is 21.41 against a true value of 20. Super-consistency delivered: with 240 observations we have recovered the long-run relationship to within two percent, from data where the individual series never sit still.</p>
+
+<p>The t-statistic of 132.68 beside that slope, on the other hand, tells us nothing. Section one produced a t-statistic of 40.53 from pure noise. Large t-statistics are what this kind of regression does.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>In an ordinary regression the residuals are what is left over; in a cointegrating regression the residuals are the answer.</strong> Everything from here on, the test statistic, the error correction model, the speed of adjustment, is computed from the residual series, so extracting it is the real output of step one.</div></div>
+
+<p>Let's pull the residuals out and compare them against the residuals from the fake regression in section one.</p>
+
+<div class="webr-container" data-block-title="Extract and compare the two residual series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract and compare the two residual series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ect          &lt;- residuals(coint_fit)     # the estimated equilibrium gap
+spurious_res &lt;- residuals(spurious_fit)  # leftovers from the fake regression
+
+round(c(coint_sd = sd(ect), spurious_sd = sd(spurious_res)), 3)
+#&gt;    coint_sd spurious_sd 
+#&gt;       0.889       3.621 
+
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+plot(ect, type = &quot;l&quot;, col = &quot;seagreen&quot;, lwd = 1.5, xlab = &quot;Month&quot;,
+     ylab = &quot;Residual&quot;, main = &quot;Cointegrated pair: residuals return to zero&quot;)
+abline(h = 0, lty = 2)
+plot(spurious_res, type = &quot;l&quot;, col = &quot;tomato&quot;, lwd = 1.5, xlab = &quot;Time&quot;,
+     ylab = &quot;Residual&quot;, main = &quot;Spurious pair: residuals wander off&quot;)
+abline(h = 0, lty = 2)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers hint at it and the plots make it obvious. The cointegrated residuals have a standard deviation of 0.889 and cross zero constantly, like a stationary series should. The spurious residuals have a standard deviation of 3.621 and stay far from zero for long stretches at a time, like a random walk.</p>
+
+<p>Your eyes can tell these apart here. Step two of Engle-Granger is the formal version of that judgement, and the next section covers the one thing everybody gets wrong about it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm that the residuals really are the equilibrium gap by rebuilding them by hand from the fitted coefficients, then checking they match what <code>residuals()</code> returned.</p>
+<div class="webr-container" data-block-title="Your turn: rebuild the residuals by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rebuild the residuals by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: show the residual is just &quot;actual minus fitted line&quot;.
+# The slope below is a placeholder 1. Change it to
+# coef(coint_fit)[2], then run.
+ex_manual &lt;- spending - coef(coint_fit)[1] - 1 * income
+max(abs(ex_manual - ect))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Manual residual solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual residual solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_manual &lt;- spending - coef(coint_fit)[1] - coef(coint_fit)[2] * income
+max(abs(ex_manual - ect))
+#&gt; [1] 1.733585e-12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The largest disagreement is about 0.000000000002, which is floating point rounding rather than a real difference. The residual is literally "how far spending is from where the long-run relationship says it should be", given this month's income.</p>
+
+</details>
+</section>
+
+<h2>Why are the printed critical values wrong for these residuals?</h2>
+
+<p>Step two asks whether <code>ect</code> has a unit root. It looks like the same job we did in section three, so the obvious move is to run a unit root test on it and read off the answer. That obvious move is the most common mistake in applied cointegration work, and this section is about why.</p>
+
+<p>We will use <code>ur.df()</code> from the <code>urca</code> package rather than <code>adf.test()</code>, because it lets us control the specification. The regression it fits on the residual series is</p>
+
+<p>\[ \Delta \hat{u}_t = \gamma \, \hat{u}_{t-1} + \sum_{i=1}^{k} \delta_i \, \Delta \hat{u}_{t-i} + \varepsilon_t \]</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>\(\hat{u}_t\) is the residual from step one, our estimated equilibrium gap</li>
+
+<li>\(\Delta \hat{u}_t\) is this period's change in that gap</li>
+
+<li>\(\gamma\) is the coefficient of interest; \(\gamma = 0\) means a unit root, so the gap never closes</li>
+
+<li>\(\delta_i\) are lagged-change terms that mop up short-term <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">autocorrelation</a></li>
+
+<li>\(\varepsilon_t\) is the leftover error</li>
+
+</ul>
+
+<p>We set <code>type = &quot;none&quot;</code> because the residuals from a regression that already included an intercept have mean zero by construction, so adding another constant would be redundant. And <code>lags = 1</code> sets \(k = 1\) in the formula above: one lagged-change term, which is enough for residuals this well behaved.</p>
+
+<p>One R detail before the code. Objects from <code>urca</code> are S4 objects, and their parts come out with <code>@</code> rather than the <code>$</code> you would use on a list. So <code>df_test@teststat</code> is the test statistic and <code>df_test@cval</code> is the table of critical values that came with it.</p>
+
+<div class="webr-container" data-block-title="Step 2: unit root test on the residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: unit root test on the residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(urca))
+
+df_test &lt;- ur.df(ect, type = &quot;none&quot;, lags = 1)
+
+round(df_test@teststat, 4)
+#&gt;              tau1
+#&gt; statistic -5.9985
+
+df_test@cval
+#&gt;       1pct  5pct 10pct
+#&gt; tau1 -2.58 -1.95 -1.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test statistic is -5.9985. R helpfully prints a table of critical values beside it: -2.58, -1.95 and -1.62 at the 1, 5 and 10 percent levels. Our statistic is far below all of them, so the naive reading is "reject the unit root, the residuals are stationary, the series are cointegrated".</p>
+
+<p>The conclusion happens to be right. The critical values are wrong.</p>
+
+<p>Here is why. Those numbers are Dickey-Fuller critical values, computed for testing a series you simply observed. Our residual series was not observed. It was manufactured by least squares, and least squares chooses \(\beta\) precisely to make those residuals as small as possible. OLS actively searches for the combination of the two series that looks most stationary. So even when no cointegrating relationship exists, the residuals it produces look more stationary than a randomly chosen combination would.</p>
+
+<p>The null distribution of the test statistic therefore shifts to the left, and the correct thresholds are substantially stricter. The right table comes from MacKinnon [3], and depends on how many series are in the regression:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Series in the regression</th>
+<th>1%</th>
+<th>5%</th>
+<th>10%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 (one regressor)</td>
+<td>-3.90</td>
+<td>-3.34</td>
+<td>-3.05</td>
+</tr>
+<tr>
+<td>3 (two regressors)</td>
+<td>-4.29</td>
+<td>-3.74</td>
+<td>-3.45</td>
+</tr>
+<tr>
+<td>4 (three regressors)</td>
+<td>-4.64</td>
+<td>-4.10</td>
+<td>-3.81</td>
+</tr>
+</tbody>
+</table>
+
+<p>For our two-series case the 5 percent threshold is -3.34, not -1.95. Our statistic of -5.9985 clears the stricter bar easily, so the verdict stands. But look what happens when we run the identical procedure on the fake pair from section one.</p>
+
+<div class="webr-container" data-block-title="The same test on the spurious pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same test on the spurious pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spurious_df &lt;- ur.df(spurious_res, type = &quot;none&quot;, lags = 1)
+
+round(spurious_df@teststat, 4)
+#&gt;              tau1
+#&gt; statistic -1.9765</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that carefully. The statistic is -1.9765. R's printed 5 percent critical value is -1.95, and -1.9765 is below -1.95, so anyone comparing against the printed table concludes that these residuals are stationary and declares the two series cointegrated.</p>
+
+<p>They are two independent random walks. There is nothing there. Against the correct Engle-Granger threshold of -3.34, a statistic of -1.98 is nowhere close, and we correctly fail to reject.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Comparing a residual-based test statistic against R's printed unit root critical values will manufacture cointegration that is not there.</strong> The <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> above is not contrived: it comes from the first seed that produced a visually dramatic spurious regression. Always compare against the MacKinnon table for the number of series in your regression, or use a function that supplies the correct values for you.</div></div>
+
+<p>The safer route is to let a purpose-built function handle it. <code>ca.po()</code> runs the Phillips-Ouliaris test [10], which is designed for exactly this job and prints critical values from the correct distribution. Its statistic works in the opposite direction from the ADF one: here a <strong>large</strong> value is the evidence for cointegration. Two arguments to know: <code>demean = &quot;constant&quot;</code> lets the two series sit at different fixed levels, the same job the intercept did in step one, and <code>type = &quot;Pu&quot;</code> picks the variance-ratio form of the statistic, which is the one the printed critical values belong to.</p>
+
+<div class="webr-container" data-block-title="Phillips-Ouliaris with correct critical values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Phillips-Ouliaris with correct critical values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">po_good &lt;- ca.po(cbind(spending, income), demean = &quot;constant&quot;, type = &quot;Pu&quot;)
+po_bad  &lt;- ca.po(cbind(walk_b, walk_a),   demean = &quot;constant&quot;, type = &quot;Pu&quot;)
+
+round(c(cointegrated_pair = po_good@teststat, spurious_pair = po_bad@teststat), 3)
+#&gt; cointegrated_pair     spurious_pair 
+#&gt;           106.970            17.122 
+
+po_good@cval
+#&gt;                   10pct   5pct    1pct
+#&gt; critical values 27.8536 33.713 48.0021</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The genuinely cointegrated pair scores 106.97, which is more than triple the 5 percent threshold of 33.713. The spurious pair scores 17.122, below even the 10 percent threshold of 27.85. One clear yes, one clear no, and we did not have to look anything up.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use ca.po as a second opinion whenever a residual test lands anywhere near the boundary.</strong> It reports critical values from the correct null distribution for estimated residuals, so it removes the single easiest way to fool yourself. Run it alongside the residual ADF test rather than instead of it, and worry when the two disagree.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The helper below hard-codes R's printed 5 percent value of -1.95, so it gives the spurious pair a clean bill of health. Change the threshold to the correct Engle-Granger value of -3.34 and watch the verdict flip.</p>
+<div class="webr-container" data-block-title="Your turn: a verdict helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a verdict helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: see the wrong critical value manufacture a false positive.
+# Change -1.95 to -3.34 below, then run.
+ex_verdict &lt;- function(stat, cv = -1.95) {
+  if (stat &lt; cv) &quot;cointegrated&quot; else &quot;not cointegrated&quot;
+}
+
+ex_verdict(-5.9985)   # the genuinely cointegrated pair
+ex_verdict(-1.9765)   # the two independent random walks</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Verdict helper solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verdict helper solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_verdict &lt;- function(stat, cv = -3.34) {
+  if (stat &lt; cv) &quot;cointegrated&quot; else &quot;not cointegrated&quot;
+}
+
+ex_verdict(-5.9985)
+#&gt; [1] &quot;cointegrated&quot;
+ex_verdict(-1.9765)
+#&gt; [1] &quot;not cointegrated&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The comparison is one-sided and points downward, because more negative means faster mean reversion. Swapping in -1.95 instead of -3.34 flips the second answer to "cointegrated", which is precisely the mistake this section exists to prevent.</p>
+
+</details>
+</section>
+
+<h2>How do you build an error correction model from the residuals?</h2>
+
+<p>Passing the test tells you a stable long-run relationship exists. It does not tell you anything about the short run: how quickly a household that overspent this month works the imbalance off, or how strongly next month's spending responds to next month's income. The <strong>error correction model</strong>, or ECM, answers both.</p>
+
+<p>Granger's representation theorem says that any cointegrated pair can be written in error correction form. In plain words: if two series are tied together in the long run, then their short-run changes must contain a term that pulls them back whenever they drift apart. That pulling term is the lagged residual from step one.</p>
+
+<p>The model is</p>
+
+<p>\[ \Delta y_t = \mu + \gamma \, \Delta x_t + \alpha \, \hat{u}_{t-1} + \varepsilon_t \]</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>\(\Delta y_t\) is this month's change in spending, the thing being predicted</li>
+
+<li>\(\Delta x_t\) is this month's change in income, and \(\gamma\) is the <strong>short-run</strong> response to it</li>
+
+<li>\(\hat{u}_{t-1}\) is last month's equilibrium gap, the error correction term</li>
+
+<li>\(\alpha\) is the <strong>speed of adjustment</strong>, the fraction of last month's gap closed this month</li>
+
+<li>\(\varepsilon_t\) is the leftover error</li>
+
+</ul>
+
+<p>Everything in that equation is stationary, which means ordinary regression is valid again and the standard errors mean what they normally mean. That is the practical payoff of establishing cointegration first.</p>
+
+<p>Building the pieces requires care with lengths, because differencing costs one observation.</p>
+
+<div class="webr-container" data-block-title="Build the error correction model inputs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the error correction model inputs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_spending &lt;- diff(spending)     # 239 monthly changes
+d_income   &lt;- diff(income)       # 239 monthly changes
+ect_lag    &lt;- ect[-n_obs]        # residuals 1 to 239, i.e. lagged one month
+
+c(d_spending = length(d_spending), d_income = length(d_income), ect_lag = length(ect_lag))
+#&gt; d_spending   d_income    ect_lag 
+#&gt;        239        239        239 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lag alignment is the part worth pausing on. <code>diff(spending)[1]</code> is the change from month 1 to month 2, so the gap that should explain it is the gap at month 1. Dropping the last element with <code>ect[-n_obs]</code> shifts the residual series back by exactly one period, so row <code>i</code> of the regression pairs month <code>i</code>'s gap with the change from month <code>i</code> to month <code>i+1</code>. All three vectors now have 239 elements, which is what makes the regression run at all.</p>
+
+<div class="webr-container" data-block-title="Fit and read the error correction model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and read the error correction model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ecm &lt;- lm(d_spending ~ d_income + ect_lag)
+summary(ecm)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = d_spending ~ d_income + ect_lag)
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -1.70638 -0.42932 -0.04299  0.41721  1.74309 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -0.01527    0.03901  -0.391    0.696    
+#&gt; d_income     0.85424    0.04079  20.944  &lt; 2e-16 ***
+#&gt; ect_lag     -0.24806    0.04353  -5.698 3.59e-08 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 0.5945 on 236 degrees of freedom
+#&gt; Multiple R-squared:  0.6736,	Adjusted R-squared:  0.6709 
+#&gt; F-statistic: 243.6 on 2 and 236 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression predicted each month's change in spending from that month's change in income and the previous month's equilibrium gap. Three numbers carry the meaning.</p>
+
+<p>The <code>d_income</code> coefficient is 0.85424. In the short run, a one unit rise in income this month raises spending by 0.85 units this month. Compare that to the long-run coefficient of 0.785 from step one: households respond a little more strongly on impact than the long-run relationship implies, and the difference gets unwound later.</p>
+
+<p>The <code>ect_lag</code> coefficient is -0.24806, and this is the number the whole post has been building toward. It says that about 25 percent of last month's imbalance is corrected this month. If spending sat 4 units above where income says it should be, roughly 1 unit of that gets clawed back over the next month.</p>
+
+<p>The sign matters enormously. Negative means correcting: being above the line pushes you down, being below pushes you up. And recall that we built the gap as an AR(1) with coefficient 0.75, which implies a true adjustment speed of \(0.75 - 1 = -0.25\). The estimate of -0.248 recovers it almost exactly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The speed of adjustment is a rate, not a slope.</strong> A regular regression coefficient answers "how much does y move when x moves". This one answers "what fraction of an existing imbalance disappears each period", which is why it must be negative and between -1 and 0 to make sense.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A positive or statistically insignificant adjustment coefficient means your cointegration result did not hold up.</strong> A positive value says deviations push the series further apart, which is explosive rather than equilibrium behaviour, and an insignificant one says there is no measurable pull at all. In either case, stop and go back to the residual test rather than reporting the model.</div></div>
+
+<p>A rate of 25 percent per month is easier to feel as a <strong>half-life</strong>: how long until half of a shock has been absorbed. If a fraction \(\alpha\) is corrected each period, the share still remaining after \(h\) periods is \((1 + \alpha)^h\), so setting that equal to one half and solving gives</p>
+
+<p>\[ h = \frac{\ln(0.5)}{\ln(1 + \alpha)} \]</p>
+
+<div class="webr-container" data-block-title="Half-life of a shock">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Half-life of a shock</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alpha     &lt;- unname(coef(ecm)[&quot;ect_lag&quot;])
+half_life &lt;- log(0.5) / log(1 + alpha)
+
+round(c(alpha = alpha, half_life = half_life, closed_in_6 = 1 - (1 + alpha)^6), 3)
+#&gt;       alpha   half_life closed_in_6 
+#&gt;      -0.248       2.431       0.819 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Half of any imbalance is gone within 2.43 months, and 81.9 percent of it is gone within six months. That is a fast-correcting relationship. The simulation's true half-life was \(\ln(0.5) / \ln(0.75) = 2.41\) months, so the estimate is accurate to within a week.</p>
+
+<p>Half-life is what makes an adjustment speed interpretable across contexts. A pair of prices with a half-life of two days is an arbitrage relationship. A macroeconomic pair with a half-life of three years is a long-run tendency you would never trade on, even though both might show a statistically significant \(\alpha\).</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The helper below computes a "90 percent life", the time until only 90 percent of a shock remains. Change the 0.9 to 0.5 to turn it into the half-life, then compare three different adjustment speeds.</p>
+<div class="webr-container" data-block-title="Your turn: a half-life helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a half-life helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: turn an adjustment speed into a half-life.
+# Change 0.9 to 0.5 below, then run.
+ex_half_life &lt;- function(alpha) {
+  log(0.9) / log(1 + alpha)
+}
+
+round(ex_half_life(c(-0.1, -0.25, -0.5)), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Half-life helper solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Half-life helper solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_half_life &lt;- function(alpha) {
+  log(0.5) / log(1 + alpha)
+}
+
+round(ex_half_life(c(-0.1, -0.25, -0.5)), 2)
+#&gt; [1] 6.58 2.41 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Correcting 10 percent per period takes 6.58 periods to halve a shock, 25 percent takes 2.41, and 50 percent takes exactly 1 by definition. The relationship is strongly non-linear, so a slow-looking coefficient like -0.05 implies a half-life of over 13 periods.</p>
+
+</details>
+</section>
+
+<h2>When does Engle-Granger fail, and what do you use instead?</h2>
+
+<p>Everything so far worked because the example was cooperative. Engle-Granger has four real limitations, and knowing them is what separates using the method from trusting it blindly.</p>
+
+<p><strong>Limitation 1: the answer depends on which variable you put on the left.</strong> Regressing spending on income and regressing income on spending produce different residual series, so they produce different test statistics. There is no theoretical reason to prefer one.</p>
+
+<div class="webr-container" data-block-title="Does the regression direction matter?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Does the regression direction matter?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_rev &lt;- lm(income ~ spending)
+
+round(c(direct = coef(coint_fit)[2], implied = 1 / coef(fit_rev)[2]), 4)
+#&gt;    direct.income implied.spending 
+#&gt;           0.7852           0.7958 
+
+round(c(forward = ur.df(residuals(coint_fit), type = &quot;none&quot;, lags = 1)@teststat[1],
+        reverse = ur.df(residuals(fit_rev),   type = &quot;none&quot;, lags = 1)@teststat[1]), 4)
+#&gt; forward reverse 
+#&gt; -5.9985 -5.8861 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line compares the slope we estimated directly, 0.7852, against the slope implied by inverting the reverse regression, 0.7958. The second line compares the two test statistics: -5.9985 and -5.8861. Both are far below -3.34, so the verdict is the same either way.</p>
+
+<p>Now watch the same comparison on a shorter, noisier sample where the relationship is genuinely present but harder to see.</p>
+
+<div class="webr-container" data-block-title="A case where the direction flips the verdict">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A case where the direction flips the verdict</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+short_x &lt;- 50 + cumsum(rnorm(90, mean = 0.1, sd = 1))
+short_g &lt;- as.numeric(arima.sim(list(ar = 0.93), n = 90, sd = 0.5))
+short_y &lt;- 10 + 0.6 * short_x + short_g   # cointegrated by construction
+
+round(c(y_on_x = ur.df(residuals(lm(short_y ~ short_x)), type = &quot;none&quot;, lags = 1)@teststat[1],
+        x_on_y = ur.df(residuals(lm(short_x ~ short_y)), type = &quot;none&quot;, lags = 1)@teststat[1]), 3)
+#&gt; y_on_x x_on_y 
+#&gt; -1.981 -3.763 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same 90 observations, same true relationship, two opposite conclusions. Regressing <code>short_y</code> on <code>short_x</code> gives -1.981, which fails against -3.34 and says "not cointegrated". Regressing <code>short_x</code> on <code>short_y</code> gives -3.763, which passes comfortably and says "cointegrated". The second answer is the correct one, because we built the pair to be cointegrated with a stationary AR(0.93) gap.</p>
+
+<p>The forward regression produced a <strong>false negative</strong>, and if you had only run it in that direction you would have thrown away a real relationship.</p>
+
+<p><strong>Limitation 2: with three or more series it can only ever find one relationship.</strong> Four series can share up to three independent cointegrating relationships. A single OLS regression returns a single residual series, so at best it finds one blend of them and reports it as if it were the whole story.</p>
+
+<p><strong>Limitation 3: the test has low power in short samples.</strong> The section above is an example. With 90 observations and a slowly correcting gap, the procedure often cannot tell a slow return from no return at all.</p>
+
+<p><strong>Limitation 4: a <a class="auto-link" href="Anomaly-Detection-in-Time-Series-in-R.html" title="Time Series Anomaly Detection in R: tsoutliers, anomalize">structural break</a> will hide a real relationship.</strong> If the long-run coefficient changed partway through your sample, the residuals from a single fitted line contain a step, that step looks like a wandering component, and the test says no cointegration. Split the sample or use a break-aware test.</p>
+
+<p><img src="screenshots/Cointegration-in-R-which-test.webp" alt="Decision flowchart for choosing between Engle-Granger and Johansen" class="img-responsive img-zoomable" loading="lazy" width="2248" height="668" /></p>
+
+<p><em>Figure 3: Choosing between Engle-Granger and Johansen.</em></p>
+
+<p>The answer to limitations 1, 2 and 3 is the <strong>Johansen procedure</strong> [4], available as <code>ca.jo()</code> in <code>urca</code>. Instead of picking a left-hand-side variable and running one regression, it estimates a <a class="auto-link" href="VAR-Models-in-R.html" title="VAR Models in R: Multivariate Time Series Forecasting">vector autoregression</a> on all the series at once, which means every series is regressed on the recent past of every series including itself, and then asks how many independent cointegrating relationships the system contains. Because it treats every series symmetrically there is no direction to choose, and because it can find several relationships it scales past two series.</p>
+
+<p>Its output is a sequence of trace statistics testing "at most \(r\) cointegrating relations" for \(r = 0, 1, 2, \dots\). You walk down the list and stop at the first row you cannot reject. Three arguments matter: <code>type = &quot;trace&quot;</code> asks for that sequence rather than the alternative maximum-eigenvalue version, <code>ecdet = &quot;const&quot;</code> allows a constant inside the long-run relationship (the counterpart of the intercept in step one), and <code>K = 2</code> is the number of lags in the underlying vector autoregression, which is the smallest value the function accepts. Let's point it at the short sample that broke Engle-Granger.</p>
+
+<div class="webr-container" data-block-title="Johansen on the sample that broke Engle-Granger">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Johansen on the sample that broke Engle-Granger</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jo_short &lt;- ca.jo(cbind(short_y, short_x), type = &quot;trace&quot;, ecdet = &quot;const&quot;, K = 2)
+
+round(jo_short@teststat, 2)
+#&gt; [1]  6.17 21.37
+
+jo_short@cval
+#&gt;          10pct  5pct  1pct
+#&gt; r &lt;= 1 |  7.52  9.24 12.97
+#&gt; r = 0  | 17.85 19.96 24.60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two statistics come out in the same order as the rows of the critical-value table printed under them, and that table runs from the largest \(r\) down to zero, so 6.17 belongs to <code>r &lt;= 1</code> and 21.37 belongs to <code>r = 0</code>. Read from the bottom row upward. The <code>r = 0</code> row tests "there are no cointegrating relations": its statistic is 21.37 against a 5 percent critical value of 19.96, so we reject it and conclude there is at least one. The <code>r &lt;= 1</code> row tests "there is at most one": its statistic is 6.17 against 9.24, so we cannot reject it and we stop. Conclusion: exactly one cointegrating relationship.</p>
+
+<p>Johansen found the relationship that the forward Engle-Granger regression missed entirely, on identical data. Let's also run it on the main simulated pair to see it recover the coefficients.</p>
+
+<div class="webr-container" data-block-title="Johansen on the main simulated pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Johansen on the main simulated pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jo_main &lt;- ca.jo(cbind(spending, income), type = &quot;trace&quot;, ecdet = &quot;const&quot;, K = 2)
+
+round(jo_main@teststat, 2)
+#&gt; [1]  7.48 42.03
+
+round(jo_main@V[, 1], 4)
+#&gt; spending.l2   income.l2    constant 
+#&gt;      1.0000     -0.7745    -22.5295 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The trace statistic for <code>r = 0</code> is 42.03, far above 19.96, and for <code>r &lt;= 1</code> it is 7.48, below 9.24. Exactly one relationship, same as before. The second output is the estimated cointegrating vector, normalised so spending has a coefficient of 1: it says spending minus 0.7745 times income minus 22.53 is stationary. The truth we simulated was spending minus 0.8 times income minus 20.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run Engle-Granger in both directions before you report a negative result.</strong> It costs one extra line, and a disagreement between the two is a clear signal to escalate to Johansen rather than to conclude there is no relationship.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the Johansen test on the spurious pair from section one and check that it correctly finds nothing.</p>
+<div class="webr-container" data-block-title="Your turn: Johansen on the fake pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Johansen on the fake pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: confirm Johansen finds nothing between two random walks.
+# Change short_y and short_x to walk_b and walk_a below, then run.
+ex_jo &lt;- ca.jo(cbind(short_y, short_x), type = &quot;trace&quot;, ecdet = &quot;const&quot;, K = 2)
+round(ex_jo@teststat, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Johansen on the fake pair solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Johansen on the fake pair solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_jo &lt;- ca.jo(cbind(walk_b, walk_a), type = &quot;trace&quot;, ecdet = &quot;const&quot;, K = 2)
+
+round(ex_jo@teststat, 2)
+#&gt; [1]  2.51 16.40
+
+ex_jo@cval
+#&gt;          10pct  5pct  1pct
+#&gt; r &lt;= 1 |  7.52  9.24 12.97
+#&gt; r = 0  | 17.85 19.96 24.60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>r = 0</code> statistic of 16.40 sits below the 10 percent critical value of 17.85, so we cannot reject "no cointegrating relations". Johansen agrees with Phillips-Ouliaris and disagrees with the naive Dickey-Fuller table, which is a good summary of the whole post.</p>
+
+</details>
+</section>
+
+<h2>A Complete Example: Are the DAX and the SMI Cointegrated?</h2>
+
+<p>Everything so far ran on data we invented, where we knew the answer in advance. Now let's do the whole workflow on real market data and accept whatever it tells us.</p>
+
+<p><code>EuStockMarkets</code> ships with R. It holds 1,860 daily closing prices for four European stock indices from 1991 to 1998. We will take the German DAX and the Swiss SMI, two neighbouring markets that plausibly share a long-run relationship, and work in logs because price relationships are naturally proportional.</p>
+
+<div class="webr-container" data-block-title="Load the two index series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the two index series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dax &lt;- log(as.numeric(EuStockMarkets[, &quot;DAX&quot;]))
+smi &lt;- log(as.numeric(EuStockMarkets[, &quot;SMI&quot;]))
+
+c(observations = length(dax))
+#&gt; observations 
+#&gt;         1860 
+
+round(c(dax_first = dax[1], dax_last = dax[length(dax)]), 3)
+#&gt; dax_first  dax_last 
+#&gt;     7.396     8.608 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 1,860 trading days, and the log DAX climbs from 7.396 to 8.608 over the period, which is a rise of about 236 percent in price terms. A strongly trending series with no fixed level, exactly the setting where the spurious regression trap lives.</p>
+
+<p>Step zero is the I(1) check on both series.</p>
+
+<div class="webr-container" data-block-title="Confirm both indices are I(1)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm both indices are I(1)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(dax_level = adf.test(dax)$p.value,
+        smi_level = adf.test(smi)$p.value,
+        dax_diff  = adf.test(diff(dax))$p.value,
+        smi_diff  = adf.test(diff(smi))$p.value), 4)
+#&gt; dax_level smi_level  dax_diff  smi_diff 
+#&gt;    0.8449    0.8016    0.0100    0.0100 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both levels give p-values above 0.80, so neither is stationary. Both daily returns give 0.01, so both are stationary once differenced. Levels non-stationary, differences stationary: both series are I(1) and the question is legitimate.</p>
+
+<p>Step one is the cointegrating regression.</p>
+
+<div class="webr-container" data-block-title="Step 1: the long-run relationship">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: the long-run relationship</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_fit &lt;- lm(dax ~ smi)
+eu_res &lt;- residuals(eu_fit)
+summary(eu_fit)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = dax ~ smi)
+#&gt; 
+#&gt; Residuals:
+#&gt;       Min        1Q    Median        3Q       Max 
+#&gt; -0.133831 -0.047512 -0.008959  0.048669  0.164477 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) 1.182341   0.029111   40.62   &lt;2e-16 ***
+#&gt; smi         0.820253   0.003623  226.39   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 0.06795 on 1858 degrees of freedom
+#&gt; Multiple R-squared:  0.965,	Adjusted R-squared:  0.965 
+#&gt; F-statistic: 5.125e+04 on 1 and 1858 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the most convincing-looking regression output in the post. An R-squared of 0.965, a t-statistic of 226, three stars. Read by the usual rules it is a rock-solid relationship, and someone who skipped straight here would build a trading strategy on it.</p>
+
+<p>But we have been trained. Section one produced a t-statistic of 40 from nothing at all, and the only thing that counts is whether the residuals are stationary. Step two.</p>
+
+<div class="webr-container" data-block-title="Step 2: test the residuals properly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: test the residuals properly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_df &lt;- ur.df(eu_res, type = &quot;none&quot;, lags = 1)
+eu_po &lt;- ca.po(cbind(dax, smi), demean = &quot;constant&quot;, type = &quot;Pu&quot;)
+
+round(c(ur_df = eu_df@teststat[1], phillips_ouliaris = eu_po@teststat), 3)
+#&gt;             ur_df phillips_ouliaris 
+#&gt;            -2.469            23.879 
+
+eu_po@cval
+#&gt;                   10pct   5pct    1pct
+#&gt; critical values 27.8536 33.713 48.0021</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is where the post's central lesson pays for itself. The residual statistic is -2.469. R's printed Dickey-Fuller 5 percent value is -1.95, so the naive comparison says "reject the unit root, these are cointegrated". Against the correct Engle-Granger 5 percent value of -3.34, the statistic falls well short and we <strong>cannot</strong> reject the unit root.</p>
+
+<p>Phillips-Ouliaris agrees with the strict reading: 23.879 is below even the 10 percent critical value of 27.85. Two properly calibrated tests say the same thing. On this sample, the DAX and the SMI are <strong>not</strong> cointegrated, despite an R-squared of 0.965.</p>
+
+<p>Let's fit the ECM anyway, because the adjustment speed shows what "not cointegrated" looks like in economic terms.</p>
+
+<div class="webr-container" data-block-title="The error correction model, for the record">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The error correction model, for the record</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_n       &lt;- length(dax)
+eu_d_dax   &lt;- diff(dax)
+eu_d_smi   &lt;- diff(smi)
+eu_ect_lag &lt;- eu_res[-eu_n]
+
+eu_ecm &lt;- lm(eu_d_dax ~ eu_d_smi + eu_ect_lag)
+summary(eu_ecm)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = eu_d_dax ~ eu_d_smi + eu_ect_lag)
+#&gt; 
+#&gt; Residuals:
+#&gt;       Min        1Q    Median        3Q       Max 
+#&gt; -0.035889 -0.004093  0.000022  0.004162  0.032564 
+#&gt; 
+#&gt; Coefficients:
+#&gt;               Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)  1.226e-05  1.703e-04   0.072   0.9426    
+#&gt; eu_d_smi     7.819e-01  1.835e-02  42.600   &lt;2e-16 ***
+#&gt; eu_ect_lag  -6.384e-03  2.499e-03  -2.554   0.0107 *  
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 0.007316 on 1856 degrees of freedom
+#&gt; Multiple R-squared:  0.4962,	Adjusted R-squared:  0.4956 
+#&gt; F-statistic: 913.8 on 2 and 1856 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The short-run coefficient is strong and sensible: a 1 percent move in the SMI on a given day comes with a 0.78 percent move in the DAX the same day. These markets do trade together day to day.</p>
+
+<p>The adjustment coefficient is -0.006384 with a p-value of 0.0107. It is negative, and with 1,859 observations it clears the 5 percent bar. But look at the size.</p>
+
+<div class="webr-container" data-block-title="Translate the adjustment speed into a half-life">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Translate the adjustment speed into a half-life</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_alpha &lt;- unname(coef(eu_ecm)[&quot;eu_ect_lag&quot;])
+
+round(c(alpha = eu_alpha,
+        half_life_days   = log(0.5) / log(1 + eu_alpha),
+        half_life_months = log(0.5) / log(1 + eu_alpha) / 21.7), 3)
+#&gt;            alpha   half_life_days half_life_months 
+#&gt;           -0.006          108.234            4.988 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 0.64 percent of a gap closes per day, which puts the half-life at 108 trading days, or roughly five months. Statistically detectable, economically irrelevant. A trader who spotted a 5 percent divergence would wait five months to capture half of it, and the residuals in the meantime range from -0.134 to +0.164, so the gap can easily double against them first.</p>
+
+<p>For completeness, the second opinion from Johansen.</p>
+
+<div class="webr-container" data-block-title="Johansen as a second opinion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Johansen as a second opinion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_jo &lt;- ca.jo(cbind(dax, smi), type = &quot;trace&quot;, ecdet = &quot;const&quot;, K = 2)
+
+round(eu_jo@teststat, 2)
+#&gt; [1]  5.80 24.43
+
+eu_jo@cval
+#&gt;          10pct  5pct  1pct
+#&gt; r &lt;= 1 |  7.52  9.24 12.97
+#&gt; r = 0  | 17.85 19.96 24.60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Johansen disagrees, mildly. Its <code>r = 0</code> statistic of 24.43 exceeds the 5 percent value of 19.96, so it rejects "no cointegration" at the 5 percent level, though it falls just short of the 1 percent value of 24.60.</p>
+
+<p>So we have a genuinely borderline case, and honesty is the right response. Engle-Granger and Phillips-Ouliaris say no; Johansen says a marginal yes; the estimated adjustment speed says any relationship is far too slow to act on. Report it as weak and inconclusive evidence, not as a finding. Real data does this often, and the discipline of naming the disagreement rather than quoting whichever test agreed with you is most of what good applied work consists of.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Different cointegration tests disagreeing on real data is normal, not a bug.</strong> They have different null hypotheses, different power against different alternatives, and different small-sample behaviour. When they split, treat the evidence as weak and let the size of the adjustment speed, not the p-value, decide whether the relationship is worth using.</div></div>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between correlation and cointegration?</strong> Correlation measures whether two series move together right now, and two independent random walks can be strongly correlated by accident, as section one showed. Cointegration is about the long run: it asks whether the gap between the series keeps getting pulled back to a stable value. Series can be highly correlated without being cointegrated, and cointegrated series can look weakly correlated over short windows.</p>
+
+<p><strong>Do both series have to be I(1)?</strong> Yes, for the standard procedure they must share the same order of integration. If one series is I(1) and the other is I(0), no linear combination of the two can be stationary except the trivial one, so the question is empty. If both are I(2) you can still test, but you need the I(2) machinery rather than the two-step method here.</p>
+
+<p><strong>Which variable should go on the left-hand side of the cointegrating regression?</strong> There is no statistical answer, which is exactly the weakness covered in section seven. Pick the one that makes economic sense as the dependent variable, then run the reverse regression as a <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">robustness check</a>. When the two directions give different verdicts, switch to <code>ca.jo()</code>.</p>
+
+<p><strong>What if my adjustment coefficient comes out positive?</strong> Then the model is telling you deviations grow rather than shrink, which is not equilibrium behaviour. In practice this almost always means the residual test was a false positive or the specification is wrong. Go back to step two, check against the correct critical values, and do not report the model.</p>
+
+<p><strong>How many observations do I need?</strong> More than you think. The Engle-Granger test has low power in short samples, and section seven showed a genuinely cointegrated pair failing the test with 90 observations. Aim for at least 100, prefer several hundred, and treat a negative result from a short sample as inconclusive rather than as evidence of no relationship.</p>
+
+<p><strong>Can I use these tests on more than two series?</strong> <code>ca.po()</code> and <code>lm()</code> accept several regressors, but Engle-Granger will only ever find one relationship, and the correct critical value gets stricter as you add series, as the MacKinnon table in section five shows. For three or more series use <code>ca.jo()</code>, which is designed to count how many independent relationships exist.</p>
+
+<p><strong>Is cointegration the same as pairs trading?</strong> Pairs trading is one application of it. A trading strategy needs a stationary spread, which is what cointegration establishes, plus a half-life short enough that the trade closes inside your holding period. The DAX and SMI example shows why the second condition matters: a statistically significant adjustment speed with a half-life of five months is not a tradable signal.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several parts of the workflow. Use fresh variable names so you do not overwrite anything from the tutorial.</p>
+
+<h3>Exercise 1: Test another pair of indices</h3>
+
+<p>Run the full Engle-Granger workflow on the French CAC and the British FTSE from <code>EuStockMarkets</code>, both in logs. Confirm both are I(1), fit the cointegrating regression, test the residuals with <code>ur.df()</code>, and give a verdict against the correct 5 percent critical value of -3.34.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cac  &lt;- log(as.numeric(EuStockMarkets[, &quot;CAC&quot;]))
+ftse &lt;- log(as.numeric(EuStockMarkets[, &quot;FTSE&quot;]))
+
+# Hint: adf.test(...)$p.value for the I(1) check,
+# then lm(), then ur.df(residuals(...), type = &quot;none&quot;, lags = 1)@teststat[1]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="CAC and FTSE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CAC and FTSE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 0: both levels non-stationary?
+round(c(cac_p = adf.test(cac)$p.value, ftse_p = adf.test(ftse)$p.value), 4)
+#&gt;  cac_p ftse_p 
+#&gt; 0.9633 0.3677 
+
+# Step 1: the long-run relationship
+cap_fit &lt;- lm(cac ~ ftse)
+
+# Step 2: the residual test
+round(c(slope = unname(coef(cap_fit)[2]),
+        r2    = summary(cap_fit)$r.squared,
+        stat  = ur.df(residuals(cap_fit), type = &quot;none&quot;, lags = 1)@teststat[1]), 4)
+#&gt;   slope      r2    stat 
+#&gt;  0.7739  0.7977 -1.0697 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Neither level rejects the unit root, so both are treated as I(1). The regression looks respectable with an R-squared of 0.7977, but the residual statistic of -1.0697 is nowhere near -3.34, and it does not even clear R's over-lenient -1.95. This is a clean negative: two trending indices, a decent-looking fit, and no cointegration at all.</p>
+
+</details>
+
+<h3>Exercise 2: Write a reusable cointegration check</h3>
+
+<p>Write a function <code>check_coint(y, x)</code> that runs the whole two-step procedure and returns the estimated slope, the residual test statistic, and a verdict against -3.34. Apply it to three pairs: DAX and SMI, CAC and FTSE, DAX and CAC.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">check_coint &lt;- function(y, x, cv = -3.34) {
+  # Hint: fit lm(y ~ x), extract residuals, run ur.df(..., type = &quot;none&quot;, lags = 1),
+  # pull @teststat[1], and return a named list of slope, stat and verdict
+
+}
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reusable cointegration check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reusable cointegration check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">check_coint &lt;- function(y, x, cv = -3.34) {
+  fit  &lt;- lm(y ~ x)
+  stat &lt;- ur.df(residuals(fit), type = &quot;none&quot;, lags = 1)@teststat[1]
+  list(slope   = unname(round(coef(fit)[2], 4)),
+       stat    = unname(round(stat, 4)),
+       verdict = if (stat &lt; cv) &quot;cointegrated&quot; else &quot;not cointegrated&quot;)
+}
+
+str(check_coint(dax, smi))
+#&gt; List of 3
+#&gt;  $ slope  : num 0.82
+#&gt;  $ stat   : num -2.47
+#&gt;  $ verdict: chr &quot;not cointegrated&quot;
+
+str(check_coint(cac, ftse))
+#&gt; List of 3
+#&gt;  $ slope  : num 0.774
+#&gt;  $ stat   : num -1.07
+#&gt;  $ verdict: chr &quot;not cointegrated&quot;
+
+str(check_coint(dax, cac))
+#&gt; List of 3
+#&gt;  $ slope  : num 1.55
+#&gt;  $ stat   : num -2.03
+#&gt;  $ verdict: chr &quot;not cointegrated&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three European index pairs fail, with statistics of -2.47, -1.07 and -2.03 against a threshold of -3.34. Every one of them would have been declared cointegrated by someone reading R's printed -1.95 for the first pair. Wrapping the correct threshold into a function is the cheapest possible defence against that mistake.</p>
+
+</details>
+
+<h3>Exercise 3: Recover a known adjustment speed</h3>
+
+<p>Simulate a cointegrated pair whose gap is an AR(1) with coefficient 0.6, which means the true speed of adjustment is \(0.6 - 1 = -0.4\). Fit an error correction model and check how close the estimate lands, in both the coefficient and the half-life.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2718)
+cap_n &lt;- 300
+cap_x &lt;- 40 + cumsum(rnorm(cap_n, 0.05, 1))
+cap_g &lt;- as.numeric(arima.sim(list(ar = 0.6), n = cap_n, sd = 0.4))
+cap_y &lt;- 5 + 1.3 * cap_x + cap_g
+
+# Hint: residuals from lm(cap_y ~ cap_x), then regress diff(cap_y) on
+# diff(cap_x) plus the residuals with the last element dropped
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recover the adjustment speed solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover the adjustment speed solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_res &lt;- residuals(lm(cap_y ~ cap_x))
+cap_ecm &lt;- lm(diff(cap_y) ~ diff(cap_x) + cap_res[-cap_n])
+
+round(coef(cap_ecm), 4)
+#&gt;     (Intercept)     diff(cap_x) cap_res[-cap_n] 
+#&gt;         -0.0017          1.2763         -0.3885 
+
+round(c(estimated = unname(log(0.5) / log(1 + coef(cap_ecm)[3])),
+        truth     = log(0.5) / log(0.6)), 3)
+#&gt; estimated     truth 
+#&gt;     1.409     1.357 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The estimated adjustment speed is -0.3885 against a true -0.4, and the estimated half-life is 1.409 periods against a true 1.357. The short-run coefficient of 1.2763 also lands close to the built-in long-run 1.3. With 300 observations and a fast-correcting gap, the procedure recovers everything it was designed to recover.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>The whole workflow in one table.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you are asking</th>
+<th>R call</th>
+<th>Decision rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Is each series I(1)?</td>
+<td><code>adf.test(x)</code> and <code>adf.test(diff(x))</code></td>
+<td>Level p above 0.05 and difference p below 0.05</td>
+</tr>
+<tr>
+<td>1</td>
+<td>What is the long-run relationship?</td>
+<td><code>lm(y ~ x)</code></td>
+<td>Trust the slope, ignore the t-statistic</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Is the equilibrium gap stationary?</td>
+<td><code>ur.df(residuals(fit), type = &quot;none&quot;, lags = 1)</code></td>
+<td>Compare to -3.34, not to R's printed -1.95</td>
+</tr>
+<tr>
+<td>2b</td>
+<td>Second opinion with correct values</td>
+<td><code>ca.po(cbind(y, x), demean = &quot;constant&quot;, type = &quot;Pu&quot;)</code></td>
+<td>Large statistic is evidence for cointegration</td>
+</tr>
+<tr>
+<td>3</td>
+<td>How fast does the gap close?</td>
+<td><code>lm(diff(y) ~ diff(x) + ect_lag)</code></td>
+<td>Adjustment coefficient must be negative and significant</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Is that speed useful?</td>
+<td><code>log(0.5) / log(1 + alpha)</code></td>
+<td>Read the half-life in your data's own time units</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Three or more series, or a directional disagreement?</td>
+<td><code>ca.jo(cbind(...), type = &quot;trace&quot;, ecdet = &quot;const&quot;, K = 2)</code></td>
+<td>Walk down the trace rows, stop at the first you cannot reject</td>
+</tr>
+</tbody>
+</table>
+
+<p>The points worth carrying away:</p>
+
+<ul>
+
+<li><strong>Regressing one wandering series on another produces a significant result 87.8 percent of the time even when nothing is there.</strong> The t-statistic is not measuring evidence.</li>
+
+<li><strong>Cointegration is the property that rescues the regression:</strong> the individual series wander, a fixed combination of them does not.</li>
+
+<li><strong>The residual is the whole point of step one,</strong> not a diagnostic afterthought.</li>
+
+<li><strong>R prints the wrong critical values for step two.</strong> Use -3.34 at 5 percent for two series, or let <code>ca.po()</code> supply them.</li>
+
+<li><strong>The adjustment coefficient must be negative,</strong> and its half-life, not its p-value, tells you whether the relationship is worth using.</li>
+
+<li><strong>Run both regression directions,</strong> and reach for <code>ca.jo()</code> when they disagree or when you have more than two series.</li>
+
+</ul>
+
+<p><img src="screenshots/Cointegration-in-R-overview-mindmap.webp" alt="Mindmap summarising the cointegration workflow in R" class="img-responsive img-zoomable" loading="lazy" width="1684" height="1012" /></p>
+
+<p><em>Figure 4: The whole workflow at a glance: the problem, the test, and the model.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Engle, R. F. and Granger, C. W. J. Co-integration and Error Correction: Representation, Estimation, and Testing. <em>Econometrica</em> 55(2), 251-276 (1987). The paper that defines the two-step procedure and proves the representation theorem behind the ECM. <a href="https://ideas.repec.org/a/ecm/emetrp/v55y1987i2p251-76.html">Link</a></li>
+
+<li>Granger, C. W. J. and Newbold, P. Spurious Regressions in Econometrics. <em>Journal of Econometrics</em> 2(2), 111-120 (1974). The original simulation study of the trap in section one; short and very readable. <a href="https://ideas.repec.org/a/eee/econom/v2y1974i2p111-120.html">Link</a></li>
+
+<li>MacKinnon, J. G. Critical Values for Cointegration Tests. Queen's Economics Department Working Paper No. 1227 (2010). Where the -3.34 comes from, with tables for more series and more specifications than this post covers. <a href="https://ideas.repec.org/p/qed/wpaper/1227.html">Link</a></li>
+
+<li>Johansen, S. Estimation and Hypothesis Testing of Cointegration Vectors in Gaussian Vector Autoregressive Models. <em>Econometrica</em> 59(6), 1551-1580 (1991). The source of the trace test, for readers who want the derivation behind <code>ca.jo()</code>. <a href="https://ideas.repec.org/a/ecm/emetrp/v59y1991i6p1551-80.html">Link</a></li>
+
+<li>Pfaff, B. and Stigler, M. urca: Unit Root and Cointegration Tests for Time Series Data. CRAN reference manual. The argument-by-argument reference for <code>ur.df()</code>, <code>ca.po()</code> and <code>ca.jo()</code>. <a href="https://cran.r-project.org/web/packages/urca/urca.pdf">Link</a></li>
+
+<li>Trapletti, A. and Hornik, K. tseries: Time Series Analysis and Computational Finance. CRAN reference manual. Documents exactly what <code>adf.test()</code> fits and how it interpolates its p-values. <a href="https://cran.r-project.org/web/packages/tseries/tseries.pdf">Link</a></li>
+
+<li>Pfaff, B. <em>Analysis of Integrated and Cointegrated Time Series with R</em>, 2nd Edition. Springer (2008). Book-length treatment by the author of <code>urca</code>, including how to turn a Johansen result into a fitted vector error correction model. <a href="https://link.springer.com/book/10.1007/978-0-387-75967-8">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd Edition. OTexts. Free online text covering stationarity, differencing and unit roots in the wider forecasting context. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+<li>Murray, M. P. A Drunk and Her Dog: An Illustration of Cointegration and Error Correction. <em>The American Statistician</em> 48(1), 37-39 (1994). The two-page note behind the walking analogy in section two, and still the clearest intuition available. <a href="https://www.semanticscholar.org/paper/10.1080/00031305.1994.10476017">Link</a></li>
+
+<li>Phillips, P. C. B. and Ouliaris, S. Asymptotic Properties of Residual Based Tests for Cointegration. <em>Econometrica</em> 58(1), 165-193 (1990). Explains why residual-based tests need their own null distribution, which is the point of section five. <a href="https://ideas.repec.org/a/ecm/emetrp/v58y1990i1p165-93.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> covers the ADF and KPSS tests in full detail, including how to read results that look contradictory and how to pick the number of differences.</li>
+
+<li><a href="VAR-Models-in-R.html">VAR Models in R</a> is the natural next step after Johansen, since a vector error correction model is a VAR fitted to differenced series with the equilibrium gap added back in.</li>
+
+<li><a href="ARIMA-in-R.html">ARIMA Models in R</a> explains the differencing machinery that turns an I(1) series into a modellable one, which is the same operation the ECM performs on both sides.</li>
+
+</ul>
+
+{% endraw %}
