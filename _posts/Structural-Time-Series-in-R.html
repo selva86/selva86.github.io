@@ -1,0 +1,1056 @@
+---
+title: "Structural Time Series in R with bsts"
+description: "Learn structural time series in R: split a series into level, trend and seasonal states, fit them with StructTS and bsts, and forecast with real uncertainty."
+keywords: "structural time series in R, bsts R package, Bayesian structural time series, state space model R, StructTS, local linear trend, AddSeasonal, time series forecasting in R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-8.5"
+post_type: "C"
+auto_link_terms: "structural time series|structural time series model|Bayesian structural time series|bsts package|bsts R package|state space model|state space models|local level model|local linear trend|semilocal linear trend|StructTS|unobserved components model|spike-and-slab prior"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Structural Time Series"
+sidebar_order: "55"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A structural time series model describes a series as a sum of hidden parts that each move on their own: a level that says where the series sits, a slope that says how fast it is climbing, a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> that repeats, plus noise. The <code>bsts</code> package estimates those parts the Bayesian way, so every component and every forecast comes back as a distribution instead of a single number.</p>
+
+<p>Nothing here assumes you have met <a class="auto-link" href="Kalman-Filter-in-R.html" title="Kalman Filter in R: FKF and KFAS for State Space Models">state space models</a> before. We build the idea from a series you can see, then a series you generate yourself, and only then reach for <code>bsts</code>. Base R does the first half so you can run it right here; the <code>bsts</code> half is marked and meant for your own R session.</p>
+
+<h2>What does a structural time series model actually do?</h2>
+
+<p><code>AirPassengers</code> is a dataset that ships with R: the monthly total of international airline passengers from 1949 to 1960, recorded in thousands, so the January 1949 value of 112 means 112 thousand people. Every passenger figure quoted in this tutorial is in those same series units. The series climbs across the twelve years, and it also swings hard every summer. One straight line cannot describe both at once. A structural model does not try. It keeps a separate running estimate for where the series sits, for how fast it is rising, and for what each month adds on top. R ships one such model in the <code>stats</code> package, so you can pull the series apart in three lines.</p>
+
+<p>We work on the log scale because the summer swings grow as the series grows, and taking logs turns that growing swing into a steady one. <code>StructTS()</code> fits the model, and <code>tsSmooth()</code> reports its best estimate of each hidden part at every time point.</p>
+
+<div class="webr-container" data-block-title="Split a series into level, slope and season">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split a series into level, slope and season</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air   &lt;- log(AirPassengers)
+bsm   &lt;- StructTS(air, type = &quot;BSM&quot;)
+parts &lt;- tsSmooth(bsm)
+round(head(parts, 4), 3)
+#&gt;          level slope    sea
+#&gt; Jan 1949 4.800  0.01 -0.082
+#&gt; Feb 1949 4.821  0.01 -0.051
+#&gt; Mar 1949 4.839  0.01  0.044
+#&gt; Apr 1949 4.851  0.01  0.009</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>type = &quot;BSM&quot;</code> asks for the Basic Structural Model, which is the level plus slope plus season combination. The three columns are the model's answer for January 1949 onward: the underlying level was about 4.800 in log units, it was growing by 0.010 per month, and January itself sat 0.082 below the level.</p>
+
+<p>None of those three numbers was measured. The data file contains one number per month, the total passenger count. The level, slope and seasonal columns are quantities the model invented to explain that single number, and then estimated. That is what "structural" means: you declare the structure you believe generated the series, and the fitting procedure fills in the parts.</p>
+
+<p>Here is the check that makes the idea concrete. If the model really decomposed the series, adding the level back to the seasonal term should return the series you started with.</p>
+
+<div class="webr-container" data-block-title="Confirm the parts add back up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the parts add back up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(parts[, &quot;level&quot;] + parts[, &quot;sea&quot;], 4), 3)
+#&gt;        Jan   Feb   Mar   Apr
+#&gt; 1949 4.718 4.771 4.883 4.860
+round(head(air, 4), 3)
+#&gt;        Jan   Feb   Mar   Apr
+#&gt; 1949 4.718 4.771 4.883 4.860</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two lines are identical. <code>4.800 + (-0.082) = 4.718</code>, and <code>4.718</code> is exactly <code>log(112)</code>, the logged passenger count for January 1949. An exact match is not guaranteed in general: the level and the season only have to add up to the observed value minus the noise. It happens here because <code>StructTS()</code> estimated the noise on this series as zero, as the fitted numbers a few blocks below show, so every wiggle was assigned to the components.</p>
+
+<p>Those parts are wired together in a fixed way, and the diagram below is the whole model in one picture.</p>
+
+<p><img src="screenshots/Structural-Time-Series-in-R-components.webp" alt="Flow diagram in which the slope feeds the level, and the level, the seasonal pattern and the noise all feed the observed data point" class="img-responsive img-zoomable" loading="lazy" width="1436" height="986" /></p>
+
+<p><em>Figure 1: the slope adds to the level at each step, and the level, the seasonal term and the noise add up to the value you observe.</em></p>
+
+<p>Now see the same three parts drawn over time, which is worth more than any table.</p>
+
+<div class="webr-container" data-block-title="Plot the extracted components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the extracted components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(parts, main = &quot;What StructTS pulled out of the air passenger series&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The level panel is a smooth upward curve with none of the summer sawtooth left in it. The seasonal panel holds a repeating shape that barely changes shape from year to year. The slope panel is a flat line, which is a genuine finding rather than a plotting artifact, and the next block explains why.</p>
+
+<p>A structural model is controlled entirely by how much each part is allowed to move from one step to the next. That amount is a variance, and <code>StructTS()</code> estimates one per part.</p>
+
+<div class="webr-container" data-block-title="Read the four fitted variances">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the four fitted variances</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(bsm$coef, 6)
+#&gt;    level    slope     seas  epsilon
+#&gt; 0.000772 0.000000 0.001397 0.000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those four numbers as speed limits. The level is allowed to drift a little each month (0.000772), the seasonal shape is allowed to drift about twice as much (0.001397), and the slope is allowed to move not at all (0.000000). A zero variance means that part is frozen: the growth rate is estimated once and then held fixed forever, which is why the slope panel was a flat line at 0.010.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The variances are the model, not a footnote to it.</strong> Every structural model you will ever build is the same handful of components; what makes one fit different from another is how freely each component is permitted to wander, and those permissions are exactly the variances the fitting procedure estimates.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The seasonal column swings between two extremes across the whole series. Report the smallest and largest value the fitted slope takes instead, and see whether it moves at all.</p>
+<div class="webr-container" data-block-title="Your turn: how far does the slope move">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: how far does the slope move</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: get the smallest and largest value of the slope column.
+# Hint: parts has three columns, and this line does it for the seasonal one.
+range(round(parts[, &quot;sea&quot;], 4))
+#&gt; [1] -0.2245  0.2602</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Range of the fitted slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Range of the fitted slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">range(round(parts[, &quot;slope&quot;], 4))
+#&gt; [1] 0.0101 0.0101</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> the smallest and largest values are the same number, so the slope never moves. That follows directly from its estimated variance of zero. The model concluded that a constant monthly growth rate of 0.0101 in log units, roughly 1% per month, plus a wandering level, explains this series better than a growth rate that changes.</p>
+
+</details>
+</section>
+
+<h2>How do you build a series from parts, and get them back again?</h2>
+
+<p>Reading components out of real data leaves one question open: where do they come from in the first place? The fastest way to answer that is to be the generator yourself. If you write the loop that produces the level, the slope and the season, then nothing about the model can stay mysterious, because you already know the true answer before any fitting happens.</p>
+
+<p>Two rules define the whole family. The first says how an observation relates to the hidden parts:</p>
+
+<p>$$y_t = \mu_t + \tau_t + \varepsilon_t$$</p>
+
+<p>The second says how the hidden parts evolve from one step to the next:</p>
+
+<p>$$\mu_t = \mu_{t-1} + \delta_{t-1} + \eta_t, \qquad \delta_t = \delta_{t-1} + \zeta_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the value you actually observe at time $t$</li>
+
+<li>$\mu_t$ = the level, where the series sits once the season is stripped out</li>
+
+<li>$\delta_t$ = the slope, how much the level is expected to gain next step</li>
+
+<li>$\tau_t$ = the seasonal term for this position in the cycle</li>
+
+<li>$\varepsilon_t$, $\eta_t$, $\zeta_t$ = independent random shocks, one per part, each with its own variance</li>
+
+</ul>
+
+<p>If the formulas are not your preferred language, skip them. The loop below is the same two rules written as R, and the code is the better explanation. Each step nudges the slope by a small random amount, then moves the level by the current slope plus its own small random amount.</p>
+
+<div class="webr-container" data-block-title="Generate a wandering level and slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generate a wandering level and slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n     &lt;- 96
+level &lt;- numeric(n)
+slope &lt;- numeric(n)
+level[1] &lt;- 100
+slope[1] &lt;- 0.5
+for (t in 2:n) {
+  slope[t] &lt;- slope[t - 1] + rnorm(1, 0, 0.03)
+  level[t] &lt;- level[t - 1] + slope[t - 1] + rnorm(1, 0, 0.20)
+}
+round(c(level_start = level[1], level_end = level[n],
+        slope_start = slope[1], slope_end = slope[n]), 2)
+#&gt; level_start   level_end slope_start   slope_end
+#&gt;      100.00      120.03        0.50        0.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The level started at 100 and finished at 120.03 after 96 quarters. The slope started at 0.5 per quarter and drifted down to 0.17, without anyone telling it to. That drift is the entire point of a local linear trend: growth is not assumed constant, it is allowed to decay or accelerate on its own.</p>
+
+<p>Now add the two remaining ingredients. The seasonal pattern is a fixed four-quarter shape, and the noise is what stops the observed series from being a clean curve.</p>
+
+<div class="webr-container" data-block-title="Add a season and observation noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a season and observation noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">season &lt;- rep(c(6, -2, -1, -3), length.out = n)
+y      &lt;- ts(level + season + rnorm(n, 0, 1), frequency = 4, start = c(2002, 1))
+round(head(y, 8), 2)
+#&gt;        Qtr1   Qtr2   Qtr3   Qtr4
+#&gt; 2002 106.58  97.87 101.96  98.14
+#&gt; 2003 106.30 101.12 100.35  97.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Quarter 1 is the high quarter in both years, and quarter 2 and quarter 4 are the low ones, matching the <code>c(6, -2, -1, -3)</code> shape we wrote. The values are not exactly <code>level + season</code> because <code>rnorm(n, 0, 1)</code> added a random amount to each one, which is the <code>epsilon</code> term.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The four seasonal offsets were chosen to add up to zero.</strong> 6 minus 2 minus 1 minus 3 is 0, which keeps the seasonal term from quietly carrying part of the level. If the offsets summed to 5, the model would have no way to tell whether the level is 100 with a season averaging 5, or 105 with a season averaging 0.</div></div>
+
+<p>Plotting the observed series next to the parts it was built from makes the relationship visible in one glance.</p>
+
+<div class="webr-container" data-block-title="Plot the series against its true parts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the series against its true parts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(cbind(observed = y,
+           level    = ts(level, frequency = 4, start = c(2002, 1)),
+           season   = ts(season, frequency = 4, start = c(2002, 1))),
+     main = &quot;A quarterly series and the parts it was built from&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The top panel looks jagged and hard to read. The middle panel is the same series with the season and the noise removed, and it is a smooth climb. The bottom panel is the sawtooth that was hiding inside the top panel all along. A structural model's job is to reverse this picture: given only the top panel, reconstruct the other two.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> How large is the seasonal effect in this series? Report the peak, the trough, and the gap between them, which is what a forecaster would call the seasonal swing.</p>
+<div class="webr-container" data-block-title="Your turn: size of the seasonal swing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: size of the seasonal swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: report the peak, the trough, and the gap between them.
+# Hint: this line gives you the two extremes as a pair.
+round(range(season), 2)
+#&gt; [1] -3  6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal swing solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal swing solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(peak = max(season), trough = min(season),
+        swing = max(season) - min(season), one_year_sum = sum(season[1:4])), 2)
+#&gt;         peak       trough        swing one_year_sum
+#&gt;            6           -3            9            0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> the swing is 9 units, from a trough of -3 to a peak of 6. The final number confirms the design choice from the callout above: one full year of seasonal offsets sums to exactly 0, so the seasonal term adds nothing to the long-run level.</p>
+
+</details>
+</section>
+
+<h3>How does R recover parts it never observed?</h3>
+
+<p>You now have a series <code>y</code> and you know the truth behind it. Hand <code>y</code> to <code>StructTS()</code> and it sees only the top panel. How does it get the other two back?</p>
+
+<p>The machinery is called the Kalman filter, and it works one time step at a time. It holds a current best guess of the level and slope, uses that guess to predict the next observation, compares the prediction with what actually arrived, and then nudges the guess in the direction of the error. A large surprise moves the guess a lot; a small surprise moves it a little. How much a given surprise moves the guess is decided by the variances, which is why those four numbers matter so much.</p>
+
+<p><img src="screenshots/Structural-Time-Series-in-R-filter-cycle.webp" alt="Cycle diagram showing guess, predict, compare and correct repeating around a loop" class="img-responsive img-zoomable" loading="lazy" width="1884" height="484" /></p>
+
+<p><em>Figure 2: the filter guesses, predicts, compares with the actual value, and corrects the guess by part of the gap, once per time step.</em></p>
+
+<p>Running that loop forward gives the filtered estimate, which uses only the past. Running a second pass backward over the whole series gives the smoothed estimate, which uses past and future together, and that is what <code>tsSmooth()</code> returns. Smoothed estimates are the right choice for understanding history; filtered estimates are the right choice for imitating what you would have known in real time. There is a full walkthrough of the recursion in the <a href="Kalman-Filter-in-R.html">Kalman filter tutorial</a>.</p>
+
+<p>Fit the model to the simulated series and compare its four estimated variances against the values we actually used.</p>
+
+<div class="webr-container" data-block-title="Fit a structural model to the simulated series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a structural model to the simulated series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_sim &lt;- StructTS(y, type = &quot;BSM&quot;)
+round(fit_sim$coef, 4)
+#&gt;   level   slope    seas epsilon
+#&gt;  0.0000  0.0620  0.0148  1.0382</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We generated the data with an observation noise of <code>rnorm(n, 0, 1)</code>, which is a variance of 1. The model estimated 1.0382, so the noise level was recovered almost exactly. The other three are less flattering. We used a level variance of 0.04 and a slope variance of 0.0009, and the model reports 0.0000 for the level and 0.0620 for the slope, effectively swapping the two roles.</p>
+
+<p>That looks alarming until you ask what actually matters. A wandering level and a wandering slope produce very similar looking paths, so the data cannot cleanly separate them. What the data can pin down is the combined path. Check that instead.</p>
+
+<div class="webr-container" data-block-title="Compare the recovered level with the truth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the recovered level with the truth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sm &lt;- tsSmooth(fit_sim)
+round(c(correlation = cor(sm[, &quot;level&quot;], level),
+        rmse        = sqrt(mean((sm[, &quot;level&quot;] - level)^2))), 4)
+#&gt; correlation        rmse
+#&gt;      0.9964      0.4825</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The recovered level tracks the true hidden level with a correlation of 0.9964 and a typical error of 0.48 units, on a series whose noise alone has a standard deviation of 1. The model reconstructed a quantity it never saw, to better accuracy than the noise on a single observation, by pooling information across all 96 quarters.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not read individual variance estimates as facts about the world.</strong> The level and slope variances trade off against each other because two different mechanisms can produce nearly the same path. The reconstructed path is well identified; the split of credit between the two mechanisms is not. Judge a structural fit by the components it recovers and the forecasts it makes, not by whether each variance matches your prior belief.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The level came back with a correlation of 0.996. Check the other hidden part: how closely does the recovered seasonal column match the true four-quarter pattern we wrote?</p>
+<div class="webr-container" data-block-title="Your turn: did the season come back too">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: did the season come back too</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: correlate the recovered seasonal column with the true season.
+# Hint: this line does it for the level; sm also has a column called sea.
+round(cor(sm[, &quot;level&quot;], level), 3)
+#&gt; [1] 0.996</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal recovery solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal recovery solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(level_cor = cor(sm[, &quot;level&quot;], level), season_cor = cor(sm[, &quot;sea&quot;], season)), 3)
+#&gt;  level_cor season_cor
+#&gt;      0.996      0.997</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> the seasonal term comes back at 0.997, marginally better than the level. Seasonality is the easiest component to recover because it repeats: every fourth quarter carries evidence about the same offset, so the filter gets 24 looks at each of the four numbers.</p>
+
+</details>
+</section>
+
+<h2>Where does the classical fit break, and why go Bayesian?</h2>
+
+<p>So far <code>StructTS()</code> has behaved well. Now give it a harder job, which is the job you actually care about: fit on part of the history and forecast the rest. We train on 1949 through 1958 and hold out the final two years of <code>AirPassengers</code> as a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>.</p>
+
+<div class="webr-container" data-block-title="Refit on a shorter training window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit on a shorter training window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- window(air, end = c(1958, 12))
+test  &lt;- window(air, start = c(1959, 1))
+m_tr  &lt;- StructTS(train, type = &quot;BSM&quot;)
+round(m_tr$coef, 6)
+#&gt;    level    slope     seas  epsilon
+#&gt; 0.000000 0.002405 0.000370 0.000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The variances came out completely differently from the full-sample fit. Earlier the level moved and the slope was frozen; now the level is frozen at 0.000000 and the slope is the part doing all the wandering, with a variance of 0.002405. Two of the four estimates sit exactly on zero, which is the edge of the allowed range rather than a value the data pointed to.</p>
+
+<p>Watch what that does to a forecast.</p>
+
+<div class="webr-container" data-block-title="Forecast 24 months from the collapsed fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast 24 months from the collapsed fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_tr &lt;- predict(m_tr, n.ahead = 24)
+round(exp(p_tr$pred), 1)
+#&gt;        Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec
+#&gt; 1959 322.0 276.9 281.6 234.7 207.9 214.2 215.7 210.2 169.1 151.4 131.4 142.9
+#&gt; 1960 136.5 117.4 119.4  99.5  88.1  90.8  91.4  89.1  71.7  64.2  55.7  60.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The forecast declines month after month. It predicts 322 passengers for January 1959 and 61 for December 1960, on a series that had been climbing for a decade and in fact reached 432 that month. Because the slope was free to wander and happened to end the training window pointing down, the model extrapolated that downward slope for two solid years.</p>
+
+<div class="webr-container" data-block-title="Score the collapsed forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the collapsed forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(structts_mae = mean(abs(exp(p_tr$pred) - exp(test)))), 2)
+#&gt; structts_mae
+#&gt;        300.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a> of 300.5 passengers per month, against actual values in the 360 to 622 range, means the forecast is worse than useless.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A variance estimated as exactly zero is a warning light, not a clean result.</strong> Maximum likelihood picks the single most likely set of variances and has no way to express doubt about that pick. When the likelihood surface is flat, as it is whenever two components compete to explain the same wiggle, the optimiser can land on the boundary and hand back a model that fits history and forecasts nonsense.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Before judging a forecast, you need something to judge it against. A seasonal <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">naive forecast</a> just repeats the most recent full year. Compute its error on the same test set, using the final 12 months of the training window repeated twice.</p>
+<div class="webr-container" data-block-title="Your turn: build a seasonal naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a seasonal naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: repeat the final 12 training months twice, then take the mean absolute error.
+# Hint: this line uses the final 24 months as-is; you need the final 12, repeated.
+last24 &lt;- as.numeric(window(air, start = c(1957, 1), end = c(1958, 12)))
+round(mean(abs(exp(last24) - exp(as.numeric(test)))), 2)
+#&gt; [1] 77.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal naive benchmark solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal naive benchmark solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">snaive &lt;- rep(as.numeric(window(air, start = c(1958, 1), end = c(1958, 12))), 2)
+round(mean(abs(exp(snaive) - exp(as.numeric(test)))), 2)
+#&gt; [1] 71.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> repeating last year twice gives a mean absolute error of 71.25, four times better than the fitted structural model's 300.5. Any model that cannot beat this line does not deserve to be deployed. Keep the 71.25 in mind; it is the bar for the rest of this tutorial.</p>
+
+</details>
+</section>
+
+<p>The problem is not the structural idea. The problem is committing to one guess about the variances. What we want is a method that carries every plausible set of variances forward at once, weights them by how well each explains the data, and averages the forecasts they produce. That is what a Bayesian treatment does, and it is what <code>bsts</code> is for.</p>
+
+<h2>How do you fit a bsts model and read its draws?</h2>
+
+<p><code>bsts</code> stands for <a class="auto-link" href="CausalImpact-in-R.html" title="CausalImpact in R: Did the Intervention Move the Series?">Bayesian structural time series</a>. It was written by Steven L. Scott at Google, and it is the engine underneath the <code>CausalImpact</code> package. Instead of returning one estimate per variance, it returns thousands of draws from the range of variances the data finds credible.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The rest of this tutorial runs locally, not in your browser.</strong> The <code>bsts</code> package needs compiled C++ code that the in-browser R build does not include, so these blocks are marked as static. Run <code>install.packages(&quot;bsts&quot;)</code> in RStudio and paste them in there. The outputs shown are from a real run, and the seeds are fixed, so you should reproduce them exactly.</div></div>
+
+<p>A model is built in two stages. First you describe the structure by growing a list of components. Then you hand that list to <code>bsts()</code>.</p>
+
+<p><img src="screenshots/Structural-Time-Series-in-R-bsts-workflow.webp" alt="Five-step flow from building the state specification to forecasting with predict" class="img-responsive img-zoomable" loading="lazy" width="2248" height="366" /></p>
+
+<p><em>Figure 3: every bsts analysis follows the same five steps, whatever components you choose.</em></p>
+
+<pre><code class="language-r">library(bsts)
+ss &lt;- AddLocalLinearTrend(list(), train)
+ss &lt;- AddSeasonal(ss, train, nseasons = 12)
+sapply(ss, function(component) class(component)[1])
+#&gt; [1] &quot;LocalLinearTrend&quot; &quot;Seasonal&quot;</code></pre>
+
+<p>Every <code>Add*</code> function takes an existing specification as its first argument and returns a longer one, which is why the pattern is <code>ss &lt;- AddSomething(ss, ...)</code>. Starting from <code>list()</code> means starting from no structure at all. The series is passed in as well because the functions use its scale to set sensible default priors. A prior is the model's starting belief about a quantity before it looks at the data, and here it amounts to a rough statement of how large each variance could plausibly be. <code>nseasons = 12</code> says one full seasonal cycle is twelve observations.</p>
+
+<p>Now fit it. This is where the sampling happens.</p>
+
+<pre><code class="language-r">model &lt;- bsts(train, state.specification = ss, niter = 1000, ping = 0, seed = 8675309)
+dim(model$state.contributions)
+#&gt; [1] 1000    2  120</code></pre>
+
+<p><code>niter = 1000</code> asks for a thousand draws, <code>ping = 0</code> silences the progress counter, and <code>seed = 8675309</code> fixes the random stream so that rerunning the block gives identical results. Always set a seed, because a Bayesian fit that changes every time you run it is impossible to debug.</p>
+
+<p>Those three numbers describe everything the fit produced: 1000 draws, 2 components, 120 time points. A draw is one complete, self-consistent answer to the question "what were the variances, and given those variances, what was the level and the season at every month?" <code>bsts</code> produces a thousand such answers, each slightly different, and their spread is the model's honest uncertainty.</p>
+
+<p>The sampler alternates between two moves. Given a set of variances, it simulates a whole path for the hidden components; given those component paths, it draws a fresh set of variances. Repeating that a thousand times explores the whole range of explanations rather than settling on one, which is precisely the fix for the boundary collapse we just watched.</p>
+
+<pre><code class="language-r">dimnames(model$state.contributions)[[2]]
+#&gt; [1] &quot;trend&quot;         &quot;seasonal.12.1&quot;</code></pre>
+
+<p>The two components you asked for come back labelled <code>trend</code> and <code>seasonal.12.1</code>. <code>AddLocalLinearTrend()</code> reports the level and the slope together under the single name <code>trend</code>, and <code>seasonal.12.1</code> is the twelve-period season. These labels are how you pull one component out of the fit later, which the exercises at the end of this tutorial do.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set seed on the fit and on the prediction.</strong> <code>bsts()</code> and <code>predict()</code> each draw random numbers, and each takes its own <code>seed</code> argument. Fixing only the first still leaves your forecast wobbling between runs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Some series have short-term momentum that a level and a season cannot capture, and <code>AddAr()</code> adds an autoregressive component for exactly that. Add an AR(1) term to <code>ss</code> and confirm the specification now holds three components.</p>
+<pre><code class="language-r"># Goal: build ss_ar with an AR(1) term added, then list its component classes.
+# Hint: AddAr(ss, train, lags = 1) follows the same pattern as the other Add functions.
+length(ss)
+#&gt; [1] 2</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ss_ar &lt;- AddAr(ss, train, lags = 1)
+sapply(ss_ar, function(component) class(component)[1])
+#&gt; [1] &quot;LocalLinearTrend&quot; &quot;Seasonal&quot;         &quot;ArProcess&quot;</code></pre>
+
+<p><strong>Explanation:</strong> the specification is an ordinary list, so adding a component appends to it. The order you add components in does not matter to the fit; the sampler treats them as one combined state.</p>
+
+</details>
+</section>
+
+<h3>How do you read the posterior draws?</h3>
+
+<p>Not all thousand draws are usable. The sampler starts from an arbitrary position and needs time to find the region the data actually supports, and draws from that early stage would distort your estimates. Discarding them is called <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">burn-in</a>, and what remains is the posterior: the set of parameter values the model finds credible now that it has seen the data.</p>
+
+<pre><code class="language-r">burn &lt;- SuggestBurn(0.1, model)
+burn
+#&gt; [1] 287</code></pre>
+
+<p>Note what happened there. <code>SuggestBurn(0.1, model)</code> is often described as "discard 10%", but it returned 287 out of 1000, not 100. The function looks at how the log likelihood climbed across the chain and reports where it stopped improving, so the answer is driven by this chain rather than by a fixed rule. On this series the sampler needed almost 300 iterations to settle, which is exactly the kind of thing a fixed 10% rule would have hidden.</p>
+
+<p>With the warm-up gone, ask how well the model fits.</p>
+
+<pre><code class="language-r">round(unlist(summary(model)[c(&quot;residual.sd&quot;, &quot;prediction.sd&quot;, &quot;rsquare&quot;, &quot;relative.gof&quot;)]), 4)
+#&gt;   residual.sd prediction.sd       rsquare  relative.gof
+#&gt;        0.0184        0.0586        0.9978        0.6882</code></pre>
+
+<p><code>residual.sd</code> of 0.0184 is the typical gap between the model's fitted value and the data, in log units, so roughly 1.9% in passenger terms. <code>prediction.sd</code> of 0.0586 is the larger and more honest number: it measures one-step-ahead errors, where the model has not yet seen the point it is guessing. <code>rsquare</code> of 0.9978 is flattering for the same reason most in-sample fit statistics are, and <code>relative.gof</code> of 0.6882 compares the model against a naive random walk, where 1 is perfect and 0 is no better than the walk.</p>
+
+<p>Now for the thing <code>StructTS</code> could not give you. Every one of those component variances has a whole distribution behind it, so instead of one number you can ask for its range. One bookkeeping detail first: <code>bsts</code> stores these in the <code>sigma.*</code> slots as standard deviations, while <code>StructTS</code> reported variances. Square a <code>bsts</code> number before comparing it with a <code>StructTS</code> one.</p>
+
+<pre><code class="language-r">draws &lt;- cbind(obs   = model$sigma.obs[-(1:burn)],
+               level = model$sigma.trend.level[-(1:burn)],
+               slope = model$sigma.trend.slope[-(1:burn)],
+               seas  = model$sigma.seasonal.12[-(1:burn)])
+round(apply(draws, 2, quantile, probs = c(0.1, 0.5, 0.9)), 4)
+#&gt;        obs  level  slope   seas
+#&gt; 10% 0.0143 0.0221 0.0007 0.0016
+#&gt; 50% 0.0183 0.0262 0.0015 0.0042
+#&gt; 90% 0.0225 0.0303 0.0035 0.0084</code></pre>
+
+<p>Every column is a range rather than a point. The slope standard deviation sits between 0.0007 and 0.0035 with a middle value of 0.0015, so the model is confident the slope moves a little and confident it does not move much. Compare that with <code>StructTS</code>, which on this same training window put the level variance at exactly zero. Here the level standard deviation never comes near zero: even the 10% draw is 0.0221, a variance of about 0.0005, so not one draw supports a frozen level.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Bayesian answer to a question is a distribution, and that is what stops the boundary collapse.</strong> No single draw can pin the level variance at zero and drag the whole forecast with it, because the forecast averages over a thousand draws in which the level variance takes many different plausible values.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The table above reports the median observation noise as 0.0183 to four decimals. Get the median of the level standard deviation to five decimals instead.</p>
+<pre><code class="language-r"># Goal: report the median of the level standard deviation to 5 decimals.
+# Hint: this line does it for the observation noise; the level draws are in sigma.trend.level.
+round(median(model$sigma.obs[-(1:burn)]), 5)
+#&gt; [1] 0.01832</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(median(model$sigma.trend.level[-(1:burn)]), 5)
+#&gt; [1] 0.02617</code></pre>
+
+<p><strong>Explanation:</strong> the level moves about 0.026 log units per month while the observation noise is about 0.018, so on this series the underlying level is genuinely more volatile than the measurement error around it.</p>
+
+</details>
+</section>
+
+<h2>How do you turn those draws into a forecast?</h2>
+
+<p>A forecast from <code>bsts</code> is not a formula evaluation. Each of the 713 surviving draws is a complete model, so <code>predict()</code> takes each one, runs it forward 24 months with fresh random shocks, and collects the resulting paths. The reported mean is the average over those paths, and the interval is a pair of quantiles across them.</p>
+
+<pre><code class="language-r">pred &lt;- predict(model, horizon = 24, burn = burn, quantiles = c(0.025, 0.975), seed = 1)
+round(exp(pred$mean[1:6]), 1)
+#&gt; [1] 350.7 340.6 393.4 378.1 377.9 432.1</code></pre>
+
+<p>January 1959 is forecast at 350.7 passengers against an actual of 360, and June at 432.1 against an actual of 472. The forecast keeps climbing and keeps its seasonal shape, which is what the collapsed <code>StructTS</code> fit failed to do on identical data.</p>
+
+<pre><code class="language-r">round(c(bsts_mae = mean(abs(exp(pred$mean) - exp(test)))), 2)
+#&gt; bsts_mae
+#&gt;    52.94</code></pre>
+
+<p>52.94 against 300.5 for <code>StructTS</code> on the same training window, and against 71.25 for the seasonal naive benchmark. Same components, same data, same 24-month horizon; the only change is averaging over the uncertainty in the variances instead of guessing at them once.</p>
+
+<p>Point forecasts are the least interesting output. The interval is where a structural model earns its place.</p>
+
+<pre><code class="language-r">round(exp(pred$interval[, c(1, 12, 24)]), 1)
+#&gt;        [,1]  [,2]  [,3]
+#&gt; 2.5%  322.9 263.0 192.2
+#&gt; 97.5% 381.5 464.8 633.1</code></pre>
+
+<p>One month out the model is confident: somewhere between 323 and 382, a span of about 59 passengers. Twelve months out the span has grown to about 202, and twenty-four months out to about 441. The interval widens because each extra step forward adds another round of unknown shocks, and because the parameter uncertainty compounds along with them. A forecast that quotes the same interval at every horizon is hiding one of those two effects.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block above printed three horizons at once. Pull out just the 24-month-ahead interval and compute how wide it is in passengers.</p>
+<pre><code class="language-r"># Goal: get the horizon-24 interval on its own, then subtract low from high.
+# Hint: this line does it for horizon 1; interval has one column per horizon.
+round(exp(pred$interval[, 1]), 1)
+#&gt;  2.5% 97.5%
+#&gt; 322.9 381.5</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(exp(pred$interval[, 24]), 1)
+#&gt;  2.5% 97.5%
+#&gt; 192.2 633.1
+round(unname(exp(pred$interval[2, 24]) - exp(pred$interval[1, 24])), 1)
+#&gt; [1] 440.9</code></pre>
+
+<p><strong>Explanation:</strong> two years out the model will only commit to a range of 192 to 633 passengers, a width of 440.9. That is honest rather than weak, and the next section shows that a different <a class="auto-link" href="Holts-Method-in-R.html" title="Holt's Method in R: Forecast Trend Without Seasonality">trend component</a> narrows it substantially.</p>
+
+</details>
+</section>
+
+<h2>Which trend component should you choose?</h2>
+
+<p>The interval above is wide because <code>AddLocalLinearTrend()</code> lets the slope random-walk with no anchor. Over 24 steps that slope can drift a long way, and the model correctly reports that it might. Three trend components handle this differently.</p>
+
+<p><code>AddLocalLevel()</code> has no slope at all. The level wanders, but there is no growth term to extrapolate, so long forecasts flatten out. <code>AddLocalLinearTrend()</code> adds a slope that random-walks freely, which tracks short-term changes in growth well and fans out over long horizons. <code>AddSemilocalLinearTrend()</code> gives the slope a long-run average and pulls it back toward that average, so short-term growth changes are still tracked but the slope cannot wander off forever.</p>
+
+<p><img src="screenshots/Structural-Time-Series-in-R-choose-trend.webp" alt="Decision tree mapping forecast horizon to a choice of trend component" class="img-responsive img-zoomable" loading="lazy" width="1606" height="710" /></p>
+
+<p><em>Figure 4: pick the trend component from how far ahead you need to forecast.</em></p>
+
+<p>Rather than take that on faith, fit all three on the same training window and score them on the same held-out two years.</p>
+
+<pre><code class="language-r">ss_ll &lt;- AddSeasonal(AddLocalLevel(list(), train), train, nseasons = 12)
+m_ll  &lt;- bsts(train, state.specification = ss_ll, niter = 1000, ping = 0, seed = 8675309)
+ss_sl &lt;- AddSeasonal(AddSemilocalLinearTrend(list(), train), train, nseasons = 12)
+m_sl  &lt;- bsts(train, state.specification = ss_sl, niter = 1000, ping = 0, seed = 8675309)
+c(local_level = SuggestBurn(0.1, m_ll), semilocal = SuggestBurn(0.1, m_sl))
+#&gt; local_level   semilocal
+#&gt;          37          15</code></pre>
+
+<p>Both alternatives settled far faster than the local linear trend did, needing 37 and 15 warm-up draws against 287. A sampler that converges quickly is usually a sign that the model is a comfortable fit for the data.</p>
+
+<pre><code class="language-r">score &lt;- function(fit) {
+  b &lt;- SuggestBurn(0.1, fit)
+  p &lt;- predict(fit, horizon = 24, burn = b, quantiles = c(0.025, 0.975), seed = 1)
+  c(mae   = round(mean(abs(exp(p$mean) - exp(test))), 2),
+    width = round(unname(exp(p$interval[2, 24]) - exp(p$interval[1, 24])), 1))
+}
+res &lt;- rbind(local_level  = score(m_ll),
+             local_linear = score(model),
+             semilocal    = score(m_sl))
+res
+#&gt;                mae width
+#&gt; local_level  73.63 201.8
+#&gt; local_linear 52.94 440.9
+#&gt; semilocal    27.50 268.0</code></pre>
+
+<p>The semilocal trend wins clearly: an error of 27.50 passengers per month, a little over half the local linear trend's 52.94 and less than a tenth of the collapsed <code>StructTS</code> fit's 300.5. It reaches that while quoting an interval of 268 rather than 441, so it is both more accurate and more decisive.</p>
+
+<p>The local level model is the cautionary row. It has the narrowest interval at 201.8, and the worst error of the three at 73.63, which is actually worse than the 71.25 you get from simply repeating last year. Its interval is narrow because a model with no slope has nothing to be uncertain about, not because it knows more.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A narrow interval is not evidence of a good model.</strong> Narrow means the model believes itself, which is only useful if the belief is right. Judge intervals by coverage, meaning how often reality actually lands inside them, and judge point forecasts by held-out error. Never rank models on interval width alone.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The table has two columns pointing in different directions. Identify which trend gives the narrowest interval, and whether the same trend also gives the lowest error.</p>
+<pre><code class="language-r"># Goal: name the row with the smallest width, and the row with the smallest mae.
+# Hint: this line reads one column; which.min gives you the winning row number.
+res[, &quot;mae&quot;]
+#&gt;  local_level local_linear    semilocal
+#&gt;        73.63        52.94        27.50</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">rownames(res)[which.min(res[, &quot;width&quot;])]
+#&gt; [1] &quot;local_level&quot;
+rownames(res)[which.min(res[, &quot;mae&quot;])]
+#&gt; [1] &quot;semilocal&quot;</code></pre>
+
+<p><strong>Explanation:</strong> they are different models. The narrowest interval belongs to the least accurate model, which is the clearest possible demonstration that confidence and correctness are separate properties.</p>
+
+</details>
+</section>
+
+<h2>How do you add predictors with a spike-and-slab prior?</h2>
+
+<p>Everything so far used the series' own past. <code>bsts</code> also accepts predictors through an ordinary formula interface, which is what makes it a nowcasting tool: if a related indicator is available before your target series is published, the model can lean on it.</p>
+
+<p>The package ships a real example. <code>initial.claims</code> holds weekly US unemployment insurance claims alongside ten Google search popularity series that were found to correlate with it.</p>
+
+<pre><code class="language-r">data(iclaims)
+dim(initial.claims)
+#&gt; [1] 456  11
+colnames(initial.claims)[1:5]
+#&gt; [1] &quot;iclaimsNSA&quot;                &quot;michigan.unemployment&quot;     &quot;idaho.unemployment&quot;
+#&gt; [4] &quot;pennsylvania.unemployment&quot; &quot;unemployment.filing&quot;</code></pre>
+
+<p>456 weeks, one response column and ten candidate predictors. Look at the values before modelling them.</p>
+
+<pre><code class="language-r">round(head(initial.claims[, 1:3], 3), 3)
+#&gt;            iclaimsNSA michigan.unemployment idaho.unemployment
+#&gt; 2004-01-04      2.536                 1.488             -0.561
+#&gt; 2004-01-11      0.882                 1.100             -0.992
+#&gt; 2004-01-18     -0.077                 1.155             -1.212</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Every column here is standardized, which is why claims can be negative.</strong> The response and the search series have each been centred at zero and scaled, so a value of 2.536 means 2.5 standard deviations above average rather than 2.5 claims. Any coefficient you read off this fit is therefore in standard deviation units.</div></div>
+
+<p>Ten predictors for one response is the setting where ordinary regression starts inventing relationships. <code>bsts</code> handles it with a spike-and-slab prior. The spike is a lump of probability sitting exactly on zero, saying "this predictor is probably irrelevant"; the slab is a wide distribution for the coefficient in the event that it is relevant. On each draw, the sampler decides for each predictor which side it falls on, so the model is choosing its variables a thousand times rather than once.</p>
+
+<p><code>expected.model.size</code> sets how many predictors you expect to survive that choice, and it controls how heavy the spike is.</p>
+
+<pre><code class="language-r">ss_r &lt;- AddLocalLinearTrend(list(), initial.claims$iclaimsNSA)
+ss_r &lt;- AddSeasonal(ss_r, initial.claims$iclaimsNSA, nseasons = 52)
+mr &lt;- bsts(iclaimsNSA ~ ., state.specification = ss_r, data = initial.claims,
+           niter = 1000, expected.model.size = 3, ping = 0, seed = 4321)
+burn_r &lt;- SuggestBurn(0.1, mr)
+burn_r
+#&gt; [1] 433</code></pre>
+
+<p>The formula <code>iclaimsNSA ~ .</code> means "use every other column as a predictor". This fit takes about 45 seconds because a 52-week seasonal component carries 51 hidden states and the sampler must draw all of them a thousand times.</p>
+
+<p>Because variable selection happened on every draw, the natural summary is the fraction of draws in which each predictor was included.</p>
+
+<pre><code class="language-r">inclusion &lt;- colMeans(mr$coefficients[-(1:burn_r), ] != 0)
+round(sort(inclusion, decreasing = TRUE)[1:5], 3)
+#&gt;        idaho.unemployment       unemployment.office pennsylvania.unemployment
+#&gt;                     1.000                     1.000                     0.035
+#&gt;       unemployment.filing     illinois.unemployment
+#&gt;                     0.025                     0.023</code></pre>
+
+<p>Two predictors were selected in every single draw, and the third-placed candidate appears in 3.5% of them. That is a decisive verdict, and it is more informative than a table of p-values: across the 567 draws kept after burn-in, there was not one in which <code>idaho.unemployment</code> or <code>unemployment.office</code> was left out.</p>
+
+<p>For the two survivors, ask how large the effect is when it is present.</p>
+
+<pre><code class="language-r">kept &lt;- mr$coefficients[-(1:burn_r), ]
+avg  &lt;- apply(kept, 2, function(col) if (any(col != 0)) mean(col[col != 0]) else 0)
+round(avg[names(sort(inclusion, decreasing = TRUE))[1:2]], 4)
+#&gt;  idaho.unemployment unemployment.office
+#&gt;              0.1211              0.5541</code></pre>
+
+<p>A one standard deviation rise in searches for <code>unemployment.office</code> goes with a 0.55 standard deviation rise in claims, and <code>idaho.unemployment</code> contributes a smaller 0.12. Averaging only over the draws where the coefficient is non-zero matters: averaging over all draws would drag a genuinely useful predictor toward zero purely because it was occasionally excluded.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set expected.model.size from what you believe, not from what you hope.</strong> It is a prior, so setting it to 10 when you have 10 candidates tells the model you expect all of them to matter and weakens the sparsity that makes this approach work. Starting around 2 or 3 and checking which predictors survive is the productive habit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <code>expected.model.size = 3</code> translates into a prior probability that each individual predictor is included. Work out what that probability is for this fit.</p>
+<pre><code class="language-r"># Goal: compute expected.model.size divided by the number of coefficients.
+# Hint: this line gives you the denominator you need.
+ncol(mr$coefficients)
+#&gt; [1] 11</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(3 / ncol(mr$coefficients), 3)
+#&gt; [1] 0.273</code></pre>
+
+<p><strong>Explanation:</strong> each predictor starts with a 27.3% chance of being in the model, since 3 expected predictors spread over 11 coefficients gives 3/11. The data then pushed two of them to 1.000 and the rest below 0.04, which is a large update away from the prior and therefore strong evidence.</p>
+
+</details>
+</section>
+
+<h2>How do you check whether the model is any good?</h2>
+
+<p>Comparing models on a single 24-month holdout is thin evidence. One unusual year can crown the wrong winner. The stronger test uses one-step-ahead prediction errors, which score the model at every point in the series rather than at one arbitrary split.</p>
+
+<pre><code class="language-r">errors_llt &lt;- bsts.prediction.errors(model, burn = burn)$in.sample
+errors_ll  &lt;- bsts.prediction.errors(m_ll, burn = SuggestBurn(0.1, m_ll))$in.sample
+round(c(local_linear = mean(abs(colMeans(errors_llt))),
+        local_level  = mean(abs(colMeans(errors_ll)))), 5)
+#&gt; local_linear  local_level
+#&gt;      0.04106      0.04032</code></pre>
+
+<p>This result deserves a pause. The local level model, which was the worst of the three at forecasting two years ahead, is very slightly better at predicting one month ahead. That is not a contradiction. Predicting one step needs a model that tracks the recent past closely, and predicting two years needs a model whose trend behaves sensibly when extrapolated. A component can be good at one and poor at the other.</p>
+
+<p><code>CompareBstsModels()</code> plots how each model's error accumulates across the series, and returns the underlying matrix.</p>
+
+<pre><code class="language-r">pdf(NULL)
+cmp &lt;- CompareBstsModels(list(&quot;local level&quot; = m_ll, &quot;local linear&quot; = model), burn = burn)
+invisible(dev.off())
+dim(cmp)
+#&gt; [1]   2 120</code></pre>
+
+<p>Two models, 120 time points, each entry the running total of absolute one-step error up to that point. Reading the same column for both models tells you who was ahead at that date, and reading across the row tells you when each model gained or lost ground.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Score on one-step errors first, then confirm on a holdout.</strong> The cumulative error curve uses every observation and shows you where a model went wrong, not just whether it did. Use it to shortlist, then use a held-out window at your real forecast horizon to pick the winner.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the two models halfway through the series and at the end. Print the cumulative error at time 120 and see whether the ranking at the midpoint still holds.</p>
+<pre><code class="language-r"># Goal: read column 120 of cmp instead of column 60.
+# Hint: cmp is an ordinary matrix, so cmp[, 60] is the midpoint.
+round(cmp[, 60], 3)
+#&gt; [1] 2.974 3.001</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(cmp[, 120], 3)
+#&gt; [1] 4.843 4.927</code></pre>
+
+<p><strong>Explanation:</strong> the local level model leads at the midpoint (2.974 against 3.001) and still leads at the end (4.843 against 4.927), so its small one-step advantage is consistent rather than lucky. It remains the worse choice for a two-year forecast, which is the whole lesson of this section.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: forecast air passengers end to end</h2>
+
+<p>Here is the full workflow in one block, using the component that won: a semilocal linear trend for the long horizon, plus a twelve-month season. Build the specification, fit, discard the warm-up, forecast, and score.</p>
+
+<pre><code class="language-r">final_ss   &lt;- AddSeasonal(AddSemilocalLinearTrend(list(), train), train, nseasons = 12)
+final_fit  &lt;- bsts(train, state.specification = final_ss, niter = 1000, ping = 0, seed = 20260723)
+final_burn &lt;- SuggestBurn(0.1, final_fit)
+final_pred &lt;- predict(final_fit, horizon = 24, burn = final_burn,
+                      quantiles = c(0.025, 0.975), seed = 7)
+round(c(burn   = final_burn,
+        mae    = mean(abs(exp(final_pred$mean) - exp(test))),
+        low24  = exp(final_pred$interval[1, 24]),
+        high24 = exp(final_pred$interval[2, 24])), 2)
+#&gt;         burn          mae   low24.2.5% high24.97.5%
+#&gt;        15.00        27.50       309.17       577.13</code></pre>
+
+<p>Fifteen warm-up draws discarded, a mean absolute error of 27.50 passengers per month over two unseen years, and a two-year-ahead interval running from 309 to 577. December 1960 actually came in at 432, comfortably inside that range.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Does the log transform earn its keep?</h3>
+
+<p>Every model in this tutorial was fitted to <code>log(AirPassengers)</code>. Fit the same semilocal trend plus seasonal model to the raw, untransformed series over the same 1949 to 1958 window, forecast 24 months, and compute the mean absolute error against the raw test values. Compare it with the 27.50 the log-scale model achieved.</p>
+
+<pre><code class="language-r"># Build raw_train and raw_test from AirPassengers with window().
+# Hint: no exp() is needed anywhere, because you never took a log.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">raw_train &lt;- window(AirPassengers, end = c(1958, 12))
+raw_test  &lt;- window(AirPassengers, start = c(1959, 1))
+my_ss   &lt;- AddSeasonal(AddSemilocalLinearTrend(list(), raw_train), raw_train, nseasons = 12)
+my_fit  &lt;- bsts(raw_train, state.specification = my_ss, niter = 1000, ping = 0, seed = 11)
+my_burn &lt;- SuggestBurn(0.1, my_fit)
+my_pred &lt;- predict(my_fit, horizon = 24, burn = my_burn, seed = 3)
+round(c(raw_scale_mae = mean(abs(my_pred$mean - raw_test))), 2)
+#&gt; raw_scale_mae
+#&gt;          86.6</code></pre>
+
+<p><strong>Explanation:</strong> 86.6 against 27.50, so the log transform is worth more than three times the model's entire accuracy. The reason is that an additive seasonal component assumes the summer bump is the same size every year. On the raw scale it is not: the bump grows with the series. Taking logs converts that multiplying pattern into an adding one, which is the assumption the model was built on.</p>
+
+</details>
+
+<h3>Exercise 2: Recover a seasonal pattern you already know</h3>
+
+<p>Fit a local level plus seasonal model with <code>bsts</code> to the simulated quarterly series <code>y</code> from the second section, using <code>nseasons = 4</code>. Pull <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">the seasonal component</a> out of <code>state.contributions</code>, average it across draws, and compute the swing across the first four quarters. Compare it against the true swing of 9 that you built into the data.</p>
+
+<pre><code class="language-r"># The component you want is named &quot;seasonal.4.1&quot; in state.contributions.
+# Hint: colMeans over the draws dimension gives a posterior mean per time point.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">my_sim_ss   &lt;- AddSeasonal(AddLocalLevel(list(), y), y, nseasons = 4)
+my_sim_fit  &lt;- bsts(y, state.specification = my_sim_ss, niter = 1000, ping = 0, seed = 5)
+my_sim_burn &lt;- SuggestBurn(0.1, my_sim_fit)
+my_season   &lt;- colMeans(my_sim_fit$state.contributions[-(1:my_sim_burn), &quot;seasonal.4.1&quot;, ])
+round(c(recovered_swing = max(my_season[1:4]) - min(my_season[1:4]),
+        true_swing      = max(season) - min(season)), 2)
+#&gt; recovered_swing      true_swing
+#&gt;            8.46            9.00</code></pre>
+
+<p><strong>Explanation:</strong> the model recovered a swing of 8.46 against a true 8 to 9 unit swing, with the shortfall coming from the first few quarters where the filter is still finding its footing. The seasonal estimate tightens up considerably further into the series, which is why the very start of a fitted component is the part to trust least.</p>
+
+</details>
+
+<h3>Exercise 3: How often do the two survivors appear together?</h3>
+
+<p>The claims model gave both <code>idaho.unemployment</code> and <code>unemployment.office</code> an inclusion probability of 1.000 individually. That does not automatically mean they were always selected in the same draw. Using <code>mr$coefficients</code>, compute the fraction of post-burn draws where both are non-zero at once, then tabulate how many predictors each draw selected in total.</p>
+
+<pre><code class="language-r"># Hint: a coefficient matrix comparison like kept[, &quot;x&quot;] != 0 gives a logical vector,
+# and rowSums over a logical matrix counts the selected predictors per draw.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">my_kept &lt;- mr$coefficients[-(1:burn_r), ]
+my_top2 &lt;- names(sort(colMeans(my_kept != 0), decreasing = TRUE))[1:2]
+round(mean(my_kept[, my_top2[1]] != 0 &amp; my_kept[, my_top2[2]] != 0), 3)
+#&gt; [1] 1
+table(rowSums(my_kept != 0))
+#&gt;   2   3   4
+#&gt; 501  64   2</code></pre>
+
+<p><strong>Explanation:</strong> they do appear together in every draw, so the joint probability is 1. The table shows the sampler chose exactly two predictors in 501 of the 567 kept draws, three in 64, and four in only 2. The prior said to expect three; the data pulled that down to two and stayed there.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Is <code>bsts</code> the same thing as CausalImpact?</strong> No, but they are closely related. <code>CausalImpact</code> uses <code>bsts</code> internally to build a forecast of what a series would have done without some intervention, then compares that counterfactual against what actually happened. Learning <code>bsts</code> first makes <code>CausalImpact</code> far easier to reason about, and there is a dedicated <a href="CausalImpact-in-R.html">CausalImpact walkthrough</a> once you are ready.</p>
+
+<p><strong>How many iterations do I need?</strong> Start at 1000, check what <code>SuggestBurn()</code> returns, and raise <code>niter</code> if the suggested burn-in is a large fraction of it. In this tutorial one model burned 287 of 1000 while another burned 15, on the same data, purely because of the trend component. If burn-in consumes more than half the chain, you are keeping too few draws to trust the quantiles.</p>
+
+<p><strong>Does <code>bsts</code> handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>?</strong> Yes, and this is one of the strongest practical arguments for state space models. A missing observation simply means the filter skips its correction step for that time point and carries the prediction forward, so no imputation is required. Pass <code>NA</code> values through and the model handles them.</p>
+
+<p><strong>Can it handle more than one <a class="auto-link" href="Multiple-Seasonality-Forecasting-in-R.html" title="Sub-Daily Forecasting in R: the Multiple-Seasonality Playbook">seasonal period</a>?</strong> Yes. Call <code>AddSeasonal()</code> more than once with different <code>nseasons</code> values, and use the <code>season.duration</code> argument when one cycle spans several observations, such as a day-of-week pattern in hourly data. <code>AddTrig()</code> provides a trigonometric alternative that uses far fewer states for long seasonal periods.</p>
+
+<p><strong>How is this different from <code>decompose()</code> or <code>stl()</code>?</strong> Those functions split a series into trend, seasonal and remainder using <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">moving averages</a> or a loess smoother. They describe the history you already have and stop there: they cannot forecast, they attach no uncertainty to the parts, and they cannot take predictors. A structural model instead states how the parts are generated and estimates the variances that drive them, so the same fitted object gives you the components and a forecast, each with an interval around it.</p>
+
+<p><strong>Should I use ARIMA or a structural model?</strong> Use ARIMA when you want a compact model of the correlation structure and you are forecasting a short way ahead. Use a structural model when you need the components themselves, when you want to add predictors with automatic variable selection, or when you have missing data. The two overlap heavily in accuracy, so let the requirement decide rather than the fashion. There is a full treatment in the <a href="ARIMA-in-R.html">ARIMA tutorial</a>.</p>
+
+<p><strong>Why do the <code>bsts</code> blocks not run in the browser here?</strong> <code>bsts</code> depends on a large compiled C++ library, and the <a class="auto-link" href="R-Debugging-Exercises.html" title="R Debugging Exercises: 12 Practice Problems">browser R</a> build only carries packages that have been compiled for it. Base R, <code>stats</code>, and the whole first half of this tutorial run in the page; the <code>bsts</code> blocks are marked static and are meant to be pasted into RStudio.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Component or job</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StructTS(x, type = &quot;BSM&quot;)</code></td>
+<td>Classical level, slope and season fit</td>
+<td>You want a fast look at the components with no extra packages</td>
+</tr>
+<tr>
+<td><code>AddLocalLevel()</code></td>
+<td>Wandering level, no slope</td>
+<td>The series has no persistent direction</td>
+</tr>
+<tr>
+<td><code>AddLocalLinearTrend()</code></td>
+<td>Level plus a freely wandering slope</td>
+<td>Forecasting a few steps ahead</td>
+</tr>
+<tr>
+<td><code>AddSemilocalLinearTrend()</code></td>
+<td>Slope pulled back to a long-run rate</td>
+<td>Forecasting far ahead, which was the winner here</td>
+</tr>
+<tr>
+<td><code>AddSeasonal(nseasons = k)</code></td>
+<td>Repeating pattern of length k</td>
+<td>The series has a cycle</td>
+</tr>
+<tr>
+<td><code>AddAr(lags = 1)</code></td>
+<td>Short-term momentum</td>
+<td>Residuals still show correlation</td>
+</tr>
+<tr>
+<td><code>bsts(..., niter, seed)</code></td>
+<td>Draws samples from the model</td>
+<td>Always, and always with a seed</td>
+</tr>
+<tr>
+<td><code>SuggestBurn(0.1, model)</code></td>
+<td>How many warm-up draws to drop</td>
+<td>Before reading any output</td>
+</tr>
+<tr>
+<td><code>predict(model, horizon, burn, seed)</code></td>
+<td>Forecast with credible intervals</td>
+<td>The reason you fitted the model</td>
+</tr>
+<tr>
+<td><code>expected.model.size</code></td>
+<td>Spike-and-slab sparsity</td>
+<td>You have more predictors than you trust</td>
+</tr>
+<tr>
+<td><code>bsts.prediction.errors()</code></td>
+<td>One-step-ahead errors</td>
+<td>Comparing models honestly</td>
+</tr>
+</tbody>
+</table>
+
+<p>The workflow never changes: describe the structure as a list of components, fit it, drop the warm-up draws, read the components, then forecast. What changes between problems is which components you list, and the scoreboard from this tutorial shows how much that choice is worth: 300.5 mean absolute error for the classical fit that collapsed, 71.25 for repeating last year, 52.94 for a local linear trend, 27.50 for a semilocal one.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Scott, S. L. <code>bsts</code>: Bayesian Structural Time Series. CRAN package page, the canonical source for the current version, dependencies and vignettes. <a href="https://cran.r-project.org/package=bsts">Link</a></li>
+
+<li><code>bsts</code> reference manual (full argument documentation for every <code>Add*</code> function). <a href="https://cran.r-project.org/web/packages/bsts/bsts.pdf">Link</a></li>
+
+<li>Scott, S. L. Fitting Bayesian structural time series with the <code>bsts</code> R package. Unofficial Google Data Science Blog (2017). <a href="https://www.unofficialgoogledatascience.com/2017/07/fitting-bayesian-structural-time-series.html">Link</a></li>
+
+<li>R Core Team. <code>StructTS</code>: Fit Structural Time Series. R manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/StructTS.html">Link</a></li>
+
+<li>R Core Team. <code>KalmanLike</code> and friends: Kalman filtering in base R. R manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/KalmanLike.html">Link</a></li>
+
+<li>Brodersen, K. et al. CausalImpact: inferring causal effects with Bayesian structural time series. <a href="https://google.github.io/CausalImpact/CausalImpact.html">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. Forecasting: Principles and Practice, 3rd edition, chapter on exponential smoothing state space models. <a href="https://otexts.com/fpp3/ets.html">Link</a></li>
+
+<li>Bayesian structural time series: model definition and history. <a href="https://en.wikipedia.org/wiki/Bayesian_structural_time_series">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Kalman-Filter-in-R.html">Kalman Filter in R</a> walks through the predict-and-correct recursion that powers every fit in this tutorial, one step at a time.</li>
+
+<li><a href="CausalImpact-in-R.html">CausalImpact in R</a> puts <code>bsts</code> to work estimating the effect of an intervention by forecasting the world in which it never happened.</li>
+
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a> covers <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, the other major state space family, and shows where it overlaps with the structural models here.</li>
+
+</ul>
+
