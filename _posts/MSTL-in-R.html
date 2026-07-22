@@ -1,0 +1,1463 @@
+---
+title: "MSTL in R: Decompose Multiple Seasonalities"
+description: "Half-hourly data has a daily and a weekly cycle. MSTL in R pulls both apart at once: build msts objects, run mstl(), tune s.window, and check the result."
+keywords: "MSTL in R, mstl function R, multiple seasonality R, msts R, multiple seasonal decomposition, STL multiple seasonal periods, complex seasonality R, forecast package mstl, daily and weekly seasonality R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-2.2"
+post_type: "C"
+auto_link_terms: "MSTL|MSTL in R|mstl()|multiple seasonality|multiple seasonal periods|multiple seasonal decomposition|msts()|msts object|complex seasonality|daily and weekly seasonality|seasonal windows|multi-seasonal decomposition|decompose multiple seasonalities"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "MSTL: Multiple Seasonalities"
+sidebar_order: "52"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead"><strong>MSTL</strong> (Multiple Seasonal-Trend decomposition using Loess) splits a series that repeats on more than one clock, say a daily rhythm and a weekly rhythm, into a trend, <strong>one seasonal component per period</strong>, and a remainder. A single call to <code>mstl()</code> in the forecast package does the whole job. This tutorial builds the idea from scratch on real half-hourly electricity demand, and every code block on this page runs in your browser.</p>
+
+<h2>What does a series with two seasonal cycles look like?</h2>
+
+<p>Electricity demand climbs every morning and falls every night, and that is one cycle. It also sags every weekend, which is a second cycle sitting on top of the first. Data recorded every half hour therefore repeats every 48 observations and again every 336. The <code>taylor</code> series that ships with the forecast package is exactly that, and one function separates both rhythms.</p>
+
+<div class="webr-container" data-block-title="Decompose two seasonal cycles at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose two seasonal cycles at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+library(ggplot2)
+library(lubridate)
+fit &lt;- mstl(taylor)
+round(head(fit, 3), 1)
+#&gt; Multi-Seasonal Time Series:
+#&gt; Start: 1 1
+#&gt; Seasonal Periods: 48 336
+#&gt; Data:
+#&gt;       Data   Trend Seasonal48 Seasonal336 Remainder
+#&gt; [1,] 22262 30213.5    -5816.2     -1767.8    -367.5
+#&gt; [2,] 21756 30212.9    -6530.3     -1653.3    -273.3
+#&gt; [3,] 22247 30212.3    -6272.3     -1535.6    -157.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the first row across. At the very first half hour of the series, demand was 22,262 megawatts. The underlying level (<code>Trend</code>) sat at 30,213. Being the middle of the night pulled it down by 5,816 (<code>Seasonal48</code>), the day of the week pulled it down another 1,768 (<code>Seasonal336</code>), and 368 megawatts of unexplained wobble was left over (<code>Remainder</code>).</p>
+
+<p>That is the whole promise of MSTL. Instead of one seasonal column, you get one seasonal column for each cycle you declare, named after its period length.</p>
+
+<p>The data itself is half-hourly electricity demand for England and Wales, starting midnight on Monday 5 June 2000 and running for twelve weeks. Let us look at its shape before going further.</p>
+
+<div class="webr-container" data-block-title="Inspect the taylor demand series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the taylor demand series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">length(taylor)
+#&gt; [1] 4032
+
+attributes(taylor)$msts
+#&gt; [1]  48 336
+
+head(taylor, 6)
+#&gt; Multi-Seasonal Time Series:
+#&gt; Start: 1 1
+#&gt; Seasonal Periods: 48 336
+#&gt; Data:
+#&gt; [1] 22262 21756 22247 22759 22549 22313</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four thousand and thirty two readings is twelve weeks of half hours (48 x 7 x 12). The <code>msts</code> attribute is the key line: this series already carries two seasonal periods, 48 and 336, rather than the single <code>frequency</code> a plain <code>ts</code> object holds.</p>
+
+<p>Both rhythms are visible without any modelling. Average the series by position in the day, and then again by day of the week. Both patterns fall straight out.</p>
+
+<div class="webr-container" data-block-title="Measure both rhythms directly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure both rhythms directly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tod &lt;- rep(1:48, length.out = length(taylor))
+dow &lt;- rep(1:7, each = 48, length.out = length(taylor))
+
+round(tapply(taylor, tod, mean)[c(1, 13, 21, 37, 48)])
+#&gt;     1    13    21    37    48
+#&gt; 24042 23859 34660 32541 25538
+
+round(tapply(taylor, dow, mean))
+#&gt;     1     2     3     4     5     6     7
+#&gt; 30851 31349 31338 31402 30646 26501 25233</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tod</code> labels each reading with its slot inside the day (slot 1 is midnight, slot 13 is 06:00, slot 21 is 10:00, slot 37 is 18:00, slot 48 is 23:30). <code>dow</code> labels each reading with its day, where 1 is Monday because the series starts on a Monday.</p>
+
+<p>The day profile swings from about 24,000 megawatts at midnight to 34,660 at ten in the morning. The week profile is flat from Monday to Friday near 31,000 and then drops to 25,233 on Sunday. Two separate, real, repeating patterns.</p>
+
+<p>Here is the thing that makes MSTL necessary rather than merely convenient. If you hand this series to ordinary <code>stl()</code> and tell it only about the daily cycle, the weekly cycle does not disappear. It ends up inside the components you did ask for.</p>
+
+<p>Two helpers from the forecast package make that visible: <code>trendcycle()</code> pulls the trend column out of a fitted decomposition, and <code>remainder()</code> pulls the leftovers.</p>
+
+<div class="webr-container" data-block-title="Fit a single-season STL and watch the trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a single-season STL and watch the trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">one_season &lt;- ts(as.numeric(taylor), frequency = 48)
+fit_one &lt;- stl(one_season, s.window = &quot;periodic&quot;)
+trend_one &lt;- as.numeric(trendcycle(fit_one))
+
+round(range(trend_one))
+#&gt; [1] 24125 32391
+
+round(range(as.numeric(fit[, &quot;Trend&quot;])))
+#&gt; [1] 28175 30213
+
+round(cor(trend_one, as.numeric(fit[, &quot;Seasonal336&quot;])), 3)
+#&gt; [1] 0.891</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single-season trend swings between 24,125 and 32,391, a range of more than 8,000 megawatts, in a series whose real level barely moves. The MSTL trend, which knows about the weekly cycle, only moves between 28,175 and 30,213.</p>
+
+<p>The final line explains why. That wobbly trend correlates 0.891 with the weekly component MSTL extracted. The undeclared weekly cycle was absorbed into the trend, so most of what looks like a change in the underlying level is really the weekend coming round again.</p>
+
+<p>The leftovers tell the same story. Autocorrelation at lag 336 asks "does this series look like itself one week ago", and for a clean remainder the answer should be close to zero.</p>
+
+<div class="webr-container" data-block-title="Compare leftover weekly structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare leftover weekly structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rem_one &lt;- as.numeric(remainder(fit_one))
+acf_one &lt;- acf(rem_one, lag.max = 336, plot = FALSE)$acf
+acf_mstl &lt;- acf(as.numeric(fit[, &quot;Remainder&quot;]), lag.max = 336, plot = FALSE)$acf
+
+round(c(one_season = acf_one[337], mstl = acf_mstl[337]), 3)
+#&gt; one_season       mstl
+#&gt;      0.861     -0.053</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>acf()</code> returns lag 0 first, so the value for lag 336 sits at index 337. The single-season remainder is 0.861 correlated with itself a week earlier, which is an enormous amount of structure to leave in a component that is supposed to be noise. The MSTL remainder scores -0.053, which is what noise looks like.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A cycle you do not declare does not vanish, it moves into the components you did declare.</strong> Whatever repeating pattern you fail to model is split between the trend and the remainder, which makes the trend untrustworthy and the remainder useless as a diagnostic.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below shows the day-of-week averages of the single-season remainder, where Monday and the weekend stick out. Compute the same averages for the MSTL remainder stored in <code>fit</code> and confirm the weekday pattern is gone.</p>
+<div class="webr-container" data-block-title="Your turn: day-of-week means of the remainder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: day-of-week means of the remainder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This does it for the single-season fit. Do the same for fit[, &quot;Remainder&quot;].
+round(tapply(rem_one, dow, mean))
+#&gt;    1    2    3    4    5    6    7
+#&gt;  433   -9   -1   23  103 -250 -284</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Day-of-week means of the MSTL remainder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Day-of-week means of the MSTL remainder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rem &lt;- as.numeric(fit[, &quot;Remainder&quot;])
+round(tapply(ex_rem, dow, mean), 1)
+#&gt;     1     2     3     4     5     6     7
+#&gt;   6.1   7.2   3.2 -11.7  29.4   8.9 -47.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The single-season remainder still carries a Monday spike of +433 and a weekend dip near -280, because the weekly cycle had nowhere else to go. Once the weekly period is declared, those averages collapse to a few tens of megawatts on a series that averages 30,000.</p>
+
+</details>
+</section>
+
+<h2>How do you tell R that a series has more than one season?</h2>
+
+<p>A plain <code>ts</code> object stores exactly one number for seasonality, its <code>frequency</code>. That is why <code>stl()</code> can only ever remove one cycle. The forecast package adds a class called <code>msts</code> (multiple seasonal time series) that stores a whole vector of periods instead.</p>
+
+<p>You build one with <code>msts()</code>, passing the raw numbers and the periods you want recorded.</p>
+
+<div class="webr-container" data-block-title="Build an msts object from raw numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an msts object from raw numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">demand &lt;- as.numeric(taylor)
+elec_msts &lt;- msts(demand, seasonal.periods = c(48, 336))
+
+attributes(elec_msts)$msts
+#&gt; [1]  48 336
+
+frequency(elec_msts)
+#&gt; [1] 336
+
+class(elec_msts)
+#&gt; [1] &quot;msts&quot; &quot;ts&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The object still is a <code>ts</code> underneath, so everything that works on a time series keeps working. The extra <code>msts</code> attribute is what <code>mstl()</code> reads to decide how many seasonal components to carve out.</p>
+
+<p>Note that <code>frequency()</code> reports only the longest period, 336. That is a compatibility fallback for functions that expect a single number, and it is a good reason to check <code>attributes(x)$msts</code> rather than <code>frequency(x)</code> when you want to know what a series actually declares.</p>
+
+<p>Choosing the periods is arithmetic, not guesswork. A period is how many observations pass before the pattern repeats.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Data recorded</th>
+<th>Daily cycle</th>
+<th>Weekly cycle</th>
+<th>Yearly cycle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Every hour</td>
+<td>24</td>
+<td>168</td>
+<td>8766</td>
+</tr>
+<tr>
+<td>Every half hour</td>
+<td>48</td>
+<td>336</td>
+<td>17532</td>
+</tr>
+<tr>
+<td>Every 15 minutes</td>
+<td>96</td>
+<td>672</td>
+<td>35064</td>
+</tr>
+<tr>
+<td>Every day</td>
+<td>not applicable</td>
+<td>7</td>
+<td>365.25</td>
+</tr>
+<tr>
+<td>Every week</td>
+<td>not applicable</td>
+<td>not applicable</td>
+<td>52.18</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two of those numbers are not whole. Daily data does not repeat every 365 days, it repeats every 365.25 days on average, and <code>msts()</code> accepts the fraction happily.</p>
+
+<div class="webr-container" data-block-title="Declare weekly and yearly cycles on daily data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Declare weekly and yearly cycles on daily data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2202)
+day &lt;- 1:1095
+sales &lt;- 500 + 0.15 * day +
+  40 * sin(2 * pi * day / 7) +
+  90 * sin(2 * pi * (day - 60) / 365.25) +
+  rnorm(1095, 0, 15)
+
+sales_msts &lt;- msts(sales, seasonal.periods = c(7, 365.25))
+colnames(mstl(sales_msts))
+#&gt; [1] &quot;Data&quot;           &quot;Trend&quot;          &quot;Seasonal7&quot;      &quot;Seasonal365.25&quot; &quot;Remainder&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is three years of made-up daily sales. A slow upward drift runs underneath a weekly shopping rhythm plus a yearly season, with noise on top. The component names come straight from the periods, so a fractional period gives you a column called <code>Seasonal365.25</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A period needs at least two full cycles of data.</strong> If a declared period is longer than half the series, mstl drops it with a warning, so three years of daily data is the practical minimum before asking for a yearly component.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The hourly series below has a daily shape plus a weekend bump. The starter declares only the daily cycle. Declare both the daily and the weekly cycle, then print the component names.</p>
+<div class="webr-container" data-block-title="Your turn: declare a second period">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: declare a second period</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hours &lt;- 100 + 20 * sin(2 * pi * (1:672) / 24) + 8 * (rep(1:7, each = 24) %in% c(6, 7))
+
+ex_daily &lt;- msts(ex_hours, seasonal.periods = 24)
+attributes(ex_daily)$msts
+#&gt; NULL
+
+frequency(ex_daily)
+#&gt; [1] 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Hourly data with daily and weekly cycles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hourly data with daily and weekly cycles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_both &lt;- msts(ex_hours, seasonal.periods = c(24, 168))
+attributes(ex_both)$msts
+#&gt; [1]  24 168
+
+colnames(mstl(ex_both))
+#&gt; [1] &quot;Data&quot;        &quot;Trend&quot;       &quot;Seasonal24&quot;  &quot;Seasonal168&quot; &quot;Remainder&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Hourly data repeats every 24 observations daily and every 24 x 7 = 168 observations weekly. Notice that asking for a single period gives <code>NULL</code> for the msts attribute: with one period there is nothing multiple about it, so the object stays an ordinary ts.</p>
+
+</details>
+</section>
+
+<h2>How does mstl() actually work under the hood?</h2>
+
+<p>MSTL does not invent new mathematics. It runs ordinary <code>stl()</code> several times in a loop, peeling off one seasonal pattern per pass, and keeps refining. <code>stl()</code> itself estimates each piece with loess, a smoother that fits a small <a class="auto-link" href="Loess-Regression-With-R.html" title="Loess Regression with R">local regression</a> through the points nearest each time index. That loess step is the L in both STL and MSTL. The model MSTL fits is additive:</p>
+
+<p>$$y_t = T_t + \sum_{i=1}^{k} S_t^{(i)} + R_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the observed value at time $t$</li>
+
+<li>$T_t$ = the trend, the slow-moving level</li>
+
+<li>$S_t^{(i)}$ = <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">the seasonal component</a> for the $i$-th declared period</li>
+
+<li>$k$ = how many periods you declared</li>
+
+<li>$R_t$ = the remainder, whatever none of the above explains</li>
+
+</ul>
+
+<p>The loop that estimates those pieces is short enough to say in five steps.</p>
+
+<ol>
+
+<li>Sort the declared periods from shortest to longest, and start every seasonal component at zero.</li>
+
+<li>Take the current de-seasonalised series and add back the seasonal component you are about to re-estimate.</li>
+
+<li>Run <code>stl()</code> on that series at this period, and keep its seasonal output as the new estimate.</li>
+
+<li>Subtract the new estimate and move to the next period.</li>
+
+<li>Repeat the whole sweep (twice by default), then take the trend from the last <code>stl()</code> fit and call the leftovers the remainder.</li>
+
+</ol>
+
+<p><img src="screenshots/MSTL-in-R-backfitting-loop.webp" alt="Flowchart of the mstl backfitting loop, from the raw series through STL at period 48 and period 336 back to the start" class="img-responsive img-zoomable" loading="lazy" width="2248" height="470" /></p>
+
+<p><em>Figure 1: The mstl backfitting loop peels off the shortest season first, then the next, then sweeps again.</em></p>
+
+<p>Statisticians call this pattern backfitting: each component is re-estimated while holding the others fixed, and the estimates settle down after a sweep or two. The reason it needs sweeps at all is that the first daily estimate is contaminated by the weekly pattern still sitting in the data, so once the weekly part is removed the daily part deserves another look.</p>
+
+<p>You do not have to take that description on faith. The loop is short enough to write out with plain <code>stl()</code> calls and check against the real thing.</p>
+
+<div class="webr-container" data-block-title="Reproduce the mstl loop by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce the mstl loop by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">periods &lt;- c(48, 336)
+windows &lt;- c(11, 15)
+seas &lt;- list(numeric(length(taylor)), numeric(length(taylor)))
+deseas &lt;- as.numeric(taylor)
+
+for (pass in 1:2) {
+  for (i in 1:2) {
+    deseas &lt;- deseas + seas[[i]]
+    stl_i &lt;- stl(ts(deseas, frequency = periods[i]), s.window = windows[i])
+    seas[[i]] &lt;- as.numeric(seasonal(stl_i))
+    deseas &lt;- deseas - seas[[i]]
+  }
+}
+
+max(abs(seas[[1]] - as.numeric(fit[, &quot;Seasonal48&quot;])))
+#&gt; [1] 0
+
+max(abs(seas[[2]] - as.numeric(fit[, &quot;Seasonal336&quot;])))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both differences are exactly zero, so those thirteen lines are <code>mstl()</code>. The <code>windows</code> vector holds the seasonal smoothing windows the function uses by default, which the next section unpacks.</p>
+
+<p>Two behaviours are worth knowing before you trust the function on other data. If you pass a plain <code>ts</code> instead of an <code>msts</code>, there is only one period to estimate, so the sweep count drops to one and you get ordinary STL. If the series has no seasonality at all, <code>mstl()</code> skips STL entirely and fits the trend with <code>supsmu()</code>, a general purpose scatterplot smoother.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing values</a> are filled in before decomposition, not skipped.</strong> mstl calls na.interp on the series first and then puts the NAs back in the remainder afterwards, so gaps do not stop the function, but the values it decomposed at those points were estimates rather than observations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The default is two sweeps. Refit <code>taylor</code> with <code>iterate = 1</code> and measure how far the daily component moves compared with the two-sweep default.</p>
+<div class="webr-container" data-block-title="Your turn: does the second sweep matter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: does the second sweep matter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This compares the weekly component. Do the same for Seasonal48.
+fit_once &lt;- as.data.frame(mstl(taylor, iterate = 1))
+round(max(abs(fit_once$Seasonal336 - as.numeric(fit[, &quot;Seasonal336&quot;]))), 1)
+#&gt; [1] 192.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Effect of the second sweep on both components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effect of the second sweep on both components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_once &lt;- as.data.frame(mstl(taylor, iterate = 1))
+round(c(daily = max(abs(ex_once$Seasonal48 - as.numeric(fit[, &quot;Seasonal48&quot;]))),
+        weekly = max(abs(ex_once$Seasonal336 - as.numeric(fit[, &quot;Seasonal336&quot;])))), 1)
+#&gt;  daily weekly
+#&gt;  551.6  192.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The second sweep moves the daily component by up to 552 megawatts and the weekly component by up to 192. On a series with a daily swing of roughly 14,000 megawatts that is a small correction, which is exactly why two sweeps is enough for most data.</p>
+
+</details>
+</section>
+
+<h2>How do you read the components, and do they add back up?</h2>
+
+<p>The object <code>mstl()</code> returns is a matrix with one column per component. Because the model is a sum, those columns must reconstruct the data exactly. Checking that is the fastest sanity test there is.</p>
+
+<p><img src="screenshots/MSTL-in-R-components.webp" alt="Diagram showing observed demand splitting into trend, Seasonal48, Seasonal336 and remainder, which add back to the data" class="img-responsive img-zoomable" loading="lazy" width="1378" height="1186" /></p>
+
+<p><em>Figure 2: mstl returns one trend, one seasonal column for each declared period, plus a remainder that all add back to the data.</em></p>
+
+<div class="webr-container" data-block-title="Check the components sum back to the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the components sum back to the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cp &lt;- as.data.frame(fit)
+recon &lt;- cp$Trend + cp$Seasonal48 + cp$Seasonal336 + cp$Remainder
+
+max(abs(recon - cp$Data)) &lt; 1e-6
+#&gt; [1] TRUE
+
+round(apply(cp, 2, sd))
+#&gt;        Data       Trend  Seasonal48 Seasonal336   Remainder
+#&gt;        5567         604        4790        2733         307</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Converting to a data frame with <code>as.data.frame()</code> makes the columns easy to grab by name. The reconstruction matches the original data to within floating point dust, which confirms nothing was lost.</p>
+
+<p>The standard deviations rank the components by size. The daily cycle (4,790) is by far the biggest source of variation, the weekly cycle (2,733) is a bit over half as large, the trend (604) barely moves across twelve weeks, and the remainder (307) is small. That ranking is the summary a stakeholder actually wants: this series is mostly a daily rhythm with a strong weekend effect and almost no underlying growth.</p>
+
+<p>The built-in plot method draws all of it as stacked panels.</p>
+
+<div class="webr-container" data-block-title="Plot the full decomposition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the full decomposition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(fit) + ggplot2::labs(title = &quot;MSTL decomposition of half-hourly demand&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each panel shares the same time axis, so you can line up a spike in the data with the component responsible for it. The grey bars on the right of a forecast-package decomposition plot show the relative scale of each panel, so a tall bar means a small component stretched to fill its panel.</p>
+
+<p>Numbers beat pictures when you need a specific answer, so it helps to fold each seasonal column back into its own shape. Reshaping <code>Seasonal48</code> into a matrix with 48 rows puts every day in its own column, and averaging across rows gives the typical day.</p>
+
+<div class="webr-container" data-block-title="Extract the average daily and weekly shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the average daily and weekly shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">daily_shape &lt;- rowMeans(matrix(cp$Seasonal48, nrow = 48))
+weekly_shape &lt;- rowMeans(matrix(cp$Seasonal336, nrow = 336))
+
+round(daily_shape[c(1, 13, 21, 37, 48)])
+#&gt; [1] -5580 -5767  5047  2931 -4052
+
+which.max(daily_shape)
+#&gt; [1] 24
+
+round(tapply(weekly_shape, rep(1:7, each = 48), mean))
+#&gt;     1     2     3     4     5     6     7
+#&gt;  1216  1716  1715  1799  1006 -3115 -4324</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The daily shape says midnight runs 5,580 megawatts below the day's level, 06:00 is the lowest of the five slots printed here, and mid morning runs about 5,000 above it. Slot 24 is the peak of the whole day, which is 11:30.</p>
+
+<p>The weekly shape says Tuesday through Thursday sit about 1,700 megawatts above the weekly average, Saturday sits 3,115 below, and Sunday 4,324 below. Those two shapes together are the seasonal story of the series in eight numbers.</p>
+
+<p>Subtracting both seasonal columns leaves the seasonally adjusted series, which is what you plot when someone asks whether demand is really rising or just following the calendar.</p>
+
+<div class="webr-container" data-block-title="Build the seasonally adjusted series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the seasonally adjusted series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adjusted &lt;- cp$Data - cp$Seasonal48 - cp$Seasonal336
+
+round(range(cp$Data))
+#&gt; [1] 18640 38777
+
+round(range(adjusted))
+#&gt; [1] 27332 31250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raw demand ranges over 20,000 megawatts. Once the daily and weekly <a class="auto-link" href="Calendar-Effects-in-R.html" title="Calendar Effects in R: Trading Days, Holidays, Time-Zone Traps">calendar effects</a> are removed, the same twelve weeks vary by less than 4,000. Almost all of that 20,000 megawatt spread was the time of day and the day of the week, not any real movement in underlying demand.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Rank components by standard deviation before you interpret anything.</strong> It takes one line, it tells you which cycle dominates, and it stops you from writing a paragraph about a trend that turns out to be a tenth the size of the weekend effect.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The peak of the daily shape is slot 24. Find the trough slot instead, and report how far below the day's level it sits.</p>
+<div class="webr-container" data-block-title="Your turn: find the daily trough">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the daily trough</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This finds the peak. Find the minimum instead, and its value.
+which.max(daily_shape)
+#&gt; [1] 24
+
+round(daily_shape[which.max(daily_shape)])
+#&gt; [1] 5551</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Daily trough slot and depth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily trough slot and depth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_trough &lt;- which.min(daily_shape)
+ex_trough
+#&gt; [1] 10
+
+round(daily_shape[ex_trough])
+#&gt; [1] -7862</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Slot 10 is 04:30, and demand there runs 7,862 megawatts below the daily level. Compared with the 11:30 peak of +5,551, the working day moves demand by more than 13,000 megawatts from bottom to top.</p>
+
+</details>
+</section>
+
+<h2>How do you tune s.window, iterate, and lambda?</h2>
+
+<p>Three arguments cover almost every adjustment you will ever make. The most important is <code>s.window</code>, which controls how quickly a seasonal shape is allowed to change from one cycle to the next.</p>
+
+<p>A small window lets the daily shape evolve week by week. A large window forces it to stay nearly identical, and the special value <code>&quot;periodic&quot;</code> freezes it completely. The default is a vector, paired with the sorted periods.</p>
+
+<div class="webr-container" data-block-title="Compare a drifting shape with a frozen one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare a drifting shape with a frozen one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">7 + 4 * seq_len(6)
+#&gt; [1] 11 15 19 23 27 31
+
+fit_periodic &lt;- mstl(taylor, s.window = &quot;periodic&quot;)
+slot_default &lt;- matrix(cp$Seasonal48, nrow = 48)[19, ]
+slot_periodic &lt;- matrix(as.data.frame(fit_periodic)$Seasonal48, nrow = 48)[19, ]
+
+round(c(default = sd(slot_default), periodic = sd(slot_periodic)), 1)
+#&gt;  default periodic
+#&gt;    169.9      0.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The default <code>s.window</code> is <code>7 + 4 * seq_len(6)</code>, which is the vector 11, 15, 19, 23, 27, 31. The shortest period gets 11, the next gets 15, and so on, so shorter cycles are allowed to drift more freely than long ones.</p>
+
+<p>Slot 19 is 09:00. Under the default, the 09:00 seasonal effect wanders with a standard deviation of 170 megawatts across the 84 days in the series, which means the morning ramp really does look slightly different from week to week. Under <code>&quot;periodic&quot;</code> that standard deviation is exactly zero, because every day is forced to share one shape.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Situation</th>
+<th>What to do with s.window</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Short series, or a shape you believe is stable</td>
+<td><code>&quot;periodic&quot;</code> or a large odd number</td>
+</tr>
+<tr>
+<td>Seasonal shape clearly evolving (new tariffs, new store hours)</td>
+<td>Small odd number, 7 to 15</td>
+</tr>
+<tr>
+<td>Noisy series where the seasonal estimate looks jittery</td>
+<td>Increase the window until it steadies</td>
+</tr>
+<tr>
+<td>Different periods needing different treatment</td>
+<td>Pass a vector, one value per period</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A numeric s.window must be odd and at least 7.</strong> The value is a loess span measured in cycles, so 11 means each point of the daily shape is smoothed using about 11 days of history, and an even number is rejected by the underlying stl code.</div></div>
+
+<p>The second argument is <code>iterate</code>, the number of sweeps through the periods, which defaults to 2 and rarely needs changing. The third is <code>lambda</code>, which applies a <a class="auto-link" href="Time-Series-Transformations-in-R.html" title="Box-Cox and Transformations for Time Series in R">Box-Cox transformation</a> before decomposing. Reach for it when the seasonal swings grow as the level grows, which is the signature of a multiplicative series.</p>
+
+<div class="webr-container" data-block-title="Decompose on a Box-Cox transformed scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose on a Box-Cox transformed scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_bc &lt;- mstl(taylor, lambda = &quot;auto&quot;)
+
+round(as.numeric(attributes(fit_bc)$lambda), 3)
+#&gt; [1] -0.123
+
+round(head(as.data.frame(fit_bc), 2), 4)
+#&gt;    Data  Trend Seasonal48 Seasonal336 Remainder
+#&gt; 1 22262 5.8456    -0.0559     -0.0218   -0.0045
+#&gt; 2 21756 5.8456    -0.0646     -0.0210   -0.0034</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>lambda = &quot;auto&quot;</code> the function picks a transformation parameter (here -0.123, close to a log) and decomposes the transformed series. Watch the scales in that output. The <code>Data</code> column stays in megawatts while every other column lives on the transformed scale, so the columns no longer add up to the data and the seasonal sizes are no longer readable in the original units.</p>
+
+<p>That is the trade. A Box-Cox decomposition is the right call when seasonal amplitude scales with the level, and the price is that you must back-transform before interpreting component magnitudes.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The default weekly window is 15. Refit with a very wide weekly window, <code>s.window = c(11, 501)</code>, and check how much the weekly shape is still allowed to drift.</p>
+<div class="webr-container" data-block-title="Your turn: freeze the weekly shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: freeze the weekly shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This measures drift under the default windows. Refit with c(11, 501) and compare.
+slot_week_default &lt;- matrix(cp$Seasonal336, nrow = 336)[19, ]
+round(sd(slot_week_default), 2)
+#&gt; [1] 32.68</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weekly drift under a very wide window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weekly drift under a very wide window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- mstl(taylor, s.window = c(11, 501))
+ex_slot &lt;- matrix(as.data.frame(ex_fit)$Seasonal336, nrow = 336)[19, ]
+round(sd(ex_slot), 2)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A window of 501 is far longer than the twelve weeks available, so the weekly shape is effectively frozen and its drift collapses to zero, the same as <code>&quot;periodic&quot;</code>. The default window of 15 allowed a modest 32.68 megawatts of week-to-week movement.</p>
+
+</details>
+</section>
+
+<h2>How do you check the decomposition actually worked?</h2>
+
+<p>A decomposition always returns something. Two checks tell you whether that something is any good, and both take one line each.</p>
+
+<p>The first is the remainder autocorrelation at each seasonal lag, which you already met in the opening section. A large positive value at lag $m$ means a cycle of length $m$ is still sitting in the leftovers.</p>
+
+<div class="webr-container" data-block-title="Check every seasonal lag in the remainder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check every seasonal lag in the remainder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(one_48 = acf_one[49], one_336 = acf_one[337],
+        mstl_48 = acf_mstl[49], mstl_336 = acf_mstl[337]), 3)
+#&gt;   one_48  one_336  mstl_48 mstl_336
+#&gt;    0.291    0.861    0.119   -0.053</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single-season fit leaves 0.291 at the daily lag and 0.861 at the weekly lag. The MSTL fit cuts those to 0.119 and -0.053. Declaring the weekly period improved the daily lag too, which is what the backfitting loop is for: removing one cycle makes the other easier to estimate.</p>
+
+<p>The second check is <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">seasonal strength</a>, a number between 0 and 1 that says how much of the non-trend variation a given seasonal component accounts for.</p>
+
+<p>$$F_S = \max\left(0,\; 1 - \frac{\operatorname{Var}(R_t)}{\operatorname{Var}(S_t + R_t)}\right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$F_S$ = the strength of that seasonal component</li>
+
+<li>$S_t$ = the seasonal component being scored</li>
+
+<li>$R_t$ = the remainder</li>
+
+<li>$\operatorname{Var}$ = variance across the whole series</li>
+
+</ul>
+
+<p>If the seasonal component is pure noise, the two variances match and the strength is 0. If the seasonal component dwarfs the remainder, the ratio goes to zero and the strength approaches 1.</p>
+
+<div class="webr-container" data-block-title="Score the strength of each seasonal component">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the strength of each seasonal component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">strength &lt;- function(seasonal_part, remainder_part) {
+  max(0, 1 - var(remainder_part) / var(seasonal_part + remainder_part))
+}
+
+round(c(daily = strength(cp$Seasonal48, cp$Remainder),
+        weekly = strength(cp$Seasonal336, cp$Remainder)), 3)
+#&gt;  daily weekly
+#&gt;  0.996  0.988</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both scores sit above 0.98, which is about as seasonal as real data ever gets. Electricity demand is close to a clockwork process, so this is believable rather than suspicious. Anything above roughly 0.6 counts as strongly seasonal, and anything below 0.3 usually means the period is not worth declaring.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Score every period you declared, then drop the weak ones.</strong> A seasonal component with a strength near zero is fitting noise, and removing it gives a cleaner trend and one fewer thing to explain.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The same formula scores the trend if you put $T_t$ where $S_t$ was. Compute the <a class="auto-link" href="Time-Series-Features-in-R.html" title="Time Series Features with feasts: Fingerprint Thousands of Series">trend strength</a> of <code>taylor</code> and compare it with the daily seasonal strength.</p>
+<div class="webr-container" data-block-title="Your turn: score the trend as well">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score the trend as well</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This scores the daily seasonal component. Score the Trend column the same way.
+round(strength(cp$Seasonal48, cp$Remainder), 3)
+#&gt; [1] 0.996</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trend strength beside seasonal strength">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trend strength beside seasonal strength</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(trend = strength(cp$Trend, cp$Remainder),
+        daily = strength(cp$Seasonal48, cp$Remainder)), 3)
+#&gt; trend daily
+#&gt; 0.809 0.996</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The trend scores 0.809, which sounds impressive until you recall that this trend only moves 2,000 megawatts across twelve weeks while the daily cycle moves 14,000. Strength measures how cleanly a component stands out from the remainder, never how big it is. Use strength to decide whether a component is real, and the standard deviations from earlier to decide whether it is worth talking about.</p>
+
+</details>
+</section>
+
+<h2>How do you decompose multiple seasonality the tidyverts way?</h2>
+
+<p>The forecast package is not the only route. The newer tidyverts stack (tsibble, fabletools, feasts) does multi-seasonal STL through a model formula, which fits better when your data already lives in a tsibble.</p>
+
+<p>Instead of declaring periods on the object, you declare them in the formula with one <code>season()</code> term per cycle.</p>
+
+<div class="webr-container" data-block-title="Multi-season STL with tsibble and feasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-season STL with tsibble and feasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tsibble)
+library(tsibbledata)
+library(feasts)
+
+elec &lt;- vic_elec |&gt;
+  filter(lubridate::year(Time) == 2014, lubridate::month(Time) == 1) |&gt;
+  select(Time, Demand)
+
+dcmp &lt;- elec |&gt;
+  model(stl = STL(Demand ~ season(period = 48) + season(period = 336), robust = TRUE)) |&gt;
+  components()
+
+head(dcmp, 3)
+#&gt; # A dable: 3 x 8 [30m] &lt;Australia/Melbourne&gt;
+#&gt; # Key:     .model [1]
+#&gt; # :        Demand = trend + season_48 + season_336 + remainder
+#&gt;   .model Time                Demand trend season_48 season_336 remainder season_adjust
+#&gt;   &lt;chr&gt;  &lt;dttm&gt;               &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;      &lt;dbl&gt;     &lt;dbl&gt;         &lt;dbl&gt;
+#&gt; 1 stl    2014-01-01 00:00:00  4092. 3707.     101.        82.5      201.         3908.
+#&gt; 2 stl    2014-01-01 00:30:00  4198. 3709.     195.        75.2      219.         3928.
+#&gt; 3 stl    2014-01-01 01:00:00  3915. 3711.     -99.5       81.1      222.         3933.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>vic_elec</code> is half-hourly electricity demand for Victoria, Australia. The filter above narrows it to January 2014. The result of <code>components()</code> is a dable, a decomposition table, which is a tsibble carrying one column per component plus the ready-made <code>season_adjust</code> column.</p>
+
+<p>The header line spells out the model being fitted, <code>Demand = trend + season_48 + season_336 + remainder</code>, which is the same additive equation from earlier. Adding <code>robust = TRUE</code> tells the loess fits to downweight outliers, which matters for demand data punctuated by heatwaves.</p>
+
+<p>Do the two routes agree? Run both on identical data and correlate the components.</p>
+
+<div class="webr-container" data-block-title="Compare the fable and forecast decompositions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the fable and forecast decompositions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mstl_elec &lt;- as.data.frame(mstl(msts(elec$Demand, seasonal.periods = c(48, 336))))
+
+round(c(daily = cor(mstl_elec$Seasonal48, dcmp$season_48),
+        weekly = cor(mstl_elec$Seasonal336, dcmp$season_336)), 3)
+#&gt;  daily weekly
+#&gt;  0.969  0.769</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The daily components agree closely at 0.969. The weekly components agree less, at 0.769, because the two implementations pick different default windows and this run also turned on robust fitting. Neither is wrong: they are two reasonable smoothers disagreeing about how much of a January weekend is calendar and how much is weather.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>forecast package</th>
+<th>tidyverts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Declare periods</td>
+<td><code>msts(x, seasonal.periods = c(48, 336))</code></td>
+<td><code>season(period = 48) + season(period = 336)</code></td>
+</tr>
+<tr>
+<td>Fit</td>
+<td><code>mstl(x)</code></td>
+<td><code>model(STL(y ~ ...))</code></td>
+</tr>
+<tr>
+<td>Get components</td>
+<td>the returned matrix</td>
+<td><code>components()</code></td>
+</tr>
+<tr>
+<td>Seasonally adjusted</td>
+<td>subtract the seasonal columns</td>
+<td>the <code>season_adjust</code> column</td>
+</tr>
+<tr>
+<td>Robust to outliers</td>
+<td>pass <code>robust = TRUE</code> through to stl</td>
+<td><code>STL(..., robust = TRUE)</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The tidyverts route never needs an msts object.</strong> A tsibble already knows its own time index and interval, so the periods live in the model formula instead of being baked into the data, which is why you can change them without rebuilding the series.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The formula above used raw observation counts. Rewrite it with the human readable period strings <code>&quot;1 day&quot;</code> and <code>&quot;1 week&quot;</code>, then print the component names.</p>
+<div class="webr-container" data-block-title="Your turn: use period strings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: use period strings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This uses numeric periods. Swap in &quot;1 day&quot; and &quot;1 week&quot;.
+colnames(dcmp)
+#&gt; [1] &quot;.model&quot;        &quot;Time&quot;          &quot;Demand&quot;        &quot;trend&quot;         &quot;season_48&quot;     &quot;season_336&quot;
+#&gt; [7] &quot;remainder&quot;     &quot;season_adjust&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Named periods in the STL formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Named periods in the STL formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dcmp &lt;- elec |&gt;
+  model(stl = STL(Demand ~ season(period = &quot;1 day&quot;) + season(period = &quot;1 week&quot;))) |&gt;
+  components()
+
+colnames(ex_dcmp)
+#&gt; [1] &quot;.model&quot;        &quot;Time&quot;          &quot;Demand&quot;        &quot;trend&quot;         &quot;season_1 day&quot;  &quot;season_1 week&quot;
+#&gt; [7] &quot;remainder&quot;     &quot;season_adjust&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because the tsibble knows its own interval is 30 minutes, it converts <code>&quot;1 day&quot;</code> to 48 observations and <code>&quot;1 week&quot;</code> to 336 for you. The component names follow whatever you typed, which is why they read <code>season_1 day</code> here.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast once you have the decomposition?</h2>
+
+<p>Calling <code>forecast()</code> on an mstl object does something simple. It extends each seasonal component by repeating its last cycle, fits an <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS model</a> to the seasonally adjusted series, then adds the pieces back together. ETS is <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, R's default choice for a series that has had its seasonality taken out already.</p>
+
+<p>The rule to beat is <code>snaive()</code>, <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a>, which predicts every future point as whatever the series did one full season earlier: last Tuesday at 09:00 becomes the forecast for next Tuesday at 09:00. That sounds like something a decomposition should beat easily. Test it rather than assume it, by holding out the final week and scoring both.</p>
+
+<div class="webr-container" data-block-title="Score the decomposition forecast against seasonal naive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the decomposition forecast against seasonal naive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- subset(taylor, end = 4032 - 336)
+test &lt;- as.numeric(subset(taylor, start = 4032 - 335))
+
+fit_train &lt;- mstl(train)
+fc &lt;- forecast(fit_train, h = 336)
+sn &lt;- snaive(ts(as.numeric(train), frequency = 336), h = 336)
+
+mae &lt;- function(actual, pred) round(mean(abs(actual - pred)), 1)
+c(mstl_day = mae(test[1:48], as.numeric(fc$mean)[1:48]),
+  snaive_day = mae(test[1:48], as.numeric(sn$mean)[1:48]),
+  mstl_week = mae(test, as.numeric(fc$mean)),
+  snaive_week = mae(test, as.numeric(sn$mean)))
+#&gt;    mstl_day  snaive_day   mstl_week snaive_week
+#&gt;       132.0       420.4       450.2       370.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Mean absolute error</a> is the average size of the miss in megawatts, so smaller is better. One day ahead, the decomposition forecast is three times more accurate than seasonal naive (132 against 420). Over the full week ahead, it loses (450 against 370).</p>
+
+<p>The reason is that the ETS model on the seasonally adjusted series is excellent at continuing from where the series just was, and that advantage decays with distance. Seasonal naive, which simply repeats last week, does not decay because it never depended on the recent level in the first place.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MSTL is a lens first and a forecaster second.</strong> Its job is to show you what your series is made of, and while the decomposition often forecasts well at short horizons, you should always score it against a naive rule before shipping it.</div></div>
+
+<p>When <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> rather than explaining is the whole point, two neighbours are usually stronger. <a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">Dynamic harmonic regression</a> puts Fourier terms for each period into an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a>, which handles long or fractional periods such as 365.25 without the memory cost. <a class="auto-link" href="TBATS-Model-in-R.html" title="TBATS in R: Forecast Multiple Seasonalities">TBATS</a> estimates the seasonal patterns and a Box-Cox transformation jointly, which is powerful but slow on long series.</p>
+
+<p><img src="screenshots/MSTL-in-R-method-choice.webp" alt="Decision flowchart choosing between mstl, Fourier terms with ARIMA, and TBATS for multi-season data" class="img-responsive img-zoomable" loading="lazy" width="1100" height="1880" /></p>
+
+<p><em>Figure 3: Choosing between MSTL, dynamic harmonic regression and TBATS for data with several seasonal periods.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The default forecast method for the seasonally adjusted series is ETS. Refit the one-day-ahead forecast with <code>method = &quot;naive&quot;</code> and see how much of the accuracy came from ETS.</p>
+<div class="webr-container" data-block-title="Your turn: swap out the forecast method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: swap out the forecast method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This is the default (ETS). Try method = &quot;naive&quot; instead.
+round(mae(test[1:48], as.numeric(forecast(fit_train, h = 48)$mean)), 1)
+#&gt; [1] 132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Naive method on the seasonally adjusted series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive method on the seasonally adjusted series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fc &lt;- forecast(fit_train, h = 48, method = &quot;naive&quot;)
+mae(test[1:48], as.numeric(ex_fc$mean))
+#&gt; [1] 132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both score 132, because over a single day the seasonally adjusted series barely moves, so ETS and a flat naive line predict almost the same level. Almost all of the accuracy came from the seasonal components, not from the model fitted to what was left.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end multi-season workflow</h2>
+
+<p>Here is the full routine on the simulated daily sales series from earlier, which has a weekly cycle and a yearly cycle. The workflow is the same four steps for any series: declare, decompose, check, then use.</p>
+
+<p>Step one is to hold out the last 28 days and declare both periods on the training part.</p>
+
+<div class="webr-container" data-block-title="Declare periods and decompose the training data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Declare periods and decompose the training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_train &lt;- msts(sales[1:1067], seasonal.periods = c(7, 365.25))
+sales_test &lt;- sales[1068:1095]
+
+sales_fit &lt;- mstl(sales_train)
+round(head(as.data.frame(sales_fit), 2), 1)
+#&gt;    Data Trend Seasonal7 Seasonal365.25 Remainder
+#&gt; 1 453.1 502.6      27.6          -76.2      -0.9
+#&gt; 2 454.1 502.7      34.1          -89.6       6.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Day one of the series sits 76 units below its yearly average because of where it falls in the year, and 28 units above because of the day of the week. Both effects are separated from a level of 503.</p>
+
+<p>Step two is scoring the components so you know which ones matter.</p>
+
+<div class="webr-container" data-block-title="Score both seasonal components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score both seasonal components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_cp &lt;- as.data.frame(sales_fit)
+round(c(weekly = strength(sales_cp$Seasonal7, sales_cp$Remainder),
+        yearly = strength(sales_cp$Seasonal365.25, sales_cp$Remainder)), 3)
+#&gt; weekly yearly
+#&gt;  0.872  0.968</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both are strong, with the yearly cycle dominating, which matches how the data was generated. Step three checks the remainder for structure the decomposition missed.</p>
+
+<div class="webr-container" data-block-title="Check the remainder for leftover weekly structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the remainder for leftover weekly structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_acf &lt;- acf(sales_cp$Remainder, lag.max = 14, plot = FALSE)$acf
+round(sales_acf[c(8, 15)], 3)
+#&gt; [1] -0.122 -0.199</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Neither lag 7 nor lag 14 shows a positive spike, so no weekly pattern survived into the remainder. Mildly negative values are what a smoother normally leaves behind when it removes a little genuine noise along with the pattern, and they are nothing to worry about.</p>
+
+<p>Step four is putting the decomposition to work, and scoring it against the obvious benchmark.</p>
+
+<div class="webr-container" data-block-title="Forecast 28 days and score against seasonal naive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast 28 days and score against seasonal naive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_fc &lt;- forecast(sales_fit, h = 28)
+sales_sn &lt;- snaive(ts(sales[1:1067], frequency = 7), h = 28)
+
+c(mstl = mae(sales_test, as.numeric(sales_fc$mean)),
+  snaive = mae(sales_test, as.numeric(sales_sn$mean)))
+#&gt;   mstl snaive
+#&gt;   14.5   17.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The decomposition forecast misses by 14.5 units on average against 17.7 for seasonal naive, an 18 percent improvement. It wins here because seasonal naive only knows the weekly cycle, while MSTL also carries the yearly position and the drift forward.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Does the weekend effect change over time?</h3>
+
+<p>Decompose only the most recent six weeks of <code>taylor</code> and compare the size of the weekly component with the full twelve-week decomposition. Use the standard deviation of <code>Seasonal336</code> as the measure of size, and store the recent fit in <code>my_fit</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: tail() gets the last N values, msts() re-declares the periods.
+# 6 weeks of half-hourly data is 48 * 42 observations.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_recent &lt;- msts(tail(as.numeric(taylor), 48 * 42), seasonal.periods = c(48, 336))
+my_fit &lt;- mstl(my_recent)
+my_cp &lt;- as.data.frame(my_fit)
+
+round(c(recent = sd(my_cp$Seasonal336), full = sd(cp$Seasonal336)))
+#&gt; recent   full
+#&gt;   2623   2733</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The recent weekend effect is slightly smaller (2,623 against 2,733) but close, so the weekly pattern was stable across the summer. A big gap would have been a reason to use a smaller <code>s.window</code> so the shape could adapt.</p>
+
+</details>
+
+<h3>Exercise 2: Write a reusable season report</h3>
+
+<p>Write a function <code>season_report(x, periods)</code> that decomposes any series at any set of periods and returns a data frame with one row per period, giving the seasonal strength and the peak-to-trough amplitude of that component. Test it on <code>taylor</code> with periods 48 and 336.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: component columns are named paste0(&quot;Seasonal&quot;, periods).
+# Amplitude of a component is diff(range(component)).
+# Reuse the strength() function defined earlier.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">season_report &lt;- function(x, periods) {
+  fit_x &lt;- mstl(msts(as.numeric(x), seasonal.periods = periods))
+  parts &lt;- as.data.frame(fit_x)
+  rem &lt;- parts$Remainder
+  data.frame(
+    period = periods,
+    strength = round(sapply(paste0(&quot;Seasonal&quot;, periods),
+                            function(nm) strength(parts[[nm]], rem)), 3),
+    amplitude = round(sapply(paste0(&quot;Seasonal&quot;, periods),
+                             function(nm) diff(range(parts[[nm]]))))
+  )
+}
+
+season_report(taylor, c(48, 336))
+#&gt;             period strength amplitude
+#&gt; Seasonal48      48    0.996     14174
+#&gt; Seasonal336    336    0.988     11538</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Building the column names from the periods with <code>paste0()</code> is what makes the function general. The report says the daily cycle moves demand by 14,174 megawatts from its lowest point to its highest, and the weekly cycle by 11,538.</p>
+
+</details>
+
+<h3>Exercise 3: Catch a period you forgot to declare</h3>
+
+<p>Build an hourly series with a daily cycle and a weekly cycle, decompose it declaring only the daily period, and prove that the weekly cycle ended up in the trend. Use the standard deviation of the trend, and its correlation with the weekly component from a correct decomposition.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: 12 weeks of hourly data is 24 * 7 * 12 observations.
+# Fit it twice, once with seasonal.periods = 24 and once with c(24, 168).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+n_hours &lt;- 24 * 7 * 12
+hourly &lt;- 100 + 20 * sin(2 * pi * (1:n_hours) / 24) +
+  15 * sin(2 * pi * (1:n_hours) / 168) + rnorm(n_hours, 0, 2)
+
+my_missing &lt;- as.data.frame(mstl(msts(hourly, seasonal.periods = 24)))
+my_correct &lt;- as.data.frame(mstl(msts(hourly, seasonal.periods = c(24, 168))))
+
+round(c(trend_sd_missing = sd(my_missing$Trend),
+        trend_sd_declared = sd(my_correct$Trend)), 2)
+#&gt;  trend_sd_missing trend_sd_declared
+#&gt;             10.09              0.16
+
+round(cor(my_missing$Trend, my_correct$Seasonal168), 3)
+#&gt; [1] 0.998</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The series was built with no trend at all, yet the single-season decomposition reports a trend with a standard deviation of 10.09. That fake trend correlates 0.998 with the weekly component from the correct fit, which is as direct a proof as you can get that the undeclared cycle was absorbed by the trend.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between stl() and mstl()?</strong> <code>stl()</code> removes exactly one seasonal period, the <code>frequency</code> of the <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">ts object</a>. <code>mstl()</code> accepts a vector of periods and removes each one in turn using repeated <code>stl()</code> fits, and it also picks its own smoothing windows so you can call it with no arguments.</p>
+
+<p><strong>When should I use TBATS instead of MSTL?</strong> Use TBATS when forecasting accuracy matters more than interpretable components, and when the seasonal patterns are complex enough to need Fourier representation. MSTL is faster, and its output is far easier to explain to somebody who does not model time series for a living.</p>
+
+<p><strong>Can mstl() handle non-integer periods like 365.25?</strong> Yes. Declare <code>seasonal.periods = c(7, 365.25)</code> and you get a column named <code>Seasonal365.25</code>. You need at least two full cycles of data, so a yearly component on daily data needs roughly three years.</p>
+
+<p><strong>What happens to missing values?</strong> <code>mstl()</code> interpolates them with <code>na.interp()</code> before decomposing, then restores the NAs in the remainder afterwards. That is convenient, though a long gap will produce a confidently wrong interpolation, so check gaps before trusting the components around them.</p>
+
+<p><strong>Why do my components differ between forecast::mstl() and fable's STL()?</strong> Different default seasonal windows, and fable's <code>STL()</code> also lets you set <code>robust = TRUE</code>. Both are legitimate smoothers, and the components typically correlate above 0.9 on the <a class="auto-link" href="Spectral-Analysis-in-R.html" title="Spectral Analysis in R: Periodogram and Power Spectrum">dominant cycle</a> while disagreeing more on the weaker one.</p>
+
+<p><strong>How do I decompose a multiplicative series?</strong> Pass <code>lambda = &quot;auto&quot;</code> so the series is Box-Cox transformed before decomposition, or take logs yourself first. Remember that the components then live on the transformed scale and no longer sum to the original data.</p>
+
+<p><strong>Is R's MSTL the same algorithm as the one in statsmodels?</strong> Both implement the same published method, from Bandara, Hyndman and Bergmeir. Default windows and iteration counts differ between the two libraries, so numbers will not match exactly even on identical data.</p>
+
+<h2>Summary</h2>
+
+<p>MSTL turns a series that repeats on several clocks into one readable component per clock, using nothing more exotic than repeated STL fits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What you want</th>
+<th>How to do it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Declare several periods</td>
+<td><code>msts(x, seasonal.periods = c(48, 336))</code></td>
+</tr>
+<tr>
+<td>Decompose</td>
+<td><code>mstl(x)</code></td>
+</tr>
+<tr>
+<td>Get components as columns</td>
+<td><code>as.data.frame(fit)</code></td>
+</tr>
+<tr>
+<td>Plot everything</td>
+<td><code>autoplot(fit)</code></td>
+</tr>
+<tr>
+<td>Let a shape drift or freeze it</td>
+<td><code>s.window</code>, numeric and odd, or <code>&quot;periodic&quot;</code></td>
+</tr>
+<tr>
+<td>Handle a multiplicative series</td>
+<td><code>lambda = &quot;auto&quot;</code></td>
+</tr>
+<tr>
+<td>Check for leftover cycles</td>
+<td>remainder <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ACF</a> at each seasonal lag</td>
+</tr>
+<tr>
+<td>Rank the cycles</td>
+<td>seasonal strength, or the component standard deviations</td>
+</tr>
+<tr>
+<td>Forecast from it</td>
+<td><code>forecast(fit, h = ...)</code>, then compare against <code>snaive()</code></td>
+</tr>
+<tr>
+<td>Do it in a tsibble</td>
+<td><code>STL(y ~ season(period = 48) + season(period = 336))</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The four-step routine that covers most work: declare the periods, decompose, check the remainder and the strengths, then use the seasonally adjusted series or the forecast. The single biggest mistake is declaring too few periods, because the missing cycle does not disappear, it is absorbed into the trend and the remainder instead.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J. et al. - Multiple seasonal decomposition, <code>mstl()</code> reference, forecast package. <a href="https://pkg.robjhyndman.com/forecast/reference/mstl.html">Link</a></li>
+
+<li>Bandara, K., Hyndman, R. J. & Bergmeir, C. - MSTL: A Seasonal-Trend Decomposition Algorithm for Time Series with Multiple Seasonal Patterns. arXiv:2107.13462 (2021). <a href="https://arxiv.org/abs/2107.13462">Link</a></li>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. - Forecasting: Principles and Practice (3rd ed), Section 12.1, Complex seasonality. <a href="https://otexts.com/fpp3/complexseasonality.html">Link</a></li>
+
+<li>Cleveland, R. B., Cleveland, W. S., McRae, J. E. & Terpenning, I. - STL: A Seasonal-Trend Decomposition Procedure Based on Loess. Journal of Official Statistics (1990). <a href="https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf">Link</a></li>
+
+<li>R Core Team - <code>stl()</code> documentation, stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html">Link</a></li>
+
+<li>O'Hara-Wild, M., Hyndman, R. J. & Wang, E. - STL decomposition reference, feasts package. <a href="https://feasts.tidyverts.org/reference/STL.html">Link</a></li>
+
+<li>Hyndman, R. J. - forecast: Forecasting Functions for Time Series and Linear Models, CRAN. <a href="https://cran.r-project.org/package=forecast">Link</a></li>
+
+<li>O'Hara-Wild, M., Hyndman, R. J. & Wang, E. - vic_elec, half-hourly electricity demand for Victoria, tsibbledata. <a href="https://tsibbledata.tidyverts.org/reference/vic_elec.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R: STL vs Classical</a> - the single-season foundation this tutorial extends, covering <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">classical decomposition</a> and plain STL.</li>
+
+<li><a href="Time-Series-Features-in-R.html">Time Series Features with feasts</a> - turn seasonal strength and dozens of other measures into one row per series so you can triage hundreds at a time.</li>
+
+<li><a href="Time-Series-Transformations-in-R.html">Box-Cox and Transformations for Time Series in R</a> - what the <code>lambda</code> argument is doing, and how to choose a transformation deliberately.</li>
+
+</ul>
+
+{% endraw %}
