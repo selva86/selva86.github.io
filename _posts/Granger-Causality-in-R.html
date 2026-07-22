@@ -1,0 +1,1868 @@
+---
+title: "Granger Causality and Impulse Responses in R"
+description: "Run a Granger causality test in R with grangertest() and causality() on a VAR, then read impulse responses: lag choice, stationarity traps, Cholesky order."
+keywords: "Granger causality in R, grangertest, Granger causality test, impulse response function in R, irf vars, causality vars package, Toda-Yamamoto test R, spurious Granger causality, VAR impulse response, Cholesky ordering"
+mathjax: true
+webr: true
+curriculum_id: "TS2-8.2"
+post_type: "C"
+auto_link_terms: "Granger causality test|Granger causality in R|Granger-causes|Granger-cause|grangertest|grangertest()|Granger causality test in R|impulse response|impulse responses|impulse response function in R|orthogonal impulse responses|Cholesky ordering|Toda-Yamamoto|spurious Granger causality"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Granger Causality and IRFs"
+sidebar_order: "54"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A series X Granger-causes a series Y if the past of X improves a forecast of Y beyond what Y's own past already delivers. In R you test that with <code>grangertest()</code> for two series or <code>causality()</code> on a fitted VAR, then use <code>irf()</code> to see how large the effect is and how long it lasts.</p>
+
+<h2>Which came first, the chicken or the egg?</h2>
+
+<p>It sounds like a joke until someone hands you 54 years of US farm records. Chicken population and egg production both rise and fall together, and the question of which one moves first is exactly the kind of question a Granger causality test was built to answer. The <code>ChickEgg</code> dataset ships inside the lmtest package, so one line of code gets you a verdict.</p>
+
+<div class="webr-container" data-block-title="Test whether eggs help predict chickens">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test whether eggs help predict chickens</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lmtest)
+data(ChickEgg)
+grangertest(chicken ~ egg, order = 3, data = ChickEgg)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: chicken ~ Lags(chicken, 1:3) + Lags(egg, 1:3)
+#&gt; Model 2: chicken ~ Lags(chicken, 1:3)
+#&gt;   Res.Df Df     F   Pr(&gt;F)
+#&gt; 1     44                
+#&gt; 2     47 -3 5.405 0.002966 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula reads backwards from what you might expect. <code>chicken ~ egg</code> means "test whether egg helps predict chicken", so the variable being forecast is on the left. The <code>order = 3</code> argument says each model looks three years into the past.</p>
+
+<p>R fitted two models and compared them. Model 2 predicts this year's chicken population from the last three years of chicken populations alone. Model 1 does the same but also hands the regression the last three years of egg production. The <code>Df</code> column reads -3 because Model 2 has three fewer predictors than Model 1, and <code>Res.Df</code> is how many observations are left over after estimating each model. The F statistic of 5.405 and its p-value of 0.002966 say the extra egg columns cut the <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">forecast error</a> by more than chance would explain.</p>
+
+<p>In plain terms: knowing how many eggs were laid in recent years genuinely sharpens a forecast of next year's chicken population. Now let us look at the raw numbers behind that verdict.</p>
+
+<div class="webr-container" data-block-title="Inspect the chicken and egg data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the chicken and egg data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(ChickEgg, 4)
+#&gt; Time Series:
+#&gt; Start = 1930
+#&gt; End = 1933
+#&gt; Frequency = 1
+#&gt;      chicken  egg
+#&gt; 1930  468491 3581
+#&gt; 1931  449743 3532
+#&gt; 1932  436815 3327
+#&gt; 1933  444523 3255
+dim(ChickEgg)
+#&gt; [1] 54  2
+plot(ChickEgg, main = &quot;US chicken population and egg production, 1930-1983&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two columns, 54 annual observations, running from 1930 to 1983. <code>chicken</code> counts birds in thousands and <code>egg</code> counts eggs in millions of dozens. The plot shows both series drifting upward with wobbles along the way, which already hints at a problem we will come back to.</p>
+
+<p>A causality claim is only interesting if it points one way. So let us run the mirror-image test.</p>
+
+<div class="webr-container" data-block-title="Test the reverse direction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the reverse direction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grangertest(egg ~ chicken, order = 3, data = ChickEgg)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: egg ~ Lags(egg, 1:3) + Lags(chicken, 1:3)
+#&gt; Model 2: egg ~ Lags(egg, 1:3)
+#&gt;   Res.Df Df      F Pr(&gt;F)
+#&gt; 1     44
+#&gt; 2     47 -3 0.5916 0.6238</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of 0.6238 is nowhere near small enough to count as evidence of anything. Past chicken populations add nothing measurable to an egg forecast once egg history is already in the model.</p>
+
+<p>So the evidence runs one way. Eggs carry information about future chickens; chickens carry no information about future eggs. That is the same conclusion Thurman and Fisher reached in a 1988 agricultural economics paper, which is why this dataset has been a teaching classic ever since.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Granger causality is a claim about forecasting, not about mechanism.</strong> The test says egg data arrives first and carries information about what chickens do next. It does not say eggs physically cause chickens in any biological sense, and it cannot rule out a third variable, say feed prices, driving both. Say "Granger-causes" out loud every time, precisely so the distinction stays visible.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun both directions with four lags instead of three. Does the verdict survive a change in the lag setting?</p>
+<div class="webr-container" data-block-title="Your turn: test both directions at order 4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test both directions at order 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use grangertest() twice with order = 4 on ChickEgg.
+# Pull out just the p-value with $`Pr(&gt;F)`[2] and round it to 4 places.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Order 4 in both directions solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Order 4 in both directions solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(grangertest(chicken ~ egg, order = 4, data = ChickEgg)$`Pr(&gt;F)`[2], 4)
+#&gt; [1] 0.0057
+round(grangertest(egg ~ chicken, order = 4, data = ChickEgg)$`Pr(&gt;F)`[2], 4)
+#&gt; [1] 0.8125</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>grangertest()</code> returns an <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: Compare Group Means (With Examples)">anova</a> table, so <code>$</code>Pr(>F)<code>[2]</code> grabs the p-value from its second row. The verdict holds at four lags: 0.0057 for eggs predicting chickens, 0.8125 the other way.</p>
+
+</details>
+</section>
+
+<h2>What is the Granger test actually comparing?</h2>
+
+<p>You just trusted a p-value from a function you have not opened. Let us open it. The whole test is a nested-model comparison you could write yourself in three lines of base R, and once you have seen the machinery you will never misread the output again.</p>
+
+<p><img src="screenshots/Granger-Causality-in-R-test-logic.webp" alt="Diagram showing the restricted and unrestricted regressions feeding an F test that decides whether X Granger-causes Y" class="img-responsive img-zoomable" loading="lazy" width="1990" height="690" /></p>
+
+<p><em>Figure 1: The Granger test compares two forecasts of the same series and asks whether the extra predictors earned their place.</em></p>
+
+<p>The first job is turning a time series into a regression table, where each row holds this year's value alongside the previous few years' values. <code>embed()</code> does exactly that shifting for you.</p>
+
+<div class="webr-container" data-block-title="Build the lagged regression table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the lagged regression table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lagged &lt;- as.data.frame(embed(ChickEgg, 4))
+names(lagged) &lt;- c(&quot;chick&quot;, &quot;eg&quot;, &quot;chick_1&quot;, &quot;eg_1&quot;,
+                   &quot;chick_2&quot;, &quot;eg_2&quot;, &quot;chick_3&quot;, &quot;eg_3&quot;)
+head(lagged, 3)
+#&gt;    chick   eg chick_1 eg_1 chick_2 eg_2 chick_3 eg_3
+#&gt; 1 444523 3255  436815 3327  449743 3532  468491 3581
+#&gt; 2 433937 3156  444523 3255  436815 3327  449743 3532
+#&gt; 3 389958 3081  433937 3156  444523 3255  436815 3327
+nrow(lagged)
+#&gt; [1] 51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>embed(x, 4)</code> builds a matrix whose first columns hold the current values and whose later columns hold values from one, two and three periods back. Read row 1 across: the 1933 chicken count of 444523 sits beside its three predecessors, 436815 from 1932 back to 468491 from 1930.</p>
+
+<p>Three years of history have to exist before any row is usable, so 54 observations become 51 rows. That is the same sample the test used internally.</p>
+
+<p>Now fit the two competing models on that table. The restricted model sees only the chicken series' own past. The unrestricted model also sees the egg columns.</p>
+
+<div class="webr-container" data-block-title="Fit the restricted and unrestricted models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the restricted and unrestricted models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">restricted   &lt;- lm(chick ~ chick_1 + chick_2 + chick_3, data = lagged)
+unrestricted &lt;- lm(chick ~ chick_1 + chick_2 + chick_3 + eg_1 + eg_2 + eg_3,
+                   data = lagged)
+anova(restricted, unrestricted)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: chick ~ chick_1 + chick_2 + chick_3
+#&gt; Model 2: chick ~ chick_1 + chick_2 + chick_3 + eg_1 + eg_2 + eg_3
+#&gt;   Res.Df        RSS Df  Sum of Sq     F   Pr(&gt;F)
+#&gt; 1     47 2.8825e+10
+#&gt; 2     44 2.1063e+10  3 7762148983 5.405 0.002966 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the F statistic: 5.405. Look at the p-value: 0.002966. Those are the exact numbers <code>grangertest()</code> printed in the first code block of this tutorial. The Granger test is an <code>anova()</code> call on two nested regressions, nothing more exotic than that.</p>
+
+<p>The RSS column is the one to read. Residual sum of squares is total squared forecast error, so smaller is better. Adding three egg columns dropped it from 28.8 billion to 21.1 billion, a reduction of 7.76 billion. The F test asks whether a drop that size is worth the three extra parameters it cost.</p>
+
+<p>You can compute the statistic by hand to see there is no magic in it.</p>
+
+<div class="webr-container" data-block-title="Compute the F statistic from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the F statistic from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rss_r  &lt;- sum(resid(restricted)^2)
+rss_u  &lt;- sum(resid(unrestricted)^2)
+q      &lt;- 3
+df_u   &lt;- df.residual(unrestricted)
+f_stat &lt;- ((rss_r - rss_u) / q) / (rss_u / df_u)
+round(f_stat, 3)
+#&gt; [1] 5.405
+signif(pf(f_stat, q, df_u, lower.tail = FALSE), 4)
+#&gt; [1] 0.002966</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numerator is the error you removed, divided by the number of restrictions you relaxed. That is "improvement per extra parameter". The denominator is the error you could not remove, divided by the degrees of freedom left over. That is "typical noise per observation". Their ratio is 5.405, and <code>pf()</code> converts it to the p-value 0.002966.</p>
+
+<p>If you would rather see the same idea as a formula, here it is. Skip this box freely; the code above is the whole explanation.</p>
+
+<p>$$F = \frac{(RSS_r - RSS_u)/q}{RSS_u/(n - k)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$RSS_r$ = squared error from the restricted model, which uses only Y's own past</li>
+
+<li>$RSS_u$ = squared error from the unrestricted model, which adds X's past</li>
+
+<li>$q$ = number of X lags you added, so 3 here</li>
+
+<li>$n - k$ = residual degrees of freedom in the unrestricted model, so 44 here</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Granger test asks a forecasting question, and it answers it with a nested-model F test.</strong> Everything else, the vars package, impulse responses, the multivariate machinery, is built on this one comparison: does the model that has seen X make smaller errors than the model that has not?</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the three egg coefficients from the unrestricted model with their individual t-tests. Only one of them is significant on its own, yet the joint test was decisive. That gap is worth seeing.</p>
+<div class="webr-container" data-block-title="Your turn: inspect the egg coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: inspect the egg coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># summary(unrestricted)$coefficients is a matrix.
+# Subset the rows &quot;eg_1&quot;, &quot;eg_2&quot;, &quot;eg_3&quot; and round to 4 places.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Egg coefficient table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Egg coefficient table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(summary(unrestricted)$coefficients[c(&quot;eg_1&quot;, &quot;eg_2&quot;, &quot;eg_3&quot;), ], 4)
+#&gt;      Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; eg_1  76.5731    25.2792  3.0291   0.0041
+#&gt; eg_2 -47.0783    39.3871 -1.1953   0.2384
+#&gt; eg_3 -35.9327    28.5379 -1.2591   0.2146</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the first lag clears the usual 0.05 bar on its own. The other two look like noise individually, but the joint F test still rejects because the three coefficients together remove real error. Never decide Granger causality by scanning individual t-statistics; that is what the F test is for.</p>
+
+</details>
+</section>
+
+<h2>What can make a Granger test give the wrong answer?</h2>
+
+<p>A Granger test will hand you a p-value for any two columns of numbers you feed it. It will not warn you when the answer is meaningless. Two specification mistakes account for almost every wrong published result, and both are easy to avoid once you have seen them fail.</p>
+
+<h3>Trap 1: series that wander instead of settling</h3>
+
+<p>A <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">stationary series</a> has a fixed mean it keeps returning to. A random walk has no such anchor: each step adds to the last, so it drifts wherever noise takes it. Econometricians say such a series has a <em>unit root</em>, which is the technical name for exactly this behaviour: the series never returns to a fixed level, but the differences between consecutive values do. The regression theory behind the F test assumes the first kind of series, and is simply not valid for the second.</p>
+
+<p>Let us watch it break. We will generate two random walks from completely independent noise, so we know for certain that neither has any connection to the other.</p>
+
+<div class="webr-container" data-block-title="Test two unrelated random walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test two unrelated random walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(39)
+walk_x &lt;- cumsum(rnorm(200))
+walk_y &lt;- cumsum(rnorm(200))
+round(cor(walk_x, walk_y), 3)
+#&gt; [1] 0.001
+grangertest(walk_y ~ walk_x, order = 3)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: walk_y ~ Lags(walk_y, 1:3) + Lags(walk_x, 1:3)
+#&gt; Model 2: walk_y ~ Lags(walk_y, 1:3)
+#&gt;   Res.Df Df      F   Pr(&gt;F)
+#&gt; 1    190
+#&gt; 2    193 -3 4.7179 0.003364 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cumsum(rnorm(200))</code> is the textbook random walk: draw 200 independent normal shocks and add them up as you go. Two separate calls means two series that share nothing but their construction recipe.</p>
+
+<p>Their plain correlation is 0.001, essentially zero, so this is not even the famous spurious-correlation case. And yet the Granger test returns p = 0.003364 and declares that <code>walk_x</code> helps predict <code>walk_y</code>. That result is pure fiction; we built the data ourselves and there is nothing to find.</p>
+
+<p>The fix is to model the changes rather than the levels. <code>diff()</code> converts a random walk into the independent shocks that generated it, which is a stationary series.</p>
+
+<div class="webr-container" data-block-title="Retest on the differenced series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Retest on the differenced series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grangertest(diff(walk_y) ~ diff(walk_x), order = 3)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: diff(walk_y) ~ Lags(diff(walk_y), 1:3) + Lags(diff(walk_x), 1:3)
+#&gt; Model 2: diff(walk_y) ~ Lags(diff(walk_y), 1:3)
+#&gt;   Res.Df Df      F Pr(&gt;F)
+#&gt; 1    189
+#&gt; 2    192 -3 1.0025 0.3929</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On differences the p-value climbs to 0.3929 and the phantom relationship evaporates. The data did not change. Only the question did, from "do the wandering levels move together" to "do the year-to-year changes carry information about each other".</p>
+
+<p>One seed proves nothing on its own, so let us repeat the experiment hundreds of times and count how often the test reports a relationship that we know is not there. To keep it fast we write the F test ourselves, using the same recipe from the previous section.</p>
+
+<div class="webr-container" data-block-title="Write a fast Granger p-value function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a fast Granger p-value function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">granger_p &lt;- function(y, x, order = 3) {
+  m      &lt;- embed(cbind(y, x), order + 1)
+  target &lt;- m[, 1]
+  own    &lt;- m[, seq(3, ncol(m), by = 2)]
+  other  &lt;- m[, seq(4, ncol(m), by = 2)]
+  fit_r  &lt;- lm.fit(cbind(1, own), target)
+  fit_u  &lt;- lm.fit(cbind(1, own, other), target)
+  df_u   &lt;- length(target) - (2 * order + 1)
+  f      &lt;- ((sum(fit_r$residuals^2) - sum(fit_u$residuals^2)) / order) /
+              (sum(fit_u$residuals^2) / df_u)
+  pf(f, order, df_u, lower.tail = FALSE)
+}
+signif(granger_p(walk_y, walk_x), 4)
+#&gt; [1] 0.003364</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>embed(cbind(y, x), order + 1)</code> stacks both series into one lagged matrix, with the y and x columns alternating. Column 1 is the current y, so the odd columns from 3 onward are y's own lags and the even columns from 4 onward are x's lags. <code>lm.fit()</code> is the stripped-down regression engine underneath <code>lm()</code>, which makes it far quicker when you are calling it thousands of times.</p>
+
+<p>The function returns 0.003364 on our seeded pair, matching lmtest exactly. It is the same test, just without the formula-parsing overhead. Now run it 300 times on fresh random walks.</p>
+
+<div class="webr-container" data-block-title="Count false positives across 300 simulations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count false positives across 300 simulations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+sims       &lt;- 300
+rej_levels &lt;- 0
+rej_diffs  &lt;- 0
+for (i in 1:sims) {
+  a &lt;- cumsum(rnorm(200))
+  b &lt;- cumsum(rnorm(200))
+  if (granger_p(b, a) &lt; 0.05)             rej_levels &lt;- rej_levels + 1
+  if (granger_p(diff(b), diff(a)) &lt; 0.05) rej_diffs  &lt;- rej_diffs  + 1
+}
+round(c(levels = rej_levels / sims, differences = rej_diffs / sims), 3)
+#&gt;      levels differences
+#&gt;       0.107       0.047</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each iteration builds a brand-new pair of unrelated random walks and tests them twice: once in levels, once in differences. A 5% test should produce a <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> about 5% of the time, since that is what the threshold means.</p>
+
+<p>On levels it fires 10.7% of the time, more than double what it promised. On differences it fires 4.7%, right on target. Run a Granger test on undifferenced trending data and you have roughly a one-in-nine chance of announcing a relationship that does not exist.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A nominal 5% Granger test rejects about 11% of the time on unit-root data.</strong> The p-value printed on your screen is not the p-value you are actually getting. Check stationarity before you test, and difference until the series settles.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Random walks are not the only troublemaker. Build two independent series that share only a deterministic upward trend, and see whether the test can tell they are unrelated.</p>
+<div class="webr-container" data-block-title="Your turn: two series sharing a trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two series sharing a trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># set.seed(77); build 1:200 * 0.05 + rnorm(200) twice, calling them
+# ex_trend_x and ex_trend_y. Test with granger_p() on levels, then on diff().</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shared deterministic trend solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shared deterministic trend solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+ex_trend_x &lt;- 1:200 * 0.05 + rnorm(200)
+ex_trend_y &lt;- 1:200 * 0.05 + rnorm(200)
+round(granger_p(ex_trend_y, ex_trend_x), 4)
+#&gt; [1] 0.0018
+round(granger_p(diff(ex_trend_y), diff(ex_trend_x)), 4)
+#&gt; [1] 0.4638</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The noise in each series is independent, so the only thing they share is the straight line underneath. That is enough for a false positive at p = 0.0018. Differencing removes the common trend and the test correctly reports nothing at 0.4638. Any shared drift, stochastic or deterministic, can manufacture Granger causality.</p>
+
+</details>
+</section>
+
+<h3>Trap 2: picking the number of lags by feel</h3>
+
+<p>Every example so far used <code>order = 3</code> because that is what tutorials tend to use. That is not a reason. Too few lags and you miss a delayed effect; too many and you burn degrees of freedom on noise. An information criterion picks the number for you.</p>
+
+<p>Let us go back to the chickens, this time doing it properly. Both series trend upward, so we work with growth rates: the log difference, which is close to a percentage change year over year.</p>
+
+<div class="webr-container" data-block-title="Convert to growth rates and pick the lag order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert to growth rates and pick the lag order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(vars)
+growth &lt;- diff(log(ChickEgg))
+round(head(growth, 3), 4)
+#&gt; Time Series:
+#&gt; Start = 1931
+#&gt; End = 1933
+#&gt; Frequency = 1
+#&gt;      chicken     egg
+#&gt; 1931 -0.0408 -0.0138
+#&gt; 1932 -0.0292 -0.0598
+#&gt; 1933  0.0175 -0.0219
+VARselect(growth, lag.max = 8, type = &quot;const&quot;)$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      1      1      1      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diff(log(x))</code> is the standard way to turn a level series into a growth rate: the 1931 chicken figure of -0.0408 means the flock shrank about 4.1% that year. <code>VARselect()</code> fits models at every lag from 1 to 8 and scores each with four criteria that trade fit against complexity. All four land on the same answer: one lag.</p>
+
+<p>Before trusting that, it helps to see how much the verdict depends on the choice at all.</p>
+
+<div class="webr-container" data-block-title="Sweep the lag order in both directions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep the lag order in both directions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lag_table &lt;- t(sapply(1:6, function(k) c(
+  lag            = k,
+  egg_to_chicken = grangertest(chicken ~ egg, order = k, data = growth)$`Pr(&gt;F)`[2],
+  chicken_to_egg = grangertest(egg ~ chicken, order = k, data = growth)$`Pr(&gt;F)`[2])))
+round(lag_table, 4)
+#&gt;      lag egg_to_chicken chicken_to_egg
+#&gt; [1,]   1         0.0012         0.1943
+#&gt; [2,]   2         0.0139         0.3665
+#&gt; [3,]   3         0.0191         0.5981
+#&gt; [4,]   4         0.0027         0.7726
+#&gt; [5,]   5         0.0178         0.8203
+#&gt; [6,]   6         0.0113         0.8523</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sapply()</code> runs the pair of tests once per lag setting and <code>t()</code> turns the result into a readable table with one row per lag.</p>
+
+<p>This is the outcome you hope for. Eggs beat the 0.05 threshold at every lag from 1 to 6, and chickens fail at every lag from 1 to 6. The conclusion does not hinge on a setting you chose, which is the strongest form a Granger result can take.</p>
+
+<p>So here is the defensible version of the chicken-and-egg test: growth rates rather than levels, one lag rather than a guess.</p>
+
+<div class="webr-container" data-block-title="The defensible test at the selected lag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The defensible test at the selected lag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grangertest(chicken ~ egg, order = 1, data = growth)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: chicken ~ Lags(chicken, 1:1) + Lags(egg, 1:1)
+#&gt; Model 2: chicken ~ Lags(chicken, 1:1)
+#&gt;   Res.Df Df      F   Pr(&gt;F)
+#&gt; 1     49
+#&gt; 2     50 -1 11.869 0.001179 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An F of 11.869 and a p-value of 0.001179. Egg growth this year carries real information about chicken growth next year, and the finding survives both the stationarity fix and the lag sweep.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the rule you used to pick lags, and report whether the verdict survives its neighbours.</strong> A result that holds from lag 1 through lag 6 is worth publishing. A result that appears only at lag 4 is worth another look.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the same sweep on the raw levels, lags 1 through 4, for eggs predicting chickens only. Compare the pattern against the growth-rate table above.</p>
+<div class="webr-container" data-block-title="Your turn: sweep lags on the raw levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sweep lags on the raw levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same sapply pattern as lag_table, but data = ChickEgg and only the
+# egg_to_chicken column. Call the result ex_levels.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Levels lag sweep solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Levels lag sweep solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_levels &lt;- t(sapply(1:4, function(k) c(
+  lag            = k,
+  egg_to_chicken = grangertest(chicken ~ egg, order = k, data = ChickEgg)$`Pr(&gt;F)`[2])))
+round(ex_levels, 4)
+#&gt;      lag egg_to_chicken
+#&gt; [1,]   1         0.2772
+#&gt; [2,]   2         0.0006
+#&gt; [3,]   3         0.0030
+#&gt; [4,]   4         0.0057</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On levels the verdict flips depending on the lag: nothing at all at lag 1 (0.2772), then decisive from lag 2 onward. That instability is a symptom of testing non-stationary data. The growth-rate version was stable across every lag, which is why it is the one to report.</p>
+
+</details>
+</section>
+
+<h2>How do you test causality when you have more than two series?</h2>
+
+<p><code>grangertest()</code> handles exactly two series. Real systems have more, and that changes the question in a way worth being precise about. With three variables you can ask whether one of them helps predict <em>the rest of the system</em>, holding everything else constant. The vars package answers that through a fitted VAR.</p>
+
+<p>A VAR, short for vector autoregression, is a system where every series gets its own regression equation and every equation includes the recent past of every series. For a deeper treatment of fitting and forecasting one, see <a href="VAR-Models-in-R.html">VAR models in R</a>. Here we only need it as the object the causality tests read.</p>
+
+<p>We will use <code>Canada</code>, a quarterly dataset bundled with vars, covering the Canadian labour market from 1980 to 2000. Three of its columns interest us: <code>prod</code> (labour productivity), <code>e</code> (an employment index) and <code>U</code> (the unemployment rate). All three trend, so we difference them first.</p>
+
+<div class="webr-container" data-block-title="Difference the Canada series and score lag orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Difference the Canada series and score lag orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">canada &lt;- diff(Canada[, c(&quot;prod&quot;, &quot;e&quot;, &quot;U&quot;)])
+round(head(canada, 3), 3)
+#&gt;           prod     e     U
+#&gt; 1980 Q2 -0.727 0.193  0.17
+#&gt; 1980 Q3 -0.825 0.514 -0.23
+#&gt; 1980 Q4  0.401 1.109 -0.20
+round(VARselect(canada, lag.max = 6, type = &quot;const&quot;)$criteria[&quot;AIC(n)&quot;, ], 3)
+#&gt;      1      2      3      4      5      6
+#&gt; -5.727 -5.701 -5.554 -5.479 -5.340 -5.195</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diff()</code> on a matrix differences every column, so each number is now a quarter-on-quarter change. In 1980 Q2 productivity fell 0.727 points while employment rose 0.193 and unemployment rose 0.17 percentage points.</p>
+
+<p>The <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> row is worth reading rather than skimming. One lag scores -5.727 and two lags score -5.701, a gap of 0.026 that is close to a tie. Lags 3 and beyond are clearly worse. When the top two are this close, either is defensible, and we will take two so the system can produce delayed effects that a single lag cannot represent. We will check later that the conclusions do not depend on that call.</p>
+
+<div class="webr-container" data-block-title="Fit the VAR and check its residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the VAR and check its residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">var_fit &lt;- VAR(canada, p = 2, type = &quot;const&quot;)
+serial.test(var_fit, lags.pt = 12, type = &quot;PT.asymptotic&quot;)$serial
+#&gt; Portmanteau Test (asymptotic)
+#&gt;
+#&gt; data:  Residuals of VAR object var_fit
+#&gt; Chi-squared = 70.671, df = 90, p-value = 0.9343</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>VAR(canada, p = 2, type = &quot;const&quot;)</code> estimates three equations at once, each predicting one variable from two lags of all three, plus an intercept.</p>
+
+<p>The residuals are what each equation failed to predict, one number per variable per quarter. If those leftovers still correlate with their own recent past, which is what autocorrelation means, the model missed some predictable structure and needs more lags. The <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">Portmanteau test</a> has "the residuals carry no <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a>" as its <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>, so a large p-value is the good outcome here. At 0.9343 there is nothing left over, which means two lags soaked up the predictable structure. A causality test on a badly specified VAR is not worth running, so this check comes first.</p>
+
+<p>Now the test itself.</p>
+
+<div class="webr-container" data-block-title="Test whether employment drives the system">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test whether employment drives the system</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">causality(var_fit, cause = &quot;e&quot;)$Granger
+#&gt; Granger causality H0: e do not Granger-cause prod U
+#&gt;
+#&gt; data:  VAR object var_fit
+#&gt; F-Test = 6.4605, df1 = 4, df2 = 222, p-value = 6.184e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the null hypothesis line carefully, because it is the whole point: <code>e do not Granger-cause prod U</code>. This is a joint test across the other two equations at once. It asks whether all four employment coefficients, two lags in the productivity equation and two lags in the unemployment equation, are zero together.</p>
+
+<p>With p = 0.00006 they are emphatically not zero. Employment carries information about where both productivity and unemployment are heading. Econometricians call this a block exogeneity test, because it asks whether one block of variables can be excluded from the rest of the system.</p>
+
+<p>Running it for all three variables gives you the pecking order of the system in one line.</p>
+
+<div class="webr-container" data-block-title="Rank all three variables at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank all three variables at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sapply(c(&quot;prod&quot;, &quot;e&quot;, &quot;U&quot;), function(v)
+  causality(var_fit, cause = v)$Granger$p.value), 5)
+#&gt;    prod       e       U
+#&gt; 0.02218 0.00006 0.04891</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sapply()</code> loops over the three variable names and pulls out just the p-value from each test.</p>
+
+<p>Employment leads by a distance at 0.00006. Productivity follows at 0.02218. Unemployment scrapes past the 0.05 line at 0.04891, which is the weakest evidence of the three and a number we should be suspicious of. In this labour market, employment is the series that moves first.</p>
+
+<p>There is a second flavour of causality that the same function reports. Granger causality is about lagged effects. Instantaneous causality asks whether the surprises move together within the same quarter.</p>
+
+<div class="webr-container" data-block-title="Test for same-quarter co-movement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test for same-quarter co-movement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">causality(var_fit, cause = &quot;e&quot;)$Instant
+#&gt; H0: No instantaneous causality between: e and prod U
+#&gt;
+#&gt; data:  VAR object var_fit
+#&gt; Chi-squared = 25.984, df = 2, p-value = 2.279e-06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This test looks at the same residuals we just checked, but across equations rather than across time. If a quarter's productivity surprise tends to arrive alongside an employment surprise, something is moving the variables together faster than the data's quarterly resolution can separate.</p>
+
+<p>At p = 0.000002 they clearly are. A plant closing cuts employment and raises unemployment in the same three months, so no amount of lag structure will disentangle them. Hold on to this result, because it is exactly what forces an awkward assumption two sections from now.</p>
+
+<p>Finally, that lag choice we flagged. Does the ranking survive if we had picked one lag, or three?</p>
+
+<div class="webr-container" data-block-title="Check the verdict against neighbouring lag orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the verdict against neighbouring lag orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lag_check &lt;- sapply(1:3, function(p)
+  sapply(c(&quot;prod&quot;, &quot;e&quot;, &quot;U&quot;), function(v)
+    causality(VAR(canada, p = p, type = &quot;const&quot;), cause = v)$Granger$p.value))
+colnames(lag_check) &lt;- c(&quot;p = 1&quot;, &quot;p = 2&quot;, &quot;p = 3&quot;)
+round(lag_check, 4)
+#&gt;       p = 1  p = 2  p = 3
+#&gt; prod 0.0047 0.0222 0.0249
+#&gt; e    0.0000 0.0001 0.0012
+#&gt; U    0.0285 0.0489 0.1301</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The nested <code>sapply()</code> refits the VAR at each lag order and collects all nine p-values into a grid.</p>
+
+<p>Employment and productivity stay significant in all three columns, so those findings are solid. Unemployment does not: it drifts from 0.0285 to 0.0489 to 0.1301, crossing the threshold somewhere between two lags and three. That borderline result in the previous block was not a real finding but an artifact of the lag setting, and this grid is how you catch that.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The bivariate test and the system test answer different questions.</strong> Running grangertest() on employment and unemployment alone asks whether employment helps predict unemployment. Running causality() on the three-variable VAR asks whether employment helps predict unemployment and productivity, given that both already see each other. The answers can legitimately differ, so state which one you ran.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Get the instantaneous causality p-value for all three variables in one line, using the same <code>sapply()</code> pattern.</p>
+<div class="webr-container" data-block-title="Your turn: instantaneous causality for all three">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: instantaneous causality for all three</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same shape as the ranking block, but reach for $Instant$p.value
+# instead of $Granger$p.value. Round to 6 places.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Instantaneous causality sweep solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Instantaneous causality sweep solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sapply(c(&quot;prod&quot;, &quot;e&quot;, &quot;U&quot;), function(v)
+  causality(var_fit, cause = v)$Instant$p.value), 6)
+#&gt;     prod        e        U
+#&gt; 0.451395 0.000002 0.000002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Productivity shocks are essentially uncorrelated with the rest within a quarter (0.451395), while employment and unemployment shocks move together almost perfectly (0.000002 from either side, because instantaneous causality has no direction). That asymmetry matters for the ordering decision coming up.</p>
+
+</details>
+</section>
+
+<h2>What does an impulse response show that the test cannot?</h2>
+
+<p>A Granger test gives you a yes or a no. That leaves three questions unanswered: how large is the effect, which direction does it push, and how long does it last. An <a class="auto-link" href="VAR-Models-in-R.html" title="VAR Models in R: Multivariate Time Series Forecasting">impulse response function</a> answers all three by running an experiment inside the fitted model.</p>
+
+<p>The experiment is simple. Nudge one variable by one unit at a single moment, hold every other shock at zero, and let the estimated equations play forward. Whatever path the other variables trace is the impulse response.</p>
+
+<p><img src="screenshots/Granger-Causality-in-R-shock-propagation.webp" alt="Diagram showing a shock entering one equation and being carried forward by every equation to produce a response path" class="img-responsive img-zoomable" loading="lazy" width="2248" height="644" /></p>
+
+<p><em>Figure 2: A shock enters one equation, and every equation carries it forward, which is what the impulse response traces.</em></p>
+
+<div class="webr-container" data-block-title="Trace an employment shock through the system">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace an employment shock through the system</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ir_raw &lt;- irf(var_fit, impulse = &quot;e&quot;, n.ahead = 8, ortho = FALSE, boot = FALSE)
+round(ir_raw$irf$e, 4)
+#&gt;          prod       e       U
+#&gt;  [1,]  0.0000  1.0000  0.0000
+#&gt;  [2,] -0.1645  0.9111 -0.5681
+#&gt;  [3,] -0.2073  0.3743 -0.3661
+#&gt;  [4,] -0.1212  0.0014 -0.0265
+#&gt;  [5,] -0.1120 -0.1265  0.0918
+#&gt;  [6,] -0.0808 -0.1342  0.0931
+#&gt;  [7,] -0.0315 -0.1006  0.0703
+#&gt;  [8,] -0.0015 -0.0575  0.0420
+#&gt;  [9,]  0.0095 -0.0220  0.0171
+plot(ir_raw)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>impulse = &quot;e&quot;</code> says the nudge hits employment. <code>n.ahead = 8</code> traces eight quarters beyond the initial one, giving nine rows. <code>ortho = FALSE</code> keeps the shock raw for now, and <code>boot = FALSE</code> skips <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">confidence bands</a> so we can look at the point estimates alone.</p>
+
+<p>Row 1 is the moment of impact. Employment jumps by exactly 1.0000 because that is the shock we injected, and the other two sit at 0.0000 because nothing has had time to react yet.</p>
+
+<p>Row 2 is one quarter later. Employment is still elevated at 0.9111, unemployment has fallen 0.5681, productivity has slipped 0.1645. The employment surprise has propagated through the other equations.</p>
+
+<p>Reading down the unemployment column tells the story: a sharp fall of 0.5681, a smaller fall of 0.3661, then back to roughly zero by row 4, followed by a mild overshoot into positive territory around rows 5 and 6 before dying out. Employment gains push unemployment down hard for two quarters, then the effect reverses slightly before fading. A p-value could never have told you that.</p>
+
+<p>Now let us confirm there is nothing hidden inside <code>irf()</code>. The response path is just the model's own coefficients multiplied together, and we can rebuild it by hand.</p>
+
+<div class="webr-container" data-block-title="Extract the VAR coefficient matrices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the VAR coefficient matrices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coefs &lt;- Bcoef(var_fit)
+round(coefs, 3)
+#&gt;      prod.l1   e.l1   U.l1 prod.l2   e.l2   U.l2 const
+#&gt; prod   0.221 -0.165 -0.964  -0.047 -0.569 -0.253 0.407
+#&gt; e      0.180  0.911  0.018   0.033 -0.416 -0.156 0.161
+#&gt; U     -0.155 -0.568 -0.025  -0.035  0.112 -0.066 0.199</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Bcoef()</code> returns the estimated system as a matrix. Each row is one equation. Read row 3, the unemployment equation: this quarter's change in unemployment equals -0.155 times last quarter's productivity change, minus 0.568 times last quarter's employment change, and so on.</p>
+
+<p>That -0.568 is the number driving everything. A one-unit employment surprise feeds straight into next quarter's unemployment with a coefficient of -0.568. Compare it to the -0.5681 in row 2 of the impulse response table. They are the same number.</p>
+
+<p>Split the matrix into its two lag blocks and you can generate the whole path with a loop.</p>
+
+<div class="webr-container" data-block-title="Rebuild the impulse response by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the impulse response by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vn &lt;- rownames(coefs)
+A1 &lt;- coefs[, 1:3]; dimnames(A1) &lt;- list(vn, vn)
+A2 &lt;- coefs[, 4:6]; dimnames(A2) &lt;- list(vn, vn)
+psi &lt;- vector(&quot;list&quot;, 9)
+psi[[1]] &lt;- diag(3)
+for (h in 2:9) {
+  two_back &lt;- if (h &gt;= 3) psi[[h - 2]] else matrix(0, 3, 3)
+  psi[[h]] &lt;- A1 %*% psi[[h - 1]] + A2 %*% two_back
+}
+by_hand &lt;- t(sapply(psi, function(m) m[, 2]))
+colnames(by_hand) &lt;- vn
+round(head(by_hand, 4), 4)
+#&gt;         prod      e       U
+#&gt; [1,]  0.0000 1.0000  0.0000
+#&gt; [2,] -0.1645 0.9111 -0.5681
+#&gt; [3,] -0.2073 0.3743 -0.3661
+#&gt; [4,] -0.1212 0.0014 -0.0265
+max(abs(by_hand - ir_raw$irf$e))
+#&gt; [1] 8.326673e-17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>A1</code> holds the first-lag coefficients and <code>A2</code> the second-lag ones. The list <code>psi</code> accumulates the response matrices horizon by horizon, starting from the identity matrix because at impact each variable responds one-for-one to its own shock and not at all to others.</p>
+
+<p>Each new horizon feeds the previous two back through the system: <code>A1 %*% psi[[h - 1]]</code> propagates last quarter's state, <code>A2 %*% two_back</code> propagates the quarter before that. Column 2 of each matrix is the response to an employment shock, which is what <code>sapply</code> pulls out.</p>
+
+<p>The largest discrepancy against <code>irf()</code> is 8.3e-17, which is rounding error from finite-precision arithmetic rather than a real difference. An impulse response is nothing more than your fitted model replayed forward from a nudge.</p>
+
+<p>In formula terms, the recursion is one line. Skip it if the loop already made sense.</p>
+
+<p>$$\Psi_h = A_1 \Psi_{h-1} + A_2 \Psi_{h-2}, \qquad \Psi_0 = I$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\Psi_h$ = the matrix of responses at horizon $h$, with element $(j, i)$ being variable $j$'s response to a shock in variable $i$</li>
+
+<li>$A_1, A_2$ = the coefficient matrices on the first and second lags</li>
+
+<li>$I$ = the identity matrix, the impact response before anything has propagated</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An impulse response contains no information the coefficients do not already hold.</strong> It is a re-presentation: instead of reading 18 coefficients across three equations, you read one path per variable pair. The value is entirely in the readability, which is exactly why it is worth plotting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the first step of the recursion. At horizon 1 the previous matrix is the identity, so <code>psi[[2]]</code> should equal <code>A1</code> exactly. Print <code>A1</code> and compare it to row 2 of <code>by_hand</code>.</p>
+<div class="webr-container" data-block-title="Your turn: check that the first step equals A1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check that the first step equals A1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Print round(A1, 3). Its &quot;e&quot; column should match row 2 of by_hand.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="First recursion step solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First recursion step solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(A1, 3)
+#&gt;        prod      e      U
+#&gt; prod  0.221 -0.165 -0.964
+#&gt; e     0.180  0.911  0.018
+#&gt; U    -0.155 -0.568 -0.025</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying anything by the identity matrix returns it unchanged, so the horizon-1 response matrix is <code>A1</code> itself. Its <code>e</code> column reads -0.165, 0.911, -0.568, which is row 2 of the hand-built table once rounded. The one-quarter-ahead impulse response is literally the first-lag coefficient column.</p>
+
+</details>
+</section>
+
+<h2>Why does the order of your variables change the impulse response?</h2>
+
+<p>The impulse responses above shocked employment while holding the other two shocks at exactly zero. That sounds harmless. It is not, and the instantaneous causality test already told us why.</p>
+
+<div class="webr-container" data-block-title="Inspect the residual correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the residual correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sigma &lt;- summary(var_fit)$covres
+round(cov2cor(sigma), 3)
+#&gt;        prod      e      U
+#&gt; prod  1.000 -0.046 -0.066
+#&gt; e    -0.046  1.000 -0.681
+#&gt; U    -0.066 -0.681  1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>summary(var_fit)$covres</code> returns the <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> of the residuals, and <code>cov2cor()</code> rescales it to correlations for easier reading.</p>
+
+<p>Employment and unemployment surprises are correlated at -0.681. In practice, quarters that surprise on the upside for employment surprise on the downside for unemployment, more than two-thirds of the time. So "shock employment by one unit while unemployment does nothing" describes a quarter this economy has essentially never had. The raw impulse response answers a question about an event the data says does not happen.</p>
+
+<p>The standard repair is to transform the correlated shocks into uncorrelated ones. <code>chol()</code> does the arithmetic.</p>
+
+<div class="webr-container" data-block-title="Split the shocks with a Cholesky factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the shocks with a Cholesky factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">P &lt;- t(chol(sigma))
+round(P, 4)
+#&gt;         prod       e      U
+#&gt; prod  0.6588  0.0000 0.0000
+#&gt; e    -0.0171  0.3693 0.0000
+#&gt; U    -0.0208 -0.2148 0.2276
+all.equal(P %*% t(P), sigma)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A Cholesky <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">decomposition</a> finds a lower-triangular matrix <code>P</code> whose product with its own transpose rebuilds the covariance matrix, which <code>all.equal()</code> confirms is exactly true here. Think of it as a square root for matrices.</p>
+
+<p>The triangular shape is the whole story. <code>P</code> has zeros above the diagonal, which means a productivity shock is allowed to move all three variables on impact, an employment shock may move employment and unemployment but not productivity, and an unemployment shock may move only itself. That ordering is not something the data revealed. It came from the order of the columns we happened to pass to <code>VAR()</code>.</p>
+
+<p>Watch the ordering show up directly in the orthogonal impulse response.</p>
+
+<div class="webr-container" data-block-title="Match the orthogonal impact to the Cholesky column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Match the orthogonal impact to the Cholesky column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ir_ortho &lt;- irf(var_fit, impulse = &quot;e&quot;, n.ahead = 4, ortho = TRUE, boot = FALSE)
+round(ir_ortho$irf$e, 4)
+#&gt;         prod      e       U
+#&gt; [1,]  0.0000 0.3693 -0.2148
+#&gt; [2,]  0.1464 0.3326 -0.2044
+#&gt; [3,]  0.0190 0.2055 -0.1511
+#&gt; [4,] -0.0283 0.0864 -0.0705
+#&gt; [5,] -0.0321 0.0111 -0.0107
+round(P[, &quot;e&quot;], 4)
+#&gt;    prod       e       U
+#&gt;  0.0000  0.3693 -0.2148</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The impact row of the orthogonal impulse response is the <code>e</code> column of the Cholesky factor, digit for digit. That is not a coincidence; <code>irf(ortho = TRUE)</code> starts the recursion from <code>P</code> instead of the identity matrix.</p>
+
+<p>Notice the impact effect on unemployment is now -0.2148 rather than the 0.0000 we saw with <code>ortho = FALSE</code>. The orthogonal version lets employment move unemployment within the quarter, because the correlation says it does. But the response of productivity is pinned at exactly 0.0000, not because the data says so, but because we listed productivity first.</p>
+
+<p>Change the order and the numbers change with it. Here we put unemployment ahead of employment and rerun.</p>
+
+<div class="webr-container" data-block-title="Reorder the system and compare">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reorder the system and compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">swapped     &lt;- diff(Canada[, c(&quot;prod&quot;, &quot;U&quot;, &quot;e&quot;)])
+fit_swapped &lt;- VAR(swapped, p = 2, type = &quot;const&quot;)
+order_cmp &lt;- cbind(
+  h = 0:6,
+  irf(var_fit,     impulse = &quot;U&quot;, response = &quot;e&quot;, n.ahead = 6, boot = FALSE)$irf$U,
+  irf(fit_swapped, impulse = &quot;U&quot;, response = &quot;e&quot;, n.ahead = 6, boot = FALSE)$irf$U)
+colnames(order_cmp) &lt;- c(&quot;h&quot;, &quot;e_first&quot;, &quot;U_first&quot;)
+round(order_cmp, 4)
+#&gt;      h e_first U_first
+#&gt; [1,] 0  0.0000 -0.2535
+#&gt; [2,] 1  0.0041 -0.2253
+#&gt; [3,] 2 -0.0713 -0.1929
+#&gt; [4,] 3 -0.0910 -0.1255
+#&gt; [5,] 4 -0.0613 -0.0522
+#&gt; [6,] 5 -0.0295 -0.0066
+#&gt; [7,] 6 -0.0090  0.0132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both columns come from the same data, the same lag order and the same estimated coefficients. The only difference is which column was typed first.</p>
+
+<p>At impact, one ordering says an unemployment shock has zero effect on employment and the other says it drops employment by 0.2535. The two columns disagree about the sign at horizon 1 and about the size everywhere. If you reported the left column as "the" impulse response, a reader could reproduce your work exactly and get the right column.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The Cholesky ordering is an assumption you impose, not a result the data gives you.</strong> It says which variable is allowed to react to which within a single period, and no statistical test can check it. Justify it from how the world works, report it explicitly, and rerun with a different order to see how much rides on it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm that this problem is specific to the orthogonal version. Compare the raw, non-orthogonal response of productivity to an employment shock under both orderings.</p>
+<div class="webr-container" data-block-title="Your turn: check the raw response is order-free">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the raw response is order-free</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Call irf() twice with ortho = FALSE, impulse = &quot;e&quot;, response = &quot;prod&quot;,
+# once on var_fit and once on fit_swapped. cbind them and round.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Non-orthogonal ordering check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-orthogonal ordering check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">free_cmp &lt;- cbind(
+  irf(var_fit,     impulse = &quot;e&quot;, response = &quot;prod&quot;, n.ahead = 4,
+      ortho = FALSE, boot = FALSE)$irf$e,
+  irf(fit_swapped, impulse = &quot;e&quot;, response = &quot;prod&quot;, n.ahead = 4,
+      ortho = FALSE, boot = FALSE)$irf$e)
+colnames(free_cmp) &lt;- c(&quot;prod_e_U&quot;, &quot;prod_U_e&quot;)
+round(free_cmp, 4)
+#&gt;      prod_e_U prod_U_e
+#&gt; [1,]   0.0000   0.0000
+#&gt; [2,]  -0.1645  -0.1645
+#&gt; [3,]  -0.2073  -0.2073
+#&gt; [4,]  -0.1212  -0.1212
+#&gt; [5,]  -0.1120  -0.1120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Identical to four decimal places. Column order cannot touch the non-orthogonal response, because it never uses the residual covariance matrix. Ordering matters only once you orthogonalise. The trade-off: the raw version is order-free but answers a question about an implausible event, while the orthogonal version is plausible but needs an assumption from you.</p>
+
+</details>
+</section>
+
+<h2>How do you tell a real impulse response from noise?</h2>
+
+<p>Every number in those impulse response tables was estimated from 82 quarters of data, so every number carries sampling error. A response that looks like a clean hump might be a fluke. Confidence bands settle it, and <code>irf()</code> builds them by bootstrap.</p>
+
+<div class="webr-container" data-block-title="Add bootstrap confidence bands">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add bootstrap confidence bands</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ir_band &lt;- irf(var_fit, impulse = &quot;e&quot;, response = &quot;U&quot;, n.ahead = 8,
+               boot = TRUE, runs = 200, ci = 0.95, seed = 7)
+bands &lt;- cbind(h = 0:8, lower = ir_band$Lower$e,
+               response = ir_band$irf$e, upper = ir_band$Upper$e)
+colnames(bands) &lt;- c(&quot;h&quot;, &quot;lower&quot;, &quot;response&quot;, &quot;upper&quot;)
+round(bands, 4)
+#&gt;       h   lower response   upper
+#&gt;  [1,] 0 -0.2721  -0.2148 -0.1265
+#&gt;  [2,] 1 -0.2579  -0.2044 -0.1184
+#&gt;  [3,] 2 -0.2076  -0.1511 -0.0657
+#&gt;  [4,] 3 -0.1421  -0.0705  0.0247
+#&gt;  [5,] 4 -0.0814  -0.0107  0.0681
+#&gt;  [6,] 5 -0.0492   0.0142  0.0763
+#&gt;  [7,] 6 -0.0274   0.0195  0.0581
+#&gt;  [8,] 7 -0.0160   0.0163  0.0514
+#&gt;  [9,] 8 -0.0206   0.0102  0.0397
+plot(ir_band)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what <code>runs = 200</code> actually does. R resamples the model's residuals, reassembles 200 synthetic datasets from the fitted coefficients, refits the VAR on each, and records the impulse response every time. The 2.5th and 97.5th percentiles of those 200 paths become the band. <code>seed = 7</code> makes the resampling reproducible, so you and a reader get the same interval.</p>
+
+<p>Now read it. The rule is simple: if the band contains zero at a given horizon, the response is not distinguishable from no effect at all.</p>
+
+<p>At horizons 0, 1 and 2 the entire interval sits below zero, from -0.2721 to -0.1265 at impact. That is a real, negative effect. At horizon 3 the upper bound turns positive at 0.0247, and from there on every interval straddles zero.</p>
+
+<p>So the honest summary is: an employment surprise pushes unemployment down for about three quarters, and after that the model cannot tell you anything. The mild positive overshoot we noticed earlier in rows 5 and 6 is noise; the band there runs from -0.0492 to 0.0763.</p>
+
+<p>When the question is total effect rather than timing, the cumulative version adds the path up as it goes.</p>
+
+<div class="webr-container" data-block-title="Accumulate the response over time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Accumulate the response over time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ir_cum &lt;- irf(var_fit, impulse = &quot;e&quot;, response = &quot;U&quot;, n.ahead = 8,
+              cumulative = TRUE, boot = TRUE, runs = 200, seed = 7)
+cum &lt;- cbind(h = 0:8, lower = ir_cum$Lower$e,
+             cumulative = ir_cum$irf$e, upper = ir_cum$Upper$e)
+colnames(cum) &lt;- c(&quot;h&quot;, &quot;lower&quot;, &quot;cumulative&quot;, &quot;upper&quot;)
+round(cum, 4)
+#&gt;       h   lower cumulative   upper
+#&gt;  [1,] 0 -0.2721    -0.2148 -0.1265
+#&gt;  [2,] 1 -0.4926    -0.4192 -0.2688
+#&gt;  [3,] 2 -0.6869    -0.5704 -0.3653
+#&gt;  [4,] 3 -0.8055    -0.6409 -0.3645
+#&gt;  [5,] 4 -0.8889    -0.6516 -0.3357
+#&gt;  [6,] 5 -0.9240    -0.6374 -0.2924
+#&gt;  [7,] 6 -0.9359    -0.6179 -0.2712
+#&gt;  [8,] 7 -0.9355    -0.6016 -0.2481
+#&gt;  [9,] 8 -0.9310    -0.5914 -0.2690</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cumulative = TRUE</code> reports the running total instead of the per-quarter value, so row 4 is the sum of the first four quarterly responses.</p>
+
+<p>The total settles around -0.59 by horizon 4 and stays there, which is the signature of an effect that has finished. And the band never covers zero at any horizon, running from -0.9310 to -0.2690 even at the end. Quarter by quarter the late responses were indistinguishable from noise, but the accumulated effect is unambiguous: an employment surprise of this size is worth roughly six tenths of a point off unemployment in total.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the horizon where the band first covers zero, not just the peak response.</strong> The peak tells a reader how large the effect is. The crossing point tells them how long it lasts, which is usually the more decision-relevant number.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the same band table for a productivity shock hitting unemployment, six quarters ahead, using <code>seed = 11</code>. At which horizons is the effect distinguishable from zero?</p>
+<div class="webr-container" data-block-title="Your turn: bands for a productivity shock">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bands for a productivity shock</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># irf() with impulse = &quot;prod&quot;, response = &quot;U&quot;, n.ahead = 6, boot = TRUE,
+# runs = 200, seed = 11. Assemble h, lower, response, upper into a table.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Productivity shock bands solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Productivity shock bands solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ir_pu &lt;- irf(var_fit, impulse = &quot;prod&quot;, response = &quot;U&quot;, n.ahead = 6,
+             boot = TRUE, runs = 200, seed = 11)
+ex_band &lt;- cbind(h = 0:6, lower = ir_pu$Lower$prod,
+                 response = ir_pu$irf$prod, upper = ir_pu$Upper$prod)
+colnames(ex_band) &lt;- c(&quot;h&quot;, &quot;lower&quot;, &quot;response&quot;, &quot;upper&quot;)
+round(ex_band, 4)
+#&gt;      h   lower response   upper
+#&gt; [1,] 0 -0.0867  -0.0208  0.0592
+#&gt; [2,] 1 -0.1627  -0.0918 -0.0008
+#&gt; [3,] 2 -0.1835  -0.1058 -0.0126
+#&gt; [4,] 3 -0.1505  -0.0879 -0.0127
+#&gt; [5,] 4 -0.1118  -0.0607 -0.0048
+#&gt; [6,] 5 -0.0724  -0.0293  0.0196
+#&gt; [7,] 6 -0.0392  -0.0063  0.0309</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At impact the band spans zero (-0.0867 to 0.0592), so nothing is happening yet, which makes sense because productivity is ordered first and cannot be pushed by anything in the same quarter. From horizon 1 through 4 the whole band is negative, so a productivity surprise lowers unemployment with a one-quarter delay and the effect lasts about a year. By horizon 5 it is gone. This is a delayed response, which the shape of the band reveals and a single p-value would have hidden.</p>
+
+</details>
+</section>
+
+<h2>What if your series are not stationary or are cointegrated?</h2>
+
+<p>We differenced everything to avoid the trap from earlier, and differencing has a cost: it throws away information about the long-run levels. If two series drift together over decades, that shared trend is often the most interesting thing about them, and a differenced model cannot see it. Two series that each wander on their own but stay tied to each other in the long run are called <em>cointegrated</em>, and that tie is exactly what differencing discards.</p>
+
+<p>Toda and Yamamoto proposed a way to test causality on the levels directly, in a 1995 paper. The trick is disarmingly simple. Fit the VAR with extra lags beyond what the criteria suggest, then test only the original lags and ignore the extra ones. Those surplus lags absorb whatever unit-root behaviour is present, so the test statistic keeps its usual chi-square distribution even when the series wander.</p>
+
+<p>Two numbers set it up: the lag order <code>p</code> chosen the usual way, and <code>d_max</code>, the highest order of integration among the series, which is just how many times you would have to difference the most stubborn one.</p>
+
+<div class="webr-container" data-block-title="Find the integration order and the lag order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the integration order and the lag order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+c(chicken = ndiffs(ChickEgg[, &quot;chicken&quot;]), egg = ndiffs(ChickEgg[, &quot;egg&quot;]))
+#&gt; chicken     egg
+#&gt;       1       1
+VARselect(ChickEgg, lag.max = 8, type = &quot;const&quot;)$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      2      2      2      2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ndiffs()</code> runs a unit-root test and reports how many differences the series needs. Both return 1, so both are what econometricians call I(1) and <code>d_max</code> is 1. <code>VARselect()</code> on the levels picks two lags unanimously, so <code>p</code> is 2.</p>
+
+<p>That means we fit a VAR with 2 + 1 = 3 lags on the raw, undifferenced data.</p>
+
+<div class="webr-container" data-block-title="Fit the augmented VAR on the levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the augmented VAR on the levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ty   &lt;- 2
+d_max  &lt;- 1
+ty_fit &lt;- VAR(ChickEgg, p = p_ty + d_max, type = &quot;const&quot;)
+names(coef(ty_fit$varresult$chicken))
+#&gt; [1] &quot;chicken.l1&quot; &quot;egg.l1&quot;     &quot;chicken.l2&quot; &quot;egg.l2&quot;     &quot;chicken.l3&quot; &quot;egg.l3&quot;     &quot;const&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ty_fit$varresult$chicken</code> is the ordinary <code>lm</code> object for the chicken equation, and its coefficient names show the layout: three lags of each series plus an intercept.</p>
+
+<p>This is the same regression you fitted by hand in the second section of this tutorial, when you built <code>unrestricted</code> with three lags of each variable. The difference is entirely in what gets tested. <code>grangertest()</code> tested all three egg lags. Toda-Yamamoto tests only <code>egg.l1</code> and <code>egg.l2</code>, deliberately leaving <code>egg.l3</code> alone as the padding that makes the test valid.</p>
+
+<p>Testing a subset of coefficients jointly is a <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">Wald test</a>, and it is short enough to write directly.</p>
+
+<div class="webr-container" data-block-title="Run the Toda-Yamamoto Wald test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the Toda-Yamamoto Wald test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ty_test &lt;- function(fit, equation, cause, p) {
+  eq &lt;- fit$varresult[[equation]]
+  b  &lt;- coef(eq)
+  V  &lt;- vcov(eq)
+  i  &lt;- match(paste0(cause, &quot;.l&quot;, 1:p), names(b))
+  w  &lt;- as.numeric(t(b[i]) %*% solve(V[i, i]) %*% b[i])
+  c(Wald = w, df = p, p_value = pchisq(w, p, lower.tail = FALSE))
+}
+ty_result &lt;- rbind(
+  egg_to_chicken = ty_test(ty_fit, &quot;chicken&quot;, &quot;egg&quot;,     p_ty),
+  chicken_to_egg = ty_test(ty_fit, &quot;egg&quot;,     &quot;chicken&quot;, p_ty))
+round(ty_result, 5)
+#&gt;                    Wald df p_value
+#&gt; egg_to_chicken 10.80292  2 0.00451
+#&gt; chicken_to_egg  0.92160  2 0.63078</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through the function: <code>coef(eq)</code> pulls the estimates, <code>vcov(eq)</code> pulls their covariance matrix, and <code>match()</code> finds the positions of the lags we want to test. The Wald statistic asks how far those coefficients sit from zero, measured in units of their own uncertainty, which is what sandwiching the inverse covariance between them accomplishes. Under the null it follows a chi-square distribution with <code>p</code> degrees of freedom, so <code>pchisq()</code> finishes the job.</p>
+
+<p>Eggs give a Wald statistic of 10.803 and a p-value of 0.00451. Chickens give 0.9216 and 0.63078. The verdict is unchanged from every other route we took, and this time it came from the levels, with no differencing and no assumption that the series are stationary.</p>
+
+<p>That agreement is the real payoff. Three different methods on three different transformations of the same data all point the same way, which is far more convincing than any single p-value.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Toda-Yamamoto trades a little <a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">statistical power</a> for validity when you are unsure about integration order.</strong> The padding lags cost degrees of freedom, so it is slightly less likely to detect a genuinely weak effect. In exchange it stays valid whether your series are stationary or carry unit roots, cointegrated or not. If you have confirmed cointegration, a vector <a class="auto-link" href="Cointegration-in-R.html" title="Cointegration in R: Engle-Granger and Error Correction">error correction model</a> is the more informative alternative; see <a href="Cointegration-in-R.html">cointegration in R</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun the procedure with three lags instead of two, keeping <code>d_max</code> at 1, so the augmented VAR has four lags. Does the conclusion hold?</p>
+<div class="webr-container" data-block-title="Your turn: Toda-Yamamoto at three lags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Toda-Yamamoto at three lags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit VAR(ChickEgg, p = 3 + 1, type = &quot;const&quot;) as ty_fit4, then reuse
+# ty_test() in both directions with p = 3.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Toda-Yamamoto at three lags solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Toda-Yamamoto at three lags solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ty_fit4 &lt;- VAR(ChickEgg, p = 3 + 1, type = &quot;const&quot;)
+round(rbind(egg_to_chicken = ty_test(ty_fit4, &quot;chicken&quot;, &quot;egg&quot;,     3),
+            chicken_to_egg = ty_test(ty_fit4, &quot;egg&quot;,     &quot;chicken&quot;, 3)), 5)
+#&gt;                    Wald df p_value
+#&gt; egg_to_chicken 11.87321  3 0.00783
+#&gt; chicken_to_egg  1.19131  3 0.75509</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value for eggs moves from 0.00451 to 0.00783, still comfortably significant, and chickens stay nowhere near the threshold. Note the direction of the shift: adding a lag raised the p-value slightly because the extra degree of freedom has to be paid for. That is the power cost mentioned above, visible in a single number.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: do European stock indices lead each other?</h2>
+
+<p>Labour market data has slow, visible dynamics. Financial data is the opposite, and it makes an honest test case because a strong result would contradict a lot of finance theory. <code>EuStockMarkets</code> ships with base R and holds daily closing prices for the German DAX, Swiss SMI, French CAC and UK FTSE from 1991 to 1998.</p>
+
+<p>We will run the full workflow on three of them: stationarity, lag order, diagnostics, causality, impulse response.</p>
+
+<div class="webr-container" data-block-title="Convert prices to daily returns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert prices to daily returns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">returns &lt;- diff(log(EuStockMarkets[, c(&quot;DAX&quot;, &quot;SMI&quot;, &quot;CAC&quot;)])) * 100
+dim(returns)
+#&gt; [1] 1859    3
+round(head(returns, 3), 3)
+#&gt; Time Series:
+#&gt; Start = c(1991, 131)
+#&gt; End = c(1991, 133)
+#&gt; Frequency = 260
+#&gt;             DAX    SMI    CAC
+#&gt; 1991.500 -0.933  0.618 -1.266
+#&gt; 1991.504 -0.442 -0.588 -1.874
+#&gt; 1991.508  0.900  0.327 -0.578
+plot(returns, main = &quot;Daily log returns: DAX, SMI, CAC&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Index prices are the textbook random walk, so testing them in levels would walk straight into the trap from earlier. <code>diff(log(x)) * 100</code> converts them to daily percentage returns, which is the stationary quantity finance actually models. The DAX fell 0.933% on the first day of the sample.</p>
+
+<div class="webr-container" data-block-title="Pick the lag order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick the lag order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">VARselect(returns, lag.max = 6, type = &quot;const&quot;)$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      1      1      1      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four criteria agree on one lag, and with 1859 observations there is no ambiguity to worry about this time.</p>
+
+<div class="webr-container" data-block-title="Fit the VAR and check residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the VAR and check residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_fit &lt;- VAR(returns, p = 1, type = &quot;const&quot;)
+serial.test(eu_fit, lags.pt = 10, type = &quot;PT.asymptotic&quot;)$serial
+#&gt; Portmanteau Test (asymptotic)
+#&gt;
+#&gt; data:  Residuals of VAR object eu_fit
+#&gt; Chi-squared = 100.69, df = 81, p-value = 0.06837</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 0.06837 the Portmanteau test clears the 0.05 bar, but not by much. With this many observations even trivial leftover structure gets detected, so a marginal pass is normal for daily financial data. Good enough to proceed.</p>
+
+<div class="webr-container" data-block-title="Test which index leads the others">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test which index leads the others</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sapply(c(&quot;DAX&quot;, &quot;SMI&quot;, &quot;CAC&quot;), function(v)
+  causality(eu_fit, cause = v)$Granger$p.value), 4)
+#&gt;    DAX    SMI    CAC
+#&gt; 0.9286 0.0344 0.1608</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the Swiss SMI shows any lagged predictive power over the other two, at 0.0344, and even that is modest. The DAX at 0.9286 carries essentially no information about tomorrow's Swiss or French returns.</p>
+
+<p>That is a null result, and it is the expected one. If yesterday's DAX reliably predicted today's CAC, the trade would be obvious and would have been arbitraged away long ago. Reporting a boring result honestly is part of the job.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When the Granger test comes back empty, check the residual correlations before concluding the series are unrelated.</strong> A null lagged result plus a large same-period correlation is a specific, informative finding: the variables are tightly linked, and the link is faster than your sampling frequency can resolve.</div></div>
+
+<p>The interesting linkage is elsewhere.</p>
+
+<div class="webr-container" data-block-title="Look at the same-day correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at the same-day correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cov2cor(summary(eu_fit)$covres), 3)
+#&gt;       DAX   SMI   CAC
+#&gt; DAX 1.000 0.706 0.733
+#&gt; SMI 0.706 1.000 0.618
+#&gt; CAC 0.733 0.618 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Residual correlations between 0.618 and 0.733. These markets move together powerfully, they just do it on the same day rather than with a lag. All the linkage the Granger test could not find is sitting in this matrix.</p>
+
+<div class="webr-container" data-block-title="Trace an SMI shock through the DAX">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace an SMI shock through the DAX</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_irf &lt;- irf(eu_fit, impulse = &quot;SMI&quot;, response = &quot;DAX&quot;, n.ahead = 5,
+              boot = TRUE, runs = 200, seed = 5)
+eu_band &lt;- cbind(h = 0:5, lower = eu_irf$Lower$SMI,
+                 response = eu_irf$irf$SMI, upper = eu_irf$Upper$SMI)
+colnames(eu_band) &lt;- c(&quot;h&quot;, &quot;lower&quot;, &quot;response&quot;, &quot;upper&quot;)
+round(eu_band, 4)
+#&gt;      h   lower response  upper
+#&gt; [1,] 0  0.0000   0.0000  0e+00
+#&gt; [2,] 1 -0.0943  -0.0491 -9e-04
+#&gt; [3,] 2 -0.0097  -0.0043  7e-04
+#&gt; [4,] 3 -0.0007  -0.0001  4e-04
+#&gt; [5,] 4  0.0000   0.0000  1e-04
+#&gt; [6,] 5  0.0000   0.0000  0e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Impact is pinned at exactly zero because DAX is listed first in the matrix, so the Cholesky ordering forbids the SMI from touching it within the day. One day later there is a small negative response of -0.0491 whose band just excludes zero, and by day 2 everything has collapsed to noise. Lagged spillover exists but is economically trivial.</p>
+
+<p>Now watch what the ordering was hiding.</p>
+
+<div class="webr-container" data-block-title="Reorder so the SMI comes first">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reorder so the SMI comes first</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">smi_first  &lt;- diff(log(EuStockMarkets[, c(&quot;SMI&quot;, &quot;DAX&quot;, &quot;CAC&quot;)])) * 100
+eu_swapped &lt;- VAR(smi_first, p = 1, type = &quot;const&quot;)
+impact_cmp &lt;- rbind(
+  DAX_first = irf(eu_fit,     impulse = &quot;SMI&quot;, response = &quot;DAX&quot;,
+                  n.ahead = 2, boot = FALSE)$irf$SMI[1:3],
+  SMI_first = irf(eu_swapped, impulse = &quot;SMI&quot;, response = &quot;DAX&quot;,
+                  n.ahead = 2, boot = FALSE)$irf$SMI[1:3])
+colnames(impact_cmp) &lt;- c(&quot;h = 0&quot;, &quot;h = 1&quot;, &quot;h = 2&quot;)
+round(impact_cmp, 4)
+#&gt;            h = 0   h = 1   h = 2
+#&gt; DAX_first 0.0000 -0.0491 -0.0043
+#&gt; SMI_first 0.7263 -0.0353 -0.0063</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same data, same model, different column order. Put the SMI first and its shock moves the DAX by 0.7263 on the very same day, which dwarfs everything happening at later horizons. Put the DAX first and that entire effect is assigned to the DAX shock instead.</p>
+
+<p>The variance decomposition makes the same point from another angle.</p>
+
+<div class="webr-container" data-block-title="Decompose the DAX forecast error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose the DAX forecast error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(fevd(eu_fit, n.ahead = 5)$DAX, 4)
+#&gt;         DAX    SMI    CAC
+#&gt; [1,] 1.0000 0.0000 0.0000
+#&gt; [2,] 0.9964 0.0023 0.0014
+#&gt; [3,] 0.9963 0.0023 0.0014
+#&gt; [4,] 0.9963 0.0023 0.0014
+#&gt; [5,] 0.9963 0.0023 0.0014</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fevd()</code> splits the forecast error variance of each variable across the shocks in the system. Under this ordering, 99.63% of the DAX's forecast error traces back to its own shock, with the SMI and CAC contributing 0.23% and 0.14%. Under the SMI-first ordering those shares would look completely different.</p>
+
+<p><strong>The verdict.</strong> Lagged predictability between these indices is close to nil, which is what an efficient market should look like. The real connection is contemporaneous and very strong, and the Cholesky ordering is what decides who gets credit for it. On this data the ordering is a modelling choice with no defensible justification, since European markets trade in overlapping hours and no index plausibly moves first. The honest report is the residual <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a>, plus impulse responses shown under more than one ordering.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Does Granger causality prove causation?</strong> No. It shows that one series carries information about another's future, which is a statement about forecasting. A confounder driving both series with different delays produces exactly the same test result, and Practice Exercise 3 below builds that case from scratch so you can see it happen.</p>
+
+<p><strong>Should I use grangertest() or causality()?</strong> Use <code>grangertest()</code> for a two-series question when you have no other variables to control for. Use <code>causality()</code> on a fitted VAR when there are three or more series, because it tests whether one variable helps predict the rest of the system given that all the others already see each other. They answer different questions and can disagree.</p>
+
+<p><strong>What if my series are cointegrated?</strong> Differencing everything discards the long-run relationship, and a VAR in differences is misspecified when one exists. Either use Toda-Yamamoto on the levels, as shown above, or fit a vector error correction model, which keeps the long-run link explicit.</p>
+
+<p><strong>How many lags should I use?</strong> Let <code>VARselect()</code> choose, then verify the conclusion holds at neighbouring lag orders. A finding that appears at exactly one lag setting and nowhere else is fragile.</p>
+
+<p><strong>Why do my impulse responses change when I reorder my variables?</strong> Because <code>ortho = TRUE</code> uses a Cholesky decomposition, which forces a recursive structure onto the same-period shocks. The first variable can affect everything on impact, the last can affect only itself. Set <code>ortho = FALSE</code> for an order-free version, but understand that it answers a question about a shock combination the data may never produce.</p>
+
+<p><strong>How many bootstrap runs do I need?</strong> The default of 100 is fine for a first look. Use 500 to 1000 for anything you publish, since the band <a class="auto-link" href="High-Frequency-Time-Series-in-R.html" title="High-Frequency Time Series in R: Intraday xts and quantmod">endpoints</a> are percentiles and percentiles are noisy with small samples. Always pass <code>seed</code> so a reader can reproduce your interval.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Wages and employment in the Canadian labour market</h3>
+
+<p>Using the <code>Canada</code> dataset, build a two-variable system from <code>rw</code> (real wages) and <code>e</code> (employment), differenced. Let <code>VARselect()</code> choose the lag order and use whatever AIC prefers. Test Granger causality in both directions, then check instantaneous causality for real wages. Which direction is significant?</p>
+
+<div class="webr-container" data-block-title="Exercise 1: wages and employment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: wages and employment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build wages &lt;- diff(Canada[, c(&quot;rw&quot;, &quot;e&quot;)])
+# Then VARselect(), then VAR(), then causality() in both directions.
+# Store the fitted model as my_fit.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wages and employment solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wages and employment solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wages &lt;- diff(Canada[, c(&quot;rw&quot;, &quot;e&quot;)])
+VARselect(wages, lag.max = 6, type = &quot;const&quot;)$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      4      4      1      4
+my_fit &lt;- VAR(wages, p = 4, type = &quot;const&quot;)
+round(c(rw_causes_e = causality(my_fit, cause = &quot;rw&quot;)$Granger$p.value,
+        e_causes_rw = causality(my_fit, cause = &quot;e&quot;)$Granger$p.value), 4)
+#&gt; rw_causes_e e_causes_rw
+#&gt;      0.0658      0.0056
+round(causality(my_fit, cause = &quot;rw&quot;)$Instant$p.value, 4)
+#&gt;       [,1]
+#&gt; [1,] 0.134</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three of the four criteria pick four lags, so that is the defensible choice, though note that SC disagrees and picks one. Employment Granger-causes real wages decisively at 0.0056, while wages predicting employment falls just short at 0.0658. Causality runs from jobs to pay rather than the reverse. Instantaneous causality at 0.134 gives no evidence of same-quarter co-movement, unlike the employment and unemployment pair, which makes sense because wage contracts adjust with a delay.</p>
+
+</details>
+
+<h3>Exercise 2: Build a system where you already know the answer</h3>
+
+<p>The only way to be sure a method works is to run it on data whose truth you set yourself. Simulate 400 observations of two series where <code>my_x</code> follows its own path and <code>my_y</code> depends on last period's <code>my_x</code> with a coefficient of exactly 0.6. Use <code>set.seed(808)</code>. Confirm the Granger test finds the effect in the correct direction only, then confirm the non-orthogonal impulse response recovers the 0.6 you built in.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: a system with a known answer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: a system with a known answer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: loop t in 2:n with
+#   my_x[t] &lt;- 0.5 * my_x[t - 1] + rnorm(1)
+#   my_y[t] &lt;- 0.3 * my_y[t - 1] + 0.6 * my_x[t - 1] + rnorm(1)
+# Test both directions at order = 1, then fit VAR(cbind(my_x, my_y), p = 1)
+# and read irf(..., ortho = FALSE) at horizon 1.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Known-answer system solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Known-answer system solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+n &lt;- 400
+my_x &lt;- numeric(n)
+my_y &lt;- numeric(n)
+for (t in 2:n) {
+  my_x[t] &lt;- 0.5 * my_x[t - 1] + rnorm(1)
+  my_y[t] &lt;- 0.3 * my_y[t - 1] + 0.6 * my_x[t - 1] + rnorm(1)
+}
+signif(c(x_causes_y = grangertest(my_y ~ my_x, order = 1)$`Pr(&gt;F)`[2],
+         y_causes_x = grangertest(my_x ~ my_y, order = 1)$`Pr(&gt;F)`[2]), 4)
+#&gt; x_causes_y y_causes_x
+#&gt;  1.128e-35  4.187e-01
+sim_fit &lt;- VAR(cbind(my_x, my_y), p = 1, type = &quot;const&quot;)
+round(irf(sim_fit, impulse = &quot;my_x&quot;, response = &quot;my_y&quot;,
+          n.ahead = 4, ortho = FALSE, boot = FALSE)$irf$my_x, 3)
+#&gt;       my_y
+#&gt; [1,] 0.000
+#&gt; [2,] 0.622
+#&gt; [3,] 0.538
+#&gt; [4,] 0.365
+#&gt; [5,] 0.229</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The test nails the direction we built: p = 1.128e-35 for x predicting y, and a completely null 0.4187 in reverse. The impulse response at horizon 1 reads 0.622 against a true value of 0.6, with the small gap being estimation error from 400 observations. Later horizons decay because <code>my_y</code> also carries its own 0.3 persistence, which keeps recycling the shock. When you can control the truth, both tools recover it.</p>
+
+</details>
+
+<h3>Exercise 3: Manufacture a false positive with a confounder</h3>
+
+<p>This is the caveat from the first section made concrete. Build a hidden driver <code>my_z</code> that follows its own path, then let it feed <code>my_a</code> after one period and <code>my_b</code> after three periods. There is no arrow at all between <code>my_a</code> and <code>my_b</code>. Use <code>set.seed(451)</code> and 500 observations. Show that a two-series test declares <code>my_a</code> Granger-causes <code>my_b</code>, then show that adding <code>my_z</code> to the system makes the finding vanish.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: a confounded system">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: a confounded system</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: loop t in 4:n3 with
+#   my_z[t] &lt;- 0.6 * my_z[t - 1] + rnorm(1)
+#   my_a[t] &lt;- 0.8 * my_z[t - 1] + rnorm(1)
+#   my_b[t] &lt;- 0.8 * my_z[t - 3] + rnorm(1)
+# Run grangertest(my_b ~ my_a, order = 3), then build the three-variable
+# VAR as tri and run causality(tri, cause = &quot;my_a&quot;).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Confounded system solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confounded system solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(451)
+n3 &lt;- 500
+my_z &lt;- numeric(n3)
+my_a &lt;- numeric(n3)
+my_b &lt;- numeric(n3)
+for (t in 4:n3) {
+  my_z[t] &lt;- 0.6 * my_z[t - 1] + rnorm(1)
+  my_a[t] &lt;- 0.8 * my_z[t - 1] + rnorm(1)
+  my_b[t] &lt;- 0.8 * my_z[t - 3] + rnorm(1)
+}
+signif(grangertest(my_b ~ my_a, order = 3)$`Pr(&gt;F)`[2], 4)
+#&gt; [1] 3.071e-26
+tri &lt;- VAR(cbind(my_a, my_b, my_z), p = 3, type = &quot;const&quot;)
+round(causality(tri, cause = &quot;my_a&quot;)$Granger$p.value, 4)
+#&gt;        [,1]
+#&gt; [1,] 0.6726</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two-series test returns p = 3.071e-26, about as decisive as a p-value gets, for a relationship that does not exist in the code that generated the data. It works because <code>my_a</code> inherits <code>my_z</code> two periods before <code>my_b</code> does, so <code>my_a</code> genuinely is a leading indicator of <code>my_b</code>. That is real forecasting value and completely useless as a causal claim. Once <code>my_z</code> joins the system, the apparent effect collapses to 0.6726. This is why omitted variables are the single biggest threat to a Granger causality claim, and why a bivariate test is only as trustworthy as your confidence that nothing important is missing.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>The two tools answer different halves of one question. The test tells you whether a series carries information at all. The impulse response turns that yes into a magnitude and a duration.</p>
+
+<p><img src="screenshots/Granger-Causality-in-R-workflow.webp" alt="Diagram of the causality workflow running from stationarity checks through lag selection to the causality test and impulse response" class="img-responsive img-zoomable" loading="lazy" width="2248" height="656" /></p>
+
+<p><em>Figure 3: The order of operations: stationarity first, lags second, and only then the causality test and impulse response.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Question it answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grangertest()</code></td>
+<td>lmtest</td>
+<td>Does X's past improve a forecast of Y? Two series only</td>
+</tr>
+<tr>
+<td><code>causality()</code></td>
+<td>vars</td>
+<td>Does X's past improve forecasts of the whole rest of the system?</td>
+</tr>
+<tr>
+<td><code>VARselect()</code></td>
+<td>vars</td>
+<td>How many lags should the model carry?</td>
+</tr>
+<tr>
+<td><code>serial.test()</code></td>
+<td>vars</td>
+<td>Did the chosen lag order clean up the residuals?</td>
+</tr>
+<tr>
+<td><code>irf()</code></td>
+<td>vars</td>
+<td>What path does a shock trace through the system?</td>
+</tr>
+<tr>
+<td><code>fevd()</code></td>
+<td>vars</td>
+<td>Which shock owns each variable's forecast error?</td>
+</tr>
+<tr>
+<td><code>ndiffs()</code></td>
+<td>forecast</td>
+<td>How many times must this series be differenced?</td>
+</tr>
+</tbody>
+</table>
+
+<p>The takeaways worth carrying:</p>
+
+<ul>
+
+<li><strong>The Granger test is an F test on two nested regressions.</strong> One model sees Y's own past, the other also sees X's past, and the test asks whether the extra columns cut the forecast error by more than chance.</li>
+
+<li><strong>Non-stationary data breaks the test silently.</strong> A nominal 5% test rejected 10.7% of the time on independent random walks. Difference until the series settles, or use Toda-Yamamoto on the levels.</li>
+
+<li><strong>Pick lags by criterion, then check the neighbours.</strong> A verdict that holds from lag 1 to lag 6 is solid. Unemployment's borderline result in the Canada system evaporated when we moved from two lags to three.</li>
+
+<li><strong>Granger causality is not causation.</strong> Exercise 3 built a confounded system where a bivariate test returned p = 3.071e-26 for an arrow that does not exist in the generating code.</li>
+
+<li><strong>The impulse response is your model replayed forward from a nudge.</strong> We rebuilt it from the coefficient matrices and matched <code>irf()</code> to within 8.3e-17.</li>
+
+<li><strong>The Cholesky ordering is an assumption, not a finding.</strong> Reordering two columns changed the impact response of employment to an unemployment shock from 0.0000 to -0.2535. State the ordering you used and show at least one alternative alongside it.</li>
+
+<li><strong>Read the bootstrap band, not just the line.</strong> The employment shock moved unemployment for three quarters; after that the interval covered zero and the model had nothing left to say.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Granger, C. W. J. - <em>Investigating Causal Relations by Econometric Models and Cross-spectral Methods</em>. Econometrica 37(3), 424-438 (1969). The original definition of the causality concept tested here. <a href="https://ideas.repec.org/a/ecm/emetrp/v37y1969i3p424-38.html">Link</a></li>
+
+<li>Toda, H. Y. and Yamamoto, T. - <em>Statistical inference in vector autoregressions with possibly integrated processes</em>. Journal of Econometrics 66(1-2), 225-250 (1995). The augmented-lag procedure used in the levels section. <a href="https://ideas.repec.org/a/eee/econom/v66y1995i1-2p225-250.html">Link</a></li>
+
+<li>Pfaff, B. - <em>VAR, SVAR and SVEC Models: Implementation Within R Package vars</em>. Journal of Statistical Software 27(4) (2008). The paper behind <code>causality()</code>, <code>irf()</code> and <code>fevd()</code>. <a href="https://www.jstatsoft.org/article/view/v027i04">Link</a></li>
+
+<li>Pfaff, B. - vars package reference manual on CRAN. Argument-by-argument detail for every vars function used above. <a href="https://cran.r-project.org/web/packages/vars/vars.pdf">Link</a></li>
+
+<li>Zeileis, A. and Hothorn, T. - lmtest package reference manual on CRAN. Documents <code>grangertest()</code> and the <code>ChickEgg</code> dataset. <a href="https://cran.r-project.org/web/packages/lmtest/lmtest.pdf">Link</a></li>
+
+<li>R documentation - Test for Granger Causality. The <code>grangertest()</code> help page, including its bivariate-only restriction. <a href="https://search.r-project.org/CRAN/refmans/lmtest/html/grangertest.html">Link</a></li>
+
+<li>R documentation - Impulse response function. The <code>irf()</code> help page covering <code>ortho</code>, <code>cumulative</code>, <code>boot</code> and <code>runs</code>. <a href="https://search.r-project.org/CRAN/refmans/vars/html/irf.html">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Background on stationarity, differencing and multivariate forecasting. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="VAR-Models-in-R.html">VAR Models in R</a> - the full fitting and forecasting workflow for the vector autoregressions this tutorial tested causality on.</li>
+
+<li><a href="Cointegration-in-R.html">Cointegration in R</a> - what to do when two series share a long-run relationship and differencing would throw it away.</li>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> - the ADF and KPSS tests behind <code>ndiffs()</code>, and how to read them when they disagree.</li>
+
+</ul>
+
+{% endraw %}
