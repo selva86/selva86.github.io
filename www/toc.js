@@ -438,7 +438,7 @@ function saveStarted(s) {
     var ret = document.createElement('div');
     ret.className = 'bn-return';
     ret.innerHTML = '<div class="bn-return-hint">You are reading a chapter of</div>' +
-      '<button type="button" class="bn-return-btn" data-bn-book>' + esc(book.short || book.title) + ' book &rarr;</button>';
+      '<button type="button" class="bn-return-btn" data-bn-book>' + esc(book.short || book.title) + ' &rarr;</button>';
     main.insertBefore(ret, main.firstChild);
     var bookPanel = document.createElement('div');
     bookPanel.className = 'bn-panel';

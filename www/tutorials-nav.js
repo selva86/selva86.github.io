@@ -7,8 +7,11 @@
 (function () {
   if (window.__tutorialsNav) return; window.__tutorialsNav = 1;
 
-  var BOOKS = [
-    { href: "/tutorials/time-series.html", name: "Time Series Forecasting", meta: "74 chapters, 13 parts" }
+  // Books come from the same registry the scoped sidebar uses, so new books
+  // and renames appear here without touching this module. Falls back to a
+  // static list if the fetch fails.
+  var FALLBACK_BOOKS = [
+    { href: "/tutorials/time-series.html", name: "The Time Series Forecasting Handbook", meta: "74 chapters, 13 parts" }
   ];
 
   var CAR = '<svg class="nav-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -62,15 +65,29 @@
     tut.setAttribute('aria-haspopup', 'true');
     tut.setAttribute('aria-expanded', 'false');
 
-    var books = BOOKS.map(function (b) {
-      return '<a href="' + b.href + '"><span class="tn-book-t">' + b.name + '</span><span class="tn-book-m">' + b.meta + '</span></a>';
-    }).join('');
+    function bookRows(list) {
+      return list.map(function (b) {
+        return '<a href="' + b.href + '"><span class="tn-book-t">' + b.name + '</span><span class="tn-book-m">' + b.meta + '</span></a>';
+      }).join('');
+    }
     var drop = document.createElement('div');
     drop.className = 'tn-drop';
     drop.setAttribute('role', 'menu');
     drop.innerHTML = '<a class="tn-all" href="/tutorials/" role="menuitem">All tutorials <span class="a">&rarr;</span></a>' +
-      '<div class="tn-lab">Books</div>' + books;
+      '<div class="tn-lab">Books</div>' + bookRows(FALLBACK_BOOKS);
     wrap.appendChild(drop);
+
+    fetch('/www/curricula.json?v=1').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      if (!data || !data.books || !data.books.length) return;
+      var rows = data.books.map(function (b) {
+        var n = 0;
+        (b.parts || []).forEach(function (p) { n += (p.chapters || []).length; });
+        return { href: b.index, name: b.title, meta: n + ' chapters, ' + (b.parts || []).length + ' parts' };
+      });
+      var lab = drop.querySelector('.tn-lab');
+      while (lab.nextSibling) drop.removeChild(lab.nextSibling);
+      lab.insertAdjacentHTML('afterend', bookRows(rows));
+    }).catch(function () {});
 
     var closeT = null;
     function setOpen(on) {
