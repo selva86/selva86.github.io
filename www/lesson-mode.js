@@ -312,13 +312,17 @@
           : esc(courseTitle || '');
         g = document.createElement('div');
         g.className = 'lm-gate';
-        g.innerHTML = '<div class="lm-gate-card">' +
+        // tex2jax_ignore: MathJax runs on lesson pages and would otherwise
+        // treat the two $ signs in the price line as inline-math delimiters
+        // (eating them and collapsing the spaces between).
+        g.innerHTML = '<div class="lm-gate-card tex2jax_ignore">' +
           '<div class="lm-gate-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>' +
           '<h3>' + (isProUser ? 'This lesson is in a different track' : 'This is a Pro lesson') + '</h3>' +
           (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
           (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
           '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
-          '<p class="lm-gate-price">From $9/month or $129/year founding price · 14-day money-back guarantee</p>' +
+          '<p class="lm-gate-price">From $9/month · $129/year founding price</p>' +
+          '<p class="lm-gate-fine">14-day money-back guarantee · cancel anytime</p>' +
           '<a class="lm-gate-free" data-gate-free hidden>The first lessons of this course are free &rarr;</a><br>' +
           '<a class="lm-gate-back" href="' + esc(exitTarget()) + '">&larr; Back to ' + esc(exitLabel()) + '</a>' +
           '</div>';
