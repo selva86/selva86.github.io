@@ -177,7 +177,7 @@ def run_write_skill(claude: str, slug: str, regenerate: bool, dry_run: bool) -> 
     log(f"  Spawning write: {prompt}")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt, "--dangerously-skip-permissions"],
+            [claude, "-p", prompt, "--dangerously-skip-permissions", "--model", "claude-opus-4-8", "--effort", "xhigh"],
             cwd=str(PROJECT_ROOT), timeout=WRITE_TIMEOUT
         )
         return result.returncode
@@ -198,7 +198,7 @@ def run_publish_skill(claude: str, slug: str, dry_run: bool,
     log(f"  Spawning publish: {prompt}")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt, "--dangerously-skip-permissions"],
+            [claude, "-p", prompt, "--dangerously-skip-permissions", "--model", "claude-opus-4-8", "--effort", "xhigh"],
             cwd=str(PROJECT_ROOT), timeout=PUBLISH_TIMEOUT
         )
         return result.returncode
