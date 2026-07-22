@@ -117,6 +117,12 @@
     var stripped = body.getAttribute('data-stripped') === '1';
     var locked = ((access === 'pro') && !body.classList.contains('pro')) || stripped;
     if (!stripped) { try { sessionStorage.removeItem('rsc-lm-reload:' + location.pathname); } catch (e) {} }
+    // Gate v2 hold: a signed-in visitor holding a FULL (unstripped) Pro page
+    // was verified Pro at the edge; give auth-hydrate a beat to confirm before
+    // walling so paying users never see the gate flash. Anonymous visitors and
+    // stripped pages gate instantly.
+    var gateHold = locked && !stripped && hasAuthToken();
+    if (gateHold) setTimeout(function () { if (gateHold) { gateHold = false; if (locked) render(); } }, 700);
 
     /* ---- account gate (free courses): first 2 lessons of a course are open to
        anyone; lesson 3+ asks for a free account. Mutually exclusive with the Pro
@@ -146,6 +152,7 @@
         } else { locked = false; render(); }
       }
       if (me && me.user && accountLocked) { accountLocked = false; signedIn = true; render(); }
+      if (gateHold) { gateHold = false; if (locked) render(); }
       hydrateSolved();
     });
 
@@ -262,6 +269,78 @@
       stage.scrollTop = 0;
     }
 
+    /* ---- Pro gate v2: instant wall over a faded first-content-step teaser.
+       The server already strips steps 3+ for non-entitled requests, so the
+       teaser exposes only what the old 2-step preview served anyway. ---- */
+    function teardownGate() {
+      var g = stage.querySelector('.lm-gate'); if (g) g.style.display = 'none';
+      stage.classList.remove('lm-gatelock');
+      steps.forEach(function (s) { s.classList.remove('lm-teaser', 'lm-teaser-quiz'); });
+      var sg = app.querySelector('.lm-segs'); if (sg) sg.classList.remove('lm-gated');
+      var sp = app.querySelector('.lm-stepper'); if (sp) sp.classList.remove('lm-gated');
+    }
+    function fillGateFreeLink() {
+      var a = stage.querySelector('[data-gate-free]');
+      if (!a || !railCourse || !railCourse.lessons) return;
+      for (var j = 0; j < railCourse.lessons.length; j++) {
+        var l = railCourse.lessons[j];
+        if (String(l.access || '').toLowerCase() !== 'pro' && l.built !== false && l.slug !== curSlug) {
+          a.href = '/' + esc(l.slug) + '.html'; a.hidden = false; return;
+        }
+      }
+    }
+    function renderProGate() {
+      steps.forEach(function (s) { s.classList.remove('on'); });
+      var pw = stage.querySelector('.lm-paywall'); if (pw) pw.style.display = 'none';
+      var teaser = steps.length > 1 ? steps[1] : steps[0];
+      if (teaser) {
+        teaser.classList.add('on', 'lm-teaser');
+        if (lessonKind === 'quiz') teaser.classList.add('lm-teaser-quiz');
+        if (window.LessonWidgets) { try { window.LessonWidgets.mountAll(teaser); } catch (e) {} }
+      }
+      stage.classList.add('lm-gatelock');
+      var g = stage.querySelector('.lm-gate');
+      if (!g) {
+        var isProUser = body.classList.contains('pro');
+        var desc = '';
+        try {
+          var m = document.querySelector('meta[name="Description"]') || document.querySelector('meta[name="description"]');
+          desc = (m && m.getAttribute('content')) || '';
+        } catch (e) {}
+        var pos = (ds.courseLesson && ds.courseTotal)
+          ? 'Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + (courseTitle ? ' · ' + esc(courseTitle) : '') + ' · ' + total + ' steps'
+          : esc(courseTitle || '');
+        g = document.createElement('div');
+        g.className = 'lm-gate';
+        g.innerHTML = '<div class="lm-gate-card">' +
+          '<div class="lm-gate-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>' +
+          '<h3>' + (isProUser ? 'This lesson is in a different track' : 'This is a Pro lesson') + '</h3>' +
+          (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
+          (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
+          '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
+          '<p class="lm-gate-price">From $9/month or $129/year founding price · 14-day money-back guarantee</p>' +
+          '<a class="lm-gate-free" data-gate-free hidden>The first lessons of this course are free &rarr;</a><br>' +
+          '<a class="lm-gate-back" href="' + esc(exitTarget()) + '">&larr; Back to ' + esc(exitLabel()) + '</a>' +
+          '</div>';
+        stage.appendChild(g);
+        g.addEventListener('click', function (ev) {
+          var t = ev.target.closest && ev.target.closest('[data-gate-cta],[data-gate-free]');
+          if (!t) return;
+          try { if (typeof gtag === 'function') gtag('event', 'pro_gate_cta', { target: t.hasAttribute('data-gate-cta') ? 'pricing' : 'free-lesson', lesson: curSlug }); } catch (e) {}
+        });
+        try { if (typeof gtag === 'function') gtag('event', 'pro_gate_view', { lesson: curSlug, course: courseId || '' }); } catch (e) {}
+      } else { g.style.display = ''; }
+      fillGateFreeLink();
+      segEls.forEach(function (e2) { e2.className = ''; });
+      curEl.textContent = 1;
+      midEl.textContent = 'Pro lesson';
+      backBtn.disabled = true;
+      contBtn.disabled = true;
+      var sg2 = app.querySelector('.lm-segs'); if (sg2) sg2.classList.add('lm-gated');
+      var sp2 = app.querySelector('.lm-stepper'); if (sp2) sp2.classList.add('lm-gated');
+      stage.scrollTop = 0;
+    }
+
     function renderSignInWall() {
       steps.forEach(function (s) { s.classList.remove('on'); });
       var w = stage.querySelector('.lm-signin');
@@ -286,9 +365,10 @@
 
     function render() {
       if (accountLocked) { renderSignInWall(); return; }
-      // Enforce the Pro wall on every render, not only on forward clicks:
-      // resume state, storage edits and re-renders all funnel through here.
-      if (locked && i >= PREVIEW_STEPS) { i = PREVIEW_STEPS - 1; renderPaywall(); return; }
+      // Gate v2: locked lessons never render content - the gate over its
+      // faded teaser is the entire experience until entitlement unlocks.
+      if (locked && !gateHold) { renderProGate(); return; }
+      teardownGate();
       var sw = stage.querySelector('.lm-signin'); if (sw) sw.style.display = 'none';
       if (showingPaywall) { var p = stage.querySelector('.lm-paywall'); if (p) p.style.display = 'none'; showingPaywall = false; }
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
@@ -313,8 +393,8 @@
         if (target >= total && i === total - 1 && nextHref) { location.href = nextHref; }
         return;
       }
-      // Pro wall: free preview is the first PREVIEW_STEPS; block beyond it.
-      if (delta > 0 && locked && target >= PREVIEW_STEPS) { renderPaywall(); return; }
+      // Gate v2 belt-and-suspenders: no stepping while locked, any direction.
+      if (locked && !gateHold) { renderProGate(); return; }
       i = target;
       render();
     }
@@ -467,6 +547,7 @@
         wireRail();
         renderRail();
         renderCrumbs();
+        fillGateFreeLink();
         if (i === total - 1) showCompleteActions();   // refresh the card with progress if we're already on the end
       }).catch(function () {});
     }
