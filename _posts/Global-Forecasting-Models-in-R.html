@@ -1,0 +1,1503 @@
+---
+title: "Global Forecasting Models in R: Learn Across Many Series"
+description: "Train one forecasting model across 152 retail series in R. Build the pooled table, fix the scaling trap, and measure when global beats one per series."
+keywords: "global forecasting model R, cross-learning time series, forecasting many time series R, pooled forecasting model, local vs global forecasting, panel data forecasting R, aus_retail forecasting, one model many series"
+mathjax: true
+webr: true
+curriculum_id: "TS2-9.3"
+post_type: "C"
+auto_link_terms: "global forecasting model|global forecasting models|cross-learning|cross learning across series|local vs global forecasting|one model per series|pooled forecasting model|panel data forecasting|forecasting many time series|per-series scaling|cold start forecasting|pooled training table"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Global Forecasting Models"
+sidebar_order: "43"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A global forecasting model is a single model fitted to the stacked history of many time series at once, so that a pattern learned from one series improves the forecast for all the others. It is how the M4 and M5 competitions were won, and it is the only practical option once you have thousands of series to forecast. This page builds one on 152 real Australian retail series, walks into the scaling trap that ruins most pooled models, and then measures whether the global model actually beats one model per series. On this data it does not, and finding out exactly why turns out to be the most useful thing on the page. Every number here was measured, not estimated.</p>
+
+<h2>What is a global forecasting model, and how is it different from what you do now?</h2>
+
+<p>If you have forecast more than one series before, you have almost certainly written a loop. For each product, each store, each region, you fit a model, produce a forecast, then move on to the next one. That is the local approach, and it is what nearly every forecasting tutorial teaches. A global model reverses it: instead of 500 models that each saw one series, you build one model that saw all 500.</p>
+
+<p>We will work with <code>aus_retail</code>, which ships with the <code>tsibbledata</code> package. It holds monthly retail turnover for every combination of Australian state and retail industry, which is exactly the shape of problem global models were invented for.</p>
+
+<div class="webr-container" data-block-title="Load 152 retail series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load 152 retail series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibbledata)
+library(tsibble)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+
+state_code &lt;- c(&quot;Australian Capital Territory&quot; = &quot;ACT&quot;, &quot;New South Wales&quot; = &quot;NSW&quot;,
+                &quot;Northern Territory&quot; = &quot;NT&quot;,  &quot;Queensland&quot; = &quot;QLD&quot;,
+                &quot;South Australia&quot; = &quot;SA&quot;,     &quot;Tasmania&quot; = &quot;TAS&quot;,
+                &quot;Victoria&quot; = &quot;VIC&quot;,           &quot;Western Australia&quot; = &quot;WA&quot;)
+
+retail &lt;- as_tibble(aus_retail) |&gt;
+  mutate(series = paste(state_code[State], Industry, sep = &quot; / &quot;),
+         Month  = as_date(Month)) |&gt;
+  select(series, Industry, Month, Turnover)
+
+cat(&quot;series:&quot;, length(unique(retail$series)),
+    &quot; rows:&quot;, nrow(retail),
+    &quot; months:&quot;, format(min(retail$Month)), &quot;to&quot;, format(max(retail$Month)), &quot;\n&quot;)
+head(retail, 4)
+#&gt; series: 152  rows: 64532  months: 1982-04-01 to 2018-12-01
+#&gt; # A tibble: 4 × 4
+#&gt;   series                                         Industry                        Month      Turnover
+#&gt;   &lt;chr&gt;                                          &lt;chr&gt;                           &lt;date&gt;        &lt;dbl&gt;
+#&gt; 1 ACT / Cafes, restaurants and catering services Cafes, restaurants and caterin… 1982-04-01      4.4
+#&gt; 2 ACT / Cafes, restaurants and catering services Cafes, restaurants and caterin… 1982-05-01      3.4
+#&gt; 3 ACT / Cafes, restaurants and catering services Cafes, restaurants and caterin… 1982-06-01      3.6
+#&gt; 4 ACT / Cafes, restaurants and catering services Cafes, restaurants and caterin… 1982-07-01      4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what those lines did. <code>aus_retail</code> arrives as a tsibble, a table that knows which column is time and which columns identify each separate series, so <code>as_tibble()</code> strips that wrapper off and leaves us with an ordinary data frame. The <code>state_code</code> vector is a lookup table: writing <code>state_code[State]</code> replaces every long state name with its three-letter code, which keeps the series labels short enough to read. <code>as_date()</code> turns the year-month labels into real dates so <code>lubridate</code> can pull months and years out of them later.</p>
+
+<p>The result is 64,532 monthly observations spread across 152 separate series, each running from April 1982 to December 2018. That is 152 forecasting problems, and 152 is a small number by industrial standards. A supermarket chain forecasts a few hundred thousand.</p>
+
+<p>The single most important fact about these series is that they are not the same size. Some of them are not even close.</p>
+
+<div class="webr-container" data-block-title="Compare the size of the series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the size of the series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sizes &lt;- retail |&gt;
+  group_by(series) |&gt;
+  summarise(months = n(), avg = round(mean(Turnover), 1), .groups = &quot;drop&quot;) |&gt;
+  arrange(avg)
+
+bind_rows(head(sizes, 3), tail(sizes, 3))
+#&gt; # A tibble: 6 × 3
+#&gt;   series                                               months    avg
+#&gt;   &lt;chr&gt;                                                 &lt;int&gt;  &lt;dbl&gt;
+#&gt; 1 NT / Newspaper and book retailing                       369    2.5
+#&gt; 2 NT / Footwear and other personal accessory retailing    369    3.3
+#&gt; 3 NT / Other recreational goods retailing                 369    3.3
+#&gt; 4 VIC / Food retailing                                    441 1279.
+#&gt; 5 NSW / Supermarket and grocery stores                    441 1322
+#&gt; 6 NSW / Food retailing                                    441 1653.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>group_by()</code> splits the table into one group per series, <code>summarise()</code> collapses each group to a single row holding its length and its average turnover, and <code>arrange()</code> sorts the result so the smallest series float to the top. Stacking the first three rows on top of the last three with <code>bind_rows()</code> gives us both ends of the range in one view.</p>
+
+<p>Read the <code>avg</code> column. Newspaper and book retailing in the Northern Territory averages 2.5 million dollars a month. Food retailing in New South Wales averages 1,653 million. The largest series is roughly 650 times the smallest. Hold on to that number, because it is the single fact that decides whether a global model works or falls over, and we will come back to it in a dedicated section.</p>
+
+<p><img src="screenshots/Global-Forecasting-Models-in-R-local-vs-global.webp" alt="Two ways to forecast 152 series: one model per series, or one model for all of them" class="img-responsive img-zoomable" loading="lazy" width="1930" height="690" /></p>
+
+<p><em>Figure 1: The same 152 series, fitted two ways.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A local approach stores one set of parameters per series, a global approach stores one set in total.</strong> That single sentence is the whole difference. Everything else on this page, the scaling, the accuracy comparison, the cold-start trick, follows from the fact that one shared set of numbers has to serve every series at once.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below lists three New South Wales series in ascending order of size. Change it to show the three <em>largest</em> Victorian series instead. You need to change the state code and add a sort.</p>
+<div class="webr-container" data-block-title="Your turn: find the largest Victorian series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the largest Victorian series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sizes &lt;- sizes |&gt; filter(startsWith(series, &quot;NSW&quot;))
+head(ex_sizes, 3)
+#&gt; # A tibble: 3 × 3
+#&gt;   series                                                months   avg
+#&gt;   &lt;chr&gt;                                                  &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 NSW / Other recreational goods retailing                 441  74.4
+#&gt; 2 NSW / Newspaper and book retailing                       441  92.2
+#&gt; 3 NSW / Footwear and other personal accessory retailing    441 134.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Largest Victorian series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Largest Victorian series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_big &lt;- sizes |&gt; filter(startsWith(series, &quot;VIC&quot;)) |&gt; arrange(desc(avg))
+head(ex_big, 3)
+#&gt; # A tibble: 3 × 3
+#&gt;   series                               months   avg
+#&gt;   &lt;chr&gt;                                 &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 VIC / Food retailing                    441 1279.
+#&gt; 2 VIC / Supermarket and grocery stores    441 1083.
+#&gt; 3 VIC / Household goods retailing         441  621.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sizes</code> was already sorted ascending by <code>arrange(avg)</code>, so <code>head()</code> returned the smallest. Adding <code>arrange(desc(avg))</code> reverses the order and puts the biggest series first.</p>
+
+</details>
+</section>
+
+<h2>Why would a model trained on other retailers' sales help predict yours?</h2>
+
+<p>This is the question that decides whether the whole idea is sensible. Why should sales of hardware in South Australia teach a model anything useful about clothing sales in Tasmania? They are different products, different customers, different states.</p>
+
+<p>The answer is that the model is not learning about hardware or clothing. It is learning about <em>shape</em>: the way retail turnover moves from month to month. Let us look at four series drawn from opposite ends of the size range.</p>
+
+<div class="webr-container" data-block-title="Plot four series in actual dollars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot four series in actual dollars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">few &lt;- c(&quot;NT / Newspaper and book retailing&quot;,
+         &quot;TAS / Clothing retailing&quot;,
+         &quot;VIC / Liquor retailing&quot;,
+         &quot;NSW / Food retailing&quot;)
+
+ggplot(filter(retail, series %in% few), aes(Month, Turnover, colour = series)) +
+  geom_line() +
+  labs(title = &quot;Four retail series in actual dollars&quot;, y = &quot;Turnover ($ million)&quot;, x = NULL) +
+  theme_minimal() + theme(legend.position = &quot;bottom&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that and you get a chart with one line soaring near 2,000 and three lines squashed flat along the bottom axis. In dollar terms these series have nothing in common. You cannot even see the shape of the small ones.</p>
+
+<p>Now divide every series by its own long-run average, so each one is expressed as a multiple of its own typical month rather than in dollars.</p>
+
+<div class="webr-container" data-block-title="Plot the same four series relative to their own average">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the same four series relative to their own average</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">retail |&gt;
+  filter(series %in% few) |&gt;
+  group_by(series) |&gt;
+  mutate(relative = Turnover / mean(Turnover)) |&gt;
+  ggplot(aes(Month, relative, colour = series)) +
+  geom_line() +
+  labs(title = &quot;The same four series, each divided by its own average&quot;,
+       y = &quot;Turnover / series average&quot;, x = NULL) +
+  theme_minimal() + theme(legend.position = &quot;bottom&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four lines now sit on top of each other. All four climb over the decades, all four wobble up and down within each year, and all four spike at the same time of year. The dollar amounts were hiding a common structure that was there the whole time.</p>
+
+<p>That impression deserves a number rather than an eyeball. Below we compute a seasonal index for every series: for each calendar month, how does turnover in that month compare to the average month of the same year?</p>
+
+<div class="webr-container" data-block-title="Measure the shared seasonal shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the shared seasonal shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">seasonal &lt;- retail |&gt;
+  group_by(series, yr = year(Month)) |&gt;
+  mutate(year_avg = mean(Turnover)) |&gt;
+  ungroup() |&gt;
+  group_by(series, mth = month(Month)) |&gt;
+  summarise(index = mean(Turnover / year_avg), .groups = &quot;drop&quot;)
+
+seasonal |&gt;
+  group_by(mth) |&gt;
+  summarise(median_index = round(median(index), 2),
+            share_above_average = round(mean(index &gt; 1), 2)) |&gt;
+  as.data.frame()
+#&gt;    mth median_index share_above_average
+#&gt; 1    1         0.94                0.08
+#&gt; 2    2         0.87                0.02
+#&gt; 3    3         0.94                0.14
+#&gt; 4    4         0.93                0.04
+#&gt; 5    5         0.98                0.15
+#&gt; 6    6         0.95                0.16
+#&gt; 7    7         0.98                0.24
+#&gt; 8    8         0.98                0.33
+#&gt; 9    9         0.98                0.28
+#&gt; 10  10         1.03                0.79
+#&gt; 11  11         1.05                0.93
+#&gt; 12  12         1.38                1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the calculation. The first <code>group_by()</code> works within each series and each year, so <code>year_avg</code> becomes the average month of that particular year for that particular series. Dividing an actual month by that average removes both the size of the series and the long-run trend, leaving only the seasonal wobble. The second <code>group_by()</code> then averages that ratio across all the years, giving one index per calendar month per series. Finally we <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> across all 152 series.</p>
+
+<p>Now read the last column, which is the share of series whose index for that month is above 1. In December it is 1.00. Every single one of the 152 series, in every state, in every industry, sells more in December than in its average month, by a median of 38 percent. November is 0.93 and October is 0.79. February is the mirror image: only 2 percent of series are above average.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The seasonal shape is common to all 152 series, and anything common can be learned once and reused.</strong> A local model fitted to one Tasmanian clothing series has to rediscover the December spike from that series alone. A global model has already seen 151 other series agree that December is high, so it arrives at your series with the answer mostly worked out.</div></div>
+
+<p>This is what the literature calls cross-learning, and it has a firmer theoretical footing than you might expect. Montero-Manso and Hyndman proved that for time series forecasting, global methods are not more restrictive than local ones: any set of local models can in principle be matched by a single global model, given enough flexibility. They also showed that the complexity a local approach needs grows with the number of series, while a global model's stays constant. That means a global model can afford to be more complex than any individual series could ever support, and still generalise well.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below summarises December's seasonal index across all 152 series as five quantiles. Change it to look at February instead, and see how the whole distribution shifts below 1.</p>
+<div class="webr-container" data-block-title="Your turn: summarise a month&#x27;s seasonal index">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: summarise a month&#x27;s seasonal index</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dec &lt;- seasonal |&gt; filter(mth == 12)
+round(quantile(ex_dec$index, c(0, 0.25, 0.5, 0.75, 1)), 2)
+#&gt;   0%  25%  50%  75% 100%
+#&gt; 1.02 1.19 1.38 1.52 1.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="February seasonal index solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">February seasonal index solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_feb &lt;- seasonal |&gt; filter(mth == 2)
+round(quantile(ex_feb$index, c(0, 0.25, 0.5, 0.75, 1)), 2)
+#&gt;   0%  25%  50%  75% 100%
+#&gt; 0.71 0.84 0.87 0.90 1.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The weakest December series still reaches 1.02, while February's strongest barely scrapes past 1.0 at 1.07. The two months hardly overlap at all. That consistency across 152 independent series is precisely the regularity a pooled model can exploit.</p>
+
+</details>
+</section>
+
+<h2>How do you stack many series into one training table?</h2>
+
+<p>A model like <code>lm()</code> does not read a time series. It reads a table, one row at a time, and it has no idea the rows are in any order. Before it can forecast anything, the past has to be copied into each row as ordinary columns. If that idea is new to you, the <a href="Feature-Engineering-for-Forecasting-in-R.html">feature engineering tutorial</a> covers it in depth. Here we need just enough of it to make the pooling point.</p>
+
+<p>For each month we build five predictor columns: turnover one, two and three months earlier, and turnover twelve and thirteen months earlier. The first three capture short-run momentum, the last two capture where the series was at this point last year.</p>
+
+<div class="webr-container" data-block-title="Build the pooled training table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the pooled training table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">make_rows &lt;- function(df) {
+  df &lt;- df[order(df$Month), ]
+  y  &lt;- df$Turnover
+  n  &lt;- length(y)
+  lg &lt;- function(k) c(rep(NA_real_, k), y[seq_len(n - k)])
+
+  data.frame(series   = df$series[1],
+             Industry = df$Industry[1],
+             Month    = df$Month,
+             y        = y,
+             lag1  = lg(1),  lag2 = lg(2), lag3 = lg(3),
+             lag12 = lg(12), lag13 = lg(13),
+             month = month(df$Month))
+}
+
+pool &lt;- do.call(rbind, lapply(split(retail, retail$series), make_rows))
+pool &lt;- pool[complete.cases(pool), ]
+pool$month &lt;- factor(pool$month)
+row.names(pool) &lt;- NULL
+
+cat(&quot;pooled rows:&quot;, nrow(pool), &quot; from&quot;, length(unique(pool$series)), &quot;series\n&quot;)
+head(pool[, c(&quot;series&quot;, &quot;Month&quot;, &quot;y&quot;, &quot;lag1&quot;, &quot;lag12&quot;, &quot;month&quot;)], 3)
+#&gt; pooled rows: 62556  from 152 series
+#&gt;                                           series      Month   y lag1 lag12 month
+#&gt; 1 ACT / Cafes, restaurants and catering services 1983-05-01 4.3  4.4   3.4     5
+#&gt; 2 ACT / Cafes, restaurants and catering services 1983-06-01 4.3  4.3   3.6     6
+#&gt; 3 ACT / Cafes, restaurants and catering services 1983-07-01 4.6  4.3   4.0     7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper deserves a line-by-line reading, because everything downstream rests on it. <code>lg(k)</code> builds a lagged column by gluing <code>k</code> <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> onto the front of the series and dropping <code>k</code> values off the back, which slides every value down by <code>k</code> rows. <code>split()</code> cuts the 152 series apart, <code>lapply()</code> runs the helper on each one separately, and <code>do.call(rbind, ...)</code> stacks the 152 results back into one table. Splitting first is not optional: if you lagged the whole table at once, the last row of one series would leak into the first row of the next.</p>
+
+<p><code>complete.cases()</code> then drops the first thirteen rows of every series, the ones where the lags do not exist yet. That costs us 1,976 rows and leaves 62,556. Turning <code>month</code> into a factor tells <code>lm()</code> to treat it as twelve separate categories rather than a number where December is twelve times January.</p>
+
+<p><img src="screenshots/Global-Forecasting-Models-in-R-pooled-table.webp" alt="Every series contributes rows to a single pooled training table" class="img-responsive img-zoomable" loading="lazy" width="1844" height="986" /></p>
+
+<p><em>Figure 2: Every series contributes rows to one training table.</em></p>
+
+<p>Look at the table that came out. It has a <code>series</code> column, but every other column is just a number. Rows from Tasmanian clothing and rows from New South Wales food sit side by side, and nothing marks where one series ends and the next begins. That is the point. To the model this is one dataset of 62,556 examples of the question "given these five recent numbers and this calendar month, what comes next?"</p>
+
+<p>Now we split into a training period and a test period, by date.</p>
+
+<div class="webr-container" data-block-title="Split by date, not by row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split by date, not by row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- pool[pool$Month &lt;= as.Date(&quot;2017-12-01&quot;), ]
+test  &lt;- pool[pool$Month &gt;= as.Date(&quot;2018-01-01&quot;), ]
+
+cat(&quot;train rows:&quot;, nrow(train), &quot; test rows:&quot;, nrow(test),
+    &quot; series in test:&quot;, length(unique(test$series)), &quot;\n&quot;)
+cat(&quot;train ends:&quot;, format(max(train$Month)), &quot; test starts:&quot;, format(min(test$Month)), &quot;\n&quot;)
+#&gt; train rows: 60780  test rows: 1776  series in test: 148
+#&gt; train ends: 2017-12-01  test starts: 2018-01-01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Everything up to December 2017 trains the model. All of 2018 is held back. That is 1,776 test points, which is 12 months across 148 series. The count is 148 rather than 152 because four categories, liquor and specialised food retailing in Queensland and Tasmania, stopped being reported before 2018. Real datasets have holes like that, and a global model absorbs them without complaint.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Split by date, never by random rows.</strong> A random split would put January 2018 in training and February 2018 in testing, and since February's <code>lag1</code> column literally contains January's value, the model would be shown the answer. Every series must be cut at the same calendar moment.</div></div>
+
+<p>Be clear about what "forecast 2018" means here, because it decides how to read every number on the rest of the page. February 2018's <code>lag1</code> column holds January 2018's actual turnover, so when we score February we are standing at the end of January, not at the end of 2017. Every prediction below is therefore one month ahead, scored across all twelve months of 2018. That is the standard way to compare models that all use the same lag columns, and it is what keeps the local and global comparison fair.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>One month ahead is not twelve months ahead.</strong> To produce a real twelve-month forecast from a December 2017 standing point, you need one of two extra strategies: feed each prediction back in as the next month's <code>lag1</code> and step forward a month at a time (recursive), or fit a separate model per horizon, one that predicts twelve months out directly from the lags you actually have (direct). Errors compound under the recursive strategy, so the numbers get worse the further out you go. Neither strategy changes anything about the pooling decision this page measures, which is why we hold the horizon fixed at one month throughout.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below counts how many training rows each series contributes and reports the range. Change it to list the three series with the fewest rows, so you can see which categories are barely represented.</p>
+<div class="webr-container" data-block-title="Your turn: count training rows per series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count training rows per series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_counts &lt;- table(pool$series[pool$Month &lt;= as.Date(&quot;2017-12-01&quot;)])
+range(ex_counts)
+#&gt; [1]  19 416</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shortest series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shortest series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_counts &lt;- table(pool$series[pool$Month &lt;= as.Date(&quot;2017-12-01&quot;)])
+head(sort(ex_counts), 3)
+#&gt;                 TAS / Liquor retailing TAS / Other specialised food retailing
+#&gt;                                     19                                     19
+#&gt;                 QLD / Liquor retailing
+#&gt;                                    127</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two Tasmanian series contribute only 19 training rows each, against 416 for a full-length series. A local model fitted to 19 rows with 17 parameters to estimate has essentially no chance. The global model simply treats those 19 rows as 19 more examples among 60,780.</p>
+
+</details>
+</section>
+
+<h2>Why must you rescale each series before pooling?</h2>
+
+<p>Now we fit the first real global model, and it will disappoint us. That is deliberate. The failure is the most valuable thing in this section, because it is the mistake that degrades pooled models in production without ever raising an error, a warning, or a bad-looking summary number.</p>
+
+<p>First we need a way to score a forecast that is fair across series of wildly different sizes. <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Mean absolute percentage error</a> does that: it converts every miss into a percentage of the actual value, so being 10 million out on a 1,600 million series counts as a small error, and being 10 million out on a 2.5 million series counts as a catastrophe.</p>
+
+<p>MAPE has two known weaknesses worth stating before we lean on it. It is undefined when the actual value is zero, and it penalises over-forecasting more heavily than under-forecasting. Retail turnover in this dataset never comes close to zero, so neither weakness bites here. If your series can hit zero, use MASE or RMSSE instead: both divide your error by the error a seasonal <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">naive forecast</a> would have made on the same series, which puts every series on a comparable footing without dividing by the actual value. RMSSE is the measure the M5 competition scored on.</p>
+
+<div class="webr-container" data-block-title="Score the seasonal naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the seasonal naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mape &lt;- function(actual, forecast) mean(abs(actual - forecast) / actual) * 100
+
+cat(&quot;seasonal naive MAPE:&quot;, round(mape(test$y, test$lag12), 2), &quot;%\n&quot;)
+#&gt; seasonal naive MAPE: 5.92 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is our benchmark. The seasonal naive forecast simply says "this month will be whatever it was twelve months ago", which is the <code>lag12</code> column we already built. It is wrong by 5.92 percent on average across 2018. Any model that cannot beat 5.92 is not worth deploying.</p>
+
+<p>Now the global model. One call to <code>lm()</code>, one formula, all 60,780 rows.</p>
+
+<div class="webr-container" data-block-title="Fit a global model on raw turnover">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a global model on raw turnover</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">form &lt;- y ~ lag1 + lag2 + lag3 + lag12 + lag13 + month
+
+global_raw  &lt;- lm(form, data = train)
+pred_raw    &lt;- predict(global_raw, newdata = test)
+
+cat(&quot;global model, raw values, MAPE:&quot;, round(mape(test$y, pred_raw), 2), &quot;%\n&quot;)
+cat(&quot;coefficients:&quot;, length(coef(global_raw)), &quot;\n&quot;)
+#&gt; global model, raw values, MAPE: 5.73 %
+#&gt; coefficients: 17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Seventeen numbers, fitted once, now forecast all 148 series. That is a remarkable reduction in moving parts, and a poor result. It scores 5.73 percent against the seasonal naive's 5.92 percent, an improvement so small it would not survive a different test year.</p>
+
+<p>Something is badly wrong, and averaging hides it. Let us split the series into four groups by size and score each group separately.</p>
+
+<div class="webr-container" data-block-title="Find out which series the model failed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find out which series the model failed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scale_of &lt;- train |&gt; group_by(series) |&gt; summarise(scale = mean(y), .groups = &quot;drop&quot;)
+
+by_size &lt;- test |&gt;
+  mutate(pred = pred_raw) |&gt;
+  left_join(scale_of, by = &quot;series&quot;) |&gt;
+  mutate(size = cut(scale, quantile(scale_of$scale, c(0, .25, .5, .75, 1)),
+                    include.lowest = TRUE,
+                    labels = c(&quot;smallest&quot;, &quot;small&quot;, &quot;large&quot;, &quot;largest&quot;))) |&gt;
+  group_by(size) |&gt;
+  summarise(series = n_distinct(series),
+            median_turnover = round(median(scale), 1),
+            mape_raw = round(mape(y, pred), 2), .groups = &quot;drop&quot;)
+
+as.data.frame(by_size)
+#&gt;       size series median_turnover mape_raw
+#&gt; 1 smallest     36            10.2    13.19
+#&gt; 2    small     37            48.0     4.60
+#&gt; 3    large     37           119.8     3.20
+#&gt; 4  largest     38           358.0     2.24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>scale_of</code> records each series' average turnover during training. <code>cut()</code> with <code>quantile()</code> then chops the series into four equal-sized buckets by that average, and we score each bucket on its own.</p>
+
+<p>The result is stark. On the largest quarter of series the model is off by 2.24 percent, which is genuinely good. On the smallest quarter it is off by 13.19 percent, which is far worse than doing nothing at all. The single average of 5.73 percent describes no actual series. The model is excellent for big retailers and useless for small ones.</p>
+
+<p>The reason is the <a class="auto-link" href="Decision-Theory-in-R.html" title="Decision Theory in R: Loss Functions, Risk, Bayes Risk & Admissibility">loss function</a>. <code>lm()</code> chooses its 17 coefficients to minimise the total squared error in dollars, summed over every row of every series:</p>
+
+<p>$$\text{loss} = \sum_{i=1}^{152} \sum_{t} \left( y_{i,t} - \hat{y}_{i,t} \right)^{2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_{i,t}$ = actual turnover for series $i$ in month $t$, in millions of dollars</li>
+
+<li>$\hat{y}_{i,t}$ = the model's prediction for that same month</li>
+
+<li>the inner sum runs over every month of series $i$, the outer over all 152 series</li>
+
+</ul>
+
+<p>Now put numbers in. A 10 percent miss on New South Wales food retailing is about 165 million, which squared is roughly 27,000. A 10 percent miss on Northern Territory book retailing is 0.25 million, which squared is 0.06. The big series contributes four hundred thousand times more to the total. So whenever a coefficient value that suits the big series conflicts with one that suits the small series, the big series outweighs it four hundred thousand to one, and the fitted coefficients end up describing the big series alone.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Pooling raw values silently optimises for your largest series.</strong> The overall error looks acceptable because the big series dominate the average too. Always break your error down by series size before you trust a pooled model, or you will ship something that has quietly abandoned the long tail.</div></div>
+
+<p>The fix follows straight from the diagnosis. If the problem is that series live at different scales, put them all on the same scale. We divide every value in a series, target and lags alike, by that series' average turnover during the training period.</p>
+
+<div class="webr-container" data-block-title="Put every series on the same scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Put every series on the same scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lag_cols &lt;- c(&quot;lag1&quot;, &quot;lag2&quot;, &quot;lag3&quot;, &quot;lag12&quot;, &quot;lag13&quot;)
+
+train_s &lt;- left_join(train, scale_of, by = &quot;series&quot;)
+train_s[c(&quot;y&quot;, lag_cols)] &lt;- train_s[c(&quot;y&quot;, lag_cols)] / train_s$scale
+
+test_s &lt;- left_join(test, scale_of, by = &quot;series&quot;)
+test_s[lag_cols] &lt;- test_s[lag_cols] / test_s$scale
+
+head(train_s[, c(&quot;series&quot;, &quot;Month&quot;, &quot;y&quot;, &quot;lag1&quot;, &quot;lag12&quot;, &quot;scale&quot;)], 3)
+#&gt;                                           series      Month         y      lag1     lag12    scale
+#&gt; 1 ACT / Cafes, restaurants and catering services 1983-05-01 0.2160882 0.2211135 0.1708605 19.89928
+#&gt; 2 ACT / Cafes, restaurants and catering services 1983-06-01 0.2160882 0.2160882 0.1809111 19.89928
+#&gt; 3 ACT / Cafes, restaurants and catering services 1983-07-01 0.2311642 0.2160882 0.2010123 19.89928</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two details matter here. First, the scale is computed from the training window only. Using the full history including 2018 would leak information about the test period into the features. Second, we scale the target in the training data but not in the test data, because the test target is what we are trying to predict and must stay in its original dollars for scoring. We keep the <code>scale</code> column so we can convert predictions back.</p>
+
+<p>The ACT cafes series now sits around 0.22, meaning that month ran at 22 percent of the series' long-run average. Every series in the table now speaks the same language: multiples of its own typical month.</p>
+
+<div class="webr-container" data-block-title="Fit the global model on scaled values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the global model on scaled values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">global &lt;- lm(form, data = train_s)
+pred_global &lt;- predict(global, newdata = test_s) * test_s$scale
+
+cat(&quot;global model, scaled, MAPE:&quot;, round(mape(test$y, pred_global), 2), &quot;%\n&quot;)
+#&gt; global model, scaled, MAPE: 3.82 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note the <code>* test_s$scale</code> on the prediction line. The model returns a forecast in scaled units, so multiplying by the series' own scale converts it back to millions of dollars. Forget that step and every forecast comes out near 1.</p>
+
+<p>Error drops from 5.73 percent to 3.82 percent. Same data, same formula, same 17 coefficients, same <code>lm()</code> call. The only change was the units. Let us confirm the improvement landed where the damage was.</p>
+
+<div class="webr-container" data-block-title="Compare raw and scaled by series size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare raw and scaled by series size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">test |&gt;
+  mutate(raw = pred_raw, scaled = pred_global) |&gt;
+  left_join(scale_of, by = &quot;series&quot;) |&gt;
+  mutate(size = cut(scale, quantile(scale_of$scale, c(0, .25, .5, .75, 1)),
+                    include.lowest = TRUE,
+                    labels = c(&quot;smallest&quot;, &quot;small&quot;, &quot;large&quot;, &quot;largest&quot;))) |&gt;
+  group_by(size) |&gt;
+  summarise(mape_raw    = round(mape(y, raw), 2),
+            mape_scaled = round(mape(y, scaled), 2), .groups = &quot;drop&quot;) |&gt;
+  as.data.frame()
+#&gt;       size mape_raw mape_scaled
+#&gt; 1 smallest    13.19        5.95
+#&gt; 2    small     4.60        4.07
+#&gt; 3    large     3.20        3.06
+#&gt; 4  largest     2.24        2.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the whole lesson in four rows. The smallest series improve from 13.19 percent to 5.95 percent, less than half the error. The largest series get very slightly worse, 2.24 to 2.28, because they no longer monopolise the fit. That is the trade you want: a rounding error of harm to the series that were already fine, in exchange for rescuing the ones that were broken.</p>
+
+<p>It is worth looking at what the model actually learned, because with a linear model you can just read it.</p>
+
+<div class="webr-container" data-block-title="Read the learned coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the learned coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(global)[1:6], 3)
+#&gt; (Intercept)        lag1        lag2        lag3       lag12       lag13
+#&gt;      -0.033       0.737       0.053       0.040       0.840      -0.669</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those six numbers are a compact description of how Australian retail behaves. Last month carries a weight of 0.737 and the same month last year carries 0.840, so the forecast is roughly "where you were last month, corrected by where you were this time last year". The month before last year, <code>lag13</code>, comes in at -0.669, almost cancelling <code>lag12</code>.</p>
+
+<p>That combination is not arbitrary. Adding roughly one unit of <code>lag12</code> and subtracting roughly one unit of <code>lag13</code> is the same as adding last year's month-on-month <em>change</em> to this year's level. The model worked out, from data alone, that it should carry over last year's seasonal step rather than last year's level. Classical <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">seasonal ARIMA</a> models encode that exact structure by hand. Here 152 series agreed on it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> We scaled each series by its mean. The mean is sensitive to a few unusual months, so the median is often a safer choice. Swap <code>mean(y)</code> for <code>median(y)</code> below and see whether it helps.</p>
+<div class="webr-container" data-block-title="Your turn: try a different scaling statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a different scaling statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_scale_med &lt;- train |&gt; group_by(series) |&gt; summarise(scale = mean(y), .groups = &quot;drop&quot;)
+
+ex_tr &lt;- left_join(train, ex_scale_med, by = &quot;series&quot;)
+ex_tr[c(&quot;y&quot;, lag_cols)] &lt;- ex_tr[c(&quot;y&quot;, lag_cols)] / ex_tr$scale
+ex_te &lt;- left_join(test, ex_scale_med, by = &quot;series&quot;)
+ex_te[lag_cols] &lt;- ex_te[lag_cols] / ex_te$scale
+
+ex_pred &lt;- predict(lm(form, data = ex_tr), newdata = ex_te) * ex_te$scale
+cat(&quot;MAPE:&quot;, round(mape(test$y, ex_pred), 2), &quot;%\n&quot;)
+#&gt; MAPE: 3.82 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median scaling solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median scaling solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_scale_med2 &lt;- train |&gt; group_by(series) |&gt; summarise(scale = median(y), .groups = &quot;drop&quot;)
+
+ex_tr2 &lt;- left_join(train, ex_scale_med2, by = &quot;series&quot;)
+ex_tr2[c(&quot;y&quot;, lag_cols)] &lt;- ex_tr2[c(&quot;y&quot;, lag_cols)] / ex_tr2$scale
+ex_te2 &lt;- left_join(test, ex_scale_med2, by = &quot;series&quot;)
+ex_te2[lag_cols] &lt;- ex_te2[lag_cols] / ex_te2$scale
+
+ex_pred2 &lt;- predict(lm(form, data = ex_tr2), newdata = ex_te2) * ex_te2$scale
+cat(&quot;median scaling MAPE:&quot;, round(mape(test$y, ex_pred2), 2), &quot;%\n&quot;)
+#&gt; median scaling MAPE: 3.82 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Identical to two decimal places. That is the useful finding: the model is not sensitive to <em>which</em> sensible statistic you scale by, only to whether you scale at all. Mean, median, last value or standard deviation will all rescue you from the 5.73 percent disaster. Pick one, compute it from training data only, and move on.</p>
+
+</details>
+</section>
+
+<h2>Does one global model actually beat one model per series?</h2>
+
+<p>Most articles on this topic stop here, having shown that a global model works, without ever checking it against the obvious alternative. We are going to check.</p>
+
+<p>The comparison has to be fair, which means changing exactly one thing. Same features, same model family, same training window, same <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>. The only difference is whether the rows are pooled or kept apart.</p>
+
+<div class="webr-container" data-block-title="Fit one model per series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit one model per series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_local &lt;- rep(NA_real_, nrow(test))
+n_coef &lt;- 0
+
+for (s in unique(test$series)) {
+  in_train &lt;- train$series == s
+  in_test  &lt;- test$series  == s
+  fit &lt;- lm(form, data = train[in_train, ])
+  n_coef &lt;- n_coef + length(coef(fit))
+  pred_local[in_test] &lt;- predict(fit, newdata = test[in_test, ])
+}
+
+cat(&quot;models fitted:&quot;, length(unique(test$series)), &quot;\n&quot;)
+cat(&quot;coefficients stored:&quot;, n_coef, &quot;\n&quot;)
+cat(&quot;local models MAPE:&quot;, round(mape(test$y, pred_local), 2), &quot;%\n&quot;)
+#&gt; models fitted: 148
+#&gt; coefficients stored: 2516
+#&gt; local models MAPE: 3.58 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loop walks the series one at a time, fits <code>lm()</code> to that series alone, and writes its 2018 predictions into the right slots. Notice there is no scaling anywhere in this loop, and it is not an oversight. A model fitted to a single series only ever sees one scale, so dividing that series by a constant would change its coefficients and leave its predictions exactly the same. Scaling is a problem created by pooling, and it exists only for the global model.</p>
+
+<p>Now the scoreboard.</p>
+
+<div class="webr-container" data-block-title="Compare all four approaches">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all four approaches</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(
+  approach     = c(&quot;Seasonal naive&quot;, &quot;Global, raw values&quot;, &quot;Global, scaled&quot;, &quot;One model per series&quot;),
+  models       = c(0, 1, 1, 148),
+  coefficients = c(0, 17, 17, 2516),
+  mape         = c(round(mape(test$y, test$lag12), 2),
+                   round(mape(test$y, pred_raw), 2),
+                   round(mape(test$y, pred_global), 2),
+                   round(mape(test$y, pred_local), 2))
+)
+#&gt;               approach models coefficients mape
+#&gt; 1       Seasonal naive      0            0 5.92
+#&gt; 2   Global, raw values      1           17 5.73
+#&gt; 3       Global, scaled      1           17 3.82
+#&gt; 4 One model per series    148         2516 3.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The honest answer is that on this dataset, one model per series wins. 3.58 percent against 3.82 percent. The global model loses by about seven percent in relative terms.</p>
+
+<p>That result is worth sitting with, because it contradicts a great deal of confident writing on this subject. It is also completely unsurprising once you look at what these series are. Every one of them has up to 441 monthly observations, which is 37 years of history. A local model with 17 parameters and 400 rows of clean, strongly seasonal data has everything it needs. There is nothing left for cross-learning to add.</p>
+
+<p>What the global model bought instead was 17 coefficients rather than 2,516. That is a 148-fold reduction in what you have to fit, store, monitor, retrain and debug. Whether 0.24 percentage points of accuracy is worth that trade is a question about your engineering team, not about statistics.</p>
+
+<p>The average also conceals a split decision.</p>
+
+<div class="webr-container" data-block-title="Count which approach wins on each series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count which approach wins on each series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head_to_head &lt;- test |&gt;
+  mutate(g = pred_global, l = pred_local) |&gt;
+  group_by(series) |&gt;
+  summarise(global_mape = mape(y, g), local_mape = mape(y, l), .groups = &quot;drop&quot;) |&gt;
+  left_join(scale_of, by = &quot;series&quot;)
+
+cat(&quot;global wins on&quot;, sum(head_to_head$global_mape &lt; head_to_head$local_mape),
+    &quot;of&quot;, nrow(head_to_head), &quot;series\n&quot;)
+
+small &lt;- head_to_head$scale &lt; median(head_to_head$scale)
+cat(&quot;among the 74 smaller series, global wins on&quot;,
+    sum(head_to_head$global_mape[small] &lt; head_to_head$local_mape[small]), &quot;\n&quot;)
+#&gt; global wins on 60 of 148 series
+#&gt; among the 74 smaller series, global wins on 27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The global model is beaten overall, yet it wins outright on 60 of the 148 series. This is not one approach dominating another; it is two approaches with different failure modes, and the aggregate number picks a winner by a narrow margin.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A single average error hides everything interesting about a forecasting comparison.</strong> Before you conclude that method A beats method B, count how many series each one actually wins, and check whether the winners share a characteristic such as size, length or volatility. Aggregate numbers are for reporting; per-series numbers are for deciding.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below finds the three series where the global model beats the local one by the widest margin. Reverse the subtraction to find where local wins biggest instead.</p>
+<div class="webr-container" data-block-title="Your turn: find the biggest wins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the biggest wins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gap &lt;- head_to_head |&gt;
+  mutate(gap = round(local_mape - global_mape, 2)) |&gt;
+  arrange(desc(gap))
+
+head(ex_gap[, c(&quot;series&quot;, &quot;gap&quot;)], 3)
+#&gt; # A tibble: 3 × 2
+#&gt;   series                                                      gap
+#&gt;   &lt;chr&gt;                                                     &lt;dbl&gt;
+#&gt; 1 NT / Clothing retailing                                    1.67
+#&gt; 2 ACT / Clothing, footwear and personal accessory retailing  1.42
+#&gt; 3 SA / Hardware, building and garden supplies retailing      1.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Biggest local wins solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Biggest local wins solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gap2 &lt;- head_to_head |&gt;
+  mutate(gap = round(global_mape - local_mape, 2)) |&gt;
+  arrange(desc(gap))
+
+head(ex_gap2[, c(&quot;series&quot;, &quot;gap&quot;)], 3)
+#&gt; # A tibble: 3 × 2
+#&gt;   series                                                       gap
+#&gt;   &lt;chr&gt;                                                      &lt;dbl&gt;
+#&gt; 1 NT / Pharmaceutical, cosmetic and toiletry goods retailing  4.61
+#&gt; 2 ACT / Newspaper and book retailing                          2.87
+#&gt; 3 TAS / Cafes, restaurants and catering services              2.41</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Local wins are larger at the top end, 4.61 points against 1.67, which is why local wins the average despite winning fewer series. Series where the local model triumphs tend to have their own idiosyncratic behaviour, exactly the thing a shared set of coefficients cannot represent.</p>
+
+</details>
+</section>
+
+<h2>When does the global model win, then?</h2>
+
+<p>We have one result on one dataset. That is an anecdote, not a rule. To turn it into a rule we need to work out <em>which property</em> of this data made the local approach win, and then vary that property.</p>
+
+<p>The obvious candidate is history length. The local models had 400 rows each. The global model's advantage is supposed to be that it borrows data from elsewhere, which should matter most when there is little data at home. So let us shorten the history and watch.</p>
+
+<p>The function below repeats the entire comparison using only the most recent N years of training data. Everything else, the test set, the features, the scaling, stays identical.</p>
+
+<div class="webr-container" data-block-title="Vary how much history each series gets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vary how much history each series gets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_history &lt;- function(years) {
+  starts_at &lt;- as.Date(sprintf(&quot;%d-01-01&quot;, 2018 - years))
+  tr &lt;- train[train$Month &gt;= starts_at, ]
+
+  sc &lt;- tr |&gt; group_by(series) |&gt; summarise(scale = mean(y), .groups = &quot;drop&quot;)
+  trs &lt;- left_join(tr, sc, by = &quot;series&quot;)
+  trs[c(&quot;y&quot;, lag_cols)] &lt;- trs[c(&quot;y&quot;, lag_cols)] / trs$scale
+  tes &lt;- left_join(test, sc, by = &quot;series&quot;)
+  tes[lag_cols] &lt;- tes[lag_cols] / tes$scale
+
+  g &lt;- predict(lm(form, data = trs), newdata = tes) * tes$scale
+
+  l &lt;- rep(NA_real_, nrow(test))
+  for (s in unique(test$series)) {
+    i &lt;- tr$series == s
+    j &lt;- test$series == s
+    l[j] &lt;- suppressWarnings(predict(lm(form, data = tr[i, ]), newdata = test[j, ]))
+  }
+
+  data.frame(years_of_history = years,
+             rows_per_series   = round(nrow(tr) / length(unique(tr$series))),
+             local_mape        = round(mape(test$y, l), 2),
+             global_mape       = round(mape(test$y, g), 2))
+}
+
+crossover &lt;- do.call(rbind, lapply(c(2, 3, 5, 10, 36), compare_history))
+crossover
+#&gt;   years_of_history rows_per_series local_mape global_mape
+#&gt; 1                2              24       5.46        4.05
+#&gt; 2                3              36       4.39        4.06
+#&gt; 3                5              59       3.96        4.05
+#&gt; 4               10             117       3.64        3.96
+#&gt; 5               36             400       3.58        3.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One line inside that function needs explaining. The local <code>predict()</code> call is wrapped in <code>suppressWarnings()</code> because at two years of history several series have fewer training rows than the model has parameters to estimate, so <code>lm()</code> cannot pin all 17 down and R warns that the prediction comes from a rank-deficient fit. Those warnings are part of the finding, not noise to be hidden: they are R telling you the local approach has run out of data.</p>
+
+<p>Read the two error columns side by side, because the contrast between them is the entire point of this page.</p>
+
+<p>The local column moves a great deal: 5.46 percent with two years of history, falling to 3.58 percent with the full 36. Cut a local model's history and its accuracy falls with it, because 24 rows cannot support 17 parameters.</p>
+
+<p>The global column barely moves at all: 4.05 down to 3.82. Cut every series from 36 years to two and the global model loses almost nothing, because it still has roughly 3,500 training rows, gathered from 148 series at once. The amount of data it learns from barely changed.</p>
+
+<p>The two columns cross somewhere between three and five years. Below that, the global model wins, and at two years it wins by a wide margin, 4.05 against 5.46. Above it, the local model pulls ahead and stays ahead.</p>
+
+<div class="webr-container" data-block-title="Chart the crossover">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Chart the crossover</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">long &lt;- rbind(
+  data.frame(years = crossover$years_of_history, mape = crossover$local_mape,
+             approach = &quot;one model per series&quot;),
+  data.frame(years = crossover$years_of_history, mape = crossover$global_mape,
+             approach = &quot;one global model&quot;))
+
+ggplot(long, aes(years, mape, colour = approach)) +
+  geom_line(linewidth = 1) + geom_point(size = 2.5) +
+  scale_x_log10(breaks = c(2, 3, 5, 10, 36)) +
+  labs(title = &quot;One model per series only wins once each series is long enough&quot;,
+       x = &quot;Years of history per series (log scale)&quot;, y = &quot;MAPE on 2018 (%)&quot;) +
+  theme_minimal() + theme(legend.position = &quot;bottom&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chart shows one steeply falling line and one nearly flat one, crossing near the four-year mark.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A local model's accuracy depends on how much data it has about your series. A global model's accuracy depends on how much data it has in total.</strong> That is why the flat line is flat. Multiplying the number of series is a substitute for lengthening them, and it is a substitute you can usually get for free, because the other series already exist.</div></div>
+
+<p>This also explains the M5 competition result, where global models swept the leaderboard. Those were daily Walmart sales for individual products, many of them short, and many of them intermittent, meaning most days record a sale of zero. That is the left-hand end of our chart, where the global line sits comfortably below the local one. Australian retail aggregates with 37 years of smooth monthly history are the right-hand end.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below runs the comparison for seven years of history. Change it to 20 years and confirm that the local model's lead widens as history grows.</p>
+<div class="webr-container" data-block-title="Your turn: test a different history length">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test a different history length</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_history(7)
+#&gt;   years_of_history rows_per_series local_mape global_mape
+#&gt; 1                7              83       3.78        3.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Twenty years of history solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Twenty years of history solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_history(20)
+#&gt;   years_of_history rows_per_series local_mape global_mape
+#&gt; 1               20             236       3.51        3.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At seven years the local model leads by 0.19 points; at twenty years it leads by 0.31. The gap grows because the local model keeps improving while the global model has already plateaued. It also shows the local model peaking early: 3.51 at twenty years is marginally better than 3.58 with the full 36, since retail behaviour in the 1980s is not very relevant to 2018.</p>
+
+</details>
+</section>
+
+<h2>What can a global model do that a local model simply cannot?</h2>
+
+<p>Accuracy is not the only axis. There is one thing a global model does that a local model cannot do at all, at any level of accuracy, and for many businesses it is the reason the whole approach exists.</p>
+
+<p>A local model needs your series' history to exist before it can be fitted. If the series is brand new, there is nothing to fit. A global model has no such requirement, because its coefficients came from other series. Forecasting a series that has no history of its own is called the cold-start problem, and it is the one situation where a local model has nothing to offer at all.</p>
+
+<p>We can test that directly. Below we remove 20 series from the training data completely, so the model never sees a single row from them, then ask it to forecast their 2018.</p>
+
+<div class="webr-container" data-block-title="Forecast series the model has never seen">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast series the model has never seen</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+held_out &lt;- sample(unique(test$series), 20)
+
+train_seen &lt;- train_s[!(train_s$series %in% held_out), ]
+test_new   &lt;- test_s[test_s$series %in% held_out, ]
+actual_new &lt;- test[test$series %in% held_out, ]
+
+cat(&quot;trained on:&quot;, length(unique(train_seen$series)), &quot;series\n&quot;)
+cat(&quot;forecasting:&quot;, length(unique(test_new$series)), &quot;series it has never seen\n&quot;)
+
+cold &lt;- lm(form, data = train_seen)
+pred_cold &lt;- predict(cold, newdata = test_new) * test_new$scale
+
+cat(&quot;cold-start global MAPE:&quot;, round(mape(actual_new$y, pred_cold), 2), &quot;%\n&quot;)
+cat(&quot;seasonal naive on the same series:&quot;, round(mape(actual_new$y, actual_new$lag12), 2), &quot;%\n&quot;)
+cat(&quot;global model that HAD seen them:&quot;,
+    round(mape(actual_new$y, pred_global[test$series %in% held_out]), 2), &quot;%\n&quot;)
+#&gt; trained on: 132 series
+#&gt; forecasting: 20 series it has never seen
+#&gt; cold-start global MAPE: 3.53 %
+#&gt; seasonal naive on the same series: 5.93 %
+#&gt; global model that HAD seen them: 3.54 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare the last two numbers carefully. A model trained on 132 series forecasts 20 completely unseen series at 3.53 percent error. The model that <em>did</em> train on those same 20 series scores 3.54 percent. They are the same to within noise, and the unseen version is fractionally ahead by chance.</p>
+
+<p>The global model gains essentially nothing from having seen your particular series before. Everything it knows about how Australian retail behaves, it learned from the others.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>This is why retailers run global models for new products.</strong> A product launched last month has no history, so no local model exists for it. A global model trained on the rest of the catalogue produces a forecast on day one, and as this experiment shows, that forecast can be about as good as the one it would eventually make with a full history. You still need the series' recent lag values to make the prediction, but you do not need them to have trained the model.</div></div>
+
+<p><img src="screenshots/Global-Forecasting-Models-in-R-when-to-pool.webp" alt="Decision guide for how much to pool retail series before forecasting" class="img-responsive img-zoomable" loading="lazy" width="1142" height="1074" /></p>
+
+<p><em>Figure 3: Where each pooling choice makes sense.</em></p>
+
+<p>The same property has a less glamorous but equally valuable consequence in production. One model means one artefact to version, one training job to schedule, one set of coefficients to review when a forecast goes wrong, and one thing to monitor for drift. Anyone who has maintained a few thousand independently fitted models will recognise why that matters.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below holds out 5 series. Change it to hold out 40, a quarter of the dataset, and see whether cold-start accuracy degrades when the model has fewer series to learn from.</p>
+<div class="webr-container" data-block-title="Your turn: hold out more series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hold out more series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_held &lt;- sample(unique(test$series), 5)
+
+ex_train &lt;- train_s[!(train_s$series %in% ex_held), ]
+ex_test  &lt;- test_s[test_s$series %in% ex_held, ]
+ex_actual &lt;- test[test$series %in% ex_held, ]
+
+ex_p &lt;- predict(lm(form, data = ex_train), newdata = ex_test) * ex_test$scale
+cat(&quot;held out&quot;, length(ex_held), &quot;series, MAPE:&quot;, round(mape(ex_actual$y, ex_p), 2), &quot;%\n&quot;)
+#&gt; held out 5 series, MAPE: 3.58 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Forty held-out series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forty held-out series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_held2 &lt;- sample(unique(test$series), 40)
+
+ex_train2 &lt;- train_s[!(train_s$series %in% ex_held2), ]
+ex_test2  &lt;- test_s[test_s$series %in% ex_held2, ]
+ex_actual2 &lt;- test[test$series %in% ex_held2, ]
+
+ex_p2 &lt;- predict(lm(form, data = ex_train2), newdata = ex_test2) * ex_test2$scale
+cat(&quot;held out&quot;, length(ex_held2), &quot;series, MAPE:&quot;, round(mape(ex_actual2$y, ex_p2), 2), &quot;%\n&quot;)
+#&gt; held out 40 series, MAPE: 3.74 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Holding out 40 series leaves only 108 to train on, and error rises from 3.58 to 3.74 percent. Some of that is the smaller <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> and some is that a different, harder set of series is being scored. Either way the degradation is mild, which is the reassuring result: cold-start forecasting does not collapse when the training pool shrinks by a quarter.</p>
+
+</details>
+</section>
+
+<h2>How related do the series have to be?</h2>
+
+<p>So far we have treated pooling as a switch with two settings: every series in one model, or every series in its own. It is really a dial. You can pool within groups of similar series, which gives the model more data than a local fit while asking it to describe less variety than a fully global fit.</p>
+
+<p>Our data has an obvious grouping already: the retail industry. Clothing behaves like clothing whichever state it is in. Let us fit one model per industry, pooling the eight states together.</p>
+
+<div class="webr-container" data-block-title="Pool within each industry instead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pool within each industry instead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_industry &lt;- rep(NA_real_, nrow(test))
+
+for (ind in unique(test_s$Industry)) {
+  i &lt;- train_s$Industry == ind
+  j &lt;- test_s$Industry  == ind
+  fit &lt;- lm(form, data = train_s[i, ])
+  pred_industry[j] &lt;- predict(fit, newdata = test_s[j, ]) * test_s$scale[j]
+}
+
+cat(&quot;models:&quot;, length(unique(test$Industry)), &quot;\n&quot;)
+cat(&quot;industry-pooled MAPE:&quot;, round(mape(test$y, pred_industry), 2), &quot;%\n&quot;)
+#&gt; models: 20
+#&gt; industry-pooled MAPE: 3.63 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twenty models, one per industry, each trained on that industry's eight state-level series. Note that we still use the scaled table, because the states differ enormously in size even within a single industry.</p>
+
+<p>Putting all three settings of the dial side by side:</p>
+
+<div class="webr-container" data-block-title="The pooling dial, from none to full">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The pooling dial, from none to full</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(
+  pooling = c(&quot;None (one model per series)&quot;, &quot;By industry (20 groups)&quot;, &quot;All series together&quot;),
+  models  = c(148, 20, 1),
+  mape    = c(round(mape(test$y, pred_local), 2),
+              round(mape(test$y, pred_industry), 2),
+              round(mape(test$y, pred_global), 2))
+)
+#&gt;                       pooling models mape
+#&gt; 1 None (one model per series)    148 3.58
+#&gt; 2     By industry (20 groups)     20 3.63
+#&gt; 3         All series together      1 3.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Industry pooling lands at 3.63 percent, within a whisker of the 148-model local approach and clearly ahead of the fully global one, while needing only 20 models. On this dataset that is the best accuracy-per-model trade available.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Pooling is a dial, not a switch.</strong> Fully global and fully local are just the two extremes. Grouping by a variable that genuinely drives the dynamics often beats both, and in production it is frequently the setting people land on after trying the extremes first.</div></div>
+
+<p>Why does grouping help here? Because different industries genuinely behave differently, and a single shared set of coefficients has to average over that difference. The try-it below lets you see it directly.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below prints the coefficients that the liquor retailing model learned. Change the industry to <code>&quot;Department stores&quot;</code> and compare the <code>lag1</code> and <code>lag13</code> values. They tell two completely different stories.</p>
+<div class="webr-container" data-block-title="Your turn: compare coefficients across industries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare coefficients across industries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ind &lt;- &quot;Liquor retailing&quot;
+round(coef(lm(form, data = train_s[train_s$Industry == ex_ind, ]))[1:6], 3)
+#&gt; (Intercept)        lag1        lag2        lag3       lag12       lag13
+#&gt;      -0.040       0.675       0.044       0.055       0.872      -0.638</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Department stores coefficients solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Department stores coefficients solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ind2 &lt;- &quot;Department stores&quot;
+round(coef(lm(form, data = train_s[train_s$Industry == ex_ind2, ]))[1:6], 3)
+#&gt; (Intercept)        lag1        lag2        lag3       lag12       lag13
+#&gt;      -0.033       0.111       0.025       0.069       0.811      -0.042</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Liquor retailing leans hard on last month, 0.675, and cancels most of <code>lag12</code> with <code>lag13</code> at -0.638. Department stores almost ignore last month, 0.111, and barely use <code>lag13</code> at all, -0.042. Department stores are so violently seasonal that December tells you nothing about January; last year's same month is nearly the whole signal. A fully global model has to split the difference between these two behaviours, and serves neither industry as well as its own model does.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: the whole pipeline in one place</h2>
+
+<p>Everything above, condensed. This block assumes the objects built earlier in the page still exist, prints the summary of what was fitted, and then shows six months of the 2018 forecast for one series so you can see the actual numbers rather than an error statistic.</p>
+
+<div class="webr-container" data-block-title="End-to-end global forecast summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end global forecast summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cat(&quot;Global forecasting model, end to end\n&quot;)
+cat(&quot;  series pooled     :&quot;, length(unique(train_s$series)), &quot;\n&quot;)
+cat(&quot;  training rows     :&quot;, nrow(train_s), &quot;\n&quot;)
+cat(&quot;  model coefficients:&quot;, length(coef(global)), &quot;\n&quot;)
+cat(&quot;  2018 MAPE         :&quot;, round(mape(test$y, pred_global), 2), &quot;%\n&quot;)
+cat(&quot;  seasonal naive    :&quot;, round(mape(test$y, test$lag12), 2), &quot;%\n&quot;)
+#&gt; Global forecasting model, end to end
+#&gt;   series pooled     : 152
+#&gt;   training rows     : 60780
+#&gt;   model coefficients: 17
+#&gt;   2018 MAPE         : 3.82 %
+#&gt;   seasonal naive    : 5.92 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Inspect one series&#x27; forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect one series&#x27; forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">one &lt;- &quot;TAS / Clothing retailing&quot;
+
+forecast_2018 &lt;- test |&gt;
+  mutate(forecast = round(pred_global, 1)) |&gt;
+  filter(series == one) |&gt;
+  select(Month, actual = y, forecast) |&gt;
+  head(6)
+
+forecast_2018
+#&gt;        Month actual forecast
+#&gt; 1 2018-01-01   20.2     19.3
+#&gt; 2 2018-02-01   17.7     15.7
+#&gt; 3 2018-03-01   19.6     19.9
+#&gt; 4 2018-04-01   19.9     21.0
+#&gt; 5 2018-05-01   21.4     21.5
+#&gt; 6 2018-06-01   20.4     20.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those forecasts for a mid-sized Tasmanian clothing series came from a model that also forecasts New South Wales food retailing, a series 80 times larger, using the same 17 numbers. February is the worst month of the six, forecast at 15.7 against an actual 20.2, which is the model applying the average February dip to a series whose dip is shallower than most. That is the cost of sharing coefficients, visible in a single row.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Give the global model per-industry seasonality</h3>
+
+<p>The fully global model applies one shared set of month effects to all 152 series, which we saw is a poor fit for department stores. Add an interaction between <code>month</code> and <code>Industry</code> to the formula so the model can learn a separate <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> per industry, while still being one model. Fit it on <code>train_s</code>, predict on <code>test_s</code>, and report both the coefficient count and the MAPE against the plain global model's 3.82 percent.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: month * Industry in a formula expands to month + Industry + their interaction.
+# Fit on train_s, predict on test_s, remember to multiply by test_s$scale.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-industry seasonality solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-industry seasonality solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex1_form &lt;- y ~ lag1 + lag2 + lag3 + lag12 + lag13 + month * Industry
+ex1_fit  &lt;- lm(ex1_form, data = train_s)
+ex1_pred &lt;- predict(ex1_fit, newdata = test_s) * test_s$scale
+
+cat(&quot;coefficients:&quot;, length(coef(ex1_fit)), &quot;\n&quot;)
+cat(&quot;global with per-industry seasonality:&quot;, round(mape(test$y, ex1_pred), 2), &quot;%\n&quot;)
+cat(&quot;plain global:&quot;, round(mape(test$y, pred_global), 2), &quot;%\n&quot;)
+#&gt; coefficients: 245
+#&gt; global with per-industry seasonality: 3.77 %
+#&gt; plain global: 3.82 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The model improves from 3.82 to 3.77 percent, and it is still one model, one training run, one artefact. It now carries 245 coefficients instead of 17, which is a lot more than the global model had but still an order of magnitude fewer than the 2,516 the local approach needed. This is the Montero-Manso and Hyndman argument made concrete: a global model can afford extra complexity because it has 60,780 rows to support it, where a single series had only 400.</p>
+
+</details>
+
+<h3>Exercise 2: Pool by state instead of by industry</h3>
+
+<p>We pooled by industry and got 3.63 percent from 20 models. State is the other obvious grouping in this data. Fit one model per state, pooling all industries within each state, and compare. The state code is the part of the <code>series</code> string before the <code>&quot; / &quot;</code>, which <code>sub(&quot; /.*$&quot;, &quot;&quot;, series)</code> will extract. Predict on the scaled test table and report the MAPE.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build a state vector for train_s and test_s, then loop over unique states
+# exactly as the industry loop did.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="State pooling solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">State pooling solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex2_state_train &lt;- sub(&quot; /.*$&quot;, &quot;&quot;, train_s$series)
+ex2_state       &lt;- sub(&quot; /.*$&quot;, &quot;&quot;, test_s$series)
+ex2_pred &lt;- rep(NA_real_, nrow(test))
+
+for (st in unique(ex2_state)) {
+  i &lt;- ex2_state_train == st
+  j &lt;- ex2_state == st
+  ex2_pred[j] &lt;- predict(lm(form, data = train_s[i, ]), newdata = test_s[j, ]) * test_s$scale[j]
+}
+
+cat(&quot;models:&quot;, length(unique(ex2_state)), &quot;\n&quot;)
+cat(&quot;state-pooled MAPE:&quot;, round(mape(test$y, ex2_pred), 2), &quot;%\n&quot;)
+cat(&quot;industry-pooled MAPE:&quot;, round(mape(test$y, pred_industry), 2), &quot;%\n&quot;)
+#&gt; models: 8
+#&gt; state-pooled MAPE: 3.78 %
+#&gt; industry-pooled MAPE: 3.63 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> State pooling scores 3.78 percent, barely better than the fully global 3.82 and clearly worse than industry pooling's 3.63. The lesson generalises: group by whatever drives the dynamics, not by whatever labels happen to be in your data. What a shop sells determines its seasonal shape. Which state it sits in mostly determines its size, and we already removed size by scaling.</p>
+
+</details>
+
+<h3>Exercise 3: Scale from recent history instead of all of it</h3>
+
+<p>We scaled each series by its mean over the entire training window, 1982 to 2017. For a series that has tripled since 1982, that mean describes a level the series left behind decades ago. Recompute the scale using only 2016 and 2017, refit the global model on the newly scaled data, and see whether a more current scale helps.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter train to Month &gt;= as.Date(&quot;2016-01-01&quot;) to compute the scale,
+# but still fit the model on the full training window.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recent-window scaling solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recent-window scaling solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recent &lt;- train[train$Month &gt;= as.Date(&quot;2016-01-01&quot;), ]
+ex3_scale &lt;- recent |&gt; group_by(series) |&gt; summarise(scale = mean(y), .groups = &quot;drop&quot;)
+
+ex3_tr &lt;- left_join(train, ex3_scale, by = &quot;series&quot;)
+ex3_tr[c(&quot;y&quot;, lag_cols)] &lt;- ex3_tr[c(&quot;y&quot;, lag_cols)] / ex3_tr$scale
+ex3_te &lt;- left_join(test, ex3_scale, by = &quot;series&quot;)
+ex3_te[lag_cols] &lt;- ex3_te[lag_cols] / ex3_te$scale
+
+ex3_pred &lt;- predict(lm(form, data = ex3_tr), newdata = ex3_te) * ex3_te$scale
+
+cat(&quot;scaled by last 2 years:&quot;, round(mape(test$y, ex3_pred), 2), &quot;%\n&quot;)
+cat(&quot;scaled by full history:&quot;, round(mape(test$y, pred_global), 2), &quot;%\n&quot;)
+#&gt; scaled by last 2 years: 3.8 %
+#&gt; scaled by full history: 3.82 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A marginal improvement, 3.80 against 3.82. The reason the gain is small is that scaling is a per-series constant, and a linear model largely absorbs a constant. The reason to prefer the recent window anyway is operational: in production you refit periodically and your scale should track the series' current level, otherwise a series that has doubled will feed the model lag values near 2.0 that it has rarely seen in training. Try this exercise again with a nonlinear learner and the gap widens considerably.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Does this replace ARIMA and <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS</a>?</strong> No. Those are local models by construction, and this page just showed a local approach winning on long, clean, seasonal series. <code>fable</code>'s <code>model()</code> function fits one model per key in a tsibble, which is the local approach done well, and for a few hundred long series it remains an excellent default. Global models earn their place when series are numerous and short, or when new ones keep appearing.</p>
+
+<p><strong>Why use <code>lm()</code> when everyone uses LightGBM?</strong> Because the pooling decision is what this page is about, and a linear model lets you read the shared coefficients directly and see what cross-learning actually learned. In production a global model is usually a gradient boosted tree, which handles the nonlinearity and the interactions that our linear formula cannot. The pooling, scaling and evaluation logic is identical either way. The <a href="XGBoost-Forecasting-in-R.html">gradient boosting tutorial</a> covers the learner side.</p>
+
+<p><strong>How many series do I need before pooling helps?</strong> There is no threshold, because it depends on length as much as count. The useful question is the one the crossover table answers: how much history does each series have? Below roughly three or four years of monthly data, our global model won even with 148 series. The two quantities trade against each other, so run the <code>compare_history()</code> experiment on your own data rather than trusting a rule of thumb.</p>
+
+<p><strong>Do I still need to scale if I use trees?</strong> More than ever. A linear model partly absorbs scale differences through its coefficients. A tree splits on raw thresholds, so a rule like "if lag1 is above 300" is meaningless for a series that never exceeds 5. Trees cannot extrapolate beyond the range they were trained on either, so an unscaled global tree caps its forecast for your largest series at the highest value it happened to see during training.</p>
+
+<p><strong>How do I forecast twelve months ahead instead of one?</strong> Pick recursive or direct. Recursive means predicting January, treating that prediction as January's actual value so it becomes February's <code>lag1</code>, and stepping forward: simple, one model, but each month's error feeds the next. Direct means fitting a separate model per horizon, each using only lags that are genuinely available at the forecast origin, so a twelve-month model would drop <code>lag1</code>, <code>lag2</code> and <code>lag3</code> and lean on <code>lag12</code> and <code>lag13</code>: more models to maintain, no error compounding. Direct tends to win at long horizons; the pooling and scaling logic on this page is unchanged either way.</p>
+
+<p><strong>Does a global model give me <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a>?</strong> <code>lm()</code> will produce them with <code>predict(..., interval = &quot;prediction&quot;)</code>, but they assume constant variance across all pooled rows, which is unlikely to hold even after scaling. For pooled models, empirical intervals from held-out residuals are the safer route, and conformal prediction is the principled version of that idea.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer from this page</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What is a global model?</td>
+<td>One model fitted to the stacked rows of many series, storing one shared set of parameters</td>
+</tr>
+<tr>
+<td>What makes pooling work?</td>
+<td>Shared shape. All 152 series peak in December, by a median of 38 percent</td>
+</tr>
+<tr>
+<td>What breaks it?</td>
+<td>Unscaled pooling. Error on the smallest quarter of series was 13.19 percent, against 2.24 on the largest</td>
+</tr>
+<tr>
+<td>How do you fix it?</td>
+<td>Divide each series by its own training mean, then multiply predictions back. Error fell from 5.73 to 3.82 percent</td>
+</tr>
+<tr>
+<td>Did global beat local here?</td>
+<td>No. 3.82 against 3.58 percent, though it won on 60 of 148 series with 17 coefficients instead of 2,516</td>
+</tr>
+<tr>
+<td>When does global win?</td>
+<td>When series are short. Below about four years of history, global led; at two years it led by 1.41 points</td>
+</tr>
+<tr>
+<td>What is global-only?</td>
+<td>Forecasting a series that was never in training. Cold-start scored 3.53 percent, matching the model that had seen it</td>
+</tr>
+<tr>
+<td>What is the best setting?</td>
+<td>Often neither extreme. Pooling by industry gave 3.63 percent from 20 models</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Montero-Manso, P. and Hyndman, R.J. <em>Principles and Algorithms for Forecasting Groups of Time Series: Locality and Globality.</em> International Journal of Forecasting (2021). <a href="https://robjhyndman.com/publications/global-forecasting/">Link</a></li>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter on judgmental and many-series forecasting. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+<li>Makridakis, S., Spiliotis, E. and Assimakopoulos, V. <em>The M5 Accuracy competition: Results, findings and conclusions.</em> International Journal of Forecasting (2022). <a href="https://doi.org/10.1016/j.ijforecast.2021.11.013">Link</a></li>
+
+<li>Januschowski, T. et al. <em>Criteria for classifying forecasting methods.</em> International Journal of Forecasting (2020), the paper that formalised the local versus global distinction. <a href="https://doi.org/10.1016/j.ijforecast.2019.05.008">Link</a></li>
+
+<li>Hewamalage, H., Bergmeir, C. and Bandara, K. <em>Global Models for Time Series Forecasting: A Simulation Study.</em> Pattern Recognition (2022). <a href="https://arxiv.org/abs/2012.12485">Link</a></li>
+
+<li>tsibbledata package reference, <code>aus_retail</code> dataset documentation. <a href="https://tsibbledata.tidyverts.org/reference/aus_retail.html">Link</a></li>
+
+<li>fable package documentation, fitting models across many series with <code>model()</code>. <a href="https://fable.tidyverts.org/">Link</a></li>
+
+<li>R Core Team. <em>An Introduction to R</em>, section on statistical models and formulas. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Feature-Engineering-for-Forecasting-in-R.html">Feature Engineering for Time Series Forecasting in R</a> covers the lag, rolling, calendar and <a class="auto-link" href="Feature-Engineering-for-Forecasting-in-R.html" title="Feature Engineering for Time Series Forecasting in R">Fourier features</a> that fill a pooled table, and the leakage traps that come with them.</li>
+
+<li><a href="XGBoost-Forecasting-in-R.html">Gradient Boosting for Time Series in R: xgboost vs the Classics</a> swaps the linear learner used here for boosted trees, and shows why trees cannot extrapolate a trend.</li>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross Validation in R</a> replaces the single 2018 holdout used on this page with a <a class="auto-link" href="Time-Series-Cross-Validation-in-R.html" title="Time Series Cross-Validation in R with tsCV()">rolling origin</a>, which is how you should evaluate any of these models before deploying them.</li>
+
+</ul>
+
