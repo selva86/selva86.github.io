@@ -1,0 +1,1734 @@
+---
+title: "Feature Engineering for Time Series Forecasting in R"
+description: "Build lag, rolling, calendar and Fourier features in R, catch the leaks that fake a perfect score, and turn the feature table into a real multi-step forecast."
+keywords: "feature engineering time series R, lag features R, rolling window features R, Fourier terms R, calendar features forecasting, data leakage time series, recursive forecasting R, direct multi-step forecast"
+mathjax: true
+webr: true
+curriculum_id: "TS2-9.1"
+post_type: "C"
+auto_link_terms: "feature engineering for time series|time series feature engineering|lag features|lag feature|rolling window features|rolling mean feature|calendar features|Fourier terms|Fourier features|data leakage in time series|recursive forecasting|direct multi-step forecasting|forecast origin"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Feature Engineering for Forecasting"
+sidebar_order: "40"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Feature engineering for <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">time series forecasting</a> means rewriting a series as an ordinary table, one row per time point, with columns that describe everything you knew before that point arrived. Do it well and a plain linear model beats the classical benchmarks. Do it carelessly and you build a feature that quietly contains the answer, which produces a perfect score and a useless forecast. This tutorial builds all four feature families by hand, shows you exactly what a leak looks like, and finishes with a real 14-day forecast. Every code block on this page runs in your browser.</p>
+
+<h2>Why does a forecasting model need engineered features at all?</h2>
+
+<p>ARIMA and <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> read a series directly. They know that observation 400 came after observation 399. A regression or a tree knows nothing of the sort: it sees one row of numbers at a time and has no idea the rows are in any order. Before those models can forecast anything, someone has to write the past into the row itself. That someone is you, and this section shows what it buys.</p>
+
+<p>We will use three years of Victorian electricity demand, recorded every half hour. Half-hourly data is more detail than we need, so the first thing to do is roll it up to one row per day.</p>
+
+<div class="webr-container" data-block-title="Aggregate half-hourly demand to daily">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate half-hourly demand to daily</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(tsibbledata)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+
+daily &lt;- vic_elec |&gt;
+  index_by(date = as_date(Time)) |&gt;
+  summarise(demand  = sum(Demand) * 0.5 / 1000,
+            temp    = max(Temperature),
+            holiday = any(Holiday)) |&gt;
+  as_tibble()
+
+daily
+#&gt; # A tibble: 1,096 × 4
+#&gt;    date       demand  temp holiday
+#&gt;    &lt;date&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;lgl&gt;  
+#&gt;  1 2012-01-01  111.   32.7 TRUE   
+#&gt;  2 2012-01-02  129.   39.6 TRUE   
+#&gt;  3 2012-01-03  134.   31.8 FALSE  
+#&gt;  4 2012-01-04  111.   25.1 FALSE  
+#&gt;  5 2012-01-05  105.   21.2 FALSE  
+#&gt;  6 2012-01-06  105.   23.6 FALSE  
+#&gt;  7 2012-01-07  101.   29   FALSE  
+#&gt;  8 2012-01-08   96.7  27.8 FALSE  
+#&gt;  9 2012-01-09  107.   24   FALSE  
+#&gt; 10 2012-01-10  108.   19.6 FALSE  
+#&gt; # ℹ 1,086 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what those lines did. The <code>|&gt;</code> symbol is R's pipe: it takes the value on its left and passes it as the first argument to the function on its right, so the code reads top to bottom in the order the work happens. <code>index_by()</code> groups a <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">tsibble</a> by a new time label, in this case the calendar date pulled out of the half-hourly timestamp. <code>summarise()</code> then collapses the 48 half-hours of each day into three numbers: total demand for the day, the hottest reading, and whether it was a public holiday. Demand is recorded in megawatts, so multiplying by 0.5 hours and dividing by 1000 converts the daily total to gigawatt-hours. Finally <code>as_tibble()</code> drops the time series wrapper, because from here on we want a plain table.</p>
+
+<p>We now have 1,096 rows and one number to predict: <code>demand</code>. And that is the problem. If you hand a regression model a single column, there is nothing on the right-hand side of the formula. The information a forecaster would actually use, what happened yesterday, what happened this day last week, whether tomorrow is a holiday, exists only in the order of the rows, and the model never sees that order.</p>
+
+<p>So we have to copy it into the rows themselves. Three columns is enough to make the point: yesterday's demand, the demand seven days ago, and the day of the week.</p>
+
+<div class="webr-container" data-block-title="Write the past into each row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write the past into each row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sup &lt;- daily |&gt;
+  mutate(lag1 = lag(demand),
+         lag7 = lag(demand, 7),
+         dow  = wday(date, label = TRUE))
+
+sup |&gt; select(date, demand, lag1, lag7, dow) |&gt; head(9)
+#&gt; # A tibble: 9 × 5
+#&gt;   date       demand  lag1  lag7 dow  
+#&gt;   &lt;date&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;ord&gt;
+#&gt; 1 2012-01-01  111.   NA     NA  Sun  
+#&gt; 2 2012-01-02  129.  111.    NA  Mon  
+#&gt; 3 2012-01-03  134.  129.    NA  Tue  
+#&gt; 4 2012-01-04  111.  134.    NA  Wed  
+#&gt; 5 2012-01-05  105.  111.    NA  Thu  
+#&gt; 6 2012-01-06  105.  105.    NA  Fri  
+#&gt; 7 2012-01-07  101.  105.    NA  Sat  
+#&gt; 8 2012-01-08   96.7 101.   111. Sun  
+#&gt; 9 2012-01-09  107.   96.7  129. Mon  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read row 9 across and the trick is obvious. On 2012-01-09 demand was 107. The <code>lag1</code> column says the previous day was 96.7, which is exactly the <code>demand</code> value one row up. The <code>lag7</code> column says 129, which is the <code>demand</code> value seven rows up. Each row now carries its own history.</p>
+
+<p>The <code>NA</code> values at the top are unavoidable and correct. On the very first day there was no yesterday, so <code>lag1</code> has nothing to report. <code>lag7</code> stays empty for a full week for the same reason.</p>
+
+<p>Now the payoff. We split the data by date, train a plain linear model on the earlier part, and score it on the last 90 days against the standard benchmark for weekly-seasonal data: predict every day to be exactly what it was seven days ago.</p>
+
+<p>The split has to be by date, never at random. A random split would drop future days into the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> and past days into the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, so the score you got back would describe a situation you will never be in.</p>
+
+<div class="webr-container" data-block-title="Score the feature table against a benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the feature table against a benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- sup |&gt; filter(date &lt;  as.Date(&quot;2014-10-03&quot;))
+test  &lt;- sup |&gt; filter(date &gt;= as.Date(&quot;2014-10-03&quot;))
+
+fit  &lt;- lm(demand ~ lag1 + lag7 + dow, data = train)
+pred &lt;- predict(fit, newdata = test)
+
+round(c(model          = mean(abs(test$demand - pred)),
+        seasonal_naive = mean(abs(test$demand - test$lag7))), 2)
+#&gt;          model seasonal_naive 
+#&gt;           4.16           5.48 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two pieces of <a class="auto-link" href="R-Syntax-101.html" title="R Syntax 101: Write Your First Working Script in 10 Minutes">R syntax</a> are doing the work. <code>lm()</code> fits a linear model, and the formula <code>demand ~ lag1 + lag7 + dow</code> reads as "predict <code>demand</code> from these three columns"; the <code>~</code> separates the thing being predicted from the things predicting it. <code>predict()</code> then applies the fitted model to rows it has never seen.</p>
+
+<p>That printout is a <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a>, in gigawatt-hours: on average, how far each forecast landed from the truth. The <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a> benchmark misses by 5.48 GWh a day. The linear model, using nothing but three engineered columns, misses by 4.16. That is a 24 percent improvement for about four lines of <code>mutate()</code>.</p>
+
+<p>Notice what the model was never given. It has no idea what a date is, no idea that the rows are chronological, no concept of a trend. Everything it knows arrived through columns you chose to build.</p>
+
+<p><img src="screenshots/Feature-Engineering-for-Forecasting-in-R-supervised-table.webp" alt="Diagram showing a daily series being converted into a table of targets and features" class="img-responsive img-zoomable" loading="lazy" width="2184" height="394" /></p>
+
+<p><em>Figure 1: A sliding window turns one column of numbers into a table with a target and features.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A forecasting model can only see what you put in the row.</strong> Choosing an algorithm is a small decision compared with choosing which columns describe the past, which is why two people running the same random forest on the same series routinely get very different results.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a column called <code>ex_lag2</code> holding the demand from two days ago, and print the first five rows so you can see where the <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> stop.</p>
+<div class="webr-container" data-block-title="Your turn: build a two-day lag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a two-day lag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This builds a one-day lag. Change it to two days.
+ex_sup &lt;- daily |&gt;
+  mutate(ex_lag2 = lag(demand, 1))
+
+ex_sup |&gt; select(date, demand, ex_lag2) |&gt; head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   date       demand ex_lag2
+#&gt;   &lt;date&gt;      &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 2012-01-01   111.     NA 
+#&gt; 2 2012-01-02   129.    111.
+#&gt; 3 2012-01-03   134.    129.
+#&gt; 4 2012-01-04   111.    134.
+#&gt; 5 2012-01-05   105.    111.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-day lag solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-day lag solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sup &lt;- daily |&gt;
+  mutate(ex_lag2 = lag(demand, 2))
+
+ex_sup |&gt; select(date, demand, ex_lag2) |&gt; head(5)
+#&gt; # A tibble: 5 × 3
+#&gt;   date       demand ex_lag2
+#&gt;   &lt;date&gt;      &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 2012-01-01   111.     NA 
+#&gt; 2 2012-01-02   129.     NA 
+#&gt; 3 2012-01-03   134.    111.
+#&gt; 4 2012-01-04   111.    129.
+#&gt; 5 2012-01-05   105.    134.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lag(x, n)</code> shifts the column down by <code>n</code> positions, so the value that lands on row 3 is the one that used to sit on row 1. Two rows are pushed off the top and become <code>NA</code>.</p>
+
+</details>
+</section>
+
+<h2>What is a lag feature, and which lags should you use?</h2>
+
+<p>A lag feature is the series itself, shifted down. <code>lag(x, 7)</code> puts the value from seven rows earlier onto the current row. That is the whole idea, and it is worth seeing on numbers small enough to check by eye before trusting it on a thousand rows of electricity data.</p>
+
+<div class="webr-container" data-block-title="See exactly what lag() does">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See exactly what lag() does</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, 30, 40, 50, 60)
+data.frame(x, lag1 = lag(x), lag2 = lag(x, 2))
+#&gt;    x lag1 lag2
+#&gt; 1 10   NA   NA
+#&gt; 2 20   10   NA
+#&gt; 3 30   20   10
+#&gt; 4 40   30   20
+#&gt; 5 50   40   30
+#&gt; 6 60   50   40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every value slides down by one column position per step. Row 4 says: the current value is 40, one step ago it was 30, two steps ago it was 20. Correct. The empty cells in the top-left corner are unavoidable, and there is exactly one rule about them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never fill the leading NAs with the column mean.</strong> The mean of the whole column includes values from the future, so filling with it plants information the model should not have. Drop those rows instead. On 1,096 days, throwing away the first fourteen costs you nothing.</div></div>
+
+<p>So which lags belong in the table? Guessing is a waste of time when the data will tell you. The <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a> measures how strongly the series correlates with itself at each shift, so the peaks in it are the lags worth building.</p>
+
+<div class="webr-container" data-block-title="Let autocorrelation pick the lags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let autocorrelation pick the lags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- acf(daily$demand, lag.max = 21, plot = FALSE)
+round(setNames(as.numeric(a$acf)[2:22], 1:21), 2)
+#&gt;    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16 
+#&gt; 0.64 0.24 0.13 0.10 0.15 0.41 0.60 0.33 0.04 0.00 0.01 0.06 0.33 0.54 0.31 0.05 
+#&gt;   17   18   19   20   21 
+#&gt; 0.00 0.00 0.04 0.29 0.51 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>acf()</code> returns the correlation at every shift starting from zero, and the correlation of a series with itself at shift zero is always 1, which tells you nothing. That is why we take elements <code>2:22</code> of the result: they are the correlations at shifts 1 through 21. <code>setNames()</code> then labels them 1 to 21 so the printout reads as lag numbers rather than positions.</p>
+
+<p>Read the peaks. Lag 1 is the highest at 0.64, which just says yesterday resembles today. Then the numbers fall to 0.10 by lag 4 and rise again to 0.60 at lag 7, 0.54 at lag 14 and 0.51 at lag 21. Those spikes every seven days are the weekly rhythm of a working week: Tuesdays look like Tuesdays.</p>
+
+<p>The dips matter as much as the peaks. Lags 3, 4, 9, 10 and 11 carry almost nothing, so building columns for them would add noise and cost you degrees of freedom. That leaves a shortlist of three: lag 1, lag 7, lag 14.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The lags worth building are almost always 1 and the first two multiples of the seasonal period.</strong> For daily data that is 1, 7 and 14. For monthly data it is 1, 12 and 24. For hourly data it is 1, 24 and 168. Start there, then check the autocorrelation and drop any of them the data says is flat.</div></div>
+
+<p>Let's add them one at a time and watch the error move.</p>
+
+<div class="webr-container" data-block-title="Measure what each lag is worth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure what each lag is worth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sup2 &lt;- sup |&gt; mutate(lag14 = lag(demand, 14))
+tr2  &lt;- filter(sup2, date &lt;  as.Date(&quot;2014-10-03&quot;))
+te2  &lt;- filter(sup2, date &gt;= as.Date(&quot;2014-10-03&quot;))
+
+score &lt;- function(f) {
+  m &lt;- lm(f, data = tr2)
+  round(mean(abs(te2$demand - predict(m, newdata = te2))), 2)
+}
+
+c(lag1       = score(demand ~ lag1),
+  plus_lag7  = score(demand ~ lag1 + lag7),
+  plus_lag14 = score(demand ~ lag1 + lag7 + lag14),
+  plus_dow   = score(demand ~ lag1 + lag7 + lag14 + dow))
+#&gt;       lag1  plus_lag7 plus_lag14   plus_dow 
+#&gt;       6.68       5.14       4.90       4.12 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>score()</code> helper fits one model and returns its mean absolute error on the held-out 90 days, so each row of the printout is a fair comparison of one feature set against the next.</p>
+
+<p>Now read the numbers in order. Yesterday alone misses by 6.68. Adding last week's same day cuts that to 5.14, a bigger single improvement than anything else we do in this tutorial. Lag 14 shaves off another 0.24, and the day-of-week label takes it to 4.12.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A model with one lag is worse than doing nothing clever at all.</strong> Look again at 6.68 for the lag-1 model against 5.48 for the seasonal naive benchmark. A regression given only yesterday's demand has no column that distinguishes Sunday from Wednesday, so on Saturday it predicts something close to Friday's working-day level, and it is wrong that way on every weekend day in the test window. On a series with weekly structure, feature engineering is not a refinement you add at the end. It is the thing that makes the forecast work at all.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The autocorrelation showed a third weekly spike at lag 21. Add <code>ex_lag21</code> to the feature set and check whether it earns its column.</p>
+<div class="webr-container" data-block-title="Your turn: test a third weekly lag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test a third weekly lag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d &lt;- daily |&gt;
+  mutate(lag1 = lag(demand), lag7 = lag(demand, 7), lag14 = lag(demand, 14),
+         ex_lag21 = lag(demand, 21),
+         dow = wday(date, label = TRUE))
+
+ex_tr &lt;- filter(ex_d, date &lt;  as.Date(&quot;2014-10-03&quot;))
+ex_te &lt;- filter(ex_d, date &gt;= as.Date(&quot;2014-10-03&quot;))
+ex_score &lt;- function(f) round(mean(abs(ex_te$demand - predict(lm(f, data = ex_tr), newdata = ex_te))), 2)
+
+# This scores the model WITHOUT lag 21. Add a second entry that includes it.
+c(without = ex_score(demand ~ lag1 + lag7 + lag14 + dow))
+#&gt; without 
+#&gt;    4.12 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Third weekly lag solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Third weekly lag solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d &lt;- daily |&gt;
+  mutate(lag1 = lag(demand), lag7 = lag(demand, 7), lag14 = lag(demand, 14),
+         ex_lag21 = lag(demand, 21),
+         dow = wday(date, label = TRUE))
+
+ex_tr &lt;- filter(ex_d, date &lt;  as.Date(&quot;2014-10-03&quot;))
+ex_te &lt;- filter(ex_d, date &gt;= as.Date(&quot;2014-10-03&quot;))
+ex_score &lt;- function(f) round(mean(abs(ex_te$demand - predict(lm(f, data = ex_tr), newdata = ex_te))), 2)
+
+c(without    = ex_score(demand ~ lag1 + lag7 + lag14 + dow),
+  with_lag21 = ex_score(demand ~ lag1 + lag7 + lag14 + ex_lag21 + dow))
+#&gt;    without with_lag21 
+#&gt;       4.12       4.07 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Lag 21 improves the error by 0.05 GWh, roughly one percent. Real but small, which is what you would expect from an autocorrelation of 0.51 that mostly repeats what lags 7 and 14 already said. It also costs you three more rows at the start of the series. Worth keeping here, but a coin flip.</p>
+
+</details>
+</section>
+
+<h2>How do rolling window features summarise recent history?</h2>
+
+<p>A lag reports one day. A rolling window reports a stretch of days, compressed into a single number. A seven-day <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">rolling mean</a> of demand gives the typical level of the past week, so an unusually high or low single day moves it only a little, where a lag column would pass that one day straight through to the model at full size.</p>
+
+<p>There is exactly one thing to get right, and it is the thing that trips up most implementations. The window has to <strong>end before the day you are predicting</strong>. If today is inside the window, the feature contains a slice of the answer. The fix is a habit worth memorising: lag first, then roll.</p>
+
+<div class="webr-container" data-block-title="Roll a window that ends yesterday">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Roll a window that ends yesterday</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">roll &lt;- sup2 |&gt;
+  mutate(roll7   = rollmeanr(lag(demand), k = 7, fill = NA),
+         rollsd7 = rollapplyr(lag(demand), width = 7, FUN = sd, fill = NA))
+
+roll |&gt; select(date, demand, lag1, roll7, rollsd7) |&gt; slice(6:12)
+#&gt; # A tibble: 7 × 5
+#&gt;   date       demand  lag1 roll7 rollsd7
+#&gt;   &lt;date&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 2012-01-06  105.  105.    NA    NA   
+#&gt; 2 2012-01-07  101.  105.    NA    NA   
+#&gt; 3 2012-01-08   96.7 101.   114.   12.5 
+#&gt; 4 2012-01-09  107.   96.7  112.   14.1 
+#&gt; 5 2012-01-10  108.  107.   109.   11.9 
+#&gt; 6 2012-01-11  109.  108.   105.    4.71
+#&gt; 7 2012-01-12  109.  109.   104.    4.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two functions from the zoo package are doing the work here. <code>rollmeanr()</code> computes a right-aligned rolling mean, meaning the window ends at the current row rather than being centred on it. <code>rollapplyr()</code> is the general version: hand it any function and it applies that function to each window, which is how we get a rolling standard deviation. The <code>fill = NA</code> argument tells both to leave a gap where there is not enough history rather than quietly shortening the window.</p>
+
+<p>The critical part is <code>lag(demand)</code> sitting inside both calls. We are rolling over the <em>lagged</em> column, so on 2012-01-08 the window covers 2012-01-01 through 2012-01-07 and stops. Today's 96.7 is nowhere near it.</p>
+
+<p><code>rollsd7</code> measures how jumpy that week was. The 12.5 on 2012-01-08 covers the volatile New Year period; by 2012-01-11 the series has settled and the spread drops to 4.71.</p>
+
+<p>So does a rolling mean actually help? That depends entirely on what else is in the table, and the honest answer is more interesting than "yes".</p>
+
+<div class="webr-container" data-block-title="Compare feature sets with and without rolling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare feature sets with and without rolling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tr &lt;- filter(roll, date &lt;  as.Date(&quot;2014-10-03&quot;))
+te &lt;- filter(roll, date &gt;= as.Date(&quot;2014-10-03&quot;))
+score &lt;- function(f) round(mean(abs(te$demand - predict(lm(f, data = tr), newdata = te))), 2)
+
+c(one_lag           = score(demand ~ lag1 + dow),
+  one_lag_plus_roll = score(demand ~ lag1 + roll7 + dow),
+  three_lags        = score(demand ~ lag1 + lag7 + lag14 + dow),
+  three_plus_roll   = score(demand ~ lag1 + lag7 + lag14 + dow + roll7),
+  plus_rolling_sd   = score(demand ~ lag1 + lag7 + lag14 + dow + roll7 + rollsd7))
+#&gt;           one_lag one_lag_plus_roll        three_lags   three_plus_roll 
+#&gt;              4.29              4.11              4.12              4.09 
+#&gt;   plus_rolling_sd 
+#&gt;              4.14 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the first two numbers together. With only yesterday in the table, one rolling mean column drops the error from 4.29 to 4.11. Compare that against the third number: adding two more lag columns instead lands at 4.12. One rolling mean did the work of two lags, because it carries a summary of all seven of them.</p>
+
+<p>Now read the third and fourth. Once lag 7 and lag 14 are already present, the same rolling mean is worth almost nothing: 4.12 to 4.09. And the rolling standard deviation actively hurts, pushing the error back up to 4.14.</p>
+
+<p>None of that is mysterious once you write out what <code>roll7</code> is. It is the average of lags 1 through 7. If lag 1 and lag 7 are already columns in their own right, the rolling mean is largely a repackaging of information the model has, so it adds redundancy rather than knowledge. Its real use is when you want a week of history without paying for seven columns.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Measure each feature family, do not assume it helps.</strong> Tutorials that stack lags plus rolling means plus rolling medians plus rolling ranges without scoring anything are showing you syntax, not judgement. Four extra columns that repeat each other cost accuracy on a short series, and every one of them is another thing to compute correctly at forecast time.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build <code>ex_max14</code>, the highest demand seen in the fourteen days ending yesterday. This is the kind of feature that helps a model spot heatwave conditions.</p>
+<div class="webr-container" data-block-title="Your turn: a rolling 14-day maximum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a rolling 14-day maximum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This is a 7-day rolling MEAN. Turn it into a 14-day rolling MAXIMUM.
+ex_roll &lt;- daily |&gt;
+  mutate(ex_max14 = rollapplyr(lag(demand), width = 7, FUN = mean, fill = NA))
+
+ex_roll |&gt; select(date, demand, ex_max14) |&gt; slice(14:18)
+#&gt; # A tibble: 5 × 3
+#&gt;   date       demand ex_max14
+#&gt;   &lt;date&gt;      &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 2012-01-14   97.2     105.
+#&gt; 2 2012-01-15   94.3     105.
+#&gt; 3 2012-01-16  126.      105.
+#&gt; 4 2012-01-17  145.      107.
+#&gt; 5 2012-01-18  130.      113.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rolling maximum solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling maximum solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_roll &lt;- daily |&gt;
+  mutate(ex_max14 = rollapplyr(lag(demand), width = 14, FUN = max, fill = NA))
+
+ex_roll |&gt; select(date, demand, ex_max14) |&gt; slice(14:18)
+#&gt; # A tibble: 5 × 3
+#&gt;   date       demand ex_max14
+#&gt;   &lt;date&gt;      &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 2012-01-14   97.2      NA 
+#&gt; 2 2012-01-15   94.3     134.
+#&gt; 3 2012-01-16  126.      134.
+#&gt; 4 2012-01-17  145.      134.
+#&gt; 5 2012-01-18  130.      145.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>lag(demand)</code> inside <code>rollapplyr()</code> is what keeps today out of the window. Look at 2012-01-17: demand hit 145 that day, but <code>ex_max14</code> still reports 134 because the window stopped the day before. On 2012-01-18 the 145 finally appears, which is exactly the behaviour you want.</p>
+
+</details>
+</section>
+
+<h2>How do you turn dates into features a model can use?</h2>
+
+<p>Every row already carries a date, and a date is a surprisingly dense package of information: which weekday it is, which month, how far through the year, whether the country is on holiday. None of that reaches the model until you unpack it into columns.</p>
+
+<p>Calendar features have one property that no other family shares. You know them for every future date, forever. You do not know next Tuesday's demand, but you certainly know next Tuesday is a Tuesday.</p>
+
+<div class="webr-container" data-block-title="Unpack the date into columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unpack the date into columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cal &lt;- roll |&gt;
+  mutate(dow        = wday(date, label = TRUE),
+         month      = month(date, label = TRUE),
+         doy        = yday(date),
+         is_weekend = as.integer(wday(date) %in% c(1, 7)),
+         is_holiday = as.integer(holiday))
+
+cal |&gt; select(date, demand, dow, month, doy, is_weekend, is_holiday) |&gt; slice(1:6)
+#&gt; # A tibble: 6 × 7
+#&gt;   date       demand dow   month   doy is_weekend is_holiday
+#&gt;   &lt;date&gt;      &lt;dbl&gt; &lt;ord&gt; &lt;ord&gt; &lt;dbl&gt;      &lt;int&gt;      &lt;int&gt;
+#&gt; 1 2012-01-01   111. Sun   Jan       1          1          1
+#&gt; 2 2012-01-02   129. Mon   Jan       2          0          1
+#&gt; 3 2012-01-03   134. Tue   Jan       3          0          0
+#&gt; 4 2012-01-04   111. Wed   Jan       4          0          0
+#&gt; 5 2012-01-05   105. Thu   Jan       5          0          0
+#&gt; 6 2012-01-06   105. Fri   Jan       6          0          0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four <a class="auto-link" href="lubridate-Cheat-Sheet-R.html" title="lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates">lubridate functions</a> did all of it. <code>wday(label = TRUE)</code> returns an <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a> of weekday names, <code>month(label = TRUE)</code> does the same for months, and <code>yday()</code> returns the day of the year as a number from 1 to 366. Without <code>label = TRUE</code>, <code>wday()</code> returns a number instead, counting from 1 for Sunday up to 7 for Saturday, which is why <code>wday(date) %in% c(1, 7)</code> picks out exactly the two weekend days. That comparison is wrapped in <code>as.integer()</code> so <code>TRUE</code> and <code>FALSE</code> become 1 and 0, and the holiday flag converts the existing <code>TRUE</code>/<code>FALSE</code> column the same way.</p>
+
+<p>Before modelling anything, it is worth checking that these columns describe a real pattern. If demand were flat across weekdays, <code>dow</code> would be dead weight.</p>
+
+<div class="webr-container" data-block-title="Check the weekly pattern is real">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the weekly pattern is real</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cal |&gt; group_by(dow) |&gt; summarise(mean_demand = round(mean(demand), 1))
+#&gt; # A tibble: 7 × 2
+#&gt;   dow   mean_demand
+#&gt;   &lt;ord&gt;       &lt;dbl&gt;
+#&gt; 1 Sun          98.3
+#&gt; 2 Mon         115. 
+#&gt; 3 Tue         117. 
+#&gt; 4 Wed         117. 
+#&gt; 5 Thu         118. 
+#&gt; 6 Fri         116. 
+#&gt; 7 Sat         102  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is about as clear as a pattern gets. Sunday averages 98.3 GWh and Thursday averages 118, a gap of nearly 20 GWh, which is four times the error our current model makes. Notice also that Saturday (102) sits well above Sunday (98.3), and that Monday and Friday are slightly below the midweek peak. A single weekend flag would flatten all of that into two numbers.</p>
+
+<p>Let's confirm that intuition costs real accuracy.</p>
+
+<div class="webr-container" data-block-title="Compare calendar encodings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare calendar encodings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tr &lt;- filter(cal, date &lt;  as.Date(&quot;2014-10-03&quot;))
+te &lt;- filter(cal, date &gt;= as.Date(&quot;2014-10-03&quot;))
+score &lt;- function(f) round(mean(abs(te$demand - predict(lm(f, data = tr), newdata = te))), 2)
+base &lt;- demand ~ lag1 + lag7 + lag14 + roll7
+
+c(no_calendar  = score(base),
+  plus_weekend = score(update(base, ~ . + is_weekend)),
+  plus_dow     = score(update(base, ~ . + dow)),
+  plus_holiday = score(update(base, ~ . + dow + is_holiday)))
+#&gt;  no_calendar plus_weekend     plus_dow plus_holiday 
+#&gt;         4.90         4.62         4.09         4.01 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>update()</code> takes an existing formula and adds terms to it, which keeps the comparison honest by guaranteeing the base features are identical in every model.</p>
+
+<p>The weekend flag helps, moving 4.90 to 4.62. The full seven-level factor nearly doubles that gain, reaching 4.09, because it can price Saturday differently from Sunday and Monday differently from Wednesday. Adding the holiday flag takes it to 4.01. Holidays are only about three percent of days, so 0.08 GWh of average improvement means it is doing serious work on the days it applies to.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Calendar features are the only ones you can compute for any future date.</strong> Every lag and every rolling window eventually runs out of real data as you forecast further ahead. Day of week, month and public holidays are known years in advance, which makes them disproportionately valuable at long horizons.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Public holidays, weekends and working days are three different kinds of day. Label each one and compare their average demand.</p>
+<div class="webr-container" data-block-title="Your turn: classify the type of day">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify the type of day</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This splits days two ways. Add a third branch that pulls out public holidays.
+ex_cal &lt;- daily |&gt;
+  mutate(ex_dow = wday(date, label = TRUE),
+         ex_type = case_when(ex_dow %in% c(&quot;Sat&quot;, &quot;Sun&quot;) ~ &quot;weekend&quot;,
+                             TRUE ~ &quot;working day&quot;))
+
+ex_cal |&gt; group_by(ex_type) |&gt; summarise(days = n(), mean_demand = round(mean(demand), 1))
+#&gt; # A tibble: 2 × 3
+#&gt;   ex_type      days mean_demand
+#&gt;   &lt;chr&gt;       &lt;int&gt;       &lt;dbl&gt;
+#&gt; 1 weekend       313        100.
+#&gt; 2 working day   783        117.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Day-type classification solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Day-type classification solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cal &lt;- daily |&gt;
+  mutate(ex_dow = wday(date, label = TRUE),
+         ex_type = case_when(holiday ~ &quot;public holiday&quot;,
+                             ex_dow %in% c(&quot;Sat&quot;, &quot;Sun&quot;) ~ &quot;weekend&quot;,
+                             TRUE ~ &quot;working day&quot;))
+
+ex_cal |&gt; group_by(ex_type) |&gt; summarise(days = n(), mean_demand = round(mean(demand), 1))
+#&gt; # A tibble: 3 × 3
+#&gt;   ex_type         days mean_demand
+#&gt;   &lt;chr&gt;          &lt;int&gt;       &lt;dbl&gt;
+#&gt; 1 public holiday    31        97.5
+#&gt; 2 weekend          312       100. 
+#&gt; 3 working day      753       118. </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>case_when()</code> checks its conditions in order and stops at the first match, which is why holidays are tested first: a public holiday falling on a Monday should count as a holiday, not a working day. The result shows a public holiday averages 97.5 GWh, lower even than an ordinary weekend at just over 100, because factories close on top of the usual weekend drop.</p>
+
+</details>
+</section>
+
+<h2>Why encode seasonality with sine and cosine instead of a dummy per period?</h2>
+
+<p>Day of week worked beautifully because a week has seven slots and seven columns is cheap. Annual seasonality is a different problem. A year has 365 slots, and a factor with 365 levels is not a model, it is a lookup table with three observations per entry.</p>
+
+<p>The obvious shortcut is to feed in <code>doy</code>, the day of the year, as a plain number. It fails in a specific and instructive way.</p>
+
+<div class="webr-container" data-block-title="Watch the calendar wrap around">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch the calendar wrap around</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">edge &lt;- data.frame(date = as.Date(c(&quot;2014-12-30&quot;, &quot;2014-12-31&quot;, &quot;2015-01-01&quot;, &quot;2015-01-02&quot;)))
+edge$doy  &lt;- yday(edge$date)
+edge$sin1 &lt;- round(sin(2 * pi * edge$doy / 365.25), 3)
+edge$cos1 &lt;- round(cos(2 * pi * edge$doy / 365.25), 3)
+edge
+#&gt;         date doy   sin1  cos1
+#&gt; 1 2014-12-30 364 -0.022 1.000
+#&gt; 2 2014-12-31 365 -0.004 1.000
+#&gt; 3 2015-01-01   1  0.017 1.000
+#&gt; 4 2015-01-02   2  0.034 0.999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the <code>doy</code> column across rows 2 and 3. December 31 and January 1 are consecutive days with near-identical weather and near-identical demand, and the encoding hands the model 365 and 1. To a regression that treats <code>doy</code> as a number, those two days are as far apart as any two days can be.</p>
+
+<p>Now look at <code>sin1</code> and <code>cos1</code> on the same rows: -0.004 and 1.000 becomes 0.017 and 1.000. Practically no movement, which is the truth. Those two columns are the day of the year wrapped onto a circle, so the end of December sits right next to the start of January where it belongs.</p>
+
+<p><em>If you would rather skip the formula, the code above is all you need. The next three paragraphs just explain where it comes from.</em></p>
+
+<p>A Fourier pair is a sine and a cosine evaluated at the same fraction of the way through the cycle. For a cycle of length $m$ and a position $t$ within it, the $k$th pair is:</p>
+
+<p>$$s_k(t) = \sin\left(\frac{2\pi k t}{m}\right), \qquad c_k(t) = \cos\left(\frac{2\pi k t}{m}\right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$t$ = position in the cycle, here the day of the year from <code>yday()</code></li>
+
+<li>$m$ = length of the cycle, here 365.25 to average out leap years</li>
+
+<li>$k$ = the harmonic number, where $k = 1$ is one smooth wave per year and $k = 2$ adds a second wave that completes twice per year</li>
+
+</ul>
+
+<p>You need both the sine and the cosine because a sine alone cannot represent a peak at an arbitrary time of year. Together they can shift the wave to peak wherever the data says it peaks, and the regression finds the right shift by choosing the two coefficients. Adding higher $k$ values lets the shape deviate further from a simple wave, at the cost of two columns each.</p>
+
+<div class="webr-container" data-block-title="Build two Fourier pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build two Fourier pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fe &lt;- cal |&gt;
+  mutate(sin1 = sin(2 * pi * doy / 365.25), cos1 = cos(2 * pi * doy / 365.25),
+         sin2 = sin(4 * pi * doy / 365.25), cos2 = cos(4 * pi * doy / 365.25))
+
+fe |&gt; select(date, doy, sin1, cos1, sin2, cos2) |&gt; slice(c(1, 90, 180, 270)) |&gt;
+  mutate(across(sin1:cos2, \(v) round(v, 3)))
+#&gt; # A tibble: 4 × 6
+#&gt;   date         doy   sin1   cos1   sin2   cos2
+#&gt;   &lt;date&gt;     &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 2012-01-01     1  0.017  1      0.034  0.999
+#&gt; 2 2012-03-30    90  1      0.023  0.045 -0.999
+#&gt; 3 2012-06-28   180  0.045 -0.999 -0.09   0.996
+#&gt; 4 2012-09-26   270 -0.998 -0.068  0.135 -0.991</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>4 * pi</code> in <code>sin2</code> and <code>cos2</code> is just <code>2 * pi * 2</code>, the second harmonic. The <code>\(v) round(v, 3)</code> in the last line is R's shorthand for <code>function(v) round(v, 3)</code>, a small unnamed function applied to each of the four columns so the printout is readable. Trace <code>sin1</code> down the rows and you can see the year turning: it starts near 0 in January, peaks at 1 around day 90, returns to 0 by day 180 and bottoms out at -1 near day 270. One complete cycle per year, exactly as intended.</p>
+
+<p>Now the comparison everyone wants: does this beat the alternatives?</p>
+
+<div class="webr-container" data-block-title="Compare four ways to encode the year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare four ways to encode the year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tr &lt;- filter(fe, date &lt;  as.Date(&quot;2014-10-03&quot;))
+te &lt;- filter(fe, date &gt;= as.Date(&quot;2014-10-03&quot;))
+compare &lt;- function(f, label) {
+  m &lt;- lm(f, data = tr)
+  data.frame(features = label, columns = length(coef(m)) - 1,
+             MAE = round(mean(abs(te$demand - predict(m, newdata = te))), 2))
+}
+base &lt;- demand ~ lag1 + lag7 + lag14 + dow + roll7 + is_holiday
+
+rbind(compare(base,                                    &quot;no annual term&quot;),
+      compare(update(base, ~ . + doy),                 &quot;doy as a plain number&quot;),
+      compare(update(base, ~ . + month),               &quot;month as a factor&quot;),
+      compare(update(base, ~ . + sin1 + cos1),         &quot;Fourier K = 1&quot;),
+      compare(update(base, ~ . + sin1 + cos1 + sin2 + cos2), &quot;Fourier K = 2&quot;))
+#&gt;                features columns  MAE
+#&gt; 1        no annual term      11 4.01
+#&gt; 2 doy as a plain number      12 3.69
+#&gt; 3     month as a factor      22 3.60
+#&gt; 4         Fourier K = 1      13 3.78
+#&gt; 5         Fourier K = 2      15 3.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every annual term helps, which settles the first question: the year matters. Beyond that the result is more nuanced than most tutorials admit. Month dummies score best at 3.60, buying 0.41 GWh of improvement for eleven extra columns. One Fourier pair gets 0.23 of that same improvement, a little over half, for two columns. The second pair adds nothing at all here, which tells you Victoria's annual demand curve really is close to a single smooth wave.</p>
+
+<p>So why prefer Fourier at all? Two reasons, and neither shows up in this MAE column. The first is that a smooth curve does not jump at midnight on the last day of the month, whereas month dummies claim demand changes discontinuously between January 31 and February 1. The second is that Fourier is the only option once the period stops being small: a half-hourly series has 336 slots in its weekly cycle, and nobody is fitting 335 dummy variables.</p>
+
+<p>The straight-line <code>doy</code> encoding scored 3.69, which looks fine until you check what it implies at the year boundary.</p>
+
+<div class="webr-container" data-block-title="Measure the jump each encoding creates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the jump each encoding creates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_doy  &lt;- lm(update(base, ~ . + doy),         data = tr)
+m_four &lt;- lm(update(base, ~ . + sin1 + cos1), data = tr)
+
+annual_four &lt;- function(d) {
+  coef(m_four)[&quot;sin1&quot;] * sin(2 * pi * d / 365.25) + coef(m_four)[&quot;cos1&quot;] * cos(2 * pi * d / 365.25)
+}
+
+round(c(doy_jump     = as.numeric(-364 * coef(m_doy)[&quot;doy&quot;]),
+        fourier_jump = as.numeric(annual_four(1) - annual_four(365))), 2)
+#&gt;     doy_jump fourier_jump 
+#&gt;         2.89         0.01 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted <code>doy</code> coefficient is small, but it is multiplied by a drop of 364 as the calendar rolls over, so the straight-line encoding predicts a change of 2.89 GWh overnight on New Year's Eve purely because the day counter reset. The Fourier encoding puts that same transition at 0.01 GWh. Our test window happens to sit in October to December and never crosses the boundary, which is exactly why its 3.69 looked respectable. Forecast into January and that 2.89 GWh error lands in your numbers.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Choose a seasonal encoding by what it claims about the shape of the year, not only by its score on one test window.</strong> A number that treats December 31 and January 1 as opposites will look fine until the day your forecast horizon crosses New Year.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The weekly cycle can also be written as a Fourier pair, with period 7 instead of 365.25. Build one and see whether two smooth columns can replace the seven-level <code>dow</code> factor.</p>
+<div class="webr-container" data-block-title="Your turn: a weekly Fourier pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a weekly Fourier pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The period below is wrong. A week is 7 days, not 14. Fix it, then rerun.
+ex_f &lt;- daily |&gt;
+  mutate(lag1 = lag(demand), lag7 = lag(demand, 7), lag14 = lag(demand, 14),
+         dow = wday(date, label = TRUE), dnum = as.numeric(wday(date)),
+         ex_sin = sin(2 * pi * dnum / 14),
+         ex_cos = cos(2 * pi * dnum / 14))
+
+ex_tr &lt;- filter(ex_f, date &lt;  as.Date(&quot;2014-10-03&quot;))
+ex_te &lt;- filter(ex_f, date &gt;= as.Date(&quot;2014-10-03&quot;))
+s &lt;- function(f) round(mean(abs(ex_te$demand - predict(lm(f, data = ex_tr), newdata = ex_te))), 2)
+
+c(dow_factor     = s(demand ~ lag1 + lag7 + lag14 + dow),
+  weekly_fourier = s(demand ~ lag1 + lag7 + lag14 + ex_sin + ex_cos))
+#&gt;     dow_factor weekly_fourier 
+#&gt;           4.12           4.90 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weekly Fourier solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weekly Fourier solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_f &lt;- daily |&gt;
+  mutate(lag1 = lag(demand), lag7 = lag(demand, 7), lag14 = lag(demand, 14),
+         dow = wday(date, label = TRUE), dnum = as.numeric(wday(date)),
+         ex_sin = sin(2 * pi * dnum / 7),
+         ex_cos = cos(2 * pi * dnum / 7))
+
+ex_tr &lt;- filter(ex_f, date &lt;  as.Date(&quot;2014-10-03&quot;))
+ex_te &lt;- filter(ex_f, date &gt;= as.Date(&quot;2014-10-03&quot;))
+s &lt;- function(f) round(mean(abs(ex_te$demand - predict(lm(f, data = ex_tr), newdata = ex_te))), 2)
+
+c(dow_factor     = s(demand ~ lag1 + lag7 + lag14 + dow),
+  weekly_fourier = s(demand ~ lag1 + lag7 + lag14 + ex_sin + ex_cos))
+#&gt;     dow_factor weekly_fourier 
+#&gt;           4.12           4.82 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The factor wins decisively, 4.12 against 4.82. A single sine and cosine can only draw one smooth hump across the week, and the real pattern is a sharp cliff: five nearly identical weekdays followed by a steep two-day drop. Fourier is the right tool when the period is long and the shape is smooth, and the wrong tool when the period is short and the shape is blocky.</p>
+
+</details>
+</section>
+
+<h2>How do you keep the future from leaking into your features?</h2>
+
+<p>Everything so far has been about adding information. This section is about a single rule that governs all of it:</p>
+
+<blockquote><p>A feature for day <em>t</em> may only use information you would genuinely hold on the morning of day <em>t</em>.</p></blockquote>
+
+<p>Break that rule and your model does not just get a slightly optimistic score. It gets a spectacular score that collapses the instant you try to forecast anything real. The fastest way to understand leakage is to build one deliberately.</p>
+
+<p>Here is a rolling mean written the way a tired person writes it at 6pm: two days, right-aligned, no lag.</p>
+
+<div class="webr-container" data-block-title="Build a leaky rolling window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a leaky rolling window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">leaky &lt;- fe |&gt; mutate(roll2_bad = rollmeanr(demand, k = 2, fill = NA))
+
+leaky |&gt; select(date, demand, lag1, roll2_bad) |&gt; slice(1:5)
+#&gt; # A tibble: 5 × 4
+#&gt;   date       demand  lag1 roll2_bad
+#&gt;   &lt;date&gt;      &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 2012-01-01   111.   NA        NA 
+#&gt; 2 2012-01-02   129.  111.      120.
+#&gt; 3 2012-01-03   134.  129.      131.
+#&gt; 4 2012-01-04   111.  134.      122.
+#&gt; 5 2012-01-05   105.  111.      108.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The missing <code>lag()</code> is the entire bug. On row 2, <code>roll2_bad</code> is the average of 111 and 129, and 129 is the very number we are trying to predict. The feature contains half the answer.</p>
+
+<p>Watch what a linear model does with that.</p>
+
+<div class="webr-container" data-block-title="Fit the leaky feature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the leaky feature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tr &lt;- filter(leaky, date &lt;  as.Date(&quot;2014-10-03&quot;))
+te &lt;- filter(leaky, date &gt;= as.Date(&quot;2014-10-03&quot;))
+
+m_leak &lt;- lm(demand ~ lag1 + lag7 + dow + roll2_bad, data = tr)
+p_leak &lt;- predict(m_leak, newdata = te)
+
+round(c(train_r_squared = summary(m_leak)$r.squared,
+        test_MAE        = mean(abs(te$demand - p_leak))), 3)
+#&gt; train_r_squared        test_MAE 
+#&gt;               1               0 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An R-squared of exactly 1 and a mean absolute error of exactly 0. Not "good". Perfect, on data the model was never trained on. If you ever see this, you have not solved forecasting.</p>
+
+<p>The coefficients say precisely what happened.</p>
+
+<div class="webr-container" data-block-title="Read the coefficients that give it away">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the coefficients that give it away</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(m_leak), 3)
+#&gt; (Intercept)        lag1        lag7       dow.L       dow.Q       dow.C 
+#&gt;           0          -1           0           0           0           0 
+#&gt;       dow^4       dow^5       dow^6   roll2_bad 
+#&gt;           0           0           0           2 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The odd names are worth a word. A seven-level ordered factor such as <code>dow</code> enters a linear model as six columns, and R labels them <code>.L</code>, <code>.Q</code>, <code>.C</code>, <code>^4</code>, <code>^5</code> and <code>^6</code> for linear, quadratic, cubic and higher shapes across the ordered levels. The labels do not matter here. What matters is the number beside each of them.</p>
+
+<p>Every coefficient is zero except two: <code>lag1</code> is -1 and <code>roll2_bad</code> is 2. The model found that</p>
+
+<p>$$\text{demand}_t = 2 \times \frac{\text{demand}_t + \text{demand}_{t-1}}{2} - \text{demand}_{t-1}$$</p>
+
+<p>which is just algebra. It abandoned <a class="auto-link" href="lubridate-wday-in-R.html" title="lubridate wday() in R: Day-of-Week From Dates">day of week</a>, abandoned last week, and solved for the target exactly, because we handed it a column with the answer folded in. Here is the same model with the lag restored.</p>
+
+<div class="webr-container" data-block-title="Fit the honest version for comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the honest version for comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_ok &lt;- lm(demand ~ lag1 + lag7 + dow + roll7, data = tr)
+
+round(c(honest_train_r_squared = summary(m_ok)$r.squared,
+        honest_test_MAE        = mean(abs(te$demand - predict(m_ok, newdata = te)))), 3)
+#&gt; honest_train_r_squared        honest_test_MAE 
+#&gt;                  0.757                  4.124 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An R-squared of 0.757 and an error of 4.12. That is what a genuinely useful daily demand model looks like, and next to the leaked version it looks like a failure. This is the trap: leakage makes correct work feel inadequate.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A holdout set will not save you from leakage.</strong> The leaked model scored a perfect zero on data it had never seen, because the flaw was baked into how the features were built and therefore infected both halves of the split. Cross-validation, rolling origins and elaborate test schemes all inherit the same corrupted columns. Leakage is caught by auditing feature construction, not by better splitting.</div></div>
+
+<p><img src="screenshots/Feature-Engineering-for-Forecasting-in-R-leakage-window.webp" alt="Diagram showing which information sources a feature may draw on and which one is leakage" class="img-responsive img-zoomable" loading="lazy" width="1492" height="986" /></p>
+
+<p><em>Figure 2: A feature for day t may use the past and the known calendar, never the actual future.</em></p>
+
+<p>Not every leak is that blatant. The subtle ones come from external variables, where the question is not "is this from the future" but "will I have this number when I need it". Temperature is the perfect example, because electricity demand is largely a story about air conditioning.</p>
+
+<div class="webr-container" data-block-title="Test whether temperature is usable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test whether temperature is usable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tmp &lt;- fe |&gt; mutate(temp_yesterday = lag(temp))
+tr  &lt;- filter(tmp, date &lt;  as.Date(&quot;2014-10-03&quot;))
+te  &lt;- filter(tmp, date &gt;= as.Date(&quot;2014-10-03&quot;))
+sc  &lt;- function(f) round(mean(abs(te$demand - predict(lm(f, data = tr), newdata = te))), 2)
+base &lt;- demand ~ lag1 + lag7 + lag14 + dow + roll7 + is_holiday + sin1 + cos1
+
+c(no_weather     = sc(base),
+  temp_yesterday = sc(update(base, ~ . + temp_yesterday)),
+  temp_same_day  = sc(update(base, ~ . + temp)))
+#&gt;     no_weather temp_yesterday  temp_same_day 
+#&gt;           3.78           3.78           3.31 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Yesterday's temperature is worth literally nothing: 3.78 either way. Today's temperature is worth a lot, dropping the error to 3.31, the single biggest improvement available to us. Air conditioners respond to today's heat, not yesterday's.</p>
+
+<p>So is <code>temp</code> a leak? It depends on a question that has nothing to do with statistics. When you forecast tomorrow's demand, will you have tomorrow's temperature? For electricity, yes, because the weather bureau publishes forecasts. Variables like this are called known-future regressors, and they are legitimate as long as you feed the model the <em>forecast</em> temperature and not the actual, which you would not have. For a variable with no forecast available, a competitor's price or a website's traffic, you must lag it.</p>
+
+<p>Five questions worth asking about every feature before it goes into the table:</p>
+
+<ol>
+
+<li>Does this column use any observation dated on or after the day it describes?</li>
+
+<li>If it involves a window, does that window end strictly before the day being predicted?</li>
+
+<li>If it came from another series, will a value be available at forecast time, or only a forecast of it?</li>
+
+<li>Were any statistics used to build it (a mean, a standard deviation, a category encoding) computed on the training rows only?</li>
+
+<li>Could I generate this column for tomorrow right now, with nothing but data I hold today?</li>
+
+</ol>
+
+<p>Question 5 is the one that catches everything. If you cannot compute the feature for a future date, the model cannot use it, no matter how good it made your validation score look.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A centred rolling window looks harmless and is not. Build a three-day mean centred on today, fit it alongside <code>lag1</code>, and compare its R-squared with an honest model. Then count how many predictions it manages to produce.</p>
+<div class="webr-container" data-block-title="Your turn: audit a centred window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: audit a centred window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># align = &quot;right&quot; is the honest version. Change that one word to &quot;center&quot; and rerun.
+ex_lk &lt;- daily |&gt;
+  mutate(lag1 = lag(demand),
+         ex_window = rollmean(lag(demand), 3, fill = NA, align = &quot;right&quot;))
+
+ex_tr &lt;- filter(ex_lk, date &lt;  as.Date(&quot;2014-10-03&quot;))
+ex_te &lt;- filter(ex_lk, date &gt;= as.Date(&quot;2014-10-03&quot;))
+ex_m  &lt;- lm(demand ~ lag1 + ex_window, data = ex_tr)
+
+round(c(with_window = summary(ex_m)$r.squared,
+        lag1_only   = summary(lm(demand ~ lag1, data = ex_tr))$r.squared), 3)
+#&gt; with_window   lag1_only 
+#&gt;       0.424       0.406 
+c(missing_predictions = sum(is.na(predict(ex_m, newdata = ex_te))))
+#&gt; missing_predictions 
+#&gt;                   0 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Centred window audit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Centred window audit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lk &lt;- daily |&gt;
+  mutate(lag1 = lag(demand),
+         ex_window = rollmean(lag(demand), 3, fill = NA, align = &quot;center&quot;))
+
+ex_tr &lt;- filter(ex_lk, date &lt;  as.Date(&quot;2014-10-03&quot;))
+ex_te &lt;- filter(ex_lk, date &gt;= as.Date(&quot;2014-10-03&quot;))
+ex_m  &lt;- lm(demand ~ lag1 + ex_window, data = ex_tr)
+
+round(c(with_window = summary(ex_m)$r.squared,
+        lag1_only   = summary(lm(demand ~ lag1, data = ex_tr))$r.squared), 3)
+#&gt; with_window   lag1_only 
+#&gt;       0.614       0.406 
+c(missing_predictions = sum(is.na(predict(ex_m, newdata = ex_te))))
+#&gt; missing_predictions 
+#&gt;                   1 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> One word moved the window forward by a day, so it now spans the day before yesterday, yesterday and today. R-squared jumps from 0.424 to 0.614, entirely on the strength of a column that contains a third of the answer. The <code>missing_predictions</code> count is the second tell: the very last row cannot be computed at all, because the window reaches past the end of the data. Any feature that fails to exist at the end of your series is a feature that will fail to exist at forecast time.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast more than one step ahead?</h2>
+
+<p>Everything so far has been a one-step forecast: predict tomorrow using yesterday. That is genuinely useful, and it is also not what most people are asked for. They are asked for the next two weeks.</p>
+
+<p>Here is the difficulty, stated plainly. Standing at the forecast origin, the last day with a real observation, <code>lag1</code> is available for day one of your horizon. For day two, <code>lag1</code> would need day one's actual demand, which does not exist yet. Every lag shorter than the horizon runs out.</p>
+
+<p>There are two standard ways around this, and they fail in opposite directions.</p>
+
+<p><strong>The recursive strategy</strong> builds one model with short lags, predicts day one, pretends that prediction is real, and uses it to build the features for day two. Repeat to the end of the horizon.</p>
+
+<div class="webr-container" data-block-title="Forecast 14 days recursively">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast 14 days recursively</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train  &lt;- filter(fe, date &lt;  as.Date(&quot;2014-10-03&quot;))
+future &lt;- filter(fe, date &gt;= as.Date(&quot;2014-10-03&quot;)) |&gt; slice(1:14)
+
+m_rec   &lt;- lm(demand ~ lag1 + lag7 + dow + roll7 + is_holiday + sin1 + cos1, data = train)
+history &lt;- train$demand
+rec     &lt;- numeric(14)
+
+for (i in 1:14) {
+  row       &lt;- future[i, ]
+  row$lag1  &lt;- history[length(history)]
+  row$lag7  &lt;- history[length(history) - 6]
+  row$roll7 &lt;- mean(tail(history, 7))
+  rec[i]    &lt;- predict(m_rec, newdata = row)
+  history   &lt;- c(history, rec[i])
+}
+
+tibble(date = future$date, actual = round(future$demand, 1), recursive = round(rec, 1))
+#&gt; # A tibble: 14 × 3
+#&gt;    date       actual recursive
+#&gt;    &lt;date&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt;  1 2014-10-03  106.      111. 
+#&gt;  2 2014-10-04   91.9      97.1
+#&gt;  3 2014-10-05   82.8      93.3
+#&gt;  4 2014-10-06  110.      112. 
+#&gt;  5 2014-10-07  108.      114. 
+#&gt;  6 2014-10-08  110.      115. 
+#&gt;  7 2014-10-09  109       116. 
+#&gt;  8 2014-10-10  107       114. 
+#&gt;  9 2014-10-11   93.2      99.2
+#&gt; 10 2014-10-12   90.8      95.2
+#&gt; 11 2014-10-13  111.      113  
+#&gt; 12 2014-10-14  114.      115. 
+#&gt; 13 2014-10-15  113       116. 
+#&gt; 14 2014-10-16  112.      116. </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>history</code> vector is the heart of it. It starts as the real training demand and grows by one predicted value per iteration. Each pass pulls <code>lag1</code> from its last element, <code>lag7</code> from the seventh element counting back from the end, and <code>roll7</code> from its last seven. The <code>- 6</code> in <code>history[length(history) - 6]</code> looks off by one until you notice that the last element is already one day back, so six more steps lands on the day seven back. By day eight of the horizon every one of those three features is built entirely out of the model's own predictions.</p>
+
+<p>The forecasts track the weekly shape well, correctly dropping for both weekends. They also sit consistently a few GWh above the truth, and that bias is characteristic: once an error enters <code>history</code>, it comes back as an input and gets partially re-predicted, over and over.</p>
+
+<p><strong>The direct strategy</strong> avoids the feedback entirely. Build the model using only lags old enough to still be real at the far end of the horizon. For a 14-day forecast, that means lag 14 and older.</p>
+
+<div class="webr-container" data-block-title="Forecast the same 14 days directly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the same 14 days directly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fe2 &lt;- fe |&gt; mutate(lag21 = lag(demand, 21),
+                    roll7_lag14 = rollmeanr(lag(demand, 14), 7, fill = NA))
+
+tr2 &lt;- filter(fe2, date &lt;  as.Date(&quot;2014-10-03&quot;))
+fu2 &lt;- filter(fe2, date &gt;= as.Date(&quot;2014-10-03&quot;)) |&gt; slice(1:14)
+
+m_dir &lt;- lm(demand ~ lag14 + lag21 + roll7_lag14 + dow + is_holiday + sin1 + cos1, data = tr2)
+dir   &lt;- predict(m_dir, newdata = fu2)
+
+round(c(recursive_MAE = mean(abs(future$demand - rec)),
+        direct_MAE    = mean(abs(future$demand - dir))), 2)
+#&gt; recursive_MAE    direct_MAE 
+#&gt;          4.73          4.73 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every feature in <code>m_dir</code> is either 14 days old or a calendar fact, so all fourteen predictions come from real data in a single <code>predict()</code> call. No loop, no feedback, no compounding.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Strictly speaking, "direct" means one model per horizon, not one model for the whole horizon.</strong> A true direct setup fits fourteen separate models, the day-1 model allowed to use lag 1, the day-2 model lag 2, and so on. The single-model version above is the cheap approximation: it uses the oldest lag any step needs, so it is safe at every horizon and slightly conservative at the near ones.</div></div>
+
+<p>And the two strategies tie exactly, at 4.73 each. Which is a useful thing to happen, because it is meaningless. One forecast origin is one draw from a noisy process, and it cannot tell you which method is better.</p>
+
+<p><img src="screenshots/Feature-Engineering-for-Forecasting-in-R-recursive-vs-direct.webp" alt="Diagram contrasting recursive forecasting with the direct multi-step strategy" class="img-responsive img-zoomable" loading="lazy" width="1722" height="690" /></p>
+
+<p><em>Figure 3: Recursive feeds its own predictions back; direct only uses lags old enough to be real.</em></p>
+
+<p>To answer it properly we repeat the whole exercise from six different origins, refitting both models each time on everything available up to that point, and then split the errors by how far ahead they were.</p>
+
+<div class="webr-container" data-block-title="Compare both strategies over six origins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare both strategies over six origins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">forecast_rec &lt;- function(train, future) {
+  m &lt;- lm(demand ~ lag1 + lag7 + dow + roll7 + is_holiday + sin1 + cos1, data = train)
+  h &lt;- train$demand
+  out &lt;- numeric(nrow(future))
+  for (i in seq_len(nrow(future))) {
+    r &lt;- future[i, ]
+    r$lag1 &lt;- h[length(h)]; r$lag7 &lt;- h[length(h) - 6]; r$roll7 &lt;- mean(tail(h, 7))
+    out[i] &lt;- predict(m, newdata = r)
+    h &lt;- c(h, out[i])
+  }
+  out
+}
+
+origins &lt;- nrow(fe2) - 84 + (0:5) * 14
+errors  &lt;- bind_rows(lapply(origins, function(s) {
+  tr &lt;- fe2[1:(s - 1), ]
+  fu &lt;- fe2[s:(s + 13), ]
+  m_dir &lt;- lm(demand ~ lag14 + lag21 + roll7_lag14 + dow + is_holiday + sin1 + cos1, data = tr)
+  tibble(h = 1:14,
+         recursive = abs(fu$demand - forecast_rec(tr, fu)),
+         direct    = abs(fu$demand - predict(m_dir, newdata = fu)),
+         snaive    = abs(fu$demand - fu$lag7))
+}))
+
+errors |&gt;
+  mutate(week = ifelse(h &lt;= 7, &quot;days 1-7&quot;, &quot;days 8-14&quot;)) |&gt;
+  group_by(week) |&gt;
+  summarise(across(recursive:snaive, \(v) round(mean(v), 2)))
+#&gt; # A tibble: 2 × 4
+#&gt;   week      recursive direct snaive
+#&gt;   &lt;chr&gt;         &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 days 1-7       3.57    3.7   4.52
+#&gt; 2 days 8-14      5.64    5.1   6.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>origins</code> picks six starting points spaced fourteen days apart across the last twelve weeks. For each one, <code>fe2[1:(s - 1), ]</code> is everything before that origin and <code>fe2[s:(s + 13), ]</code> is the fortnight to forecast. Both models are refit on each origin's training data, so nothing from the future is ever used to fit anything.</p>
+
+<p>Now the pattern is unmistakable. In the first week the recursive model wins, 3.57 against 3.70, because a real <code>lag1</code> is powerful and it is still nearly real that early. In the second week it loses, 5.64 against 5.10, because by then every one of its lags is a prediction of a prediction and the errors have compounded. Both beat the seasonal naive benchmark at both horizons.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The best feature set depends on how far ahead you are forecasting.</strong> A lag-1 column is the most valuable feature you have at horizon 1 and a liability at horizon 14. If you need forecasts at several horizons, you need several feature sets, which is precisely what the direct strategy formalises: one model per horizon, each using only the lags that will still be real when that horizon arrives.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a direct model that uses <code>lag7</code> as its shortest lag, and compare it with the <code>lag14</code> version on the same fourteen days. The number will look better. Work out why you cannot use it.</p>
+<div class="webr-container" data-block-title="Your turn: check lag availability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check lag availability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This is the horizon-14 model. Add a second one whose shortest lag is lag7.
+ex_h14 &lt;- lm(demand ~ lag14 + lag21 + dow + is_holiday + sin1 + cos1, data = tr2)
+
+round(c(min_lag_14 = mean(abs(fu2$demand - predict(ex_h14, newdata = fu2)))), 2)
+#&gt; min_lag_14 
+#&gt;       4.95 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lag availability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag availability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_h7  &lt;- lm(demand ~ lag7 + lag14 + dow + is_holiday + sin1 + cos1, data = tr2)
+ex_h14 &lt;- lm(demand ~ lag14 + lag21 + dow + is_holiday + sin1 + cos1, data = tr2)
+
+round(c(min_lag_7  = mean(abs(fu2$demand - predict(ex_h7,  newdata = fu2))),
+        min_lag_14 = mean(abs(fu2$demand - predict(ex_h14, newdata = fu2)))), 2)
+#&gt;  min_lag_7 min_lag_14 
+#&gt;       3.75       4.95 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The lag7 model scores 3.75, a full 1.2 GWh better, and it is a fantasy. On day 8 of the horizon, <code>lag7</code> refers to day 1 of the horizon, which has not happened. The only reason a number appeared at all is that our <code>future</code> data frame was built from historical rows where those values happen to exist. In a live forecast, <code>predict()</code> would return <code>NA</code> from day 8 onward. This is leakage question 5 in action: could you compute this column for tomorrow, with only what you hold today?</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end feature pipeline for daily electricity demand</h2>
+
+<p>Everything up to here was built piece by piece to explain it. In practice you want one function that takes a raw daily table and returns a modelling table, so that training data and future rows are guaranteed to be built identically.</p>
+
+<div class="webr-container" data-block-title="Wrap the whole pipeline in one function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap the whole pipeline in one function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">add_features &lt;- function(d) {
+  d |&gt;
+    arrange(date) |&gt;
+    mutate(
+      lag1       = lag(demand),
+      lag7       = lag(demand, 7),
+      lag14      = lag(demand, 14),
+      roll7      = rollmeanr(lag(demand), k = 7, fill = NA),
+      dow        = wday(date, label = TRUE),
+      is_holiday = as.integer(holiday),
+      doy        = yday(date),
+      sin1       = sin(2 * pi * doy / 365.25),
+      cos1       = cos(2 * pi * doy / 365.25)
+    ) |&gt;
+    filter(!is.na(lag14))
+}
+
+model_data &lt;- add_features(daily)
+dim(model_data)
+#&gt; [1] 1082   13
+names(model_data)
+#&gt;  [1] &quot;date&quot;       &quot;demand&quot;     &quot;temp&quot;       &quot;holiday&quot;    &quot;lag1&quot;      
+#&gt;  [6] &quot;lag7&quot;       &quot;lag14&quot;      &quot;roll7&quot;      &quot;dow&quot;        &quot;is_holiday&quot;
+#&gt; [11] &quot;doy&quot;        &quot;sin1&quot;       &quot;cos1&quot;      </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three details in that function are worth calling out. <code>arrange(date)</code> guarantees chronological order before any lag is taken, because <code>lag()</code> operates on row position and will silently produce nonsense on shuffled rows. Every window is built from <code>lag(demand)</code> rather than <code>demand</code>. And the final <code>filter()</code> drops the fourteen rows where <code>lag14</code> is missing, which leaves 1,082 clean rows.</p>
+
+<p>Writing it as a function is not tidiness for its own sake. It is the only reliable way to guarantee that the columns you train on and the columns you predict on were produced by the same code.</p>
+
+<p>Now, the question this whole tutorial has been building toward: which of these features actually earned its place?</p>
+
+<div class="webr-container" data-block-title="Measure what each feature family contributed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure what each feature family contributed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- filter(model_data, date &lt;  as.Date(&quot;2014-10-03&quot;))
+test  &lt;- filter(model_data, date &gt;= as.Date(&quot;2014-10-03&quot;))
+mae   &lt;- function(f) round(mean(abs(test$demand - predict(lm(f, data = train), newdata = test))), 2)
+
+tibble(
+  features = c(&quot;seasonal naive (no model)&quot;, &quot;lag1&quot;, &quot;+ lag7 + lag14&quot;, &quot;+ roll7&quot;,
+               &quot;+ day of week&quot;, &quot;+ holiday flag&quot;, &quot;+ annual Fourier pair&quot;),
+  MAE = c(round(mean(abs(test$demand - test$lag7)), 2),
+          mae(demand ~ lag1),
+          mae(demand ~ lag1 + lag7 + lag14),
+          mae(demand ~ lag1 + lag7 + lag14 + roll7),
+          mae(demand ~ lag1 + lag7 + lag14 + roll7 + dow),
+          mae(demand ~ lag1 + lag7 + lag14 + roll7 + dow + is_holiday),
+          mae(demand ~ lag1 + lag7 + lag14 + roll7 + dow + is_holiday + sin1 + cos1)))
+#&gt; # A tibble: 7 × 2
+#&gt;   features                    MAE
+#&gt;   &lt;chr&gt;                     &lt;dbl&gt;
+#&gt; 1 seasonal naive (no model)  5.48
+#&gt; 2 lag1                       6.69
+#&gt; 3 + lag7 + lag14             4.9 
+#&gt; 4 + roll7                    4.9 
+#&gt; 5 + day of week              4.09
+#&gt; 6 + holiday flag             4.01
+#&gt; 7 + annual Fourier pair      3.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That table is the tutorial in seven rows. Starting from a benchmark of 5.48, the first attempt at a model makes things worse at 6.69. The two seasonal lags together bring it back to 4.90, the largest step anywhere in the table. The rolling mean adds nothing at this point, for the collinearity reason we found earlier. Day of week is the largest single-column gain at 0.81 GWh, the holiday flag adds 0.08 and the Fourier pair another 0.23. Final score: 3.78, which is 31 percent better than the benchmark.</p>
+
+<p>Does a fancier algorithm on the same columns do better? It is a fair question, and the answer is instructive.</p>
+
+<div class="webr-container" data-block-title="Feed the same table to a regression tree">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Feed the same table to a regression tree</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rpart)
+
+f &lt;- demand ~ lag1 + lag7 + lag14 + roll7 + dow + is_holiday + sin1 + cos1
+tree_fit &lt;- rpart(f, data = train)
+
+round(c(linear_model    = mean(abs(test$demand - predict(lm(f, data = train), newdata = test))),
+        regression_tree = mean(abs(test$demand - predict(tree_fit, newdata = test))),
+        seasonal_naive  = mean(abs(test$demand - test$lag7))), 2)
+#&gt;    linear_model regression_tree  seasonal_naive 
+#&gt;            3.78            5.05            5.48 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tree scores 5.05, considerably worse than the linear model, and the reason is visible in its predictions.</p>
+
+<div class="webr-container" data-block-title="Count the tree&#x27;s distinct predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the tree&#x27;s distinct predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(distinct_tree_predictions = length(unique(predict(tree_fit, newdata = test))),
+  test_days = nrow(test))
+#&gt; distinct_tree_predictions                 test_days 
+#&gt;                         7                        90 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across 90 days the tree emits just 7 different numbers, one per leaf. A tree predicts the average of the training rows that landed in each leaf, so its output is a staircase. That is fine for classification and awkward for a smooth continuous quantity. It also means a tree can never predict a value outside the range it saw in training, which matters enormously for any series that trends.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Trees are not bad at forecasting, single small trees are.</strong> A gradient boosted ensemble or a random forest averages hundreds of trees and produces a far finer-grained output. The general point stands though: the feature table is shared, and the model choice determines what can be done with it. Getting the columns right is the part that transfers to every algorithm you might try next.</div></div>
+
+<p>Finally, the picture. Numbers tell you how big the error is; a chart tells you where it lives.</p>
+
+<div class="webr-container" data-block-title="Plot actual against predicted demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot actual against predicted demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">final_model &lt;- lm(f, data = train)
+test$predicted &lt;- predict(final_model, newdata = test)
+
+ggplot(test, aes(x = date)) +
+  geom_line(aes(y = demand), linewidth = 0.7) +
+  geom_line(aes(y = predicted), linewidth = 0.7, linetype = &quot;dashed&quot;) +
+  labs(title = &quot;Actual (solid) vs predicted (dashed) daily demand&quot;,
+       x = NULL, y = &quot;Demand (GWh)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line follows the weekly sawtooth almost exactly, which is the day-of-week factor and the seasonal lags doing their job. The gaps open up on the sharpest single-day drops, the ones driven by weather swings our feature table cannot see, which is exactly where the temperature forecast we discussed earlier would pay for itself.</p>
+
+<p>One last practical note. Every feature in this tutorial was written by hand so you could see it, but you do not have to keep doing it by hand. The timetk package wraps the same operations in one-line helpers.</p>
+
+<pre><code class="language-r">library(timetk)
+
+tk_features &lt;- daily |&gt;
+  select(date, demand) |&gt;
+  tk_augment_lags(demand, .lags = c(1, 7, 14)) |&gt;
+  tk_augment_slidify(demand_lag1, .period = 7, .f = mean,
+                     .align = &quot;right&quot;, .partial = FALSE) |&gt;
+  tk_augment_fourier(date, .periods = 365, .K = 1)
+
+tk_features |&gt; select(date, demand, demand_lag1, demand_lag1_roll_7) |&gt; slice(8:11)
+#&gt; # A tibble: 4 × 4
+#&gt;   date       demand demand_lag1 demand_lag1_roll_7
+#&gt;   &lt;date&gt;      &lt;dbl&gt;       &lt;dbl&gt;              &lt;dbl&gt;
+#&gt; 1 2012-01-08   96.7       101.                114.
+#&gt; 2 2012-01-09  107.         96.7               112.
+#&gt; 3 2012-01-10  108.        107.                109.
+#&gt; 4 2012-01-11  109.        108.                105.</code></pre>
+
+<p>Compare that rolling column against the one we built by hand earlier: 114, 112, 109, 105. Identical, because <code>tk_augment_slidify()</code> is applied to <code>demand_lag1</code> rather than <code>demand</code>, which is the same lag-then-roll discipline in different clothing. The helper saves typing, it does not decide for you which window to use or whether the lag belongs there. That judgement is the part of this job that stays yours.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Rebuild the pipeline for a monthly series</h3>
+
+<p>Daily data has a weekly cycle. Monthly data does not, so the feature set has to change. Take the Victorian cafe and restaurant turnover series from <code>aus_retail</code>, build a feature table with the previous month, the same month last year, a twelve-month rolling mean, and a month factor, then score a linear model against the seasonal naive benchmark on 2017 and 2018.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: monthly feature engineering">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: monthly feature engineering</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: the seasonal lag for monthly data is 12, not 7
+# Hint: yearmonth(&quot;2017-01&quot;) gives you a value you can compare against the Month column
+# Hint: the benchmark is the value from 12 months ago
+
+retail &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry == &quot;Cafes, restaurants and takeaway food services&quot;) |&gt;
+  as_tibble() |&gt;
+  transmute(month = Month, turnover = Turnover)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Monthly pipeline solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monthly pipeline solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">retail &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry == &quot;Cafes, restaurants and takeaway food services&quot;) |&gt;
+  as_tibble() |&gt;
+  transmute(month = Month, turnover = Turnover) |&gt;
+  mutate(my_lag1   = lag(turnover),
+         my_lag12  = lag(turnover, 12),
+         my_roll12 = rollmeanr(lag(turnover), 12, fill = NA),
+         my_month  = month(month, label = TRUE)) |&gt;
+  filter(!is.na(my_roll12), !is.na(my_lag12))
+
+my_train &lt;- filter(retail, month &lt;  yearmonth(&quot;2017-01&quot;))
+my_test  &lt;- filter(retail, month &gt;= yearmonth(&quot;2017-01&quot;))
+
+my_fit &lt;- lm(turnover ~ my_lag1 + my_lag12 + my_roll12 + my_month, data = my_train)
+
+round(c(model          = mean(abs(my_test$turnover - predict(my_fit, newdata = my_test))),
+        seasonal_naive = mean(abs(my_test$turnover - my_test$my_lag12))), 2)
+#&gt;          model seasonal_naive 
+#&gt;          23.01          44.10 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The structure is identical to the daily pipeline, only the seasonal period changed from 7 to 12. The model halves the benchmark error, from 44.10 to 23.01, and most of that comes from <code>my_roll12</code>: this series trends upward strongly, so the previous year's value alone is systematically too low, while a rolling twelve-month mean tracks the level as it rises.</p>
+
+</details>
+
+<h3>Exercise 2: Find out which feature is carrying the model</h3>
+
+<p>The ablation table added features one at a time, which measures what each one contributes <em>given everything before it</em>. The complementary question is what each feature contributes <em>given everything else</em>. Write a function <code>feature_mae()</code> that scores a formula on the time split, then use it to drop each feature from the full model in turn and rank them by how much the error rises.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: drop-one feature analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: drop-one feature analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: update(full, &quot;~ . - lag1&quot;) removes a term from a formula
+# Hint: sapply() over a character vector of feature names will do the loop for you
+
+my_tr &lt;- filter(model_data, date &lt;  as.Date(&quot;2014-10-03&quot;))
+my_te &lt;- filter(model_data, date &gt;= as.Date(&quot;2014-10-03&quot;))
+full  &lt;- demand ~ lag1 + lag7 + lag14 + roll7 + dow + is_holiday + sin1 + cos1
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Drop-one analysis solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop-one analysis solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_tr &lt;- filter(model_data, date &lt;  as.Date(&quot;2014-10-03&quot;))
+my_te &lt;- filter(model_data, date &gt;= as.Date(&quot;2014-10-03&quot;))
+full  &lt;- demand ~ lag1 + lag7 + lag14 + roll7 + dow + is_holiday + sin1 + cos1
+
+feature_mae &lt;- function(f) {
+  m &lt;- lm(f, data = my_tr)
+  round(mean(abs(my_te$demand - predict(m, newdata = my_te))), 2)
+}
+
+drops &lt;- c(&quot;lag1&quot;, &quot;lag7&quot;, &quot;lag14&quot;, &quot;roll7&quot;, &quot;dow&quot;, &quot;is_holiday&quot;)
+sort(sapply(drops, function(v) feature_mae(update(full, paste(&quot;~ . -&quot;, v)))), decreasing = TRUE)
+#&gt;        dow       lag1 is_holiday      lag14      roll7       lag7 
+#&gt;       4.49       4.17       3.93       3.81       3.81       3.76 
+feature_mae(full)
+#&gt; [1] 3.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Removing <code>dow</code> costs the most, pushing the error from 3.78 to 4.49, so the weekly pattern is the single most load-bearing feature. <code>lag1</code> is second at 4.17. The surprise is at the other end: dropping <code>lag7</code> <em>improves</em> the score slightly, to 3.76, and dropping <code>is_holiday</code> barely moves it. Once <code>dow</code>, <code>lag14</code> and <code>roll7</code> are present, lag 7 is mostly repeating them. Add-one and drop-one disagree because features overlap, and that disagreement is the useful signal.</p>
+
+</details>
+
+<h3>Exercise 3: How much of the weather gain survives a real forecast?</h3>
+
+<p>Same-day temperature took the error from 3.78 to 3.31, but only if you have tomorrow's temperature, and in practice you have a <em>forecast</em> of tomorrow's temperature which carries its own error. Simulate a weather forecast by adding normal noise with a standard deviation of 2 degrees to the actual temperature, then measure how much of the 0.47 GWh gain survives.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: weather forecast error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: weather forecast error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rnorm(n(), mean = 0, sd = 2) generates one noise value per row
+# Hint: set.seed(11) first so your answer matches
+# Hint: compare three models, no weather / perfect temperature / noisy forecast
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weather forecast error solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weather forecast error solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+md2 &lt;- model_data |&gt; mutate(temp_forecast = temp + rnorm(n(), mean = 0, sd = 2))
+
+my_tr &lt;- filter(md2, date &lt;  as.Date(&quot;2014-10-03&quot;))
+my_te &lt;- filter(md2, date &gt;= as.Date(&quot;2014-10-03&quot;))
+sc    &lt;- function(f) round(mean(abs(my_te$demand - predict(lm(f, data = my_tr), newdata = my_te))), 2)
+base  &lt;- demand ~ lag1 + lag7 + lag14 + roll7 + dow + is_holiday + sin1 + cos1
+
+c(no_weather     = sc(base),
+  perfect_temp   = sc(update(base, ~ . + temp)),
+  noisy_forecast = sc(update(base, ~ . + temp_forecast)))
+#&gt;     no_weather   perfect_temp noisy_forecast 
+#&gt;           3.78           3.31           3.38 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A weather forecast accurate to about 2 degrees delivers 3.38 against the perfect-knowledge 3.31, so roughly 85 percent of the gain survives. That is the calculation to run before investing in any known-future regressor: the value of the feature is not what it is worth with perfect information, it is what it is worth with the quality of information you can actually buy.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>How many lags should I include?</strong> Start with the peaks in the autocorrelation function, which for most business data means lag 1 plus one or two multiples of the seasonal period. Then test whether each earns its place, as we did above. More lags mean more rows lost at the start of the series and more parameters to estimate, so on a short series a large lag set will cost you accuracy rather than buy it.</p>
+
+<p><strong>Do I need to make the series stationary first?</strong> Not in the way ARIMA requires. A regression on lag features can handle a trending series if the feature set gives it something to track the level with, which is what a rolling mean does. That said, if your series grows multiplicatively, taking logs before building features usually helps a linear model, because it turns proportional changes into additive ones.</p>
+
+<p><strong>Should I scale or standardise the features?</strong> For linear models and trees, no: they are unaffected by the scale of individual columns. For regularised models like lasso or ridge, yes, because the penalty treats all coefficients on the same footing. If you do scale, compute the mean and standard deviation on the training rows only and apply those same numbers to the test rows. Computing them on the full data is a leak.</p>
+
+<p><strong>Are these features better suited to linear models or trees?</strong> Lags and rolling means suit both. Calendar factors suit trees particularly well, since a tree can split on "is it a weekend" naturally. <a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">Fourier terms</a> suit linear models better, because a tree has to approximate a smooth wave with a staircase. If you plan to use trees, consider giving them the raw day-of-year as well, since they can cut it into intervals themselves.</p>
+
+<p><strong>How does this change when I have hundreds of series instead of one?</strong> The feature recipe stays the same, but every lag and rolling calculation must be done within each series, which means adding a <code>group_by()</code> before the <code>mutate()</code>. Forgetting it silently drags the tail of one series into the head of the next. Beyond that, having many series opens up the option of training one global model on all of them, which usually beats fitting hundreds of individual models.</p>
+
+<p><strong>When is feature engineering not worth the effort?</strong> When you have a single short series with strong, stable seasonality and no external drivers. <a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a> are built for exactly that case and will match or beat a feature-based model with a fraction of the work. Feature engineering pays off when you have external variables to bring in, many related series to learn from, irregular effects like promotions and holidays, or a nonlinear relationship a classical model cannot express.</p>
+
+<h2>Summary</h2>
+
+<p>Four families of features, all built from information you would genuinely hold at forecast time.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature family</th>
+<th>What it captures</th>
+<th>How to build it</th>
+<th>The trap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lags</td>
+<td>Yesterday, and the same day last cycle</td>
+<td><code>lag(x, n)</code> at the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ACF</a> peaks</td>
+<td>One lag alone is worse than the naive benchmark</td>
+</tr>
+<tr>
+<td>Rolling windows</td>
+<td>The level and volatility of recent history</td>
+<td><code>rollmeanr(lag(x), k)</code> from zoo</td>
+<td>The window must end before the day you predict</td>
+</tr>
+<tr>
+<td>Calendar</td>
+<td>Weekday, month, holiday effects</td>
+<td><code>wday()</code>, <code>month()</code>, <code>yday()</code> from lubridate</td>
+<td>A weekend flag throws away Saturday vs Sunday</td>
+</tr>
+<tr>
+<td>Fourier</td>
+<td>Long, smooth seasonal cycles</td>
+<td><code>sin()</code> and <code>cos()</code> at $2\pi k t / m$</td>
+<td>Cannot represent a blocky pattern like a working week</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Feature-Engineering-for-Forecasting-in-R-feature-families.webp" alt="Diagram summarising the four families of forecasting features" class="img-responsive img-zoomable" loading="lazy" width="1050" height="1282" /></p>
+
+<p><em>Figure 4: The four feature families every forecasting table is built from.</em></p>
+
+<p>The other four things worth carrying away:</p>
+
+<ol>
+
+<li><strong>A perfect score is a bug report.</strong> R-squared of 1.000 and an error of 0.00 meant a feature contained the target, not that the model was good.</li>
+
+<li><strong>A holdout set does not catch leakage,</strong> because the flawed feature construction contaminates both halves of the split. Audit the columns, not the split.</li>
+
+<li><strong>The right feature set depends on the horizon.</strong> Lag 1 is your most valuable column at one step ahead and unusable at fourteen, which is the whole reason the direct strategy exists.</li>
+
+<li><strong>Wrap the pipeline in a function</strong> so training rows and future rows are built by identical code. Every feature bug you will ever have starts as a difference between those two paths.</li>
+
+</ol>
+
+<p>Final scoreboard on 90 held-out days of Victorian electricity demand: seasonal naive 5.48 GWh, full feature set 3.78 GWh. No neural networks, no hyperparameter search, just eight well-chosen columns and a linear model.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd Edition. Chapter 7: Time series regression models. <a href="https://otexts.com/fpp3/regression.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd Edition. Chapter 12.1: Complex seasonality and Fourier terms. <a href="https://otexts.com/fpp3/complexseasonality.html">Link</a></li>
+
+<li>Kaufman, S., Rosset, S. & Perlich, C. - Leakage in Data Mining: Formulation, Detection, and Avoidance. <em>ACM KDD</em> (2011). <a href="https://dl.acm.org/doi/10.1145/2020408.2020496">Link</a></li>
+
+<li>Bergmeir, C. & Benitez, J.M. - On the use of cross-validation for time series predictor evaluation. <em>Information Sciences</em> 191 (2012). <a href="https://www.sciencedirect.com/science/article/pii/S0020025511006773">Link</a></li>
+
+<li>Ben Taieb, S., Bontempi, G., Atiya, A. & Sorjamaa, A. - A review and comparison of strategies for multi-step ahead time series forecasting. <em>Expert Systems with Applications</em> 39 (2012). <a href="https://arxiv.org/abs/1108.3259">Link</a></li>
+
+<li>dplyr documentation - lead and lag reference. <a href="https://dplyr.tidyverse.org/reference/lead-lag.html">Link</a></li>
+
+<li>zoo documentation - rollapply and the rolling window family. <a href="https://cran.r-project.org/web/packages/zoo/vignettes/zoo.pdf">Link</a></li>
+
+<li>timetk documentation - tk_augment_lags, tk_augment_slidify and tk_augment_fourier. <a href="https://business-science.github.io/timetk/reference/index.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R with tsCV()</a> - the rolling-origin evaluation we hand-rolled over six origins, done properly and at any horizon.</li>
+
+<li><a href="Time-Series-Regression-in-R.html">Time Series Regression in R: TSLM and Spurious Regression</a> - the same regression idea expressed in fable, with <code>trend()</code> and <code>season()</code> building the calendar terms for you.</li>
+
+<li><a href="Time-Series-Features-in-R.html">Time Series Features with feasts</a> - the other meaning of "feature": one number that describes a whole series, used to triage hundreds of them at once.</li>
+
+</ul>
+
+{% endraw %}
