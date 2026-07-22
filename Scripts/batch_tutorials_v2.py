@@ -141,6 +141,12 @@ def sanitize_md(slug):
     p = os.path.join(ROOT, 'posts', slug + '.md')
     if not os.path.exists(p):
         return 0
+    # Normalize line endings first: the Write tool emits CRLF on Windows, and a
+    # stray \r inside a code block kills the in-browser R parser even though the
+    # local Rscript gate passes it (caught live on FR-adva-7, 2026-07-22).
+    raw = open(p, 'rb').read()
+    if b'\r' in raw:
+        open(p, 'wb').write(raw.replace(b'\r\n', b'\n').replace(b'\r', b'\n'))
     lines = open(p, encoding='utf-8').read().split('\n')
     out, in_code, changed = [], False, 0
     for ln in lines:
