@@ -1,0 +1,1196 @@
+---
+title: "Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift"
+description: "Learn the four benchmark forecasts in R: naive, seasonal naive, drift and mean. Fit them with forecast and fable, then test whether a real model beats them."
+keywords: "benchmark forecasts in R, naive forecast in R, seasonal naive method, snaive, drift method forecasting, rwf drift, meanf, simple forecasting methods, forecast benchmark, MASE benchmark"
+mathjax: true
+webr: true
+curriculum_id: "TS2-3.1"
+post_type: "C"
+auto_link_terms: "benchmark forecast|benchmark forecasts|benchmark method|naive forecast|naive method|seasonal naive|snaive()|drift method|random walk with drift|rwf()|meanf()|naive()|simple forecasting methods"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Benchmark Forecasts"
+sidebar_order: "37"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A benchmark forecast is a deliberately simple prediction that any real <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> model has to beat before it earns its keep. R gives you four of them: repeat the last value (<code>naive()</code>), repeat last season (<code>snaive()</code>), extend the straight line (<code>rwf(drift = TRUE)</code>), or use the average of history (<code>meanf()</code>).</p>
+
+<h2>Why does every forecast need a benchmark?</h2>
+
+<p>Every forecasting project runs into the same question: is this model any good? An error of 70 passengers per month means nothing on its own. It only becomes meaningful next to a reference point, and the reference point is a forecast so simple it fits on one line. Here is that reference on monthly airline passenger counts, scored on two years of data the forecast never saw.</p>
+
+<div class="webr-container" data-block-title="Score a seasonal naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a seasonal naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+train &lt;- window(AirPassengers, end = c(1958, 12))   # 1949 to 1958, for fitting
+test  &lt;- window(AirPassengers, start = c(1959, 1))  # 1959 to 1960, held back
+
+sn_fc &lt;- snaive(train, h = 24)   # forecast 24 months by repeating last year
+round(accuracy(sn_fc, test)[, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;               RMSE   MAE  MAPE
+#&gt; Training set 32.51 28.57 11.41
+#&gt; Test set     76.99 71.25 15.52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things happened there. <code>window()</code> cut the <code>AirPassengers</code> series into a training piece (1949 to 1958) and a test piece (1959 to 1960). <code>snaive()</code> produced 24 monthly forecasts by copying the matching month from the previous year. <code>accuracy()</code> then compared those forecasts against both the data used to build them (the Training set row) and the data held back (the Test set row).</p>
+
+<p>Read the Test set row, because it is the only honest one. On data it had never seen, this one-line forecast missed by about 71 passengers on average, which is 15.5% of the actual value. That number is your floor. Any model you build from here has to come in under it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A forecast error is only good or bad relative to something else.</strong> Benchmarks convert an unreadable number like "<a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">RMSE</a> 76.99" into a decision, because a model scoring 74 has barely earned its complexity while a model scoring 40 clearly has.</div></div>
+
+<p>If you are new to RMSE, MAE and MAPE, they are three ways of averaging how far the forecasts landed from the actuals, all in the same direction: smaller is better. The <a href="Forecast-Accuracy-in-R.html">forecast accuracy tutorial</a> covers each one in detail, and this page treats them purely as scoreboards.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score a plain <code>naive()</code> forecast on the exact same split and see how much worse it is than the seasonal naive 76.99.</p>
+<div class="webr-container" data-block-title="Your turn: score a naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast 24 months ahead with naive(), then score it against test
+# ex_naive_fc &lt;- naive(...)
+# your code here
+
+# Expected: RMSE near 137, MAPE near 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Naive benchmark solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive benchmark solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_naive_fc &lt;- naive(train, h = 24)
+round(accuracy(ex_naive_fc, test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE    MAE   MAPE 
+#&gt; 137.33 115.25  23.58 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The naive forecast holds December 1958 flat for two years, so it misses every seasonal peak and trough. Its RMSE of 137.33 is nearly double the seasonal naive score, which tells you the seasonality in this series is real and worth capturing.</p>
+
+</details>
+</section>
+
+<h2>What is the naive method, and when is it hard to beat?</h2>
+
+<p>The naive method makes one assumption: tomorrow looks like today. Every future value is set equal to the most recent observation, no matter how far ahead you forecast.</p>
+
+<p>In symbols, where $y_T$ is the last observation you have and $h$ is how many periods ahead you want to go:</p>
+
+<p>$$\hat{y}_{T+h|T} = y_T$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat{y}_{T+h|T}$ = the forecast for period $T+h$, made using data up to period $T$</li>
+
+<li>$y_T$ = the value of the series at the final observed period</li>
+
+<li>$h$ = the forecast horizon, so $h = 1$ is next month and $h = 12$ is a year out</li>
+
+</ul>
+
+<p>Before running the function, find the number it will use. The training series ends in December 1958, so the naive forecast is whatever that month recorded.</p>
+
+<div class="webr-container" data-block-title="Find the last observed value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the last observed value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">length(train)
+#&gt; [1] 120
+tail(train, 3)
+#&gt;      Oct Nov Dec
+#&gt; 1958 359 310 337</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> holds 120 monthly observations, and the last three are October, November and December 1958. December closed at 337 passengers, so that is the only number the naive method cares about.</p>
+
+<p>Now let the function do it. <code>naive()</code> returns a forecast object, and its <code>$mean</code> element holds the point forecasts.</p>
+
+<div class="webr-container" data-block-title="Forecast with naive()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast with naive()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nv_fc &lt;- naive(train, h = 12)
+round(as.numeric(head(nv_fc$mean, 4)), 1)
+#&gt; [1] 337 337 337 337</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every forecast is 337, the December 1958 value, repeated for as long as you ask. Plotted, a naive forecast is a horizontal line running off the end of the series.</p>
+
+<p>That sounds too crude to be useful, and on seasonal data it is. On financial and many economic series it is close to unbeatable, because those series genuinely have no memory of where they were: the best guess for tomorrow's price really is today's price. The daily DAX stock index that ships with R makes the point.</p>
+
+<div class="webr-container" data-block-title="Naive versus mean on a stock index">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive versus mean on a stock index</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dax &lt;- ts(as.numeric(EuStockMarkets[, &quot;DAX&quot;]))
+dax_train &lt;- window(dax, end = 1600)
+dax_test  &lt;- window(dax, start = 1601, end = 1620)
+
+round(accuracy(naive(dax_train, h = 20), dax_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE   MAPE 
+#&gt; 114.03   2.12 
+round(accuracy(meanf(dax_train, h = 20), dax_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;    RMSE    MAPE 
+#&gt; 1885.13   46.42 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We pulled the DAX column out of <code>EuStockMarkets</code>, trained on the first 1600 trading days, and forecast the next 20. The naive forecast is off by 2.12% on average. The mean method, which averages the whole history, is off by 46.42%, because the index climbed steadily: most of the values it averages are far below the level it has now reached.</p>
+
+<p>Anything that behaves like a cumulative running total, prices, exchange rates, inventory levels, tends to reward the naive forecast and punish anything that averages the past.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The naive forecast is the honest default for price-like data.</strong> If your series is a random walk, no amount of modelling will beat "the last value" by much, and a model that claims to should make you suspicious of a data leak.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>Nile</code> dataset records annual flow of the river Nile from 1871 to 1970. Build a naive forecast for 1961 to 1963 from data up to 1960 and confirm every forecast equals the 1960 flow.</p>
+<div class="webr-container" data-block-title="Your turn: naive on the Nile series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: naive on the Nile series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nile_train &lt;- window(Nile, end = 1960)
+# Print the last observed value, then the first three naive forecasts
+# your code here
+
+# Expected: both show 815</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Nile naive solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Nile naive solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.numeric(tail(ex_nile_train, 1))
+#&gt; [1] 815
+as.numeric(head(naive(ex_nile_train, h = 3)$mean, 3))
+#&gt; [1] 815 815 815</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 1960 flow was 815, so all three forecasts are 815. The horizon changes nothing, which is exactly what the naive formula says.</p>
+
+</details>
+</section>
+
+<h2>What is the seasonal naive method, and why does it own seasonal data?</h2>
+
+<p>Airline passengers do not wander randomly. Every July is busy and every November is quiet, year after year. The naive method throws all of that away by holding one number flat. The seasonal naive method keeps it by copying the value from the same season one cycle back.</p>
+
+<p>For a monthly series the cycle length is $m = 12$, so the forecast for next March is last March, and the forecast for March two years out is still last March (the most recent one available).</p>
+
+<p>$$\hat{y}_{T+h|T} = y_{T+h-m(k+1)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$m$ = the number of periods in one seasonal cycle (12 for monthly data, 4 for quarterly)</li>
+
+<li>$k$ = the integer part of $(h-1)/m$, which is just how many complete cycles the horizon spans</li>
+
+<li>$y_{T+h-m(k+1)}$ = the observation from the same season in the most recent complete cycle</li>
+
+</ul>
+
+<p>The formula looks fussy but the behaviour is simple. Print the final year of the training data and you have already printed the forecast.</p>
+
+<div class="webr-container" data-block-title="Print the final season of training data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print the final season of training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">window(train, start = c(1958, 1))
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1958 340 318 362 348 363 435 491 505 404 359 310 337</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the calendar year 1958: a January of 340, a summer peak of 505 in August, a November trough of 310. The seasonal naive method predicts 1959 will look exactly like this.</p>
+
+<div class="webr-container" data-block-title="Seasonal naive repeats that year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal naive repeats that year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(as.numeric(sn_fc$mean[1:12]), 0)
+#&gt;  [1] 340 318 362 348 363 435 491 505 404 359 310 337</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first 12 forecasts are the 1958 vector, value for value. Ask for 24 months and the second year is the same 12 numbers again, because 1958 is still the most recent complete cycle.</p>
+
+<p>You never told <code>snaive()</code> that the cycle is 12 months long. It reads $m$ from the series itself: a <code>ts</code> object carries a <code>frequency</code> attribute, and <code>AirPassengers</code> has <code>frequency = 12</code>. This matters when you move to your own data. If you hand <code>snaive()</code> a plain numeric vector, or a <code>ts</code> built without setting <code>frequency</code>, then $m = 1$ and the seasonal naive forecast is identical to the naive forecast. Check <code>frequency(y)</code> before you trust an <code>snaive()</code> result.</p>
+
+<p>This is why the seasonal naive score of 76.99 was so much better than the naive score of 137.33 earlier. Copying the seasonal shape captures most of what makes this series move.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A seasonal naive forecast cannot follow a trend.</strong> It replays last year exactly, so on a series that grows every year, like airline passengers, it is systematically too low and gets worse the further out you forecast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Show that the seasonal naive forecast repeats itself with a 12-month period by comparing the forecast at horizons 1 and 13, and at horizons 2 and 14.</p>
+<div class="webr-container" data-block-title="Your turn: check the 12-month repeat">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the 12-month repeat</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_s &lt;- as.numeric(sn_fc$mean)
+# Compare ex_s[1] with ex_s[13], and ex_s[2] with ex_s[14]
+# your code here
+
+# Expected: 340 340 318 318</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal repeat solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal repeat solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(h1 = ex_s[1], h13 = ex_s[13], h2 = ex_s[2], h14 = ex_s[14]), 1)
+#&gt;  h1 h13  h2 h14 
+#&gt; 340 340 318 318 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Horizon 13 is January 1960 and horizon 1 is January 1959, and both copy January 1958. The forecast is periodic with period 12 forever.</p>
+
+</details>
+</section>
+
+<h2>What is the drift method, and how does it extend a trend?</h2>
+
+<p>The naive forecast is a flat line. The drift method takes that flat line and tilts it, so the forecast keeps moving in the direction the series has been moving. The tilt is not fitted by regression: it is simply the average change per period across the whole history.</p>
+
+<p>$$\hat{y}_{T+h|T} = y_T + h\left(\frac{y_T - y_1}{T-1}\right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_1$ = the first observation in the series</li>
+
+<li>$y_T$ = the last observation</li>
+
+<li>$T$ = the number of observations</li>
+
+<li>$\frac{y_T - y_1}{T-1}$ = the average change per period, which is the drift</li>
+
+</ul>
+
+<p>The fraction is worth staring at. Total change divided by number of steps is the slope of the straight line joining the first point to the last point. Drift extends that line, nothing more.</p>
+
+<div class="webr-container" data-block-title="Compute the drift by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the drift by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- length(train)
+slope &lt;- (train[n] - train[1]) / (n - 1)
+slope
+#&gt; [1] 1.890756</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The series started at 112 passengers in January 1949 and ended at 337 in December 1958, across 119 steps, so it gained an average of 1.89 passengers per month. Now compare the package output against the formula applied by hand.</p>
+
+<div class="webr-container" data-block-title="Match rwf() against the formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Match rwf() against the formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dr_fc &lt;- rwf(train, h = 24, drift = TRUE)
+round(as.numeric(head(dr_fc$mean, 3)), 2)
+#&gt; [1] 338.89 340.78 342.67
+round(train[n] + slope * 1:3, 2)
+#&gt; [1] 338.89 340.78 342.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two lines agree exactly. <code>rwf()</code> stands for random walk forecast, and adding <code>drift = TRUE</code> turns the flat naive line into a sloped one. The first forecast is 337 plus one step of drift, the second is 337 plus two steps, and so on.</p>
+
+<p>The catch is in the formula: only $y_1$ and $y_T$ appear. Everything between them is ignored. If either endpoint happens to be an unusual month, the whole slope tips with it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Drift is decided entirely by the first and last observations.</strong> Before trusting it, check that neither endpoint is an outlier, a promotion month, or a partially recorded period, because a single odd value at either end swings every forecast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the drift slope for the <code>Nile</code> training series by hand, then check it against <code>rwf()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: drift on the Nile series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drift on the Nile series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m &lt;- length(ex_nile_train)
+# Compute the slope, then print the first three rwf(drift = TRUE) forecasts
+# your code here
+
+# Expected: slope about -3.427, forecasts 811.573 808.146 804.719</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Nile drift solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Nile drift solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_slope &lt;- (ex_nile_train[ex_m] - ex_nile_train[1]) / (ex_m - 1)
+round(ex_slope, 3)
+#&gt; [1] -3.427
+round(as.numeric(head(rwf(ex_nile_train, h = 3, drift = TRUE)$mean, 3)), 3)
+#&gt; [1] 811.573 808.146 804.719</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The slope is negative, so each forecast sits 3.427 below the one before it. Flow in 1871 was much higher than in 1960, and drift reads that as a steady decline even though the real series dropped once around 1899 and then stayed flat.</p>
+
+</details>
+</section>
+
+<h2>What is the mean method, and when is the average the best guess?</h2>
+
+<p>The mean method ignores order completely. It averages every observation in the training data and forecasts that single number forever.</p>
+
+<p>$$\hat{y}_{T+h|T} = \bar{y} = \frac{y_1 + y_2 + \dots + y_T}{T}$$</p>
+
+<p>That sounds even cruder than naive, and on trending or seasonal data it is. On a series that wobbles around a stable level, it is the strongest of the four, because averaging cancels out noise that the naive method treats as signal. The Nile flow record is exactly that kind of series.</p>
+
+<div class="webr-container" data-block-title="Mean versus naive on the Nile series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean versus naive on the Nile series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_train &lt;- window(Nile, end = 1960)
+nile_test  &lt;- window(Nile, start = 1961)
+mn_fc &lt;- meanf(nile_train, h = 10)
+
+round(mean(nile_train), 1)
+#&gt; [1] 924.3
+round(accuracy(mn_fc, nile_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;)], 1)
+#&gt;  RMSE   MAE 
+#&gt; 149.4 118.0 
+round(accuracy(naive(nile_train, h = 10), nile_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;)], 1)
+#&gt; RMSE  MAE 
+#&gt;  153  128 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>meanf()</code> forecast every year from 1961 to 1970 as 924.3, the average of the previous 90 years. On the held-out decade it scored an MAE of 118 against the naive method's 128, so the average was the better guess.</p>
+
+<p>The reason is that the Nile reverts. A high-flow year is usually followed by a return toward the long-run level, so anchoring on a single recent year (which is all naive does) inherits that year's noise. The DAX index never reverts, which is why the same comparison went the other way there.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Naive against mean is really one question: does your series remember where it used to be?</strong> A series that reverts to a level rewards the average, while a series that wanders away and stays away rewards the last value.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the mean method on the AirPassengers training set and score it against the same <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> used earlier. It should lose badly.</p>
+<div class="webr-container" data-block-title="Your turn: mean method on AirPassengers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean method on AirPassengers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast 24 months with meanf() and score the Test set row
+# your code here
+
+# Expected: RMSE near 219, MAPE near 44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean method solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean method solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(meanf(train, h = 24), test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;   RMSE   MAPE 
+#&gt; 219.44  44.23 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The average across 1949 to 1958 includes the low early years, so it sits far below the 1959 to 1960 level it is asked to predict. On a trending series the mean method is the worst of the four benchmarks.</p>
+
+</details>
+</section>
+
+<h2>How do you fit and compare all four benchmarks at once?</h2>
+
+<p>You do not have to choose a benchmark by eye. Fit all four, score them on the same held-out data, and read the table. The whole comparison is a list of forecasts and one <code>sapply()</code>.</p>
+
+<div class="webr-container" data-block-title="Score all four benchmarks together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score all four benchmarks together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fits &lt;- list(
+  Naive            = naive(train, h = 24),
+  `Seasonal naive` = snaive(train, h = 24),
+  Drift            = rwf(train, h = 24, drift = TRUE),
+  Mean             = meanf(train, h = 24)
+)
+
+scores &lt;- t(sapply(fits, function(f) accuracy(f, test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)]))
+round(scores, 2)
+#&gt;                  RMSE    MAE  MAPE MASE
+#&gt; Naive          137.33 115.25 23.58 4.03
+#&gt; Seasonal naive  76.99  71.25 15.52 2.49
+#&gt; Drift          115.70  91.62 18.41 3.21
+#&gt; Mean           219.44 206.34 44.23 7.22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The list holds four forecast objects built the same way. <code>sapply()</code> walks the list, pulls the Test set row out of each <code>accuracy()</code> call, and <code>t()</code> flips the result so each method gets a row.</p>
+
+<p>A fourth metric joins the table here. MASE, the <a class="auto-link" href="yardstick-mase-in-R.html" title="yardstick mase() in R: Scale-Free Forecast Error">mean absolute scaled error</a>, divides the test-set error by the average error a naive forecast made inside the training data (the seasonal naive version of it when the series is seasonal). That division cancels the units, so a MASE of 2.49 reads as "about two and a half times the in-sample naive error" and can be compared across series measured in completely different things. Like the other three, smaller is better.</p>
+
+<p>Seasonal naive wins on every metric, drift comes second, and the mean method is a distant last. That ranking tells you what this series is made of: seasonality dominates, a mild trend sits underneath it, and there is no stable level for the mean method to settle on.</p>
+
+<p><img src="screenshots/Benchmark-Forecasts-in-R-method-picker.webp" alt="Match the benchmark to the shape of your series." class="img-responsive img-zoomable" loading="lazy" width="1138" height="1090" /></p>
+
+<p><em>Figure 1: Match the benchmark to the shape of your series.</em></p>
+
+<p>Numbers rank the methods, but a plot shows you why. Drawing all four forecast paths over the actual data makes each method's assumption visible.</p>
+
+<div class="webr-container" data-block-title="Plot the four forecast paths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the four forecast paths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(AirPassengers, main = &quot;Four benchmark forecasts for 1959-1960&quot;, ylab = &quot;Passengers&quot;)
+lines(fits[[&quot;Seasonal naive&quot;]]$mean, col = &quot;blue&quot;,      lwd = 2)
+lines(fits[[&quot;Naive&quot;]]$mean,          col = &quot;red&quot;,       lwd = 2)
+lines(fits[[&quot;Drift&quot;]]$mean,          col = &quot;darkgreen&quot;, lwd = 2)
+lines(fits[[&quot;Mean&quot;]]$mean,           col = &quot;orange&quot;,    lwd = 2)
+legend(&quot;topleft&quot;, bty = &quot;n&quot;, lwd = 2,
+       col = c(&quot;blue&quot;, &quot;red&quot;, &quot;darkgreen&quot;, &quot;orange&quot;),
+       legend = c(&quot;Seasonal naive&quot;, &quot;Naive&quot;, &quot;Drift&quot;, &quot;Mean&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The blue seasonal naive line is the only one with the right shape, though it sits below the actual 1959 and 1960 data because it cannot grow. Red (naive) and green (drift) are straight lines, one flat and one tilted upward. Orange (mean) sits far below everything, exactly as its 44% error suggested.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run all four every time, because it costs one line and occasionally surprises you.</strong> On intermittent or short series the mean method sometimes wins, and finding that out early saves you from over-modelling.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the bake-off on <code>USAccDeaths</code>, monthly accidental deaths in the USA from 1973 to 1978. Train through 1977 and test on the 12 months of 1978.</p>
+<div class="webr-container" data-block-title="Your turn: bake-off on USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bake-off on USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ua_train &lt;- window(USAccDeaths, end = c(1977, 12))
+ua_test  &lt;- window(USAccDeaths, start = c(1978, 1))
+# Build a list of the four benchmark forecasts (h = 12) and score them
+# your code here
+
+# Expected: SNaive wins with RMSE near 341</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="USAccDeaths bake-off solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">USAccDeaths bake-off solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fits &lt;- list(Naive  = naive(ua_train, h = 12),
+                SNaive = snaive(ua_train, h = 12),
+                Drift  = rwf(ua_train, h = 12, drift = TRUE),
+                Mean   = meanf(ua_train, h = 12))
+round(t(sapply(ex_fits, function(f) accuracy(f, ua_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)])), 2)
+#&gt;          RMSE    MAE MAPE
+#&gt; Naive  946.05 778.67 9.18
+#&gt; SNaive 341.16 259.50 2.85
+#&gt; Drift  954.07 789.40 9.28
+#&gt; Mean   946.16 780.31 9.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Seasonal naive is nearly three times more accurate than anything else, because deaths peak every summer. The other three all score around 950 since none of them can represent a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a>.</p>
+
+</details>
+</section>
+
+<h2>Why do benchmark prediction intervals fan out, and how wide should they be?</h2>
+
+<p>A point forecast is a single number, and a single number is always wrong. What you actually want is a range. Each of these methods comes with <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a>, and reading how those intervals grow tells you a lot about the method.</p>
+
+<p>Start with the seasonal naive intervals for the first four months.</p>
+
+<div class="webr-container" data-block-title="Inspect seasonal naive prediction intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect seasonal naive prediction intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sn_int &lt;- data.frame(h     = 1:24,
+                     point = as.numeric(sn_fc$mean),
+                     lo95  = round(as.numeric(sn_fc$lower[, 2]), 1),
+                     hi95  = round(as.numeric(sn_fc$upper[, 2]), 1))
+head(sn_int, 4)
+#&gt;   h point  lo95  hi95
+#&gt; 1 1   340 276.3 403.7
+#&gt; 2 2   318 254.3 381.7
+#&gt; 3 3   362 298.3 425.7
+#&gt; 4 4   348 284.3 411.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sn_fc$lower</code> and <code>sn_fc$upper</code> are matrices with one column per <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence level</a>, 80% first and 95% second, which is why we asked for column 2. The January forecast of 340 comes with a 95% range of 276 to 404.</p>
+
+<p>Notice the width is identical for all four rows, about 127 passengers. That is not a bug. Every one of those forecasts copies an observation from the same single year of data, so each carries exactly the same amount of uncertainty.</p>
+
+<p>The width only jumps when the horizon crosses into a second seasonal cycle.</p>
+
+<div class="webr-container" data-block-title="Interval width grows by the square root rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interval width grows by the square root rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w &lt;- as.numeric(sn_fc$upper[, 2] - sn_fc$lower[, 2])
+round(c(width_h1 = w[1], width_h13 = w[13], ratio = w[13] / w[1], sqrt_2 = sqrt(2)), 3)
+#&gt;  width_h1 width_h13     ratio    sqrt_2 
+#&gt;   127.422   180.201     1.414     1.414 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interval at horizon 13 is 1.414 times wider than at horizon 1, and 1.414 is the square root of 2. The measured ratio matches the formula exactly, and here is the formula it matches. Each method has an expression for the forecast standard deviation $\hat{\sigma}_h$ at horizon $h$, built from $\hat{\sigma}$, the standard deviation of the errors the method made inside the training data:</p>
+
+<p>$$\text{Naive: } \hat{\sigma}_h = \hat{\sigma}\sqrt{h} \qquad \text{Seasonal naive: } \hat{\sigma}_h = \hat{\sigma}\sqrt{k+1}$$</p>
+
+<p>$$\text{Drift: } \hat{\sigma}_h = \hat{\sigma}\sqrt{h\left(1 + \frac{h}{T-1}\right)} \qquad \text{Mean: } \hat{\sigma}_h = \hat{\sigma}\sqrt{1 + \frac{1}{T}}$$</p>
+
+<p>Where $k$ is again the number of complete seasonal cycles inside the horizon, so $k = 0$ for the first year of monthly forecasts and $k = 1$ for the second. Two years out means $\sqrt{2}$ times the uncertainty, which is the 1.414 we just measured.</p>
+
+<p>The interval itself is then the point forecast plus or minus a multiplier times $\hat{\sigma}_h$: 1.28 for an 80% interval and 1.96 for a 95% interval, the usual normal-distribution numbers.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>These interval formulas assume the residuals are uncorrelated and roughly normal.</strong> When a benchmark leaves obvious structure behind, which the next section shows how to detect, the point forecasts are still valid but the intervals are usually too narrow.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Check the naive square root rule directly. Using <code>nv_fc</code> from earlier, confirm the 95% interval at horizon 4 is exactly twice as wide as at horizon 1.</p>
+<div class="webr-container" data-block-title="Your turn: verify the naive square root rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify the naive square root rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_w &lt;- as.numeric(nv_fc$upper[, 2] - nv_fc$lower[, 2])
+# Print widths at h = 1 and h = 4, their ratio, and sqrt(4)
+# your code here
+
+# Expected: ratio 2.000, matching sqrt(4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Naive interval width solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive interval width solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(width_h1 = ex_w[1], width_h4 = ex_w[4], ratio = ex_w[4] / ex_w[1], sqrt_4 = sqrt(4)), 3)
+#&gt; width_h1 width_h4    ratio   sqrt_4 
+#&gt;  112.578  225.155    2.000    2.000 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For the naive method the uncertainty grows with the square root of the horizon, so four steps out is exactly twice as uncertain as one step out. Growing intervals are the honest way of saying that the far future is harder to call.</p>
+
+</details>
+</section>
+
+<h2>How do you prove a real model beats the benchmark?</h2>
+
+<p>A benchmark does two jobs. It sets the score to beat, and its residuals tell you whether there is anything left worth modelling.</p>
+
+<p>Residuals are what the forecast missed inside the training data, one number per period. If a method has extracted everything predictable, the residuals should look like random noise with no pattern. The <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a> formalises that: a small <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> means the residuals are still correlated with their own past, so predictable structure remains.</p>
+
+<div class="webr-container" data-block-title="Check the seasonal naive residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the seasonal naive residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(sn_fc)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Seasonal naive method
+#&gt; Q* = 198.46, df = 24, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is essentially zero, so the residuals are strongly autocorrelated. <code>checkresiduals()</code> also draws a residual <a class="auto-link" href="Visualize-Time-Series-in-R.html" title="Visualize Time Series in R: autoplot(), Seasonal, Lag Plots">time plot</a>, a histogram, and an <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ACF</a> panel. ACF is short for <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a>, and that panel plots how strongly the residuals still correlate with their own values 1, 2, 3 and more periods earlier. Here those bars decay slowly instead of dropping to near zero, and the residual mean sits well above zero, which is the upward trend the seasonal naive method cannot represent. A better model definitely exists for this series.</p>
+
+<p>Now run the same check on the DAX naive forecast for contrast.</p>
+
+<div class="webr-container" data-block-title="Check the naive residuals on a random walk">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the naive residuals on a random walk</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(naive(dax_train, h = 20))
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Naive method
+#&gt; Q* = 2.7332, df = 10, p-value = 0.987</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of 0.987 means there is no detectable autocorrelation left. The naive method has already captured everything this series has to offer, and a more complex model would be fitting noise.</p>
+
+<p>So the AirPassengers series has room to improve. Two standard models now get scored on the same 24-month test window: <code>ets()</code> fits an <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model and <code>auto.arima()</code> fits an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a>, and both search their own family of candidates and return the best-fitting one, so neither needs any settings from you here.</p>
+
+<div class="webr-container" data-block-title="ETS and ARIMA against the benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ETS and ARIMA against the benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ets_fc   &lt;- forecast(ets(train), h = 24)
+arima_fc &lt;- forecast(auto.arima(train), h = 24)
+
+round(accuracy(ets_fc,   test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)], 2)
+#&gt;  RMSE   MAE  MAPE  MASE 
+#&gt; 72.55 63.21 13.30  2.21 
+round(accuracy(arima_fc, test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;, &quot;MASE&quot;)], 2)
+#&gt;  RMSE   MAE  MAPE  MASE 
+#&gt; 74.25 68.58 14.93  2.40 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both beat the seasonal naive score of 76.99, so the residual test was right that something was left on the table. Look at the margin though: exponential smoothing improves RMSE by about 6% and ARIMA by about 4%. That is a real gain, and it is also much smaller than most people expect from replacing a one-line forecast with a fitted model.</p>
+
+<p>That margin is the number to take to whoever is paying for the work. Six percent may be worth a maintained model, or it may not be worth the extra failure modes, and only a benchmark lets you have that conversation with numbers.</p>
+
+<p><img src="screenshots/Benchmark-Forecasts-in-R-beat-the-benchmark.webp" alt="The beat-the-benchmark test scores both models on the same held-out data." class="img-responsive img-zoomable" loading="lazy" width="2082" height="690" /></p>
+
+<p><em>Figure 2: Fit the benchmark and the candidate on the same training data, score both on the same held-out test set, then ship whichever wins.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A benchmark whose residuals already look like noise is the answer, not the starting point.</strong> Ship it, document why, and spend the modelling time on a series where the residual test says structure remains.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the beat-the-benchmark test on <code>USAccDeaths</code>. Fit <code>ets()</code> on <code>ua_train</code>, forecast 12 months, and compare it against the seasonal naive score.</p>
+<div class="webr-container" data-block-title="Your turn: does ETS beat the benchmark here">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: does ETS beat the benchmark here</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast ua_test with ets(), then score both ETS and snaive
+# your code here
+
+# Expected: ETS RMSE near 290 against SNaive near 341</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ETS versus benchmark solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ETS versus benchmark solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ets &lt;- forecast(ets(ua_train), h = 12)
+round(accuracy(ex_ets, ua_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MASE&quot;)], 2)
+#&gt;   RMSE    MAE   MASE 
+#&gt; 289.62 230.75   0.48 
+round(accuracy(snaive(ua_train, h = 12), ua_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MASE&quot;)], 2)
+#&gt;   RMSE    MAE   MASE 
+#&gt; 341.16 259.50   0.54 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ETS improves RMSE by about 15%, a clearer win than on AirPassengers. Both MASE values are below 1, meaning both forecasts are more accurate on the test set than an in-sample seasonal naive forecast was on the training data.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: the same four benchmarks in fable</h2>
+
+<p>The <code>forecast</code> package works with base R <code>ts</code> objects. The newer <code>fable</code> package works with tsibbles, keeps every model in a single table, and scales to thousands of series at once. The benchmarks are the same, only the spelling changes: <code>NAIVE()</code>, <code>SNAIVE()</code>, <code>RW(y ~ drift())</code> and <code>MEAN()</code>.</p>
+
+<p>Start by converting <code>AirPassengers</code> into a tsibble, a data frame that knows which column is time. The <code>|&gt;</code> in the next few blocks is base R's pipe: <code>x |&gt; f()</code> means exactly <code>f(x)</code>, and chaining it keeps a long sequence of steps readable top to bottom.</p>
+
+<div class="webr-container" data-block-title="Convert the series to a tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert the series to a tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fable)
+library(tsibble)
+library(dplyr)
+
+ap &lt;- as_tsibble(AirPassengers) |&gt; rename(Month = index, Passengers = value)
+head(ap, 3)
+#&gt; # A tsibble: 3 x 2 [1M]
+#&gt;      Month Passengers
+#&gt;      &lt;mth&gt;      &lt;dbl&gt;
+#&gt; 1 1949 Jan        112
+#&gt; 2 1949 Feb        118
+#&gt; 3 1949 Mar        132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>[1M]</code> tag confirms a monthly index. Now fit all four benchmarks plus an <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS model</a> in one <code>model()</code> call, forecast 24 months, and score everything against the full series.</p>
+
+<div class="webr-container" data-block-title="Fit and score five models in one pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and score five models in one pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ap_train &lt;- ap |&gt; filter_index(~ &quot;1958 Dec&quot;)
+
+fit &lt;- ap_train |&gt; model(Naive  = NAIVE(Passengers),
+                         SNaive = SNAIVE(Passengers),
+                         Drift  = RW(Passengers ~ drift()),
+                         Mean   = MEAN(Passengers),
+                         ETS    = ETS(Passengers))
+
+fc &lt;- fit |&gt; forecast(h = 24)
+fc |&gt; accuracy(ap) |&gt; select(.model, RMSE, MAE, MAPE, MASE) |&gt; arrange(RMSE)
+#&gt; # A tibble: 5 × 5
+#&gt;   .model  RMSE   MAE  MAPE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ETS     72.5  63.2  13.3  2.21
+#&gt; 2 SNaive  77.0  71.2  15.5  2.49
+#&gt; 3 Drift  116.   91.6  18.4  3.21
+#&gt; 4 Naive  137.  115.   23.6  4.03
+#&gt; 5 Mean   219.  206.   44.2  7.22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>filter_index(~ &quot;1958 Dec&quot;)</code> keeps everything up to December 1958, matching the <code>window()</code> split from the start of this page. Each argument to <code>model()</code> becomes a column of fitted models, <code>forecast()</code> produces all five forecasts at once, and <code>accuracy()</code> scores them against the actual values it finds in <code>ap</code>.</p>
+
+<p>The ranking is identical to the <code>forecast</code> package table, down to the decimals: ETS at 72.5, seasonal naive at 77.0, then drift, naive and mean. Two different packages, two different object systems, same answer. If you want the tidy workflow in depth, the <a href="fable-in-R.html">fable and tsibble tutorial</a> covers the full pipeline.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Find the best benchmark for UK road deaths</h3>
+
+<p><code>UKDriverDeaths</code> records monthly drivers killed or seriously injured in the UK from 1969 to 1984. Train on everything up to December 1982, forecast the 24 months of 1983 and 1984, and score all four benchmarks. Which one wins, and by how much?</p>
+
+<div class="webr-container" data-block-title="Exercise 1: UK road deaths bake-off">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: UK road deaths bake-off</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split at Dec 1982, then score all four benchmarks on the test set
+# Hint: reuse the list + sapply pattern from the bake-off section
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_uk_train &lt;- window(UKDriverDeaths, end = c(1982, 12))
+ex_uk_test  &lt;- window(UKDriverDeaths, start = c(1983, 1))
+
+ex_uk &lt;- list(Naive  = naive(ex_uk_train, h = 24),
+              SNaive = snaive(ex_uk_train, h = 24),
+              Drift  = rwf(ex_uk_train, h = 24, drift = TRUE),
+              Mean   = meanf(ex_uk_train, h = 24))
+round(t(sapply(ex_uk, function(f) accuracy(f, ex_uk_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)])), 2)
+#&gt;          RMSE    MAE  MAPE
+#&gt; Naive  774.88 750.12 59.63
+#&gt; SNaive 325.27 295.96 22.97
+#&gt; Drift  801.55 779.47 61.80
+#&gt; Mean   435.91 395.36 32.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Seasonal naive wins with an RMSE of 325.27, less than half the naive score. Every method still has a large error because seat belt legislation took effect in January 1983 and cut deaths sharply, a change no benchmark could have anticipated from past data alone.</p>
+
+</details>
+
+<h3>Exercise 2: Rebuild the drift forecast from scratch</h3>
+
+<p>Without calling <code>rwf()</code>, compute all 24 drift forecasts for the <code>AirPassengers</code> training set using only the formula, then prove your vector matches the package output exactly.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: drift from first principles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: drift from first principles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the slope, build 24 forecasts, compare with rwf(drift = TRUE)
+# Hint: all.equal() returns TRUE when two numeric vectors match
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_k &lt;- length(train)
+ex_drift_slope &lt;- (train[ex_k] - train[1]) / (ex_k - 1)
+ex_by_hand &lt;- train[ex_k] + ex_drift_slope * 1:24
+ex_pkg &lt;- as.numeric(rwf(train, h = 24, drift = TRUE)$mean)
+
+all.equal(ex_by_hand, ex_pkg)
+#&gt; [1] TRUE
+round(head(ex_by_hand, 3), 4)
+#&gt; [1] 338.8908 340.7815 342.6723</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>all.equal()</code> returns TRUE, so the hand-built vector is identical to the package output. The drift method has no hidden estimation step: the entire model is one subtraction, one division and one multiplication.</p>
+
+</details>
+
+<h3>Exercise 3: Decide whether ETS is worth it for UK road deaths</h3>
+
+<p>Using the same <code>ex_uk_train</code> and <code>ex_uk_test</code> split from Exercise 1, fit an ETS model, score it against the seasonal naive benchmark, and decide which one you would ship.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: beat the benchmark or not">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: beat the benchmark or not</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit ets() on ex_uk_train, forecast 24 months, compare with snaive
+# Hint: compare RMSE and MASE side by side
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_uk_ets &lt;- forecast(ets(ex_uk_train), h = 24)
+round(accuracy(ex_uk_ets, ex_uk_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MASE&quot;)], 2)
+#&gt;   RMSE    MAE   MASE 
+#&gt; 336.36 319.89   2.25 
+round(accuracy(snaive(ex_uk_train, h = 24), ex_uk_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MASE&quot;)], 2)
+#&gt;   RMSE    MAE   MASE 
+#&gt; 325.27 295.96   2.08 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The benchmark wins. Seasonal naive scores 325.27 against the ETS score of 336.36, so the fitted model is worse on the data that matters. Ship the benchmark here, and note that both MASE values above 2 signal a <a class="auto-link" href="Anomaly-Detection-in-Time-Series-in-R.html" title="Time Series Anomaly Detection in R: tsoutliers, anomalize">structural break</a> in the test period rather than a modelling failure.</p>
+
+</details>
+
+<h2>Frequently asked questions</h2>
+
+<h3>Is the naive method really used in practice?</h3>
+
+<p>Yes, and more often than most tutorials admit. Financial forecasting treats the naive forecast as the default because prices behave like random walks, and short-horizon operational forecasts frequently use last week's value as the plan. It is also the standard baseline in forecasting competitions, so any published accuracy claim is implicitly measured against it.</p>
+
+<h3>Should the benchmark be fitted on the training set only?</h3>
+
+<p>Always. If your benchmark sees the test data, its score is optimistic and the comparison is meaningless. Split first, fit both the benchmark and the candidate model on the training piece, and score both on the same untouched test piece. That is exactly what <code>window()</code> and the Test set row of <code>accuracy()</code> are enforcing on this page.</p>
+
+<h3>What is the difference between NAIVE(y ~ drift()) and RW(y ~ drift())?</h3>
+
+<p>Nothing. In <code>fable</code>, <code>NAIVE()</code> is an alias for <code>RW()</code> with no drift term, and both accept a <code>drift()</code> special, so <code>RW(y ~ drift())</code> and <code>NAIVE(y ~ drift())</code> fit the same random walk with drift model. Writing <code>RW(y ~ drift())</code> is the clearer choice because the name says random walk, which is what a drift model is.</p>
+
+<h3>Why is my MASE above 1 even for a seasonal naive forecast?</h3>
+
+<p>Because MASE is scaled by the in-sample naive error, a value above 1 just means the test period was harder than the training period. That happens whenever the series grows away from its old level or hits a structural break, and it is not a sign that you fitted the benchmark wrongly. On this page the seasonal naive MASE is 2.49 because passenger numbers in 1959 and 1960 were far above anything in the training years.</p>
+
+<h3>Which benchmark should I report in a paper or a stakeholder deck?</h3>
+
+<p>Report the seasonal naive method if your data has a seasonal cycle and the plain naive method if it does not. Those two are the conventional baselines in the forecasting literature, so readers can compare your numbers with published results. Adding drift and mean costs one line each and shows you checked rather than assumed.</p>
+
+<h2>Summary</h2>
+
+<p>Benchmarks turn an unreadable error number into a decision. All four are one-liners, all four run before you model anything, and the winner tells you what your series is made of.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>What it forecasts</th>
+<th>R call</th>
+<th>Best for</th>
+<th>Fails when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naive</td>
+<td>The last observed value, repeated</td>
+<td><code>naive(y, h)</code></td>
+<td>Random walks, prices, short horizons</td>
+<td>The series is seasonal or trending</td>
+</tr>
+<tr>
+<td>Seasonal naive</td>
+<td>The same season one cycle back</td>
+<td><code>snaive(y, h)</code></td>
+<td>Any series with a repeating cycle</td>
+<td>The series also trends up or down</td>
+</tr>
+<tr>
+<td>Drift</td>
+<td>Last value plus the average change</td>
+<td><code>rwf(y, h, drift = TRUE)</code></td>
+<td>Steady trends with no seasonality</td>
+<td>Either endpoint is an outlier</td>
+</tr>
+<tr>
+<td>Mean</td>
+<td>The average of all history</td>
+<td><code>meanf(y, h)</code></td>
+<td>Series that revert to a stable level</td>
+<td>The series trends or has seasonality</td>
+</tr>
+</tbody>
+</table>
+
+<p>The takeaways in one glance:</p>
+
+<ul>
+
+<li>A benchmark is the floor your model must clear, so fit it before anything complex.</li>
+
+<li>Naive and mean are opposites: one assumes the series has no memory, the other assumes it has nothing but memory.</li>
+
+<li>Seasonal naive is the default baseline for seasonal data, and it is often close to a fitted model's accuracy.</li>
+
+<li>Drift is defined entirely by the first and last observations, which makes it fast and fragile.</li>
+
+<li>Prediction intervals fan out with the square root of the horizon, and the seasonal naive width jumps only when the horizon crosses a full cycle.</li>
+
+<li>If a benchmark's residuals pass the Ljung-Box test, ship the benchmark and move on.</li>
+
+</ul>
+
+<p><img src="screenshots/Benchmark-Forecasts-in-R-methods-mindmap.webp" alt="The four benchmark forecasts at a glance." class="img-responsive img-zoomable" loading="lazy" width="1656" height="912" /></p>
+
+<p><em>Figure 3: The four benchmark forecasts at a glance.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em> (3rd ed), "Some simple forecasting methods". <a href="https://otexts.com/fpp3/simple-methods.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em> (3rd ed), "Prediction intervals", source of the sigma formulas. <a href="https://otexts.com/fpp3/prediction-intervals.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em> (3rd ed), "Evaluating forecast accuracy". <a href="https://otexts.com/fpp3/accuracy.html">Link</a></li>
+
+<li>Hyndman, R.J. - "Benchmarks for forecasting", on which baselines to report. <a href="https://robjhyndman.com/hyndsight/benchmarks/">Link</a></li>
+
+<li>fable package - <code>RW()</code> random walk models reference, covering NAIVE, SNAIVE and drift. <a href="https://fable.tidyverts.org/reference/RW.html">Link</a></li>
+
+<li>forecast package - <code>naive()</code>, <code>snaive()</code> and <code>rwf()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/naive.html">Link</a></li>
+
+<li>R documentation - the <code>AirPassengers</code> dataset. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/AirPassengers.html">Link</a></li>
+
+<li>forecast package on CRAN. <a href="https://cran.r-project.org/package=forecast">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> - what RMSE, MAE, MAPE and MASE actually measure, and which to trust.</li>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a> - score benchmarks over many origins instead of one split.</li>
+
+<li><a href="fable-in-R.html">fable and tsibble in R</a> - the tidy forecasting workflow used in the complete example above.</li>
+
+</ul>
+
+{% endraw %}
