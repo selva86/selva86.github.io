@@ -1,0 +1,1915 @@
+---
+title: "Forecast Reconciliation in R: Bottom-Up to Middle-Out"
+description: "Learn forecast reconciliation in R with fable. Compare bottom-up, top-down and middle-out, work the proportions by hand, and see which method wins."
+keywords: "forecast reconciliation in R, bottom-up forecasting, top-down forecasting, middle-out forecasting, single level approaches, fable reconcile, coherent forecasts, hierarchical forecasting in R, top_down proportions, bottom_up in R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-12.2"
+post_type: "C"
+auto_link_terms: "bottom_up()|top_down()|middle_out()|single level approaches|bottom-up reconciliation|top-down reconciliation|middle-out reconciliation|forecast proportions|average historical proportions|proportions of historical averages|disaggregation proportions|splitting a total forecast"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Forecast Reconciliation"
+sidebar_order: "34"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Forecast reconciliation is the step that makes a set of forecasts add up. The oldest family of methods, bottom-up, top-down and middle-out, all do it the same way: pick one level of the hierarchy, trust it completely, and rebuild every other level from it. This tutorial shows exactly what each one computes, verifies the arithmetic by hand, and measures which one actually forecasts better.</p>
+
+<h2>Why does one hierarchy give you three different totals?</h2>
+
+<p>A forecasting model does not know that Tasmania and Western Australia are supposed to add up to a national total. It just sees numbers. Fit one model per series and you get one answer for the total, a different answer from summing the states, and a third from summing the regions. Let's build that hierarchy and watch the three answers disagree.</p>
+
+<p>The <code>tourism</code> dataset ships inside the <code>tsibble</code> package. It records quarterly overnight trips in Australia from 1998 to 2017, broken down by region, state and trip purpose. We will keep two states, Tasmania and Western Australia, because they have five regions each. That gives a small hierarchy we can print in full and check by hand.</p>
+
+<div class="webr-container" data-block-title="Build a three-level tourism hierarchy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a three-level tourism hierarchy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(fable)
+library(dplyr)
+library(tidyr)
+
+options(pillar.sigfig = 5)
+
+trips &lt;- tourism |&gt;
+  filter(State %in% c(&quot;Tasmania&quot;, &quot;Western Australia&quot;)) |&gt;
+  as_tibble() |&gt;
+  summarise(Trips = sum(Trips), .by = c(Quarter, State, Region)) |&gt;
+  as_tsibble(index = Quarter, key = c(State, Region))
+
+hier &lt;- trips |&gt; aggregate_key(State / Region, Trips = sum(Trips))
+hier
+#&gt; # A tsibble: 1,040 x 4 [1Q]
+#&gt; # Key:       State, Region [13]
+#&gt;    Quarter State        Region        Trips
+#&gt;      &lt;qtr&gt; &lt;chr*&gt;       &lt;chr*&gt;        &lt;dbl&gt;
+#&gt;  1 1998 Q1 &lt;aggregated&gt; &lt;aggregated&gt; 2622.7
+#&gt;  2 1998 Q2 &lt;aggregated&gt; &lt;aggregated&gt; 2269.6
+#&gt;  3 1998 Q3 &lt;aggregated&gt; &lt;aggregated&gt; 1990.2
+#&gt;  4 1998 Q4 &lt;aggregated&gt; &lt;aggregated&gt; 2520.3
+#&gt;  5 1999 Q1 &lt;aggregated&gt; &lt;aggregated&gt; 2761.1
+#&gt;  6 1999 Q2 &lt;aggregated&gt; &lt;aggregated&gt; 2457.8
+#&gt;  7 1999 Q3 &lt;aggregated&gt; &lt;aggregated&gt; 2155.6
+#&gt;  8 1999 Q4 &lt;aggregated&gt; &lt;aggregated&gt; 2110.7
+#&gt;  9 2000 Q1 &lt;aggregated&gt; &lt;aggregated&gt; 2424.7
+#&gt; 10 2000 Q2 &lt;aggregated&gt; &lt;aggregated&gt; 2317.4
+#&gt; # ℹ 1,030 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things happened in that block. First, <code>summarise()</code> added up the four trip purposes inside each region and quarter, because purpose is a breakdown we do not want here. Second, <code>as_tsibble()</code> declared the time column (<code>index = Quarter</code>) and the columns that identify a series (<code>key = c(State, Region)</code>). Third, and this is the important one, <code>aggregate_key(State / Region, ...)</code> read the slash as "Region nests inside State" and physically added every implied total as extra rows.</p>
+
+<p>The <code>&lt;aggregated&gt;</code> label marks those added rows. A row with <code>&lt;aggregated&gt;</code> in both columns is the grand total across both states. <code>options(pillar.sigfig = 5)</code> just asks tibbles to print five significant digits instead of the default three, so we can read the decimals that the rest of this tutorial depends on.</p>
+
+<p>Let's see exactly which series now exist.</p>
+
+<div class="webr-container" data-block-title="List every series in the hierarchy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List every series in the hierarchy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hier |&gt;
+  as_tibble() |&gt;
+  distinct(State, Region) |&gt;
+  mutate(State = as.character(State), Region = as.character(Region)) |&gt;
+  print(n = 13)
+#&gt; # A tibble: 13 × 2
+#&gt;    State             Region                         
+#&gt;    &lt;chr&gt;             &lt;chr&gt;                          
+#&gt;  1 &lt;aggregated&gt;      &lt;aggregated&gt;                   
+#&gt;  2 Tasmania          &lt;aggregated&gt;                   
+#&gt;  3 Western Australia &lt;aggregated&gt;                   
+#&gt;  4 Tasmania          East Coast                     
+#&gt;  5 Tasmania          Hobart and the South           
+#&gt;  6 Tasmania          Launceston, Tamar and the North
+#&gt;  7 Tasmania          North West                     
+#&gt;  8 Tasmania          Wilderness West                
+#&gt;  9 Western Australia Australia's Coral Coast        
+#&gt; 10 Western Australia Australia's Golden Outback     
+#&gt; 11 Western Australia Australia's North West         
+#&gt; 12 Western Australia Australia's South West         
+#&gt; 13 Western Australia Experience Perth               </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirteen series in three tiers: one grand total, two states, ten regions. We started with ten. The other three were created by <code>aggregate_key()</code>.</p>
+
+<p>That is the structure. Now we fit a model to every one of those thirteen series independently and forecast one quarter ahead. <code>ETS()</code> fits an <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model, and <code>model()</code> applies it to each series separately. Nothing in this step knows the hierarchy exists.</p>
+
+<div class="webr-container" data-block-title="Fit one model per series and forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit one model per series and forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">label &lt;- function(state, region) {
+  ifelse(region != &quot;&lt;aggregated&gt;&quot;, region,
+         ifelse(state != &quot;&lt;aggregated&gt;&quot;, state, &quot;TOTAL&quot;))
+}
+
+fit &lt;- hier |&gt; model(base = ETS(Trips))
+
+base_mean &lt;- fit |&gt;
+  forecast(h = 1) |&gt;
+  as_tibble() |&gt;
+  mutate(State = as.character(State),
+         Region = as.character(Region),
+         Series = label(State, Region)) |&gt;
+  select(State, Region, Series, base = .mean)
+
+base_mean |&gt;
+  select(Series, base) |&gt;
+  mutate(base = round(base, 1)) |&gt;
+  print(n = 13)
+#&gt; # A tibble: 13 × 2
+#&gt;    Series                            base
+#&gt;    &lt;chr&gt;                            &lt;dbl&gt;
+#&gt;  1 East Coast                       153.6
+#&gt;  2 Hobart and the South             439.3
+#&gt;  3 Launceston, Tamar and the North  241.2
+#&gt;  4 North West                       183  
+#&gt;  5 Wilderness West                   59.7
+#&gt;  6 Tasmania                        1120.2
+#&gt;  7 Australia's Coral Coast          247.5
+#&gt;  8 Australia's Golden Outback       255  
+#&gt;  9 Australia's North West           248.8
+#&gt; 10 Australia's South West           903.9
+#&gt; 11 Experience Perth                1084.4
+#&gt; 12 Western Australia               2734.5
+#&gt; 13 TOTAL                           3942.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>label()</code> helper collapses the two key columns into one readable name so the tables in this tutorial stay narrow: a region keeps its own name, a state row shows the state, and the grand total shows <code>TOTAL</code>. The <code>.mean</code> column that <code>forecast()</code> produces is the point forecast, which is the single number you would put in a plan. These are called <strong>base forecasts</strong>: the raw, unreconciled output of thirteen independent models.</p>
+
+<p>Now the punchline. Ask this hierarchy for next quarter's total three different ways.</p>
+
+<div class="webr-container" data-block-title="Compare the three answers for the total">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the three answers for the total</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">three &lt;- c(
+  top_model  = sum(base_mean$base[base_mean$State == &quot;&lt;aggregated&gt;&quot;]),
+  state_sum  = sum(base_mean$base[base_mean$State != &quot;&lt;aggregated&gt;&quot; &amp;
+                                  base_mean$Region == &quot;&lt;aggregated&gt;&quot;]),
+  region_sum = sum(base_mean$base[base_mean$Region != &quot;&lt;aggregated&gt;&quot;])
+)
+
+top_fc &lt;- three[[&quot;top_model&quot;]]
+round(three, 1)
+#&gt;  top_model  state_sum region_sum 
+#&gt;     3942.6     3854.6     3816.3 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each element picks a different set of rows and adds them up. <code>top_model</code> is the single forecast from the model fitted to the grand-total series. <code>state_sum</code> adds the two state forecasts. <code>region_sum</code> adds the ten region forecasts. We also stash the top-level number in <code>top_fc</code>, because every top-down calculation later in this tutorial starts from it.</p>
+
+<p>Three answers to one question: 3942.6, 3854.6 and 3816.3. The spread is about 126 thousand trips, roughly 3 percent. Nothing in R warned us. Every model was fitted correctly; they simply were never told they had to agree.</p>
+
+<p>Forecasts that do add up correctly are called <strong>coherent</strong>. Turning an incoherent set into a coherent one is <strong>reconciliation</strong>. The question this tutorial answers is which of the three numbers above you should build the coherent set around.</p>
+
+<p><img src="screenshots/Forecast-Reconciliation-in-R-which-level.webp" alt="Each single-level method keeps one level and rebuilds the rest" class="img-responsive img-zoomable" loading="lazy" width="1152" height="986" /></p>
+
+<p><em>Figure 1: Each single-level method keeps one level and rebuilds the rest.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bottom-up, top-down and middle-out are the same move applied at three different heights.</strong> Each one nominates a single level of the hierarchy, keeps that level's forecasts exactly as they came out of the model, and regenerates every other level from them. That is why they are known collectively as single level approaches.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The disagreement is not only between the top and the bottom. Tasmania has its own model, and its five regions have theirs. Check whether Tasmania's own forecast matches the sum of its five regions.</p>
+<div class="webr-container" data-block-title="Your turn: measure Tasmania&#x27;s internal gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure Tasmania&#x27;s internal gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tas_gap &lt;- NULL
+# ex_tas_gap: filter base_mean to State == &quot;Tasmania&quot;, then compute
+#   state_model = the base forecast on the row where Region is &quot;&lt;aggregated&gt;&quot;
+#   region_sum  = the sum of the base forecasts on the other five rows
+#   gap         = state_model - region_sum
+# Expected: state_model 1120.2, region_sum 1076.8, gap 43.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tasmania internal gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tasmania internal gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tas_gap &lt;- base_mean |&gt;
+  filter(State == &quot;Tasmania&quot;) |&gt;
+  summarise(state_model = sum(base[Region == &quot;&lt;aggregated&gt;&quot;]),
+            region_sum  = sum(base[Region != &quot;&lt;aggregated&gt;&quot;])) |&gt;
+  mutate(gap = state_model - region_sum) |&gt;
+  mutate(across(everything(), function(x) round(x, 1)))
+
+ex_tas_gap
+#&gt; # A tibble: 1 × 3
+#&gt;   state_model region_sum   gap
+#&gt;         &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1      1120.2     1076.8  43.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Tasmania's own model says 1120.2 and its regions say 1076.8, a gap of 43.4. Incoherence happens at every internal node, not just at the top, so a fix has to work on the whole tree at once.</p>
+
+</details>
+</section>
+
+<h2>How does bottom-up reconciliation work?</h2>
+
+<p>Bottom-up is the method you would invent yourself in about ten seconds. Trust the smallest series, the ones closest to the actual thing being counted, and add them up. No proportions, no matrices, no assumptions.</p>
+
+<p>Let's do it manually first, so there is no mystery about what the function does. We take the ten region forecasts, add them within each state, and then add the two state numbers.</p>
+
+<div class="webr-container" data-block-title="Bottom-up by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom-up by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bu_hand &lt;- base_mean |&gt;
+  filter(Region != &quot;&lt;aggregated&gt;&quot;) |&gt;
+  summarise(bu_state = sum(base), .by = State) |&gt;
+  mutate(bu_state = round(bu_state, 1))
+
+bu_hand
+#&gt; # A tibble: 2 × 2
+#&gt;   State             bu_state
+#&gt;   &lt;chr&gt;                &lt;dbl&gt;
+#&gt; 1 Tasmania            1076.8
+#&gt; 2 Western Australia   2739.5
+
+sum(bu_hand$bu_state)
+#&gt; [1] 3816.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>filter()</code> keeps only rows whose <code>Region</code> is a real region, dropping the three <a class="auto-link" href="dplyr-summarise-in-R.html" title="dplyr summarise() in R: Aggregate Data with Stats">aggregate rows</a>. <code>summarise(.by = State)</code> then adds the five region forecasts inside each state. Tasmania comes to 1076.8 and Western Australia to 2739.5, and those two add to 3816.3.</p>
+
+<p>Notice what we never used: the model fitted to Tasmania, the model fitted to Western Australia, and the model fitted to the grand total. Three of our thirteen models contributed nothing. Bottom-up throws them away.</p>
+
+<p>Now the same thing with fable. The <code>reconcile()</code> step sits between <code>model()</code> and <code>forecast()</code> and attaches a reconciliation method to the existing models.</p>
+
+<div class="webr-container" data-block-title="Bottom-up with the bottom_up() function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom-up with the bottom_up() function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_bu &lt;- fit |&gt;
+  reconcile(bu = bottom_up(base)) |&gt;
+  forecast(h = 1)
+
+bu_tab &lt;- fc_bu |&gt;
+  as_tibble() |&gt;
+  mutate(State = as.character(State),
+         Region = as.character(Region),
+         Series = label(State, Region)) |&gt;
+  select(Series, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 1)))
+
+bu_tab |&gt; print(n = 13)
+#&gt; # A tibble: 13 × 3
+#&gt;    Series                            base     bu
+#&gt;    &lt;chr&gt;                            &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 East Coast                       153.6  153.6
+#&gt;  2 Hobart and the South             439.3  439.3
+#&gt;  3 Launceston, Tamar and the North  241.2  241.2
+#&gt;  4 North West                       183    183  
+#&gt;  5 Wilderness West                   59.7   59.7
+#&gt;  6 Tasmania                        1120.2 1076.8
+#&gt;  7 Australia's Coral Coast          247.5  247.5
+#&gt;  8 Australia's Golden Outback       255    255  
+#&gt;  9 Australia's North West           248.8  248.8
+#&gt; 10 Australia's South West           903.9  903.9
+#&gt; 11 Experience Perth                1084.4 1084.4
+#&gt; 12 Western Australia               2734.5 2739.5
+#&gt; 13 TOTAL                           3942.6 3816.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>reconcile(bu = bottom_up(base))</code> says "take the column of models called <code>base</code> and add a second column called <code>bu</code> that reconciles them bottom-up". <code>forecast()</code> then produces both sets at once, which <code>pivot_wider()</code> turns into side-by-side columns.</p>
+
+<p>Read the two columns against each other. Rows 1 to 5 and 7 to 11 are the regions, and they are identical in both columns. Rows 6, 12 and 13 are the aggregates, and they moved: Tasmania from 1120.2 to 1076.8, Western Australia from 2734.5 to 2739.5, the total from 3942.6 to 3816.3. Those are exactly the numbers we computed by hand.</p>
+
+<p>Also note that the two adjustments went in opposite directions. Tasmania's own model was optimistic relative to its regions, Western Australia's was pessimistic. Bottom-up applies the same rule in both cases: replace the aggregate forecast with the sum of the series below it, whichever direction that moves the number.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bottom-up is the only reconciliation method that needs nothing but the bottom-level forecasts.</strong> No residual history, no covariance estimate, no proportions. That makes it the safe fallback when you have just added a new product or region with no track record, and it is why it is still running in production forecasting systems decades after better methods appeared.</div></div>
+
+<p>The cost is noise. Small series are erratic, and adding ten erratic forecasts gives you an erratic total, even when the total itself was smooth and easy to model. We will measure that cost against a real holdout later in this tutorial.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The table above suggests bottom-up left every region untouched. Prove it, rather than eyeballing it, by finding the largest absolute change across all ten region rows.</p>
+<div class="webr-container" data-block-title="Your turn: confirm the regions were untouched">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm the regions were untouched</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bu_regions &lt;- NULL
+# ex_bu_regions: from bu_tab, drop the three aggregate rows
+#   (&quot;TOTAL&quot;, &quot;Tasmania&quot;, &quot;Western Australia&quot;), then compute the
+#   largest value of abs(bu - base)
+# Expected: a single column named biggest_change holding 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Region preservation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Region preservation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bu_regions &lt;- bu_tab |&gt;
+  filter(!Series %in% c(&quot;TOTAL&quot;, &quot;Tasmania&quot;, &quot;Western Australia&quot;)) |&gt;
+  summarise(biggest_change = max(abs(bu - base)))
+
+ex_bu_regions
+#&gt; # A tibble: 1 × 1
+#&gt;   biggest_change
+#&gt;            &lt;dbl&gt;
+#&gt; 1              0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Zero, not "nearly zero". Bottom-up copies the bottom level across verbatim, so any accuracy you gained by modelling regions carefully survives reconciliation completely intact.</p>
+
+</details>
+</section>
+
+<h2>How does top-down split a total into its parts?</h2>
+
+<p>Top-down is the mirror image. Trust the total, then break it into pieces. The only question is what share each bottom series should get.</p>
+
+<p>Those shares are called <strong>disaggregation proportions</strong>, written $p_1, p_2, \dots, p_m$ for the $m$ bottom-level series. They have to sum to 1, otherwise the pieces would not add back up to the whole. Given the top-level forecast $\hat{y}_h$, every bottom series gets</p>
+
+<p>$$\tilde{y}_{j,h} = p_j \, \hat{y}_h$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\tilde{y}_{j,h}$ = the reconciled forecast for bottom series $j$, $h$ steps ahead</li>
+
+<li>$\hat{y}_h$ = the base forecast for the grand total, $h$ steps ahead</li>
+
+<li>$p_j$ = the share of the total that series $j$ gets, with $\sum_j p_j = 1$</li>
+
+</ul>
+
+<p><img src="screenshots/Forecast-Reconciliation-in-R-top-down-split.webp" alt="Top-down splits one number down the hierarchy using proportions" class="img-responsive img-zoomable" loading="lazy" width="1462" height="690" /></p>
+
+<p><em>Figure 2: Top-down splits one number down the hierarchy using proportions.</em></p>
+
+<p>So where do the $p_j$ come from? The two classical answers both look at history, and they differ in a way that sounds like hair-splitting but is not.</p>
+
+<p><strong>Average of historical proportions.</strong> For each quarter, work out what share this region took of that quarter's total, then average those shares across all quarters.</p>
+
+<p>$$p_j = \frac{1}{T}\sum_{t=1}^{T}\frac{y_{j,t}}{y_t}$$</p>
+
+<p><strong>Proportions of historical averages.</strong> Average the region across all quarters, average the total across all quarters, then divide one by the other.</p>
+
+<p>$$p_j = \frac{\sum_{t=1}^{T} y_{j,t} / T}{\sum_{t=1}^{T} y_t / T}$$</p>
+
+<p>Where, in both formulas:</p>
+
+<ul>
+
+<li>$y_{j,t}$ = the observed value of bottom series $j$ in period $t$</li>
+
+<li>$y_t$ = the observed grand total in period $t$</li>
+
+<li>$T$ = the number of historical periods</li>
+
+</ul>
+
+<p>The difference is the order of the division and the averaging. The first treats every quarter as one equal vote regardless of how big that quarter was. The second lets big quarters count for more, because it averages the raw values first. Let's compute both.</p>
+
+<div class="webr-container" data-block-title="Compute both historical proportions by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute both historical proportions by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">totals &lt;- trips |&gt;
+  as_tibble() |&gt;
+  summarise(y_total = sum(Trips), .by = Quarter)
+
+shares &lt;- trips |&gt;
+  as_tibble() |&gt;
+  left_join(totals, by = &quot;Quarter&quot;) |&gt;
+  mutate(share = Trips / y_total)
+
+p_ap &lt;- shares |&gt; summarise(p_ap = mean(share), .by = Region)
+
+p_pa &lt;- shares |&gt;
+  summarise(mean_region = mean(Trips), .by = Region) |&gt;
+  transmute(Region, p_pa = mean_region / mean(totals$y_total))
+
+p_both &lt;- p_ap |&gt; left_join(p_pa, by = &quot;Region&quot;)
+
+p_both |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 4))) |&gt;
+  print(n = 10)
+#&gt; # A tibble: 10 × 3
+#&gt;    Region                            p_ap   p_pa
+#&gt;    &lt;chr&gt;                            &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 East Coast                      0.0327 0.0332
+#&gt;  2 Hobart and the South            0.1081 0.108 
+#&gt;  3 Launceston, Tamar and the North 0.0674 0.067 
+#&gt;  4 North West                      0.0438 0.044 
+#&gt;  5 Wilderness West                 0.0158 0.0159
+#&gt;  6 Australia's Coral Coast         0.0754 0.0751
+#&gt;  7 Australia's Golden Outback      0.0745 0.0744
+#&gt;  8 Australia's North West          0.0644 0.0647
+#&gt;  9 Australia's South West          0.205  0.2071
+#&gt; 10 Experience Perth                0.3129 0.3107</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Follow the two paths. <code>totals</code> is the observed grand total in each of the 80 quarters. <code>shares</code> attaches that total to every region row and divides, giving each region's share in each quarter. Then <code>p_ap</code> averages those 80 shares per region, which is the first formula. <code>p_pa</code> instead averages each region's raw trips and divides by the average total, which is the second formula.</p>
+
+<p>Experience Perth takes about 31 percent of the two-state total either way. The two columns are close but not equal, and we will quantify that gap in a moment.</p>
+
+<p>Now let's confirm that the package is doing exactly this arithmetic. We run <code>top_down()</code> twice, once per method, and compare against our hand-computed numbers multiplied by the top-level forecast.</p>
+
+<div class="webr-container" data-block-title="Check the hand proportions against top_down()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the hand proportions against top_down()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_td2 &lt;- fit |&gt;
+  reconcile(td_ap = top_down(base, method = &quot;average_proportions&quot;),
+            td_pa = top_down(base, method = &quot;proportion_averages&quot;)) |&gt;
+  forecast(h = 1)
+
+td_fable &lt;- fc_td2 |&gt;
+  as_tibble() |&gt;
+  mutate(Region = as.character(Region)) |&gt;
+  filter(Region != &quot;&lt;aggregated&gt;&quot;) |&gt;
+  select(Region, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean)
+
+td_check &lt;- p_both |&gt;
+  transmute(Region,
+            hand_ap = p_ap * top_fc,
+            hand_pa = p_pa * top_fc) |&gt;
+  left_join(td_fable, by = &quot;Region&quot;)
+
+td_check |&gt;
+  summarise(max_gap_ap = max(abs(hand_ap - td_ap)),
+            max_gap_pa = max(abs(hand_pa - td_pa)))
+#&gt; # A tibble: 1 × 2
+#&gt;   max_gap_ap max_gap_pa
+#&gt;        &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1          0          0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We multiplied each hand-computed proportion by <code>top_fc</code>, the 3942.6 grand-total forecast, then joined fable's own output alongside and took the largest absolute difference. Both gaps are exactly zero across all ten regions.</p>
+
+<p>That is worth pausing on. The formulas above are not an approximation of what <code>top_down()</code> does; they are what it does. Here are the numbers themselves.</p>
+
+<div class="webr-container" data-block-title="Both top-down variants, hand versus package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Both top-down variants, hand versus package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">td_check |&gt;
+  transmute(Region,
+            hand_ap = round(hand_ap, 2),
+            td_ap   = round(td_ap, 2),
+            hand_pa = round(hand_pa, 2),
+            td_pa   = round(td_pa, 2)) |&gt;
+  print(n = 10)
+#&gt; # A tibble: 10 × 5
+#&gt;    Region                          hand_ap   td_ap hand_pa   td_pa
+#&gt;    &lt;chr&gt;                             &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt;  1 East Coast                       128.79  128.79  130.85  130.85
+#&gt;  2 Hobart and the South             426.26  426.26  425.98  425.98
+#&gt;  3 Launceston, Tamar and the North  265.7   265.7   263.96  263.96
+#&gt;  4 North West                       172.55  172.55  173.54  173.54
+#&gt;  5 Wilderness West                   62.45   62.45   62.53   62.53
+#&gt;  6 Australia's Coral Coast          297.35  297.35  296.09  296.09
+#&gt;  7 Australia's Golden Outback       293.63  293.63  293.17  293.17
+#&gt;  8 Australia's North West           253.95  253.95  255.09  255.09
+#&gt;  9 Australia's South West           808.34  808.34  816.5   816.5 
+#&gt; 10 Experience Perth                1233.6  1233.6  1224.9  1224.9 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Column by column, hand and package agree to the last displayed digit. Now compare East Coast against its own base forecast of 153.6: top-down puts it at about 129 instead. East Coast's own fitted model contributed nothing to that figure. It came entirely from the grand total multiplied by a historical share.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Top-down cannot improve the top-level forecast, by construction.</strong> It starts from the grand-total forecast and only divides it up, so the total it produces is bit-for-bit the total you already had. If the reason you are reconciling is that the board-level number needs to be as accurate as possible, top-down delivers exactly the accuracy you started with and fixes only the disagreement underneath it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A set of disaggregation proportions is only valid if it accounts for the entire total. Check that both of our hand-computed proportion vectors sum to 1.</p>
+<div class="webr-container" data-block-title="Your turn: check the proportions sum to one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the proportions sum to one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p_sum &lt;- NULL
+# ex_p_sum: build a named vector holding sum(p_both$p_ap) and sum(p_both$p_pa)
+# Expected: both entries equal 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Proportion sum solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportion sum solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p_sum &lt;- c(sum_p_ap = sum(p_both$p_ap), sum_p_pa = sum(p_both$p_pa))
+
+ex_p_sum
+#&gt; sum_p_ap sum_p_pa 
+#&gt;        1        1 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both sum to exactly 1, which is what makes the split coherent. Every trip in the forecast total is assigned to exactly one region, none created and none lost.</p>
+
+</details>
+</section>
+
+<h2>Which top-down proportions should you use?</h2>
+
+<p>We now have two ways to compute $p_j$ and a third still to meet. Start by asking how much the first two actually differ, because if the answer is "barely", the choice does not deserve much of your attention.</p>
+
+<div class="webr-container" data-block-title="How far apart are the two historical variants">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How far apart are the two historical variants</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p_shift &lt;- p_both |&gt;
+  mutate(shift = round((p_pa - p_ap) * 100, 3)) |&gt;
+  arrange(desc(abs(shift))) |&gt;
+  select(Region, shift) |&gt;
+  head(3)
+
+ex_p_shift
+#&gt; # A tibble: 3 × 2
+#&gt;   Region                  shift
+#&gt;   &lt;chr&gt;                   &lt;dbl&gt;
+#&gt; 1 Experience Perth       -0.221
+#&gt; 2 Australia's South West  0.207
+#&gt; 3 East Coast              0.052</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We converted each proportion to a percentage, took the difference between the two methods, and sorted by the largest absolute move. The biggest disagreement anywhere in the hierarchy is 0.22 percentage points, on Experience Perth. On a total of 3942.6 that is about 9 thousand trips out of nearly 4 million.</p>
+
+<p>So the choice between the two historical variants is close to a coin flip in practice. Both share a much more serious weakness: the proportions are frozen. They are computed once from the whole history and then applied to every future horizon. A region whose share has been climbing steadily for twenty years gets its twenty-year average share, not the share it is heading towards.</p>
+
+<p>That is the problem the third method solves. <strong>Forecast proportions</strong> compute the shares from the base forecasts themselves rather than from history, level by level. For a bottom series $j$ in a hierarchy with $K$ levels:</p>
+
+<p>$$p_j = \prod_{\ell=0}^{K-1} \frac{\hat{y}_{j,h}^{(\ell)}}{\hat{S}_{j,h}^{(\ell+1)}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat{y}_{j,h}^{(\ell)}$ = the base forecast of the node that sits $\ell$ levels above series $j$</li>
+
+<li>$\hat{S}_{j,h}^{(\ell+1)}$ = the sum of the base forecasts of all the children of the node $\ell + 1$ levels above $j$</li>
+
+<li>$K$ = the number of levels in the hierarchy</li>
+
+</ul>
+
+<p>That product notation hides a very simple recipe, so let's just perform it. Our hierarchy has two levels below the top. Step one: split the grand total between the two states in proportion to their own base forecasts. Step two: split each state's resulting number among its five regions in proportion to their base forecasts.</p>
+
+<div class="webr-container" data-block-title="Work forecast proportions by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Work forecast proportions by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">state_base &lt;- base_mean |&gt;
+  filter(State != &quot;&lt;aggregated&gt;&quot;, Region == &quot;&lt;aggregated&gt;&quot;)
+
+state_total &lt;- sum(state_base$base)
+
+fp_hand &lt;- base_mean |&gt;
+  filter(Region != &quot;&lt;aggregated&gt;&quot;) |&gt;
+  mutate(region_share = base / sum(base), .by = State) |&gt;
+  left_join(transmute(state_base, State, state_share = base / state_total),
+            by = &quot;State&quot;) |&gt;
+  transmute(Series,
+            state_share  = round(state_share, 4),
+            region_share = round(region_share, 4),
+            fp = round(top_fc * state_share * region_share, 2))
+
+fp_hand |&gt; print(n = 10)
+#&gt; # A tibble: 10 × 4
+#&gt;    Series                          state_share region_share      fp
+#&gt;    &lt;chr&gt;                                 &lt;dbl&gt;        &lt;dbl&gt;   &lt;dbl&gt;
+#&gt;  1 East Coast                           0.2906       0.1426  163.38
+#&gt;  2 Hobart and the South                 0.2906       0.4079  467.34
+#&gt;  3 Launceston, Tamar and the North      0.2906       0.224   256.64
+#&gt;  4 North West                           0.2906       0.17    194.77
+#&gt;  5 Wilderness West                      0.2906       0.0555   63.59
+#&gt;  6 Australia's Coral Coast              0.7094       0.0904  252.84
+#&gt;  7 Australia's Golden Outback           0.7094       0.0931  260.39
+#&gt;  8 Australia's North West               0.7094       0.0908  253.96
+#&gt;  9 Australia's South West               0.7094       0.3299  922.69
+#&gt; 10 Experience Perth                     0.7094       0.3958 1107   </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two share columns. <code>state_share</code> is each state's base forecast divided by the sum of the two state base forecasts, so Tasmania gets 0.2906 and Western Australia 0.7094. <code>region_share</code> is each region's base forecast divided by the sum of the five regions in its own state, which is what <code>.by = State</code> inside <code>mutate()</code> arranges. Multiplying the grand total by both shares walks the number down two levels.</p>
+
+<p>Every base forecast in the hierarchy influenced the answer. That is the crucial difference from the historical variants, which only ever looked at the top model and at raw history. Let's put all three variants next to each other.</p>
+
+<div class="webr-container" data-block-title="Three top-down variants side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three top-down variants side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_td3 &lt;- fit |&gt;
+  reconcile(td_ap = top_down(base, method = &quot;average_proportions&quot;),
+            td_pa = top_down(base, method = &quot;proportion_averages&quot;),
+            td_fp = top_down(base, method = &quot;forecast_proportions&quot;)) |&gt;
+  forecast(h = 1)
+
+td3 &lt;- fc_td3 |&gt;
+  as_tibble() |&gt;
+  mutate(State = as.character(State),
+         Region = as.character(Region),
+         Series = label(State, Region)) |&gt;
+  select(Series, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 1)))
+
+td3 |&gt; print(n = 13)
+#&gt; # A tibble: 13 × 5
+#&gt;    Series                            base  td_ap  td_pa  td_fp
+#&gt;    &lt;chr&gt;                            &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 East Coast                       153.6  128.8  130.8  163.4
+#&gt;  2 Hobart and the South             439.3  426.3  426    467.4
+#&gt;  3 Launceston, Tamar and the North  241.2  265.7  264    256.7
+#&gt;  4 North West                       183    172.6  173.5  194.7
+#&gt;  5 Wilderness West                   59.7   62.5   62.5   63.5
+#&gt;  6 Tasmania                        1120.2 1055.8 1056.9 1145.7
+#&gt;  7 Australia's Coral Coast          247.5  297.3  296.1  252.7
+#&gt;  8 Australia's Golden Outback       255    293.6  293.2  260.3
+#&gt;  9 Australia's North West           248.8  254    255.1  254  
+#&gt; 10 Australia's South West           903.9  808.3  816.5  922.8
+#&gt; 11 Experience Perth                1084.4 1233.6 1224.9 1107.1
+#&gt; 12 Western Australia               2734.5 2886.8 2885.7 2796.8
+#&gt; 13 TOTAL                           3942.6 3942.6 3942.6 3942.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 13 is the fixed point of the whole family: all three variants reproduce 3942.6, the base total, unchanged. Rows 1 to 12 tell the interesting story. The <code>td_ap</code> and <code>td_pa</code> columns track each other closely, as we already measured. The <code>td_fp</code> column sits somewhere else entirely, and consistently closer to <code>base</code>, because it was built from those base forecasts.</p>
+
+<p>Look at Experience Perth in row 11. Its own model said 1084.4. The historical variants pushed it up past 1224, because Perth has historically taken a bigger share than its current forecast implies. Forecast proportions landed at 1107.1, much nearer its own model. That is the trend-tracking behaviour the historical variants cannot produce.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>forecast_proportions is the default, and it should usually stay that way.</strong> It is the only top-down variant that adapts as the shape of the hierarchy shifts. Reach for the historical variants only when the bottom series are too sparse or too noisy for their own forecasts to be worth using as shares, which is exactly the situation that makes people choose top-down in the first place.</div></div>
+
+<p>One more property of the whole top-down family is worth knowing, and it is easy to miss because everything above looks so reasonable. A forecast is <strong>unbiased</strong> when its errors average out to zero over many forecasts: it comes out too high about as often, and by about as much, as it comes out too low. Even when every base forecast is unbiased in that sense, top-down reconciled forecasts are <strong>not</strong> guaranteed to be. Splitting a total by fixed shares introduces a distortion whenever the shares themselves are uncertain, and no choice of $p_j$ removes it. Bottom-up has no such problem, because summing unbiased forecasts gives an unbiased sum.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The three variants clearly disagree, but not equally everywhere. Find the three regions where the spread between the highest and lowest of the three top-down forecasts is largest.</p>
+<div class="webr-container" data-block-title="Your turn: find the biggest disagreement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the biggest disagreement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_td_spread &lt;- NULL
+# ex_td_spread: from td3, drop the three aggregate rows, then add
+#   spread = pmax(td_ap, td_pa, td_fp) - pmin(td_ap, td_pa, td_fp)
+#   keep Series and spread, sort descending, and take the top 3
+# Expected: Experience Perth 126.5, Australia's South West 114.5,
+#   Australia's Coral Coast 44.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Top-down spread solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-down spread solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_td_spread &lt;- td3 |&gt;
+  filter(!Series %in% c(&quot;TOTAL&quot;, &quot;Tasmania&quot;, &quot;Western Australia&quot;)) |&gt;
+  mutate(spread = round(pmax(td_ap, td_pa, td_fp) - pmin(td_ap, td_pa, td_fp), 1)) |&gt;
+  select(Series, spread) |&gt;
+  arrange(desc(spread)) |&gt;
+  head(3)
+
+ex_td_spread
+#&gt; # A tibble: 3 × 2
+#&gt;   Series                  spread
+#&gt;   &lt;chr&gt;                    &lt;dbl&gt;
+#&gt; 1 Experience Perth         126.5
+#&gt; 2 Australia's South West   114.5
+#&gt; 3 Australia's Coral Coast   44.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The biggest series disagree the most, in absolute terms, because they absorb the largest slice of the total. <code>pmax()</code> and <code>pmin()</code> work element by element across the three columns, which is what makes this a one-line row-wise comparison.</p>
+
+</details>
+</section>
+
+<h2>What does middle-out do differently?</h2>
+
+<p>Deep hierarchies often have one level where the data is simply better than anywhere else. Individual stores are noisy, the national total is too coarse to plan against, but regions have enough volume to be stable and enough detail to be useful. Middle-out is built for that situation.</p>
+
+<p>The recipe combines the two methods you have already seen. Pick a level. Above it, go bottom-up: add the chosen level's forecasts upward. Below it, go top-down: split each chosen-level forecast among its children using forecast proportions.</p>
+
+<p><img src="screenshots/Forecast-Reconciliation-in-R-middle-out.webp" alt="Middle-out adds up above the chosen level and splits down below it" class="img-responsive img-zoomable" loading="lazy" width="1112" height="806" /></p>
+
+<p><em>Figure 3: Middle-out adds up above the chosen level and splits down below it.</em></p>
+
+<p>In fable the function is <code>middle_out()</code>, and it takes a <code>split</code> argument naming the level to anchor on. Level 1 is the first level below the grand total, which in our hierarchy is State.</p>
+
+<div class="webr-container" data-block-title="Middle-out anchored at the state level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Middle-out anchored at the state level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_mo &lt;- fit |&gt;
+  reconcile(mo = middle_out(base, split = 1)) |&gt;
+  forecast(h = 1)
+
+mo_tab &lt;- fc_mo |&gt;
+  as_tibble() |&gt;
+  mutate(State = as.character(State),
+         Region = as.character(Region),
+         Series = label(State, Region)) |&gt;
+  select(Series, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 1)))
+
+mo_tab |&gt; print(n = 13)
+#&gt; # A tibble: 13 × 3
+#&gt;    Series                            base     mo
+#&gt;    &lt;chr&gt;                            &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 East Coast                       153.6  159.8
+#&gt;  2 Hobart and the South             439.3  457  
+#&gt;  3 Launceston, Tamar and the North  241.2  250.9
+#&gt;  4 North West                       183    190.4
+#&gt;  5 Wilderness West                   59.7   62.1
+#&gt;  6 Tasmania                        1120.2 1120.2
+#&gt;  7 Australia's Coral Coast          247.5  247.1
+#&gt;  8 Australia's Golden Outback       255    254.5
+#&gt;  9 Australia's North West           248.8  248.3
+#&gt; 10 Australia's South West           903.9  902.2
+#&gt; 11 Experience Perth                1084.4 1082.4
+#&gt; 12 Western Australia               2734.5 2734.5
+#&gt; 13 TOTAL                           3942.6 3854.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rows 6 and 12 did not move: Tasmania stayed at 1120.2 and Western Australia at 2734.5. That is the anchored level, preserved exactly, the same way bottom-up preserved the regions. Row 13 became 3854.6, which is simply 1120.2 plus 2734.5, the bottom-up step. Every region row moved, because each one was regenerated from its state's number.</p>
+
+<p>Notice the direction of the region moves. Tasmania's regions all went up, because Tasmania's own model was higher than the sum of its regions. Western Australia's all went down slightly, for the opposite reason. Let's verify that this is really the recipe, rather than trusting the label on the function.</p>
+
+<div class="webr-container" data-block-title="Verify middle-out by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify middle-out by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mo_hand &lt;- base_mean |&gt;
+  filter(Region != &quot;&lt;aggregated&gt;&quot;) |&gt;
+  mutate(region_share = base / sum(base), .by = State) |&gt;
+  left_join(transmute(state_base, State, state_fc = base), by = &quot;State&quot;) |&gt;
+  transmute(Series, by_hand = round(state_fc * region_share, 1)) |&gt;
+  left_join(select(mo_tab, Series, from_fable = mo), by = &quot;Series&quot;)
+
+mo_hand |&gt; print(n = 10)
+#&gt; # A tibble: 10 × 3
+#&gt;    Series                          by_hand from_fable
+#&gt;    &lt;chr&gt;                             &lt;dbl&gt;      &lt;dbl&gt;
+#&gt;  1 East Coast                        159.8      159.8
+#&gt;  2 Hobart and the South              457        457  
+#&gt;  3 Launceston, Tamar and the North   250.9      250.9
+#&gt;  4 North West                        190.4      190.4
+#&gt;  5 Wilderness West                    62.1       62.1
+#&gt;  6 Australia's Coral Coast           247.1      247.1
+#&gt;  7 Australia's Golden Outback        254.5      254.5
+#&gt;  8 Australia's North West            248.3      248.3
+#&gt;  9 Australia's South West            902.2      902.2
+#&gt; 10 Experience Perth                 1082.4     1082.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We reused <code>region_share</code>, each region's base forecast as a fraction of its state's five regions, and multiplied it by that state's own base forecast instead of by a share of the grand total. Ten rows, ten exact matches. Middle-out below the anchor is precisely top-down with forecast proportions, started one level lower.</p>
+
+<p>Now a practical trap. The widely-read textbook description of this function uses a signature that current fabletools does not accept. If you copy <code>middle_out(base, level = 1, method = &quot;forecast_proportions&quot;)</code> from a tutorial, here is what happens.</p>
+
+<div class="webr-container" data-block-title="The signature that no longer works">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The signature that no longer works</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tryCatch(
+  fit |&gt; reconcile(mo = middle_out(base, level = 1)) |&gt; forecast(h = 1),
+  error = function(e) cat(conditionMessage(e), &quot;\n&quot;)
+)
+#&gt; ℹ In argument: `mo = middle_out(base, level = 1)`.
+#&gt; Caused by error in `middle_out()`:
+#&gt; ! unused argument (level = 1) </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tryCatch()</code> runs the expression and, if it raises an error, hands the error object to the handler function instead of stopping the session. We print the message with <code>cat()</code> so you can read it. The message says exactly what is wrong: <code>middle_out()</code> has no <code>level</code> argument. The real signature is <code>middle_out(models, split = 1)</code>, with no <code>method</code> argument at all, because the downward step always uses forecast proportions.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Check the signature of middle_out() against the installed package, not against a textbook.</strong> The current fabletools signature is <code>middle_out(models, split = 1)</code>. Passing <code>level =</code> fails immediately, which is the good case. Passing a <code>split</code> that points at the bottom level of the hierarchy raises an internal error asking you to file a bug report, which is far more confusing. Anchor on a genuine middle level, and if you want the bottom level, call <code>bottom_up()</code>, which is what middle-out there would reduce to anyway.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The claim above is that middle-out preserves the anchored level exactly. Verify it on the two state rows rather than taking it on trust.</p>
+<div class="webr-container" data-block-title="Your turn: confirm the anchored level is preserved">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm the anchored level is preserved</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mo_states &lt;- NULL
+# ex_mo_states: from mo_tab, keep the rows where Series is &quot;Tasmania&quot;
+#   or &quot;Western Australia&quot;, then add change = mo - base
+# Expected: change is 0 on both rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Anchored level preservation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Anchored level preservation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mo_states &lt;- mo_tab |&gt;
+  filter(Series %in% c(&quot;Tasmania&quot;, &quot;Western Australia&quot;)) |&gt;
+  mutate(change = mo - base)
+
+ex_mo_states
+#&gt; # A tibble: 2 × 4
+#&gt;   Series              base     mo change
+#&gt;   &lt;chr&gt;              &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 Tasmania          1120.2 1120.2      0
+#&gt; 2 Western Australia 2734.5 2734.5      0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both zero. Each single-level method has exactly one level it never touches, and for <code>middle_out(split = 1)</code> that level is the states.</p>
+
+</details>
+</section>
+
+<h2>What do all three methods have in common?</h2>
+
+<p>You have now seen three recipes that look quite different: adding upward, splitting by historical shares, splitting by forecast shares. They are all the same operation with one ingredient swapped.</p>
+
+<p>Every reconciliation method in fable computes</p>
+
+<p>$$\tilde{y}_h = S G \hat{y}_h$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat{y}_h$ = the vector of all base forecasts, one per series in the hierarchy</li>
+
+<li>$G$ = a matrix that maps those base forecasts down to a set of bottom-level values</li>
+
+<li>$S$ = the summing matrix, which adds those bottom-level values back up to fill in every aggregate</li>
+
+<li>$\tilde{y}_h$ = the vector of reconciled, coherent forecasts</li>
+
+</ul>
+
+<p>$S$ is fixed the moment you decide the shape of the hierarchy. It contains no choices. <strong>The method is entirely the $G$ matrix.</strong> Let's build both by hand and multiply them, which is the most direct way to see what "the method is $G$" actually means.</p>
+
+<p>Our thirteen-series hierarchy would need a 10 by 13 matrix, too wide to read on screen. So we shrink to Tasmania alone: one total and five regions, six series. Same ideas, matrices that fit.</p>
+
+<div class="webr-container" data-block-title="A six-series hierarchy for the matrix view">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A six-series hierarchy for the matrix view</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tas &lt;- tourism |&gt;
+  filter(State == &quot;Tasmania&quot;) |&gt;
+  as_tibble() |&gt;
+  summarise(Trips = sum(Trips), .by = c(Quarter, Region)) |&gt;
+  as_tsibble(index = Quarter, key = Region) |&gt;
+  aggregate_key(Region, Trips = sum(Trips))
+
+short &lt;- c(&quot;&lt;aggregated&gt;&quot; = &quot;Total&quot;, &quot;East Coast&quot; = &quot;EastC&quot;,
+           &quot;Hobart and the South&quot; = &quot;Hobart&quot;,
+           &quot;Launceston, Tamar and the North&quot; = &quot;Launc&quot;,
+           &quot;North West&quot; = &quot;NorthW&quot;, &quot;Wilderness West&quot; = &quot;Wild&quot;)
+
+tas_fc &lt;- tas |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bu = bottom_up(base),
+            td = top_down(base, method = &quot;proportion_averages&quot;)) |&gt;
+  forecast(h = 1) |&gt;
+  as_tibble() |&gt;
+  mutate(id = unname(short[as.character(Region)])) |&gt;
+  select(id, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean)
+
+ord &lt;- c(&quot;Total&quot;, &quot;EastC&quot;, &quot;Hobart&quot;, &quot;Launc&quot;, &quot;NorthW&quot;, &quot;Wild&quot;)
+yhat &lt;- setNames(tas_fc$base, tas_fc$id)[ord]
+round(yhat, 2)
+#&gt;   Total   EastC  Hobart   Launc  NorthW    Wild 
+#&gt; 1120.19  153.58  439.26  241.22  183.00   59.72 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>short</code> lookup swaps the long region names for abbreviations so the matrices print in a readable width. <code>ord</code> fixes the order of the six series, total first and then the five regions, and <code>yhat</code> is the base-forecast vector in that order. These are the same Tasmania numbers you saw earlier, now as a plain named vector ready for matrix algebra.</p>
+
+<p>Here is the summing matrix. Six rows, one per series in the hierarchy, and five columns, one per bottom series.</p>
+
+<div class="webr-container" data-block-title="The summing matrix S">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The summing matrix S</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">S &lt;- rbind(rep(1, 5), diag(5))
+dimnames(S) &lt;- list(ord, ord[-1])
+S
+#&gt;        EastC Hobart Launc NorthW Wild
+#&gt; Total      1      1     1      1    1
+#&gt; EastC      1      0     0      0    0
+#&gt; Hobart     0      1     0      0    0
+#&gt; Launc      0      0     1      0    0
+#&gt; NorthW     0      0     0      1    0
+#&gt; Wild       0      0     0      0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read row by row. The <code>Total</code> row is all ones, meaning the total is the sum of all five regions. Each region row is a single one in its own column, meaning a region is just itself. That is the entire hierarchy encoded as arithmetic, and it never changes no matter which method you pick.</p>
+
+<p>Now the bottom-up $G$. Its job is to answer "given all six base forecasts, what are the five bottom-level values?" Bottom-up's answer is "ignore the total, keep the five regions as they are".</p>
+
+<div class="webr-container" data-block-title="The bottom-up G matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The bottom-up G matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">G_bu &lt;- cbind(0, diag(5))
+dimnames(G_bu) &lt;- list(ord[-1], ord)
+G_bu
+#&gt;        Total EastC Hobart Launc NorthW Wild
+#&gt; EastC      0     1      0     0      0    0
+#&gt; Hobart     0     0      1     0      0    0
+#&gt; Launc      0     0      0     1      0    0
+#&gt; NorthW     0     0      0     0      1    0
+#&gt; Wild       0     0      0     0      0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A zero column for the total, then an identity matrix for the regions. "Discard the top forecast, copy the bottom ones." Multiply it out and compare against what fable produced.</p>
+
+<div class="webr-container" data-block-title="Matrix arithmetic reproduces bottom_up()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Matrix arithmetic reproduces bottom_up()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">check_bu &lt;- rbind(by_matrix  = as.vector(S %*% G_bu %*% yhat),
+                  from_fable = setNames(tas_fc$bu, tas_fc$id)[ord])
+colnames(check_bu) &lt;- ord
+round(check_bu, 2)
+#&gt;              Total  EastC Hobart  Launc NorthW  Wild
+#&gt; by_matrix  1076.78 153.58 439.26 241.22    183 59.72
+#&gt; from_fable 1076.78 153.58 439.26 241.22    183 59.72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>%*%</code> is R's <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix multiplication</a> operator, and R evaluates it left to right: $G$ turns the six base forecasts into five bottom values, then $S$ expands those five back into all six coherent forecasts. Two identical rows. Six lines of matrix algebra reproduced the package exactly.</p>
+
+<p>Now swap in top-down's $G$ and change nothing else.</p>
+
+<div class="webr-container" data-block-title="The top-down G matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The top-down G matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_tas &lt;- tourism |&gt;
+  filter(State == &quot;Tasmania&quot;) |&gt;
+  as_tibble() |&gt;
+  summarise(m = mean(Trips), .by = Region) |&gt;
+  mutate(id = unname(short[Region]))
+
+pv &lt;- setNames(p_tas$m, p_tas$id)[ord[-1]]
+pv &lt;- pv / sum(pv)
+
+G_td &lt;- cbind(pv, matrix(0, 5, 5))
+dimnames(G_td) &lt;- list(ord[-1], ord)
+round(G_td, 4)
+#&gt;         Total EastC Hobart Launc NorthW Wild
+#&gt; EastC  0.1238     0      0     0      0    0
+#&gt; Hobart 0.4031     0      0     0      0    0
+#&gt; Launc  0.2498     0      0     0      0    0
+#&gt; NorthW 0.1642     0      0     0      0    0
+#&gt; Wild   0.0592     0      0     0      0    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>pv</code> holds the proportions-of-historical-averages shares for Tasmania's five regions, computed the same way as before. They occupy the <code>Total</code> column, and every other column is zero. In words: "take the total, multiply it by these shares, ignore all five region forecasts."</p>
+
+<div class="webr-container" data-block-title="Matrix arithmetic reproduces top_down()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Matrix arithmetic reproduces top_down()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">check_td &lt;- rbind(by_matrix  = as.vector(S %*% G_td %*% yhat),
+                  from_fable = setNames(tas_fc$td, tas_fc$id)[ord])
+colnames(check_td) &lt;- ord
+round(check_td, 2)
+#&gt;              Total  EastC Hobart  Launc NorthW  Wild
+#&gt; by_matrix  1120.19 138.69 451.51 279.78 183.94 66.28
+#&gt; from_fable 1120.19 138.69 451.51 279.78 183.94 66.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical again. Same $S$, same $\hat{y}$, same multiplication. The only thing that changed between the two results was thirty numbers in a matrix.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A single-level method is a G matrix with exactly one non-zero block of columns.</strong> Bottom-up puts its weight on the bottom columns and zeroes the top. Top-down puts everything in the top column and zeroes the bottom. Middle-out zeroes everything except its anchored level. Each one is throwing away most of the forecasts it was handed, and that discarded information is precisely what the modern MinT method recovers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count the all-zero columns in each $G$ matrix. The count tells you how many base forecasts the method ignored completely.</p>
+<div class="webr-container" data-block-title="Your turn: count the ignored forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the ignored forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zero_cols &lt;- NULL
+# ex_zero_cols: build a named vector with one entry per matrix, each counting
+#   how many columns have colSums(abs(...)) equal to 0, for G_bu and G_td
+# Expected: G_bu ignores 1 forecast, G_td ignores 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Zero column count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zero column count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zero_cols &lt;- c(zero_cols_G_bu = sum(colSums(abs(G_bu)) == 0),
+                  zero_cols_G_td = sum(colSums(abs(G_td)) == 0))
+
+ex_zero_cols
+#&gt; zero_cols_G_bu zero_cols_G_td 
+#&gt;              1              5 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bottom-up discarded one model, the total. Top-down discarded five, every region. On this six-series hierarchy top-down is throwing away five sixths of the modelling work, which is a good reason to be sure the top-level model is worth that trade.</p>
+
+</details>
+</section>
+
+<h2>Which method actually forecasts best?</h2>
+
+<p>Everything so far has been mechanics. Now we measure. Reconciliation costs nothing to try, since it never refits a model, so there is no excuse for guessing.</p>
+
+<p>The test is a holdout. Train on data up to the end of 2015, forecast the eight quarters of 2016 and 2017, and score those forecasts against what actually happened. Crucially, we score each level separately, because a method that helps at the top can hurt at the bottom.</p>
+
+<div class="webr-container" data-block-title="Train, forecast and hold out two years">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train, forecast and hold out two years</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- hier |&gt; filter(Quarter &lt;= yearquarter(&quot;2015 Q4&quot;))
+
+fc_all &lt;- train |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bu = bottom_up(base),
+            td = top_down(base, method = &quot;forecast_proportions&quot;),
+            mo = middle_out(base, split = 1)) |&gt;
+  forecast(h = 8)
+
+fc_all
+#&gt; # A fable: 416 x 6 [1Q]
+#&gt; # Key:     State, Region, .model [52]
+#&gt;    State    Region     .model Quarter
+#&gt;    &lt;chr*&gt;   &lt;chr*&gt;     &lt;chr&gt;    &lt;qtr&gt;
+#&gt;  1 Tasmania East Coast base   2016 Q1
+#&gt;  2 Tasmania East Coast base   2016 Q2
+#&gt;  3 Tasmania East Coast base   2016 Q3
+#&gt;  4 Tasmania East Coast base   2016 Q4
+#&gt;  5 Tasmania East Coast base   2017 Q1
+#&gt;  6 Tasmania East Coast base   2017 Q2
+#&gt;  7 Tasmania East Coast base   2017 Q3
+#&gt;  8 Tasmania East Coast base   2017 Q4
+#&gt;  9 Tasmania East Coast bu     2016 Q1
+#&gt; 10 Tasmania East Coast bu     2016 Q2
+#&gt; # ℹ 406 more rows
+#&gt; # ℹ 2 more variables: Trips &lt;dist&gt;, .mean &lt;dbl&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>yearquarter(&quot;2015 Q4&quot;)</code> converts that piece of text into a quarterly date of the same type as the <code>Quarter</code> column, which is what lets <code>filter()</code> compare the two. The header then tells the story: 52 keys, which is thirteen series times four methods, and 416 rows, which is 52 times the eight-quarter horizon. All four sets of forecasts came out of one <code>forecast()</code> call, because reconciliation is a cheap linear adjustment applied after the models are already fitted.</p>
+
+<p>Now score them. <code>accuracy()</code> compares each forecast against the full dataset and returns the standard error measures per series, which we group into the three levels and average.</p>
+
+<div class="webr-container" data-block-title="RMSE by hierarchy level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">RMSE by hierarchy level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acc &lt;- fc_all |&gt;
+  accuracy(hier) |&gt;
+  mutate(Level = ifelse(is_aggregated(State), &quot;Total&quot;,
+                 ifelse(is_aggregated(Region), &quot;State&quot;, &quot;Region&quot;))) |&gt;
+  summarise(RMSE = mean(RMSE), MASE = mean(MASE), .by = c(Level, .model))
+
+rmse_tab &lt;- acc |&gt;
+  select(Level, .model, RMSE) |&gt;
+  pivot_wider(names_from = .model, values_from = RMSE) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 1)))
+
+rmse_tab
+#&gt; # A tibble: 3 × 5
+#&gt;   Level   base    bu    mo    td
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Region  52.3  52.3  50.7  53.5
+#&gt; 2 State  156.3 189.3 156.3 191.7
+#&gt; 3 Total  179.8 172.8 143.6 179.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>is_aggregated()</code> is a tsibble helper that tests whether a key value is one of the totals <code>aggregate_key()</code> created, which is how we sort the thirteen series into Total, State and Region. RMSE is the <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a> in the same units as the data, thousands of trips, so lower is better.</p>
+
+<p>Middle-out won at the total by a wide margin, 143.6 against the base 179.8, and it also won at the region level. Bottom-up improved the total a little and hurt the state level badly. Top-down was the worst option at both lower levels here.</p>
+
+<p>But look more carefully at three of those numbers. Bottom-up scored 52.3 at Region and so did base. Top-down scored 179.8 at Total and so did base. Middle-out scored 156.3 at State and so did base. Those are not coincidences.</p>
+
+<div class="webr-container" data-block-title="The preservation identity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The preservation identity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acc |&gt;
+  select(Level, .model, RMSE) |&gt;
+  pivot_wider(names_from = .model, values_from = RMSE) |&gt;
+  transmute(Level,
+            bu_minus_base = round(bu - base, 6),
+            td_minus_base = round(td - base, 6),
+            mo_minus_base = round(mo - base, 6))
+#&gt; # A tibble: 3 × 4
+#&gt;   Level  bu_minus_base td_minus_base mo_minus_base
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;         &lt;dbl&gt;         &lt;dbl&gt;
+#&gt; 1 Region        0             1.2232       -1.6318
+#&gt; 2 State        32.987        35.309         0     
+#&gt; 3 Total        -7.0088        0           -36.242 
+#&gt; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Zero to six decimal places, once in each column, and each zero sits on a different row. Bottom-up's accuracy at the region level is not merely similar to the base forecast's, it is the base forecast. Same for top-down at the total and middle-out at the state level.</p>
+
+<p>This is the whole argument of the tutorial visible as three zeros. Each method has one level it copies verbatim and cannot possibly improve, and every gain or loss it delivers happens somewhere else.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Never judge reconciliation on a single overall accuracy number.</strong> Average the four methods here into one figure each and you would conclude they are all much the same. Broken out by level, bottom-up costs 21 percent at the state level while saving 4 percent at the top, which is a trade you can only accept or reject if you know which level your business actually plans on.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> RMSE punishes big errors on big series, so it naturally favours whatever helps the largest numbers. MASE rescales every series by how hard it is to forecast, which makes small and large series comparable. Build the same table using MASE and see whether the ranking survives.</p>
+<div class="webr-container" data-block-title="Your turn: rank the methods on MASE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank the methods on MASE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mase &lt;- NULL
+# ex_mase: from acc, select Level, .model and MASE, pivot the .model column
+#   wider, and round every numeric column to 3 decimals
+# Expected: at Region, mo scores 1.208 while base and bu score 1.179</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="MASE ranking solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MASE ranking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mase &lt;- acc |&gt;
+  select(Level, .model, MASE) |&gt;
+  pivot_wider(names_from = .model, values_from = MASE) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 3)))
+
+ex_mase
+#&gt; # A tibble: 3 × 5
+#&gt;   Level   base    bu    mo    td
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Region 1.179 1.179 1.208 1.181
+#&gt; 2 State  1.181 1.316 1.181 1.296
+#&gt; 3 Total  0.696 0.733 0.587 0.696</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ranking flips at the region level. On RMSE middle-out was the best there, on MASE it is the worst. Middle-out helped the big regions and hurt the small ones, and RMSE only noticed the first half of that. The preservation zeros survive both metrics, because they are structural rather than statistical.</p>
+
+</details>
+</section>
+
+<h2>When should you use each method?</h2>
+
+<p>The bake-off above was one hierarchy over one holdout window. Do not generalise from it. What does generalise is the structure, so here is the decision framed around what each method keeps and what it destroys.</p>
+
+<p><img src="screenshots/Forecast-Reconciliation-in-R-method-choice.webp" alt="Which single-level method to reach for first" class="img-responsive img-zoomable" loading="lazy" width="1112" height="1090" /></p>
+
+<p><em>Figure 4: Which single-level method to reach for first.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Preserves exactly</th>
+<th>Discards</th>
+<th>Choose it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bottom_up()</code></td>
+<td>Every bottom-level forecast</td>
+<td>Every model above the bottom</td>
+<td>Bottom series have real volume and clean history</td>
+</tr>
+<tr>
+<td><code>top_down()</code></td>
+<td>The grand-total forecast</td>
+<td>Every model below the top</td>
+<td>Bottom series are sparse, intermittent or brand new</td>
+</tr>
+<tr>
+<td><code>middle_out()</code></td>
+<td>The anchored middle level</td>
+<td>Models above and below that level</td>
+<td>One middle level clearly has the best data</td>
+</tr>
+<tr>
+<td><code>min_trace()</code></td>
+<td>Nothing exactly</td>
+<td>Nothing</td>
+<td>You have residual history and want to use all of it</td>
+</tr>
+</tbody>
+</table>
+
+<p>The recurring question is which level is genuinely most forecastable. That is measurable before you reconcile anything. One quick proxy is the coefficient of variation, the standard deviation of a series divided by its mean, which says how much a series bounces around relative to its own size.</p>
+
+<div class="webr-container" data-block-title="How noisy is each level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How noisy is each level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">noise &lt;- hier |&gt;
+  as_tibble() |&gt;
+  mutate(State = as.character(State), Region = as.character(Region)) |&gt;
+  mutate(Level = ifelse(State == &quot;&lt;aggregated&gt;&quot;, &quot;Total&quot;,
+                 ifelse(Region == &quot;&lt;aggregated&gt;&quot;, &quot;State&quot;, &quot;Region&quot;)),
+         Series = label(State, Region)) |&gt;
+  summarise(cv = sd(Trips) / mean(Trips), .by = c(Level, Series)) |&gt;
+  summarise(series = n(), mean_cv = round(mean(cv), 3), .by = Level)
+
+noise
+#&gt; # A tibble: 3 × 3
+#&gt;   Level  series mean_cv
+#&gt;   &lt;chr&gt;   &lt;int&gt;   &lt;dbl&gt;
+#&gt; 1 Total       1   0.196
+#&gt; 2 State       2   0.248
+#&gt; 3 Region     10   0.323</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We computed the coefficient of variation for each of the thirteen series, then averaged within each level. It climbs steadily on the way down: 0.196 at the total, 0.248 at the states, 0.323 at the regions. Aggregation cancels out idiosyncratic noise, which is why totals are almost always the easiest series in a hierarchy to forecast.</p>
+
+<p>That is the honest case for top-down, and the reason bottom-up can disappoint. It is also why the answer changes with the data: run this on a hierarchy where the bottom series are large and stable and the gap narrows or reverses.</p>
+
+<p>There are situations where a single-level method is not a compromise but the correct choice:</p>
+
+<ul>
+
+<li><strong>The bottom is brand new.</strong> Products launched last month have no history to model. Top-down gives them a share of a total you can actually forecast.</li>
+
+<li><strong>The bottom is intermittent.</strong> Series that are zero most weeks break most forecasting models. Aggregate first, split afterwards.</li>
+
+<li><strong>A number is mandated.</strong> If finance has committed to a total, top-down is the only family member that reproduces it untouched.</li>
+
+<li><strong>You have no residuals.</strong> Judgemental forecasts, or numbers arriving from another team, come without an error history. Every single-level method works anyway; the modern alternatives do not.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Single-level methods need no residual history, and that is why they survive.</strong> <code>min_trace()</code> estimates a <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> from in-sample errors, so it needs models you fitted yourself with enough history behind them. Bottom-up, top-down and middle-out need only the point forecasts, which is exactly what you have when the numbers arrive as a spreadsheet from another department.</div></div>
+
+<p>When none of those constraints apply and you do have residuals, the case for a single-level method weakens sharply. Throwing away most of your models to satisfy a structural constraint is a strange trade when a method exists that uses all of them. That method is MinT, and it is the subject of the next tutorial in this series.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Your finance team has signed off on the total in the plan and it may not change. Work out which of the reconciliation methods you have seen leaves that total exactly as the base model produced it.</p>
+<div class="webr-container" data-block-title="Your turn: which method preserves a mandated total">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: which method preserves a mandated total</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mandated &lt;- NULL
+# ex_mandated: build a tibble with a method column naming
+#   &quot;base&quot;, &quot;bottom_up&quot;, &quot;top_down&quot;, &quot;middle_out&quot; and a total column holding
+#   the TOTAL row from base_mean$base, bu_tab$bu, td3$td_fp and mo_tab$mo,
+#   then round total to 1 decimal
+# Expected: only top_down matches base at 3942.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mandated total solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mandated total solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mandated &lt;- tibble(
+  method = c(&quot;base&quot;, &quot;bottom_up&quot;, &quot;top_down&quot;, &quot;middle_out&quot;),
+  total  = c(base_mean$base[base_mean$Series == &quot;TOTAL&quot;],
+             bu_tab$bu[bu_tab$Series == &quot;TOTAL&quot;],
+             td3$td_fp[td3$Series == &quot;TOTAL&quot;],
+             mo_tab$mo[mo_tab$Series == &quot;TOTAL&quot;])
+) |&gt;
+  mutate(total = round(total, 1))
+
+ex_mandated
+#&gt; # A tibble: 4 × 2
+#&gt;   method      total
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 base       3942.6
+#&gt; 2 bottom_up  3816.3
+#&gt; 3 top_down   3942.6
+#&gt; 4 middle_out 3854.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Top-down alone reproduces 3942.6. Bottom-up moved the total by 126 and middle-out by 88. If the committed number cannot move, that constraint picks your method for you, whatever the accuracy table says.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: reconcile a fresh hierarchy three ways</h2>
+
+<p>Here is the whole workflow end to end on data we have not touched, Queensland and South Australia, in one uninterrupted pipeline. Raw quarterly data goes in, three coherent sets of forecasts come out.</p>
+
+<div class="webr-container" data-block-title="End-to-end reconciliation pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end reconciliation pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">final_fc &lt;- tourism |&gt;
+  filter(State %in% c(&quot;Queensland&quot;, &quot;South Australia&quot;)) |&gt;
+  as_tibble() |&gt;
+  summarise(Trips = sum(Trips), .by = c(Quarter, State, Region)) |&gt;
+  as_tsibble(index = Quarter, key = c(State, Region)) |&gt;
+  aggregate_key(State / Region, Trips = sum(Trips)) |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bu = bottom_up(base),
+            td = top_down(base, method = &quot;forecast_proportions&quot;),
+            mo = middle_out(base, split = 1)) |&gt;
+  forecast(h = 4)
+
+final_tab &lt;- final_fc |&gt;
+  as_tibble() |&gt;
+  filter(is_aggregated(State)) |&gt;
+  select(Quarter, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 1)))
+
+final_tab
+#&gt; # A tibble: 4 × 5
+#&gt;   Quarter   base     bu     td     mo
+#&gt;     &lt;qtr&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 2018 Q1 7452   7331   7452   7427.1
+#&gt; 2 2018 Q2 7529.5 7428.8 7529.5 7497.2
+#&gt; 3 2018 Q3 7808.3 7693.5 7808.3 7769.3
+#&gt; 4 2018 Q4 7601.2 7551.4 7601.2 7570.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six verbs, in the order you will always use them: <code>summarise()</code> to collapse breakdowns you do not want, <code>as_tsibble()</code> to declare index and key, <code>aggregate_key()</code> to create the totals, <code>model()</code> to fit every series, <code>reconcile()</code> to attach the methods, <code>forecast()</code> to produce them all.</p>
+
+<p>The output is the four quarters of 2018 at the grand-total level. The <code>td</code> column matches <code>base</code> in every row, because top-down never touches the total, on any horizon. Bottom-up sits consistently below both, and middle-out lands between them. The same structural pattern you saw on Tasmania and Western Australia reappears immediately on a completely different pair of states.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Every exercise is solvable with what you have already seen. Variables are prefixed <code>my_</code> so they do not disturb anything defined above, and Exercise 3 reuses the hierarchy you build in Exercise 1.</p>
+
+<h3>Exercise 1: Reconcile a new pair of states two ways</h3>
+
+<p>Build a hierarchy from Victoria and South Australia with <code>State / Region</code> nesting, fit <code>ETS()</code> to every series, reconcile it with both <code>bottom_up()</code> and <code>top_down(method = &quot;forecast_proportions&quot;)</code>, and report the one-step-ahead grand-total forecast for each of the three model columns.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: build and reconcile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: build and reconcile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Steps:
+# 1. filter tourism to Victoria and South Australia
+# 2. sum Trips by Quarter, State and Region, then as_tsibble()
+# 3. aggregate_key(State / Region, Trips = sum(Trips)) into my_hier
+# 4. model(base = ETS(Trips)), reconcile with bu and td, forecast(h = 1)
+# 5. keep the rows where is_aggregated(State) and show total by .model
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hier &lt;- tourism |&gt;
+  filter(State %in% c(&quot;Victoria&quot;, &quot;South Australia&quot;)) |&gt;
+  as_tibble() |&gt;
+  summarise(Trips = sum(Trips), .by = c(Quarter, State, Region)) |&gt;
+  as_tsibble(index = Quarter, key = c(State, Region)) |&gt;
+  aggregate_key(State / Region, Trips = sum(Trips))
+
+my_totals &lt;- my_hier |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bu = bottom_up(base),
+            td = top_down(base, method = &quot;forecast_proportions&quot;)) |&gt;
+  forecast(h = 1) |&gt;
+  as_tibble() |&gt;
+  filter(is_aggregated(State)) |&gt;
+  summarise(.by = .model, total = round(.mean, 1))
+
+my_totals
+#&gt; # A tibble: 3 × 2
+#&gt;   .model  total
+#&gt;   &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 base   9656.6
+#&gt; 2 bu     8975.5
+#&gt; 3 td     9656.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Top-down reproduces the base total exactly, as it must. Bottom-up lands 681 lower, a 7 percent gap, which is much wider than the 3 percent we saw on Tasmania and Western Australia. Victoria has 21 regions, so there are far more small noisy series feeding the sum.</p>
+
+</details>
+
+<h3>Exercise 2: Rebuild top_down() from scratch with matrices</h3>
+
+<p>Reproduce <code>top_down(method = &quot;average_proportions&quot;)</code> on the original thirteen-series hierarchy using only matrix algebra, then prove your result matches fable. You will need a 13 by 10 summing matrix and a 10 by 13 $G$ matrix whose only non-zero column holds the proportions from <code>p_both$p_ap</code>.</p>
+
+<p>Order the series as <code>TOTAL</code>, then the two states, then the ten regions in the order they appear in <code>base_mean</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: reconstruct top-down">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: reconstruct top-down</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Steps:
+# 1. my_bottom &lt;- base_mean rows where Region != &quot;&lt;aggregated&gt;&quot;
+# 2. my_ord &lt;- c(&quot;TOTAL&quot;, &quot;Tasmania&quot;, &quot;Western Australia&quot;, my_bottom$Series)
+# 3. my_yhat &lt;- base_mean$base reordered to match my_ord
+# 4. my_S: row 1 is ten 1s, row 2 is five 1s then five 0s, row 3 the reverse,
+#    then diag(10)
+# 5. my_G: cbind the p_ap proportions with a 10 by 12 matrix of zeros
+# 6. compare as.vector(my_S %*% my_G %*% my_yhat) against the td_ap forecasts
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_bottom &lt;- base_mean |&gt; filter(Region != &quot;&lt;aggregated&gt;&quot;)
+my_ord &lt;- c(&quot;TOTAL&quot;, &quot;Tasmania&quot;, &quot;Western Australia&quot;, my_bottom$Series)
+my_yhat &lt;- base_mean$base[match(my_ord, base_mean$Series)]
+
+my_S &lt;- rbind(rep(1, 10),
+              c(rep(1, 5), rep(0, 5)),
+              c(rep(0, 5), rep(1, 5)),
+              diag(10))
+
+my_p &lt;- p_both$p_ap[match(my_bottom$Region, p_both$Region)]
+my_G &lt;- cbind(my_p, matrix(0, 10, 12))
+
+my_fable &lt;- fc_td3 |&gt;
+  as_tibble() |&gt;
+  mutate(Series = label(as.character(State), as.character(Region))) |&gt;
+  filter(.model == &quot;td_ap&quot;) |&gt;
+  select(Series, td_ap = .mean)
+
+tibble(Series     = my_ord,
+       by_matrix  = round(as.vector(my_S %*% my_G %*% my_yhat), 2),
+       from_fable = round(my_fable$td_ap[match(my_ord, my_fable$Series)], 2)) |&gt;
+  print(n = 13)
+#&gt; # A tibble: 13 × 3
+#&gt;    Series                          by_matrix from_fable
+#&gt;    &lt;chr&gt;                               &lt;dbl&gt;      &lt;dbl&gt;
+#&gt;  1 TOTAL                             3942.6     3942.6 
+#&gt;  2 Tasmania                          1055.8     1055.8 
+#&gt;  3 Western Australia                 2886.8     2886.8 
+#&gt;  4 East Coast                         128.79     128.79
+#&gt;  5 Hobart and the South               426.26     426.26
+#&gt;  6 Launceston, Tamar and the North    265.7      265.7 
+#&gt;  7 North West                         172.55     172.55
+#&gt;  8 Wilderness West                     62.45      62.45
+#&gt;  9 Australia's Coral Coast            297.35     297.35
+#&gt; 10 Australia's Golden Outback         293.63     293.63
+#&gt; 11 Australia's North West             253.95     253.95
+#&gt; 12 Australia's South West             808.34     808.34
+#&gt; 13 Experience Perth                  1233.6     1233.6 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Thirteen exact matches. The three rows of <code>my_S</code> above <code>diag(10)</code> encode the grand total, Tasmania's five regions and Western Australia's five regions. <code>my_G</code> has twelve zero columns and one column of proportions, which is the matrix statement of "use the total, ignore everything else".</p>
+
+</details>
+
+<h3>Exercise 3: Run a bake-off and decide what to ship</h3>
+
+<p>Using <code>my_hier</code> from Exercise 1, train on data through 2015 Q4, forecast eight quarters with <code>base</code>, <code>bottom_up()</code>, <code>top_down(method = &quot;forecast_proportions&quot;)</code> and <code>middle_out(split = 1)</code>, and report mean RMSE by level. Then decide which method you would ship for Victoria and South Australia, and say why.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: bake-off on your own hierarchy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: bake-off on your own hierarchy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Steps:
+# 1. my_train &lt;- my_hier filtered to Quarter &lt;= yearquarter(&quot;2015 Q4&quot;)
+# 2. model + reconcile with bu, td and mo, then forecast(h = 8)
+# 3. accuracy(my_hier), add a Level column with is_aggregated()
+# 4. mean RMSE by Level and .model, pivot wider, round to 1 decimal
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_train &lt;- my_hier |&gt; filter(Quarter &lt;= yearquarter(&quot;2015 Q4&quot;))
+
+my_acc &lt;- my_train |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bu = bottom_up(base),
+            td = top_down(base, method = &quot;forecast_proportions&quot;),
+            mo = middle_out(base, split = 1)) |&gt;
+  forecast(h = 8) |&gt;
+  accuracy(my_hier) |&gt;
+  mutate(Level = ifelse(is_aggregated(State), &quot;Total&quot;,
+                 ifelse(is_aggregated(Region), &quot;State&quot;, &quot;Region&quot;))) |&gt;
+  summarise(RMSE = mean(RMSE), .by = c(Level, .model)) |&gt;
+  pivot_wider(names_from = .model, values_from = RMSE) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 1)))
+
+my_acc
+#&gt; # A tibble: 3 × 5
+#&gt;   Level   base     bu    mo    td
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Region  42.8   42.8  37.7  37.4
+#&gt; 2 State  431.8  546.7 431.8 424.5
+#&gt; 3 Total  829.8 1078.2 844.7 829.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ranking is completely different from the Tasmania and Western Australia bake-off, where top-down was worst at both lower levels. Here top-down wins at Region and State and ties base at Total, while bottom-up is the worst option everywhere. Victoria's 21 regions are individually noisy, so the aggregate carries more signal than the parts, and top-down is the method to ship. The preservation zeros still hold: <code>bu</code> matches <code>base</code> at Region, <code>td</code> matches <code>base</code> at Total, <code>mo</code> matches <code>base</code> at State.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Does making forecasts coherent also make them more accurate?</h3>
+
+<p>Not on its own. Coherence is a constraint on the numbers, not new information about the future, so reconciliation mostly moves accuracy around the hierarchy rather than adding it. In the bake-off above, bottom-up improved RMSE at the total from 179.8 to 172.8 and made the state level clearly worse, from 156.3 to 189.3. Score the methods on a holdout at the level you actually plan on, rather than assuming that adding up correctly means forecasting well.</p>
+
+<h3>If I only remember one of these methods, which should it be?</h3>
+
+<p>Bottom-up. It needs nothing but the bottom-level point forecasts, it works on every hierarchy shape, it never makes the bottom level worse, and it has no arguments to get wrong. It is the sensible default when you have real volume in the bottom series.</p>
+
+<h3>Can I use top_down() on a grouped structure?</h3>
+
+<p>No. If you build a crossed structure with <code>aggregate_key(State * Purpose, ...)</code>, where two attributes cut across each other instead of nesting, <code>top_down()</code> stops with the message "Top down reconciliation requires strictly hierarchical structures". The reason is that a grouped structure has more than one path from the bottom to the total, so there is no single set of proportions to split by. <code>middle_out()</code> has the same restriction. <code>bottom_up()</code> works fine, because summing upward is well defined no matter how many paths there are.</p>
+
+<h3>Do these methods reconcile prediction intervals, or only the point forecasts?</h3>
+
+<p>The whole distribution. The <code>Trips</code> column in a fable is a distribution, not a number, and <code>reconcile()</code> acts on it. On the hierarchy in this tutorial the base 80 percent interval for the total was [3530.7, 4354.4] and the bottom-up one was [3565.1, 4067.4], so the reconciled interval is both shifted and considerably narrower.</p>
+
+<h3>Does reconciliation refit any models?</h3>
+
+<p>No. Every method here is a linear transformation applied to forecasts that already exist, which is why <code>reconcile()</code> sits after <code>model()</code> and costs essentially nothing. Adding a fourth or fifth method to the same call adds no model fitting at all, so there is no reason to guess which one is best when you can score them all.</p>
+
+<h3>Does any of this depend on using ETS?</h3>
+
+<p>No. Swap <code>ETS(Trips)</code> for <code>ARIMA(Trips)</code> and everything works identically, because reconciliation only ever sees the forecasts. On this hierarchy an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA</a> base gives a total of 3773.6 and its bottom-up reconciliation gives 3716.4, the same structural relationship as with <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS</a> but different numbers.</p>
+
+<h3>Why is my middle_out() call asking me to file a bug report?</h3>
+
+<p>You almost certainly passed a <code>split</code> that points at the bottom level of the hierarchy. There is nothing below the bottom to split into, and rather than saying so, fabletools raises an internal error inviting a bug report. Anchor on a genuine middle level, and use <code>bottom_up()</code> if the bottom is what you meant.</p>
+
+<h3>Can reconciliation turn a positive forecast negative?</h3>
+
+<p>Bottom-up cannot, because it only adds non-negative numbers together. Top-down and middle-out cannot either, as long as the proportions are positive, because they multiply a positive total by fractions. Negative reconciled forecasts do appear with methods that subtract, such as MinT, and they are a known nuisance on low-count series.</p>
+
+<h2>Summary</h2>
+
+<p>The three classical methods, in one table:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Level it trusts</th>
+<th>What it preserves exactly</th>
+<th>What it ignores</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bottom_up()</code></td>
+<td>The bottom</td>
+<td>Every bottom-level forecast</td>
+<td>All aggregate models</td>
+</tr>
+<tr>
+<td><code>top_down()</code></td>
+<td>The top</td>
+<td>The grand-total forecast</td>
+<td>All models below the top</td>
+</tr>
+<tr>
+<td><code>middle_out(split = k)</code></td>
+<td>Level <code>k</code></td>
+<td>Every forecast at level <code>k</code></td>
+<td>Everything above and below</td>
+</tr>
+</tbody>
+</table>
+
+<p>The ideas worth carrying away:</p>
+
+<ul>
+
+<li><strong>Incoherence is silent.</strong> Thirteen correctly fitted models gave three different answers for the same total, 3942.6, 3854.6 and 3816.3, and nothing warned us.</li>
+
+<li><strong>Every method is $\tilde{y} = SG\hat{y}$.</strong> $S$ is fixed by the hierarchy shape; $G$ is the entire method. Bottom-up, top-down and middle-out differ only in which columns of $G$ are non-zero.</li>
+
+<li><strong>The preservation identity is structural.</strong> Each method's accuracy at the level it trusts is identical to the base forecast's, to the last decimal, on every metric.</li>
+
+<li><strong>Top-down has three proportion variants.</strong> The two historical ones differed by at most 0.22 percentage points here, and both freeze the shares. <code>forecast_proportions</code> is the default because it tracks trends in the mix.</li>
+
+<li><strong>Check the signature, not the textbook.</strong> It is <code>middle_out(models, split = 1)</code>. There is no <code>level</code> argument and no <code>method</code> argument.</li>
+
+<li><strong>Always score by level.</strong> A single averaged accuracy number hides the whole trade, which is always "better here, worse there".</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 11.2: Single level approaches. <a href="https://otexts.com/fpp3/single-level.html">Link</a></li>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 11.1: Hierarchical and grouped time series. <a href="https://otexts.com/fpp3/hts.html">Link</a></li>
+
+<li>fabletools reference - <code>top_down()</code>: top-down forecast reconciliation. <a href="https://fabletools.tidyverts.org/reference/top_down.html">Link</a></li>
+
+<li>fabletools reference - <code>bottom_up()</code>: bottom-up forecast reconciliation. <a href="https://fabletools.tidyverts.org/reference/bottom_up.html">Link</a></li>
+
+<li>fabletools reference - <code>middle_out()</code>: middle-out forecast reconciliation. <a href="https://fabletools.tidyverts.org/reference/middle_out.html">Link</a></li>
+
+<li>Athanasopoulos, G., Ahmed, R.A. and Hyndman, R.J. - Hierarchical forecasts for Australian domestic tourism. <em>International Journal of Forecasting</em> 25(1), 146-166 (2009). <a href="https://robjhyndman.com/publications/hierarchical-tourism/">Link</a></li>
+
+<li>Hyndman, R.J., Ahmed, R.A., Athanasopoulos, G. and Shang, H.L. - Optimal combination forecasts for hierarchical time series. <em>Computational Statistics and Data Analysis</em> 55(9), 2579-2589 (2011). <a href="https://robjhyndman.com/publications/hierarchical/">Link</a></li>
+
+<li>Athanasopoulos, G., Hyndman, R.J., Kourentzes, N. and Panagiotelis, A. - Forecast reconciliation: a review. <em>International Journal of Forecasting</em> 40(2), 430-456 (2024). <a href="https://robjhyndman.com/publications/frreview.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Hierarchical-Time-Series-in-R.html">Hierarchical and Grouped Time Series in R: Reconciliation</a> - how to build hierarchies with <code>aggregate_key()</code>, what the summing matrix encodes in full, and how grouped structures differ from nested ones.</li>
+
+<li><a href="fable-in-R.html">fable in R: Tidy Time Series Forecasting with tsibble</a> - the tsibble and fable foundations underneath every code block here, including how <code>model()</code>, mables and fables fit together.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE</a> - what the RMSE and MASE numbers in the bake-off actually measure, and which one to believe when they disagree.</li>
+
+</ul>
+
+{% endraw %}
