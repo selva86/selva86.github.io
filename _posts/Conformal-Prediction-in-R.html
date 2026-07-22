@@ -1,0 +1,1451 @@
+---
+title: "Conformal Prediction in R: Distribution-Free Forecast Intervals"
+description: "Build conformal prediction intervals in R from scratch, measure their real coverage on held-out data, and get honest forecast intervals ARIMA cannot promise."
+keywords: "conformal prediction R, distribution-free prediction intervals, split conformal prediction, forecast intervals R, prediction interval coverage, nonconformity score, adaptive conformal inference, conformalForecast R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-9.6"
+post_type: "C"
+auto_link_terms: "conformal prediction|conformal prediction interval|distribution-free prediction interval|split conformal prediction|nonconformity score|conformity score|calibration set|coverage guarantee|empirical coverage|adaptive conformal inference|rolling calibration window|conformalForecast|exchangeability"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Conformal Prediction"
+sidebar_order: "43"
+---
+<!-- md2html:generated -->
+
+<p class="lead">Conformal prediction builds a forecast interval out of the mistakes your model has already made. You let the model forecast data it never trained on, collect how far off it was, take a quantile of those errors, and use that number as your interval width. No bell curve, no assumption that the model is correctly specified, and it wraps around any forecasting method you like, including ones that have no interval theory at all. This page builds it from scratch in base R and the forecast package, then audits it against a real series where the textbook intervals are measurably wrong. Every number below was produced by running the code, not estimated.</p>
+
+<h2>Does a 95% prediction interval really contain the truth 95% of the time?</h2>
+
+<p>A <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">prediction interval</a> makes a specific, checkable promise: over many forecasts, the truth should land inside the interval 95% of the time. Almost nobody checks. We are going to check first and build second, because the size of the gap is what motivates everything else on this page.</p>
+
+<p>The series is Australian monthly wine sales, which ships with the <code>forecast</code> package. It runs from January 1980 to August 1994 and it has the two properties that make forecasting interesting: a strong December spike every year, and a slow drift upward in overall volume.</p>
+
+<div class="webr-container" data-block-title="Load the wine sales series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the wine sales series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+
+sales &lt;- wineind
+c(observations = length(sales),
+  start_year   = start(sales)[1],
+  per_year     = frequency(sales))
+#&gt; observations   start_year     per_year 
+#&gt;          176         1980           12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>176 monthly observations, twelve per year. Let us look at it before we model it.</p>
+
+<div class="webr-container" data-block-title="Plot the wine sales series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the wine sales series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(sales) +
+  labs(title = &quot;Australian wine sales&quot;, x = &quot;Year&quot;, y = &quot;Bottles sold&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can see the annual sawtooth and the upward drift. Now we fit a model. <code>ets()</code> picks an <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model automatically, which means it works out for itself whether the trend and the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> should be added on or multiplied in. It is a strong, standard choice for a series shaped like this one, and it hands back a prediction interval for free.</p>
+
+<div class="webr-container" data-block-title="Forecast six months with a 95% interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast six months with a 95% interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- ets(sales)
+fc  &lt;- forecast(fit, h = 6, level = 95)
+fc
+#&gt;          Point Forecast    Lo 95    Hi 95
+#&gt; Sep 1994       24738.63 20464.04 29013.22
+#&gt; Oct 1994       26971.62 22302.93 31640.31
+#&gt; Nov 1994       31771.37 26262.11 37280.62
+#&gt; Dec 1994       37059.88 30622.19 43497.58
+#&gt; Jan 1995       16590.16 13703.17 19477.15
+#&gt; Feb 1995       21206.49 17509.65 24903.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is a normal, respectable forecast. September 1994 sales will be about 24,739 bottles, and the model is 95% confident the truth lies between 20,464 and 29,013.</p>
+
+<p>Here is the walk-through. <code>ets(sales)</code> estimated the smoothing model, <code>forecast()</code> projected it six months forward, and <code>level = 95</code> asked for bounds wide enough to hold the truth 95% of the time. The interpretation is that if you plan on this, you should be surprised by an outcome outside those bounds roughly one month in twenty.</p>
+
+<p>Should you be? We can find out, because we have fourteen years of history. The idea is simple: pretend we are standing at some point in the past, make a one-month-ahead forecast with a 95% interval, then step forward and see whether the real value landed inside. Do that at every possible point in the series and count.</p>
+
+<div class="webr-container" data-block-title="Roll the model forward and record every forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Roll the model forward and record every forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start_at &lt;- 48                      # first forecast is made after four years of data
+n        &lt;- length(sales)
+origins  &lt;- start_at:(n - 1)        # every point we can forecast from
+base     &lt;- ets(subset(sales, end = start_at))
+
+audit &lt;- data.frame(origin = origins, actual = NA, point = NA, lo = NA, hi = NA)
+for (k in seq_along(origins)) {
+  i &lt;- origins[k]
+  f &lt;- forecast(ets(subset(sales, end = i), model = base, use.initial.values = TRUE),
+                h = 1, level = 95)
+  audit$actual[k] &lt;- sales[i + 1]
+  audit$point[k]  &lt;- as.numeric(f$mean)
+  audit$lo[k]     &lt;- as.numeric(f$lower)
+  audit$hi[k]     &lt;- as.numeric(f$upper)
+}
+audit$hit &lt;- audit$actual &gt;= audit$lo &amp; audit$actual &lt;= audit$hi
+round(head(audit, 4), 1)
+#&gt;   origin actual   point      lo      hi hit
+#&gt; 1     48  17556 18472.8 16472.2 20473.3   1
+#&gt; 2     49  22077 20825.5 18576.9 23074.0   1
+#&gt; 3     50  25702 24042.3 21438.9 26645.6   1
+#&gt; 4     51  22214 24292.7 21640.6 26944.8   1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the loop from the inside out. <code>subset(sales, end = i)</code> gives the model only the history available at time <code>i</code>, so nothing from the future leaks in. <code>ets(..., model = base)</code> reuses the smoothing parameters we estimated once at the start and simply feeds them the new observations, and <code>use.initial.values = TRUE</code> keeps that first fit's starting level and seasonal figures too, so nothing at all is re-estimated inside the loop. <code>forecast(..., h = 1)</code> steps one month ahead, and the last line marks whether the real value fell between the bounds.</p>
+
+<p>The first four forecasts all landed inside, which is what you want to see. The question is what happens across all 128 of them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The whole audit is worthless if any future data reaches the model.</strong> The guard here is <code>subset(sales, end = i)</code>, which hands the model history up to month <code>i</code> and nothing beyond. It is easy to lose that guard by scaling or <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a> the full series before the loop, or by fitting on everything and then slicing predictions afterwards. Both mistakes make coverage look excellent and both are silent.</div></div>
+
+<div class="webr-container" data-block-title="Count how often the interval was right">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count how often the interval was right</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(forecasts_made = nrow(audit),
+        times_covered  = sum(audit$hit),
+        actual_rate    = mean(audit$hit),
+        promised_rate  = 0.95), 3)
+#&gt; forecasts_made  times_covered    actual_rate  promised_rate 
+#&gt;        128.000        108.000          0.844          0.950</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model made 128 one-month-ahead forecasts and its 95% interval held the truth 108 times. That is 84.4%, not 95%. Instead of being blindsided once every twenty months, you would have been blindsided once every six and a half.</p>
+
+<p>Nothing here is a trick. <code>ets()</code> chose its own model form, it saw only past data at every step, and the series is a well-behaved commercial time series with no crashes or <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>. The interval is simply narrower than reality.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence level</a> is a promise, and coverage is the measurement.</strong> The 95 in <code>level = 95</code> describes what the model's assumptions imply, not what the model achieved. Until you roll the model forward over held-out data and count, you have a label rather than a fact, and on this series the label was wrong by more than ten percentage points.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>About the protocol used above.</strong> We estimate the smoothing parameters once on the first 48 months and then only feed the fitted model new data, which is what production systems do between scheduled refits and what keeps this page fast. Re-estimating every parameter at every one of the 128 origins was also measured: 95% coverage moves from 84% to about 86%. Better, still not 95%, and the rest of this page is unchanged.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun the audit at <code>level = 80</code> instead of 95 and report the coverage you actually get. Reuse <code>base</code> and <code>origins</code> so you are not refitting anything new.</p>
+<div class="webr-container" data-block-title="Your turn: audit the 80 percent interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: audit the 80 percent interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hit80 &lt;- logical(length(origins))
+for (k in seq_along(origins)) {
+  i &lt;- origins[k]
+  # your code here: forecast one step at level 80 and record whether
+  # sales[i + 1] fell inside the bounds
+}
+
+round(c(promised = 0.80, actual = mean(ex_hit80)), 3)
+#&gt; Expected: an &quot;actual&quot; well below 0.80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Audit the 80 percent interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Audit the 80 percent interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hit80 &lt;- logical(length(origins))
+for (k in seq_along(origins)) {
+  i &lt;- origins[k]
+  f &lt;- forecast(ets(subset(sales, end = i), model = base, use.initial.values = TRUE),
+                h = 1, level = 80)
+  ex_hit80[k] &lt;- sales[i + 1] &gt;= as.numeric(f$lower) &amp; sales[i + 1] &lt;= as.numeric(f$upper)
+}
+
+round(c(promised = 0.80, actual = mean(ex_hit80)), 3)
+#&gt; promised   actual 
+#&gt;    0.800    0.602</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 80% interval covers 60.2% of the time. Narrowing the interval did not just shrink coverage proportionally, it made the shortfall worse in relative terms, because the parametric bounds get their shape from the same distributional assumption at every level.</p>
+
+</details>
+</section>
+
+<h2>What is a conformal prediction interval?</h2>
+
+<p>The parametric interval failed because it was derived rather than measured. <code>ets()</code> estimates one number for the size of a typical error, assumes errors follow a bell curve, and multiplies. If either half of that is wrong, the interval is wrong.</p>
+
+<p>Conformal prediction throws the derivation away and measures instead. Its whole premise fits in one sentence: <strong>the mistakes the model has already made are the best available forecast of the mistake it is about to make.</strong> So you gather those mistakes and read the answer off them directly.</p>
+
+<p>Let us see why the derived interval was too narrow. We can compare the width a bell curve implies against the errors that actually occurred.</p>
+
+<div class="webr-container" data-block-title="Compare the bell curve against real errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the bell curve against real errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit$err &lt;- audit$actual - audit$point
+
+round(c(sd_of_errors     = sd(audit$err),
+        gaussian_says_95 = 1.96 * sd(audit$err),
+        real_95th_pct    = unname(quantile(abs(audit$err), 0.95)),
+        worst_error      = max(abs(audit$err))), 1)
+#&gt;     sd_of_errors gaussian_says_95    real_95th_pct      worst_error 
+#&gt;           3178.4           6229.7           6593.2           9379.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The walk-through: <code>audit$err</code> is how far the truth was from the point forecast each month, <code>sd()</code> measures their typical spread, and <code>1.96 * sd</code> is the textbook half-width of a 95% Gaussian interval. The last two lines ask the data directly how big the errors really got.</p>
+
+<p>The interpretation is that the bell curve says 95% of errors should be within 6,230 bottles, but the real 95th percentile is 6,593, and the worst month was off by 9,380. The tails are fatter than a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> allows. That is not unusual, it is the ordinary condition of real data, and it is exactly the assumption conformal prediction refuses to make.</p>
+
+<h3>The recipe</h3>
+
+<p>Conformal prediction needs three ingredients.</p>
+
+<ol>
+
+<li><strong>A calibration set.</strong> A stretch of data the model was not trained on, where you know both the forecast and the truth.</li>
+
+<li><strong>A conformity score.</strong> A single number per calibration point saying how badly the model missed. For forecasting, the absolute error is the standard choice: $s_i = |y_i - \hat{y}_i|$.</li>
+
+<li><strong>A quantile.</strong> Sort the scores and take the one that sits above (1 - alpha) of them. That number, call it $\hat{q}$, becomes your interval half-width.</li>
+
+</ol>
+
+<p>The interval for a new forecast is then just $\hat{y} \pm \hat{q}$.</p>
+
+<p><img src="screenshots/Conformal-Prediction-in-R-split-conformal-flow.webp" alt="Split conformal prediction turns held-out errors into an interval width" class="img-responsive img-zoomable" loading="lazy" width="2248" height="320" /></p>
+
+<p><em>Figure 1: Split conformal prediction turns held-out errors into an interval width.</em></p>
+
+<p>Notice what is missing from that recipe: any statement about the shape of the error distribution. This is why the method is called distribution-free. It does not need errors to be normal, symmetric, or even continuous. It only needs the calibration errors to be drawn from the same pool as the future error, an assumption we will name in a later section and then show this series violating.</p>
+
+<p>Here it is in code. We split the audit we already built: the first 60 forecasts become the calibration set, and the remaining 68 become the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> we score ourselves on.</p>
+
+<div class="webr-container" data-block-title="Compute the conformal quantile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the conformal quantile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">calib  &lt;- audit[1:60, ]
+test   &lt;- audit[61:nrow(audit), ]
+
+scores &lt;- abs(calib$err)                                  # conformity scores
+alpha  &lt;- 0.05                                            # we want 95% coverage
+k_idx  &lt;- ceiling((length(scores) + 1) * (1 - alpha))     # which sorted score to take
+q_hat  &lt;- sort(scores)[k_idx]
+
+c(calibration_size = length(scores), rank_needed = k_idx, q_hat = round(q_hat, 1))
+#&gt; calibration_size      rank_needed            q_hat 
+#&gt;             60.0             58.0           5171.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Line by line: <code>scores</code> is the size of each calibration miss regardless of direction. <code>alpha</code> is the error rate we are willing to accept, so 0.05 means we want to be right 95% of the time. <code>k_idx</code> works out which position in the sorted list we need, and <code>sort(scores)[k_idx]</code> reads it off. That is the entire algorithm. Four lines, no distribution assumed.</p>
+
+<p>The interpretation: out of 60 calibration errors, the 58th smallest was 5,171 bottles. So 57 of the 60 past errors were smaller than that. We will use 5,171 as our half-width and see how it holds up on data neither the model nor the calibration ever saw.</p>
+
+<div class="webr-container" data-block-title="Apply the conformal interval and score it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the conformal interval and score it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">test$c_lo  &lt;- test$point - q_hat
+test$c_hi  &lt;- test$point + q_hat
+test$c_hit &lt;- test$actual &gt;= test$c_lo &amp; test$actual &lt;= test$c_hi
+
+round(c(ets_coverage       = mean(test$hit),
+        ets_width          = mean(test$hi - test$lo),
+        conformal_coverage = mean(test$c_hit),
+        conformal_width    = 2 * q_hat), 3)
+#&gt;       ets_coverage          ets_width conformal_coverage    conformal_width 
+#&gt;              0.779           9120.242              0.853          10342.335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the same 68 test months, the parametric interval covered 77.9% while the conformal interval covered 85.3%. Conformal bought that improvement by being wider, 10,342 bottles against 9,120, which is the honest trade: the extra width was not padding, it was uncertainty the parametric interval had been hiding.</p>
+
+<p>But 85.3% is still not 95%. Hold that number. It is the most important result on this page and we will come back to it in two sections, because the reason it falls short is specific to time series and it has a specific fix.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conformal prediction replaces an assumption with a measurement.</strong> A parametric interval asks "given my model is right and errors are normal, how wide should this be?" A conformal interval asks "how wrong have I actually been lately?" The first question can be answered from theory alone and is therefore only as good as the theory. The second requires held-out data and is therefore only as good as your data, which on any real series is the better bet.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build an 80% conformal interval from the same calibration scores and measure its coverage on the test set. Remember that 80% coverage means <code>alpha</code> is 0.20.</p>
+<div class="webr-container" data-block-title="Your turn: build an 80 percent conformal interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build an 80 percent conformal interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q80 &lt;- 0   # your code here: the conformal quantile of `scores` at alpha = 0.20
+
+round(c(q80 = ex_q80, coverage = mean(abs(test$err) &lt;= ex_q80)), 3)
+#&gt; Expected: a q80 near 2800 and a coverage well under 0.80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="80 percent conformal interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">80 percent conformal interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q80 &lt;- sort(scores)[ceiling((length(scores) + 1) * (1 - 0.20))]
+
+round(c(q80 = ex_q80, coverage = mean(abs(test$err) &lt;= ex_q80)), 3)
+#&gt;      q80 coverage 
+#&gt; 2792.394    0.441</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 80% conformal interval covered only 44.1%. The recipe is correct and the shortfall is real, which is a preview of the problem this page tackles in the exchangeability section: the calibration errors were systematically smaller than the errors that came later.</p>
+
+</details>
+</section>
+
+<h2>Why does the calibration quantile need that +1 correction?</h2>
+
+<p>You may have looked at <code>ceiling((length(scores) + 1) * (1 - alpha))</code> and wondered why we did not simply write <code>quantile(scores, 0.95)</code>. This is the single most common bug in hand-rolled conformal code, and it is worth two minutes because it silently costs you coverage.</p>
+
+<p>Here is the difference on our real scores.</p>
+
+<div class="webr-container" data-block-title="Compare quantile() against the conformal rank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare quantile() against the conformal rank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(quantile_function = unname(quantile(scores, 0.95)),
+        conformal_rule    = q_hat), 1)
+#&gt; quantile_function    conformal_rule 
+#&gt;            4005.0            5171.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two answers differ by 29%. <code>quantile()</code> returns 4,005 and the conformal rule returns 5,171, from the exact same 60 numbers.</p>
+
+<p>The reason is a counting argument. When you make a prediction for a new point, you have 60 calibration scores plus one unknown score for the point you are about to predict. That is 61 values, not 60. If all 61 are equally likely to land in any position when sorted, then the probability that the new one is not among the largest 5% requires you to reserve room for it. The rank you need is</p>
+
+<p>$$k = \lceil (n + 1)(1 - \alpha) \rceil$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$n$ = the number of calibration scores you have</li>
+
+<li>$\alpha$ = the error rate you accept, so 0.05 for a 95% interval</li>
+
+<li>$\lceil \cdot \rceil$ = round up to the next whole number</li>
+
+<li>$k$ = the position in the sorted scores to read off</li>
+
+</ul>
+
+<p>With $n = 60$ and $\alpha = 0.05$ that gives $\lceil 61 \times 0.95 \rceil = \lceil 57.95 \rceil = 58$, which is what the code computed. R's <code>quantile()</code> interpolates between the 57th and 58th values using a rule designed for estimating a population quantile, which is a different job and lands lower.</p>
+
+<p>Does the correction actually matter? We can settle it with a simulation instead of an argument. We draw calibration scores and a new score from the identical <a class="auto-link" href="Cauchy-and-Heavy-Tailed-Distributions-in-R.html" title="Cauchy & Heavy-Tailed Distributions in R: When the CLT Fails You">heavy-tailed distribution</a>, so the exchangeability assumption holds perfectly by construction, then check how often each rule covers.</p>
+
+<div class="webr-container" data-block-title="Simulate both rules against a known target">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate both rules against a known target</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+m    &lt;- 20        # a small calibration set, where the difference bites hardest
+reps &lt;- 20000
+naive_hits &lt;- conf_hits &lt;- logical(reps)
+
+for (r in 1:reps) {
+  s   &lt;- abs(rt(m, df = 3))      # 20 calibration scores
+  new &lt;- abs(rt(1, df = 3))      # the score we are trying to cover
+  naive_hits[r] &lt;- new &lt;= quantile(s, 0.90)
+  conf_hits[r]  &lt;- new &lt;= sort(s)[ceiling((m + 1) * 0.90)]
+}
+
+round(c(target = 0.90,
+        quantile_function = mean(naive_hits),
+        conformal_rule    = mean(conf_hits)), 4)
+#&gt;            target quantile_function    conformal_rule 
+#&gt;            0.9000            0.8640            0.9034</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The walk-through: each of the 20,000 repetitions draws a fresh calibration set from a t-distribution with 3 degrees of freedom (heavy tails, like real forecast errors), draws one more value to stand in for the future, and asks both rules whether they would have covered it.</p>
+
+<p>The interpretation is unambiguous. Against a 90% target, <code>quantile()</code> delivered 86.4% and the conformal rank delivered 90.3%. The conformal rule is very slightly conservative, which is exactly what the theory promises: coverage is guaranteed to be at least $1 - \alpha$, and at most $1 - \alpha + \frac{1}{n+1}$. With $n = 20$ that upper bound is 0.948 for a 90% target, and 0.9034 sits comfortably inside.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Using quantile() instead of the conformal rank silently under-covers.</strong> The gap shrinks as the calibration set grows, so it is easy to miss in testing and then bite you in production where calibration windows are short. Write the rank formula once as a helper function and never type a bare quantile call in conformal code again.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For a 95% interval, some calibration sets are simply too small: the rule asks for a rank higher than the number of scores you have, which means no finite interval exists. Find the smallest calibration size that works.</p>
+<div class="webr-container" data-block-title="Your turn: find the smallest usable calibration set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the smallest usable calibration set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sizes &lt;- sapply(15:25, function(m) FALSE)  # your code here: is the rank &lt;= m?
+
+data.frame(n_calib = 15:25, finite_interval = ex_sizes)
+#&gt; Expected: FALSE up to some size, then TRUE from there on</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smallest usable calibration set solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smallest usable calibration set solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sizes &lt;- sapply(15:25, function(m) ceiling((m + 1) * 0.95) &lt;= m)
+
+data.frame(n_calib = 15:25, finite_interval = ex_sizes)
+#&gt;    n_calib finite_interval
+#&gt; 1       15           FALSE
+#&gt; 2       16           FALSE
+#&gt; 3       17           FALSE
+#&gt; 4       18           FALSE
+#&gt; 5       19            TRUE
+#&gt; 6       20            TRUE
+#&gt; 7       21            TRUE
+#&gt; 8       22            TRUE
+#&gt; 9       23            TRUE
+#&gt; 10      24            TRUE
+#&gt; 11      25            TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> You need at least 19 calibration points for a 95% conformal interval, because $\lceil 20 \times 0.95 \rceil = 19$. Below that the rule asks for a rank you do not have, and the honest answer is an infinitely wide interval. In general you need $n \geq \frac{1}{\alpha} - 1$.</p>
+
+</details>
+</section>
+
+<h2>Do all forecast horizons need the same interval?</h2>
+
+<p>So far we have only forecast one month ahead. Real forecasts run further, and the textbook says intervals must widen as the horizon grows, because uncertainty compounds. That is often true. It is not always true, and guessing is unnecessary when measuring is this cheap.</p>
+
+<p>First, let us wrap the rank rule in a helper so we stop rewriting it, then collect errors at every horizon from 1 to 6 instead of just horizon 1.</p>
+
+<div class="webr-container" data-block-title="Define conf_q and collect errors by horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define conf_q and collect errors by horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">conf_q &lt;- function(scores, alpha) {
+  scores &lt;- sort(scores)
+  rank   &lt;- ceiling((length(scores) + 1) * (1 - alpha))
+  if (rank &gt; length(scores)) Inf else scores[rank]
+}
+
+H     &lt;- 6
+og_h  &lt;- start_at:(n - H)
+err_h &lt;- matrix(NA_real_, nrow = length(og_h), ncol = H,
+                dimnames = list(NULL, paste0(&quot;h&quot;, 1:H)))
+
+for (k in seq_along(og_h)) {
+  i &lt;- og_h[k]
+  f &lt;- forecast(ets(subset(sales, end = i), model = base, use.initial.values = TRUE), h = H)
+  err_h[k, ] &lt;- sales[(i + 1):(i + H)] - as.numeric(f$mean)
+}
+round(head(err_h, 3), 1)
+#&gt;          h1      h2      h3      h4      h5      h6
+#&gt; [1,] -916.8  1244.2  1657.4 -2068.3  2449.9 -1729.6
+#&gt; [2,] 1251.5  1670.0 -2051.4  2471.0 -1703.8  -989.3
+#&gt; [3,] 1659.7 -2066.8  2450.5 -1729.9 -1025.4  3702.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper now returns <code>Inf</code> when the calibration set is too small, which turns a silent bug into a visible one. <code>err_h</code> is a matrix with one row per forecast origin and one column per horizon: row 1 holds the six errors made when forecasting from month 48, row 2 the six from month 49, and so on.</p>
+
+<p>Now take a conformal quantile down each column separately. Each horizon gets its own interval width.</p>
+
+<div class="webr-container" data-block-title="Calibrate each horizon separately">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Calibrate each horizon separately</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q_h &lt;- apply(abs(err_h[1:60, ]), 2, conf_q, alpha = alpha)
+round(q_h, 0)
+#&gt;   h1   h2   h3   h4   h5   h6 
+#&gt; 5171 5175 5143 5192 5163 5160</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Flat. Forecasting six months ahead on this series is no harder than forecasting one month ahead. That is not a bug, and it tells you something real about wine sales: they are dominated by a stable annual pattern rather than by momentum. Knowing last month barely helps you predict this month beyond knowing which month it is, so losing that knowledge costs you almost nothing.</p>
+
+<p>Compare against a series that behaves the other way. Airline passenger counts have genuine momentum, so losing track of the recent level compounds.</p>
+
+<div class="webr-container" data-block-title="Contrast with a series that has momentum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contrast with a series that has momentum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air_base &lt;- ets(subset(AirPassengers, end = 48))
+og_a     &lt;- 48:(length(AirPassengers) - H)
+err_a    &lt;- matrix(NA_real_, nrow = length(og_a), ncol = H,
+                   dimnames = list(NULL, paste0(&quot;h&quot;, 1:H)))
+
+for (k in seq_along(og_a)) {
+  i &lt;- og_a[k]
+  f &lt;- forecast(ets(subset(AirPassengers, end = i), model = air_base,
+                    use.initial.values = TRUE), h = H)
+  err_a[k, ] &lt;- AirPassengers[(i + 1):(i + H)] - as.numeric(f$mean)
+}
+round(apply(abs(err_a[1:60, ]), 2, conf_q, alpha = alpha), 1)
+#&gt;   h1   h2   h3   h4   h5   h6 
+#&gt; 35.2 46.9 53.2 58.8 61.6 62.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interpretation: on airline passengers the six-month interval is 78% wider than the one-month interval, while on wine sales it is the same. Two respectable seasonal series, two opposite answers. If you had assumed either pattern you would have been wrong about one of them.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Calibrate every horizon separately by default.</strong> It costs one extra <code>apply()</code> call and it is correct whether your errors grow with the horizon or not. Pooling all horizons into one set of scores only works when the widths happen to be flat, and you cannot know that without doing the per-horizon version first anyway.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count how many of the six-month-ahead test errors are larger than the one-month interval half-width. If the widths are genuinely flat, this should be close to what you would expect by chance.</p>
+<div class="webr-container" data-block-title="Your turn: count the six month errors above the one month width">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the six month errors above the one month width</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_over &lt;- 0   # your code here: how many rows 61+ of err_h have |h6 error| &gt; q_h[&quot;h1&quot;]
+
+c(exceeded = ex_over, out_of = nrow(err_h) - 60)
+#&gt; Expected: roughly one in six</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count six month errors above the one month width solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count six month errors above the one month width solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_over &lt;- sum(abs(err_h[61:nrow(err_h), &quot;h6&quot;]) &gt; q_h[&quot;h1&quot;])
+
+c(exceeded = ex_over, out_of = nrow(err_h) - 60)
+#&gt; exceeded   out_of 
+#&gt;       10       63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 10 of 63 six-month errors exceeded the one-month width, about 16%. If the horizons truly behaved identically and the calibration were still valid we would expect around 5%, so this is a hint that something other than the horizon is inflating errors on the later part of the series. The next section identifies it.</p>
+
+</details>
+</section>
+
+<h2>What is exchangeability, and why does a time series break it?</h2>
+
+<p>We now have two unexplained results. The 95% conformal interval covered 85.3% rather than 95%, and the 80% one covered 44.1%. The recipe was implemented correctly, so the assumption behind it must be failing. Time to name that assumption.</p>
+
+<p>Conformal prediction needs the calibration scores and the future score to be <strong>exchangeable</strong>. In plain words: if you wrote all of them on cards and shuffled the deck, every ordering would be equally likely. Nothing about a value's position in the sequence tells you anything about its size.</p>
+
+<p>That is a weaker requirement than the usual "independent and identically distributed", because exchangeable values are allowed to be correlated with each other. It is still a real requirement, and a time series violates it in the most obvious way possible: later values are systematically different from earlier ones. Let us confirm that is what is happening here by splitting our 128 errors into four consecutive blocks and looking at their typical size.</p>
+
+<div class="webr-container" data-block-title="Check whether errors drift over time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check whether errors drift over time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quarter &lt;- cut(seq_len(nrow(audit)), 4, labels = c(&quot;first&quot;, &quot;second&quot;, &quot;third&quot;, &quot;fourth&quot;))
+round(tapply(abs(audit$err), quarter, mean), 0)
+#&gt;  first second  third fourth 
+#&gt;   1424   2285   2903   3379</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The walk-through: <code>cut()</code> chops the 128 forecasts into four consecutive blocks of 32, and <code>tapply()</code> reports the average absolute error inside each.</p>
+
+<p>The interpretation is decisive. Errors in the final block are 2.4 times larger than in the first. Position in the sequence tells you a great deal about error size, so the cards are not shuffled and exchangeability is false. Our calibration set was the first 60 forecasts, the era when the model was at its most accurate, and we then used that era's quantile to build intervals for a later era where the model was much worse. Of course they were too narrow.</p>
+
+<p>This is not a quirk of wine sales. The series grew, so its errors grew with it. Any series that trends, seasonally shifts, changes regime, or simply gets harder to predict will do the same thing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The finite-sample coverage guarantee does not hold for time series as usually stated.</strong> Papers and package documentation state it under exchangeability, and forecasting data is not exchangeable. Conformal prediction is still worth using, and it still beat the parametric interval above, but treat the guarantee as a target you have to actively maintain rather than a certificate you receive.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Quantify the drift more directly by comparing the first 30 forecasts against the last 30.</p>
+<div class="webr-container" data-block-title="Your turn: compare early errors against late errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare early errors against late errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drift &lt;- c(first_30 = 0,   # your code here: mean absolute error of the first 30
+              last_30  = 0)   # and of the last 30
+
+round(ex_drift, 0)
+#&gt; Expected: the last 30 roughly double the first 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare early against late errors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare early against late errors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drift &lt;- c(first_30 = mean(abs(head(audit$err, 30))),
+              last_30  = mean(abs(tail(audit$err, 30))))
+
+round(ex_drift, 0)
+#&gt; first_30  last_30 
+#&gt;     1491     3461</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The model's typical miss grew from about 1,491 bottles to about 3,461. A calibration set drawn from the early period describes a level of accuracy the model no longer has.</p>
+
+</details>
+</section>
+
+<h2>How do you keep coverage on target when the series keeps changing?</h2>
+
+<p>The diagnosis points straight at the cure. If old errors no longer describe the model's current accuracy, stop using old errors.</p>
+
+<p><img src="screenshots/Conformal-Prediction-in-R-drift-fix.webp" alt="Which calibration rule to use once the errors start drifting" class="img-responsive img-zoomable" loading="lazy" width="2248" height="662" /></p>
+
+<p><em>Figure 2: Which calibration rule to use once the errors start drifting.</em></p>
+
+<h3>Fix one: a rolling calibration window</h3>
+
+<p>Instead of freezing the calibration set at the first 60 forecasts, recompute the quantile at every step from only the most recent <code>W</code> errors. The window slides forward with you, so when the model gets worse the interval widens automatically, and when it gets better the interval tightens.</p>
+
+<div class="webr-container" data-block-title="Roll the calibration window forward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Roll the calibration window forward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">W    &lt;- 40
+ncal &lt;- 60
+q_static &lt;- conf_q(abs(audit$err[1:ncal]), alpha)
+
+live &lt;- data.frame(k = (ncal + 1):nrow(audit), static_hit = NA,
+                   roll_hit = NA, roll_width = NA)
+for (j in seq_len(nrow(live))) {
+  k      &lt;- live$k[j]
+  q_roll &lt;- conf_q(abs(audit$err[(k - W):(k - 1)]), alpha)   # last 40 errors only
+  live$static_hit[j] &lt;- abs(audit$err[k]) &lt;= q_static
+  live$roll_hit[j]   &lt;- abs(audit$err[k]) &lt;= q_roll
+  live$roll_width[j] &lt;- 2 * q_roll
+}
+round(c(static_coverage  = mean(live$static_hit),
+        static_width     = 2 * q_static,
+        rolling_coverage = mean(live$roll_hit),
+        rolling_width    = mean(live$roll_width)), 3)
+#&gt;  static_coverage     static_width rolling_coverage    rolling_width 
+#&gt;            0.853        10342.335            0.971        16597.632</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The only change inside the loop is which errors feed the quantile: <code>audit$err[(k - W):(k - 1)]</code> is always the 40 most recent misses as of the moment you forecast, and the slice stops one step short of <code>audit$err[k]</code>, the error you are trying to cover.</p>
+
+<p>The interpretation is that coverage went from 85.3% to 97.1%, comfortably past the 95% target, and the price was width: 16,598 bottles against 10,342. That is uncomfortable, and it is also the truth. The static interval was not better, it was wrong. Once you insist on genuinely covering 95% of months on the later, harder part of this series, this is what it costs.</p>
+
+<p>Notice the rolling version slightly overshoots. Forty recent errors is a small sample, so the quantile is jumpy and tends to land high. That is the second fix's job.</p>
+
+<h3>Fix two: adaptive conformal inference</h3>
+
+<p>A rolling window reacts to changes in error size, but it never checks whether it is actually hitting the target. Adaptive conformal inference, introduced by Gibbs and Candes, adds that feedback loop. It keeps a working error rate $\alpha_t$ that moves after every observation:</p>
+
+<p>$$\alpha_{t+1} = \alpha_t + \gamma \left( \alpha - \mathbb{1}\{ y_t \notin C_t \} \right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\alpha_t$ = the error rate the algorithm is currently using to pick the quantile</li>
+
+<li>$\alpha$ = the error rate you actually want, 0.05 here</li>
+
+<li>$\gamma$ = the step size, controlling how sharply it reacts</li>
+
+<li>$\mathbb{1}\{ y_t \notin C_t \}$ = 1 if the last interval missed, 0 if it covered</li>
+
+</ul>
+
+<p>Read it as a thermostat. After a miss the bracket becomes $\alpha - 1$, a large negative number, so $\alpha_t$ drops and the next interval widens. After a hit the bracket is $\alpha$, a small positive number, so $\alpha_t$ creeps up and the interval tightens. Over time the two forces balance at the target rate.</p>
+
+<div class="webr-container" data-block-title="Run adaptive conformal inference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run adaptive conformal inference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gamma &lt;- 0.05
+a_t   &lt;- alpha
+aci   &lt;- data.frame(k = live$k, hit = NA, width = NA, alpha_t = NA)
+
+for (j in seq_len(nrow(aci))) {
+  k     &lt;- aci$k[j]
+  a_use &lt;- min(max(a_t, 0.001), 0.999)                       # keep alpha_t in range
+  q_a   &lt;- conf_q(abs(audit$err[(k - W):(k - 1)]), a_use)
+  aci$hit[j]     &lt;- abs(audit$err[k]) &lt;= q_a
+  aci$width[j]   &lt;- 2 * q_a
+  aci$alpha_t[j] &lt;- a_t
+  a_t &lt;- a_t + gamma * (alpha - (1 - aci$hit[j]))             # the update rule
+}
+round(c(aci_coverage = mean(aci$hit), aci_width = mean(aci$width),
+        alpha_start  = alpha,         alpha_end = a_t), 3)
+#&gt; aci_coverage    aci_width  alpha_start    alpha_end 
+#&gt;        0.956    15391.462        0.050        0.070</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The walk-through: <code>a_use</code> clamps the working rate into a legal range so a long run of hits cannot push it past 1. Everything else is the rolling window from before, except that the alpha fed to <code>conf_q</code> now changes every step, and the final line applies the thermostat.</p>
+
+<p>The interpretation is that adaptive conformal delivered 95.6% coverage, closer to the 95% target than the rolling window's 97.1%, and it did so with a narrower average interval: 15,391 against 16,598. Better coverage and less width at the same time, because every stretch of covered months raised the working alpha, which narrowed the next interval instead of leaving it too wide.</p>
+
+<div class="webr-container" data-block-title="See how far the working alpha travelled">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See how far the working alpha travelled</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(range(aci$alpha_t), 4)
+#&gt; [1] 0.0400 0.1175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The working rate ranged from 0.040 up to 0.1175. Each covered month adds <code>gamma * alpha</code>, which is 0.0025, so a run of hits walks the rate up toward 0.12 and narrows the interval; each miss subtracts <code>gamma * (1 - alpha)</code>, which is 0.0475, nineteen times larger, so one miss undoes nineteen hits. You asked for 5% and internally the algorithm spent most of its time asking for something else, which is how it delivered 5% on the outside.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Adaptive conformal trades a finite-sample guarantee for a long-run one, which is the better deal for a live series.</strong> Classical split conformal promises exact coverage over data that never changes. Adaptive conformal promises that coverage converges to your target over time no matter how the series shifts, and a forecasting system that runs for years cares far more about the second promise than the first.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">window length</a> is a real tuning knob. Try <code>W = 20</code> instead of 40 and see what a shorter memory does to coverage.</p>
+<div class="webr-container" data-block-title="Your turn: try a 20 error window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a 20 error window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_w20 &lt;- logical(nrow(audit) - ncal)
+for (j in seq_along(ex_w20)) {
+  k &lt;- ncal + j
+  # your code here: conformal quantile from the last 20 errors, then hit or miss
+}
+
+round(c(window = 20, coverage = mean(ex_w20)), 3)
+#&gt; Expected: coverage above the 0.95 target</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Twenty error window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Twenty error window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_w20 &lt;- logical(nrow(audit) - ncal)
+for (j in seq_along(ex_w20)) {
+  k &lt;- ncal + j
+  ex_w20[j] &lt;- abs(audit$err[k]) &lt;= conf_q(abs(audit$err[(k - 20):(k - 1)]), alpha)
+}
+
+round(c(window = 20, coverage = mean(ex_w20)), 3)
+#&gt;   window coverage 
+#&gt;   20.000    0.985</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 20-error window covers 98.5%, even further above target than the 40-error window. With only 20 scores the 95% conformal rank is the largest one, so the interval is set by the single worst recent miss. Short windows adapt faster but get noisier, which is exactly the pressure adaptive conformal relieves.</p>
+
+</details>
+</section>
+
+<h2>How do you put an interval on a model that has no interval formula?</h2>
+
+<p>Everything so far has been an improvement on an interval that already existed. Now the case where conformal prediction is not an improvement but the only option available.</p>
+
+<p>A random forest forecaster returns a number. That is all. There is no error term to be normal, no likelihood, no closed-form variance of the prediction. The same is true of gradient boosted trees, of nearest-neighbour forecasters, and of most machine learning methods people now point at time series. Conformal prediction never looks inside the model, only at the errors it made, so a missing <a class="auto-link" href="Expected-Value-and-Variance-in-R.html" title="Expected Value and Variance: Derive Them Theoretically, Then Verify via Simulation">variance formula</a> costs it nothing.</p>
+
+<p>To use a forest we first have to reshape the series into a table, since trees work on rows of features rather than on ordered observations. Each row gets the value we want to predict plus a few of its own past values as columns.</p>
+
+<div class="webr-container" data-block-title="Reshape the series into a lag table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reshape the series into a lag table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages(library(randomForest))
+
+y &lt;- as.numeric(sales)
+lagged &lt;- data.frame(y     = y,
+                     lag1  = c(NA, head(y, -1)),
+                     lag12 = c(rep(NA, 12), head(y, -12)),
+                     lag13 = c(rep(NA, 13), head(y, -13)))
+lagged &lt;- lagged[complete.cases(lagged), ]
+
+head(lagged, 3)
+#&gt;        y  lag1 lag12 lag13
+#&gt; 14 17977 15028 16733 15136
+#&gt; 15 20008 17977 20016 16733
+#&gt; 16 21354 20008 17708 20016
+c(usable_rows = nrow(lagged))
+#&gt; usable_rows 
+#&gt;         163</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row now says: here is a month's sales, here is last month, here is the same month a year ago, and here is the month before that a year ago. <code>complete.cases()</code> drops the first 13 rows where those lags do not exist yet, leaving 163 usable rows.</p>
+
+<p>Now train the forest on the first 48 rows and let it predict everything after.</p>
+
+<div class="webr-container" data-block-title="Fit the forest and collect its errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the forest and collect its errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+rf &lt;- randomForest(y ~ lag1 + lag12 + lag13, data = lagged[1:48, ], ntree = 500)
+
+rf_live &lt;- lagged[49:nrow(lagged), ]
+rf_live$point &lt;- as.numeric(predict(rf, rf_live))
+rf_live$err   &lt;- rf_live$y - rf_live$point
+
+round(head(rf_live[, c(&quot;y&quot;, &quot;point&quot;, &quot;err&quot;)], 4), 1)
+#&gt;        y   point     err
+#&gt; 62 21845 21712.7   132.3
+#&gt; 63 26488 26640.6  -152.6
+#&gt; 64 22394 24094.6 -1700.6
+#&gt; 65 28057 27219.7   837.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>predict(rf, rf_live)</code> gives one number per month and nothing else. There is no <code>$lower</code> or <code>$upper</code> to ask for, because the forest has no theory of its own uncertainty. Everything we need is in the <code>err</code> column.</p>
+
+<p>The conformal step is now literally identical to the one we ran on ETS. That is the point.</p>
+
+<div class="webr-container" data-block-title="Wrap a conformal interval around the forest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap a conformal interval around the forest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_idx &lt;- (W + 1):nrow(rf_live)
+rf_out &lt;- data.frame(row = rf_idx, hit = NA, width = NA)
+
+for (j in seq_along(rf_idx)) {
+  k &lt;- rf_idx[j]
+  q &lt;- conf_q(abs(rf_live$err[(k - W):(k - 1)]), alpha)
+  rf_out$hit[j]   &lt;- abs(rf_live$err[k]) &lt;= q
+  rf_out$width[j] &lt;- 2 * q
+}
+c(forest_mae      = round(mean(abs(rf_live$err)), 1),
+  forest_coverage = round(mean(rf_out$hit), 3),
+  forest_width    = round(mean(rf_out$width), 0))
+#&gt;      forest_mae forest_coverage    forest_width 
+#&gt;         2647.30            0.96        21528.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interpretation: a model that offered no interval at all now has one covering 96.0% of months, from twelve lines of code that never once referenced how the forest works. Swap <code>randomForest</code> for any other point forecaster and not a single line of the conformal step changes.</p>
+
+<p>Look at the width, though: 21,528 bottles against ETS's 16,598 under the identical procedure. The forest's average miss is 2,647 bottles while ETS's is 2,498 across its full audit, so the forest is genuinely the weaker model here, and the wider interval is a direct reading of that.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conformal prediction does not improve a weak model, it reports honestly on how weak it is.</strong> A wide conformal interval is not a failure of the method, it is the method working: it measured your model against held-out data, and the held-out data says the model is imprecise. If you want a narrower interval, the only legitimate route is a better point forecast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the comparison for yourself. Compute the <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS model</a>'s <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a> across its full audit and check it against the forest's 2,647.</p>
+<div class="webr-container" data-block-title="Your turn: compare the two models mean absolute error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare the two models mean absolute error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mae &lt;- c(ets_mae = 0,      # your code here
+            forest_mae = round(mean(abs(rf_live$err)), 1))
+
+round(ex_mae, 1)
+#&gt; Expected: the ETS error slightly smaller than the forest error</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare mean absolute error solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare mean absolute error solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mae &lt;- c(ets_mae    = mean(abs(audit$err)),
+            forest_mae = mean(abs(rf_live$err)))
+
+round(ex_mae, 1)
+#&gt;    ets_mae forest_mae 
+#&gt;     2497.7     2647.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ETS is about 6% more accurate on average, and its conformal interval is about 23% narrower. The gap in interval width is larger than the gap in average error because the conformal quantile responds to the worst recent misses, not to the average, and the forest's bad months are worse.</p>
+
+</details>
+</section>
+
+<h2>How do you run conformal prediction with the conformalForecast package?</h2>
+
+<p>Building it by hand was the point of this page, because you now know exactly what every number means and where it can fail. For production work there is a package: <code>conformalForecast</code> by Xiaoqian Wang and Rob Hyndman, which implements classical conformal prediction, adaptive conformal prediction, conformal PID control, and the autocorrelated multistep method from their 2024 paper.</p>
+
+<p>It is not available in this page's in-browser R, so run the block below in your own R session after <code>install.packages(&quot;conformalForecast&quot;)</code>. The output shown is real, captured from a local run against the same wine series.</p>
+
+<pre><code class="language-r">library(conformalForecast)
+library(forecast)
+
+sales &lt;- wineind
+etsfun &lt;- function(x, h, level) forecast(ets(x), h = h, level = level)
+
+fc &lt;- cvforecast(sales, forecastfun = etsfun, h = 6, level = 95,
+                 forward = TRUE, initial = 48, window = NULL)
+
+scpfc &lt;- scp(fc, symmetric = TRUE, ncal = 60, rolling = TRUE)
+coverage(scpfc, level = 95)
+#&gt;       h=1       h=2       h=3       h=4       h=5       h=6 
+#&gt; 0.9411765 0.9393939 0.9218750 0.9516129 0.9333333 0.9482759
+
+width(scpfc, level = 95)
+#&gt; Mean width:
+#&gt;      h=1      h=2      h=3      h=4      h=5      h=6 
+#&gt; 13793.47 13863.18 14139.54 14735.21 14291.46 14539.26</code></pre>
+
+<p>Three functions do the work. <code>cvforecast()</code> runs the rolling-origin loop we wrote by hand, calling your forecasting function at every origin. <code>scp()</code> performs split conformal prediction, where <code>ncal = 60</code> sets the calibration size and <code>rolling = TRUE</code> switches on the sliding window we built in the previous section. <code>coverage()</code> and <code>width()</code> then score the result.</p>
+
+<p>The interpretation matters as a cross-check: the package reports 92% to 95% coverage at widths near 14,000, and our hand-rolled rolling window reported 97.1% at 16,598. Same ballpark, and the differences are explained by details we now understand, mainly that <code>scp()</code> recalibrates on a rolling basis from the first available origin rather than from a fixed cutoff. Because you built the method yourself, a discrepancy like that is a question you can answer instead of a black box you have to trust.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The package adds methods we did not build.</strong> Beyond <code>scp()</code>, it offers <code>acp()</code> for adaptive conformal prediction, <code>pid()</code> for conformal PID control, and the autocorrelated multistep method that exploits a specific fact about forecast errors: optimal h-step errors are serially correlated up to lag h-1, so multistep intervals can be sharpened by modelling that correlation instead of ignoring it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The package asks you to choose <code>ncal</code>. Use the rank rule to find the smallest calibration window that can produce a finite 95% interval from real error data, so you know the floor before you tune.</p>
+<div class="webr-container" data-block-title="Your turn: find the smallest workable window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the smallest workable window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_win &lt;- rep(FALSE, length(10:25))   # your code here: is conf_q finite at each window?
+
+data.frame(window = 10:25, finite = ex_win)
+#&gt; Expected: FALSE up to the floor, TRUE from there on</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smallest workable window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smallest workable window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_win &lt;- sapply(10:25, function(w) is.finite(conf_q(abs(audit$err[1:w]), 0.05)))
+
+min((10:25)[ex_win])
+#&gt; [1] 19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 19, matching the algebra from the earlier section. Anything smaller and <code>conf_q()</code> returns <code>Inf</code>, which is the honest answer: with fewer than 19 held-out errors there is no finite 95% interval that the rank rule will vouch for. Set <code>ncal</code> well above the floor so the quantile is not pinned to your single worst observation.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: a reusable conformal_forecast() function</h2>
+
+<p>Here is everything on this page collapsed into one function you can point at any series and any point forecaster. It runs the rolling-origin audit, calibrates on the most recent errors at every horizon, and returns a forecast table with honest bounds.</p>
+
+<div class="webr-container" data-block-title="A reusable conformal forecast function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable conformal forecast function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">conformal_forecast &lt;- function(y, model_fun, h = 1, alpha = 0.05,
+                               start_at = 48, window = 40) {
+  og   &lt;- start_at:(length(y) - h)
+  errs &lt;- matrix(NA_real_, nrow = length(og), ncol = h)
+
+  for (k in seq_along(og)) {                       # rolling-origin audit
+    i &lt;- og[k]
+    errs[k, ] &lt;- y[(i + 1):(i + h)] - model_fun(subset(y, end = i), h)
+  }
+
+  q     &lt;- apply(abs(tail(errs, window)), 2, conf_q, alpha = alpha)  # recent errors only
+  point &lt;- model_fun(y, h)                                           # the real forecast
+
+  data.frame(horizon = 1:h,
+             point = round(point, 0),
+             lower = round(point - q, 0),
+             upper = round(point + q, 0),
+             width = round(2 * q, 0))
+}
+
+base48 &lt;- ets(subset(wineind, end = 48))
+ets_frozen &lt;- function(x, h)
+  as.numeric(forecast(ets(x, model = base48, use.initial.values = TRUE), h = h)$mean)
+
+conformal_forecast(wineind, ets_frozen, h = 6, alpha = 0.05)
+#&gt;   horizon point lower upper width
+#&gt; 1       1 25040 17711 32370 14660
+#&gt; 2       2 25617 18257 32978 14721
+#&gt; 3       3 31456 24045 38867 14822
+#&gt; 4       4 35029 27553 42505 14953
+#&gt; 5       5 19045 11616 26474 14858
+#&gt; 6       6 21560 13981 29138 15157</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>model_fun</code> argument is the whole design. It takes a series and a horizon and returns point forecasts, which means the forest from two sections ago, an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA</a>, a <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a> benchmark, or your own function all drop in without touching the conformal machinery. <code>tail(errs, window)</code> keeps only the most recent errors so the calibration stays current, and <code>apply(..., 2, conf_q)</code> calibrates each horizon on its own column.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Keep the point forecaster behind a one-line adapter.</strong> Anything that accepts a series and a horizon and returns a numeric vector of that length will work here, so switching from ETS to <code>auto.arima</code>, to <code>snaive</code>, or to the random forest is a change to <code>ets_frozen</code> alone. Keeping that boundary clean is what lets you swap models without ever revalidating the interval code.</div></div>
+
+<p>Compare these bounds to the ETS output we started with. Back then the model claimed September 1994 would land between 20,464 and 29,013, a span of 8,549 bottles. The conformal version says between 17,711 and 32,370, a span of 14,660. That is the same forecast with the uncertainty told straight.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build a rolling 80% conformal interval end to end</h3>
+
+<p>Earlier the static 80% conformal interval covered only 44.1%. Rebuild it with a rolling 40-error window over the same test period (rows 61 onward of <code>audit</code>) and report the coverage and mean width. Use <code>my_</code> prefixed variables so you do not overwrite anything above.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: same loop as the rolling-window section, but alpha = 0.20
+my_alpha &lt;- 0.20
+my_W     &lt;- 40
+my_start &lt;- 61
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rolling 80 percent interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling 80 percent interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hits   &lt;- logical(nrow(audit) - my_start + 1)
+my_widths &lt;- numeric(length(my_hits))
+
+for (j in seq_along(my_hits)) {
+  k    &lt;- my_start + j - 1
+  my_q &lt;- conf_q(abs(audit$err[(k - my_W):(k - 1)]), my_alpha)
+  my_hits[j]   &lt;- abs(audit$err[k]) &lt;= my_q
+  my_widths[j] &lt;- 2 * my_q
+}
+
+round(c(target = 0.80, coverage = mean(my_hits), mean_width = mean(my_widths)), 3)
+#&gt;     target   coverage mean_width 
+#&gt;      0.800      0.735   7966.192</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The rolling window lifts coverage from 44.1% to 73.5%, a huge repair, but it still falls short of 80%. Lower confidence levels are harder to hit with a sliding window because they depend on the middle of the error distribution, which moves around more than the tail does. This is a case for adaptive conformal inference rather than a longer window.</p>
+
+</details>
+
+<h3>Exercise 2: Diagnose a rolling window that under-covers</h3>
+
+<p>Apply per-horizon rolling conformal prediction to <code>AirPassengers</code> for horizons 1 to 3 at 95%, using the <code>err_a</code> matrix already in memory. Measure coverage with <code>W = 40</code>, then again with <code>W = 20</code>, and explain which wins and why.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: for each horizon column, loop over rows (W+1):nrow(err_a) and use
+# conf_q on the previous W absolute errors in that same column
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Window comparison on AirPassengers solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Window comparison on AirPassengers solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (my_Wv in c(20, 40)) {
+  my_rows &lt;- (my_Wv + 1):nrow(err_a)
+  my_cv &lt;- sapply(1:3, function(hh)
+    mean(sapply(my_rows, function(k)
+      abs(err_a[k, hh]) &lt;= conf_q(abs(err_a[(k - my_Wv):(k - 1), hh]), 0.05))))
+  cat(&quot;W =&quot;, my_Wv, &quot; coverage:&quot;, round(my_cv, 3), &quot;\n&quot;)
+}
+#&gt; W = 20  coverage: 0.915 0.915 0.901 
+#&gt; W = 40  coverage: 0.863 0.784 0.824</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The shorter window wins clearly, about 91% against 78% to 86%. Airline passenger volumes roughly tripled over the sample, so the model's errors grow fast, and a 40-month memory is still full of errors from a much smaller airline industry. On a rapidly drifting series a short window is not noisier in any way that matters, it is simply more current. Neither window reaches 95%, which tells you the frozen model itself needs refitting.</p>
+
+</details>
+
+<h3>Exercise 3: Give the interval two different sides</h3>
+
+<p>Every interval so far has been symmetric, using a single quantile of absolute errors. That is wasteful when a model misses harder in one direction than the other. Build an asymmetric 90% interval that calibrates the upper and lower offsets separately from the signed errors, using a rolling 40-error window, and compare its coverage and width to the symmetric version.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: for a two-sided (1 - alpha) interval, spend alpha/2 on each side.
+# Upper offset: conf_q(e, alpha/2) on the signed errors.
+# Lower offset: conf_q(-e, alpha/2) on the negated signed errors.
+my_alpha &lt;- 0.10
+my_W     &lt;- 40
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Asymmetric conformal interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Asymmetric conformal interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_rows &lt;- (my_W + 1):nrow(audit)
+my_sym_hit &lt;- my_asym_hit &lt;- logical(length(my_rows))
+my_sym_w   &lt;- my_asym_w   &lt;- numeric(length(my_rows))
+
+for (j in seq_along(my_rows)) {
+  k  &lt;- my_rows[j]
+  my_e &lt;- audit$err[(k - my_W):(k - 1)]
+  my_qs &lt;- conf_q(abs(my_e), my_alpha)              # symmetric
+  my_qu &lt;- conf_q(my_e, my_alpha / 2)               # upper side
+  my_qd &lt;- conf_q(-my_e, my_alpha / 2)              # lower side
+  my_sym_hit[j]  &lt;- abs(audit$err[k]) &lt;= my_qs
+  my_sym_w[j]    &lt;- 2 * my_qs
+  my_asym_hit[j] &lt;- audit$err[k] &lt;= my_qu &amp;&amp; audit$err[k] &gt;= -my_qd
+  my_asym_w[j]   &lt;- my_qu + my_qd
+}
+
+round(c(symmetric_coverage  = mean(my_sym_hit),  symmetric_width  = mean(my_sym_w),
+        asymmetric_coverage = mean(my_asym_hit), asymmetric_width = mean(my_asym_w)), 3)
+#&gt;  symmetric_coverage     symmetric_width asymmetric_coverage    asymmetric_width 
+#&gt;               0.864           10250.517               0.898           10785.130</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The asymmetric interval hits 89.8% against a 90% target while the symmetric one manages 86.4%, and it costs only 5% extra width. Splitting the budget lets each side find its own quantile, so a model that overshoots and undershoots by different amounts gets bounds that reflect that. The cost is that each side now calibrates on half the error budget, so you need a larger window before the tails are estimated reliably.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Does conformal prediction work with ARIMA, Prophet, or a neural network?</h3>
+
+<p>Yes, and nothing in the recipe changes. The method needs a column of held-out errors and nothing else, so any function that takes a series and a horizon and returns numbers drops into the <code>model_fun</code> slot of <code>conformal_forecast()</code>. The random forest section is the proof: the same dozen lines wrapped an interval around a model that has no interval theory of its own.</p>
+
+<h3>How many calibration errors do I actually need?</h3>
+
+<p>For a 95% interval the hard floor is 19, because the rank rule asks for a sorted position that has to exist: with 19 scores it asks for the 19th, and with 18 it asks for a 19th that is not there. Sitting at the floor is a bad idea anyway, because the interval is then set by your single largest calibration error and jumps around whenever that error changes. Aim for several times the floor, and on a drifting series prefer a rolling window of roughly 40 recent errors to a long fixed one.</p>
+
+<h3>Is this the same as a bootstrap prediction interval?</h3>
+
+<p>No. A bootstrap interval resamples past residuals and simulates many possible futures through the model, so it still relies on the model being right about how errors propagate forward. Conformal prediction skips the simulation and reads a quantile straight off the errors the model actually made. Both deserve the rolling-origin audit from the first section, because only the audit tells you which one covers on your series.</p>
+
+<h3>Does conformal prediction make my forecast more accurate?</h3>
+
+<p>No. The point forecast is untouched, and only the interval around it changes. If the interval comes out wider than you expected, that is a measurement of the model you already had rather than a penalty the method imposes, and the only way to narrow it honestly is a better point forecast.</p>
+
+<h3>Why is my conformal interval the same width for every future month?</h3>
+
+<p>Because the absolute error score gives every future point the same treatment: one quantile, one half-width. That is reasonable when the model is equally accurate everywhere in the series, and wrong when it is not, for example if December is always harder to forecast than July. The two standard repairs are to divide each error by a predicted scale before taking the quantile, or to calibrate around a <a class="auto-link" href="Quantile-Regression-in-R.html" title="Quantile Regression in R: quantreg Package, Model Beyond the Mean">quantile regression</a> instead, which is the conformalized quantile regression of Romano and colleagues listed in the references.</p>
+
+<h3>My coverage is still below target. What should I check first?</h3>
+
+<p>Drift, because it is the usual cause. Split the errors into consecutive blocks and compare their averages, exactly as the exchangeability section does; if the later blocks are larger, a fixed calibration set is describing an accuracy the model no longer has, and a rolling window plus the adaptive alpha update recovers most of the gap. If the blocks look similar, check that your calibration set is comfortably above the floor and that you used the rank rule rather than <code>quantile()</code>.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Conformal-Prediction-in-R-overview.webp" alt="The four decisions behind every conformal forecast interval" class="img-responsive img-zoomable" loading="lazy" width="1676" height="922" /></p>
+
+<p><em>Figure 3: The four decisions behind every conformal forecast interval.</em></p>
+
+<p>Every number below was measured on the wine sales series. The first four rows share the same ETS model and the same 68 held-out months, so they compare directly. The forest row uses a different model over a slightly longer span of months, so read it as a demonstration that the method attaches to anything, not as a like-for-like contest.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>What it fixes</th>
+<th>Measured coverage</th>
+<th>Mean width</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ETS parametric interval</td>
+<td>Nothing, it is the baseline</td>
+<td>0.779</td>
+<td>9,120</td>
+</tr>
+<tr>
+<td>Split conformal, fixed calibration</td>
+<td>Drops the normality assumption</td>
+<td>0.853</td>
+<td>10,342</td>
+</tr>
+<tr>
+<td>Rolling calibration window</td>
+<td>Drops the stale-calibration problem</td>
+<td>0.971</td>
+<td>16,598</td>
+</tr>
+<tr>
+<td>Adaptive conformal inference</td>
+<td>Steers coverage back to target</td>
+<td>0.956</td>
+<td>15,391</td>
+</tr>
+<tr>
+<td>Conformal around a random forest</td>
+<td>Gives an interval to a model that had none</td>
+<td>0.960</td>
+<td>21,528</td>
+</tr>
+</tbody>
+</table>
+
+<p>The takeaways worth keeping:</p>
+
+<ol>
+
+<li><strong>Audit before you trust.</strong> A nominal 95% interval covered 84% of months on an ordinary commercial series with a sensible model. One rolling-origin loop tells you where you stand.</li>
+
+<li><strong>The recipe is four lines.</strong> Held-out absolute errors, sort, take rank $\lceil (n+1)(1-\alpha) \rceil$, add and subtract. There is nothing else to it.</li>
+
+<li><strong>Use the rank, never <code>quantile()</code>.</strong> The interpolating version under-covered by nearly four points in a controlled simulation, and the gap is worst exactly when calibration sets are small.</li>
+
+<li><strong>Measure whether your errors grow with the horizon.</strong> From one month ahead to six, they grew 78% on airline passengers and stayed flat on wine sales. Calibrating per horizon is right either way.</li>
+
+<li><strong>Exchangeability is what breaks on time series.</strong> Errors on this series grew 2.4 times from the first quarter of the sample to the last, which is why fixed-calibration conformal reached only 85%.</li>
+
+<li><strong>A rolling window plus adaptive alpha is the working recipe.</strong> Together they delivered 95.6% coverage at a narrower width than the rolling window alone.</li>
+
+<li><strong>Conformal is the only interval available for most machine learning forecasters.</strong> It attaches to any point forecast, and when the model is weak it tells you so with a wider interval rather than hiding it.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Vovk, V., Gammerman, A., & Shafer, G. <em>Algorithmic Learning in a Random World</em>, 2nd Edition. Springer (2022). The foundational text on conformal prediction. <a href="https://link.springer.com/book/10.1007/978-3-031-06649-8">Link</a></li>
+
+<li>Shafer, G., & Vovk, V. A Tutorial on Conformal Prediction. <em>Journal of Machine Learning Research</em>, 9, 371-421 (2008). <a href="https://jmlr.csail.mit.edu/papers/volume9/shafer08a/shafer08a.pdf">Link</a></li>
+
+<li>Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. Distribution-Free Predictive Inference for Regression. <em>Journal of the American Statistical Association</em>, 113(523), 1094-1111 (2018). The split conformal method used throughout this page. <a href="https://arxiv.org/abs/1604.04173">Link</a></li>
+
+<li>Gibbs, I., & Candes, E. Adaptive Conformal Inference Under Distribution Shift. <em>NeurIPS</em> (2021). The source of the alpha update rule in the adaptive section. <a href="https://arxiv.org/abs/2106.00170">Link</a></li>
+
+<li>Wang, X., & Hyndman, R. J. Online conformal inference for multi-step time series forecasting. arXiv:2410.13115 (2024). Establishes that optimal h-step errors are serially correlated up to lag h-1, and introduces the AcMCP method. <a href="https://arxiv.org/abs/2410.13115">Link</a></li>
+
+<li>conformalForecast: Conformal Prediction Methods for Multistep-Ahead Time Series Forecasting. CRAN package documentation. <a href="https://cran.r-project.org/package=conformalForecast">Link</a></li>
+
+<li>Romano, Y., Patterson, E., & Candes, E. Conformalized Quantile Regression. <em>NeurIPS</em> (2019). How to make conformal interval widths vary with the input rather than staying constant. <a href="https://arxiv.org/abs/1905.03222">Link</a></li>
+
+<li>Hyndman, R. J., & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd Edition. OTexts (2021). Chapter 5.5 covers parametric prediction intervals and the assumptions this page tests. <a href="https://otexts.com/fpp3/prediction-intervals.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="XGBoost-Forecasting-in-R.html">Gradient Boosting for Time Series in R</a> builds the boosted-tree forecaster that most needs a conformal interval, since it returns a point forecast and nothing else.</li>
+
+<li><a href="Global-Forecasting-Models-in-R.html">Global Forecasting Models in R</a> trains one model across many series at once, which gives you a much larger pool of calibration errors to conformalize with.</li>
+
+<li><a href="Feature-Engineering-for-Forecasting-in-R.html">Feature Engineering for Forecasting in R</a> goes deeper on the lag table we built for the random forest, including rolling statistics and <a class="auto-link" href="Feature-Engineering-for-Forecasting-in-R.html" title="Feature Engineering for Time Series Forecasting in R">calendar features</a>.</li>
+
+</ul>
+
