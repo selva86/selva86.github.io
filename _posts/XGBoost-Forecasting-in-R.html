@@ -1,0 +1,1673 @@
+---
+title: "Gradient Boosting for Time Series in R: xgboost vs the Classics"
+description: "Fit gradient boosted trees to a time series in R, see why they flat-line on a trend, fix it with a growth target, and score them honestly against ETS and ARIMA."
+keywords: "xgboost time series R, gradient boosting forecasting R, boosted trees forecasting, xgboost vs ARIMA, tree extrapolation trend, rolling origin cross validation R, xgb.DMatrix, machine learning forecasting R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-9.2"
+post_type: "C"
+auto_link_terms: "gradient boosting for time series|gradient boosted trees|boosted trees forecasting|xgboost for forecasting|xgboost time series|tree based forecasting|trend extrapolation|extrapolation ceiling|rolling origin evaluation|rolling origin cross validation|xgb.DMatrix|growth target|differenced target"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Gradient Boosting for Forecasting"
+sidebar_order: "41"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Gradient boosting for time series means rewriting your series as an ordinary table of lagged columns, then training a long chain of small decision trees where each one corrects the mistakes the previous ones left behind. It is the method that swept the M5 retail forecasting competition, and it also fails on trending data in one specific way that most tutorials never show you. This page builds the boosting loop from scratch so you can watch it work, walks straight into that failure, fixes it, then scores the result honestly against <a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a> on the same data. Every number on this page was measured, not estimated.</p>
+
+<h2>Why can't you hand a time series straight to xgboost?</h2>
+
+<p>ARIMA and <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> take the observations in order, one after another, and that order is part of what they model. A <a class="auto-link" href="ML-Interview-Questions-in-R.html" title="ML Interview Questions in R: 25 Solved Problems">decision tree</a> works on a table instead. Here is everything a regression tree does: it asks a chain of yes/no questions about the columns of one row, such as "is this row's value from a year ago above 300?", and each answer sends the row further down the tree until it arrives at a leaf. The leaf returns the average of all the training rows that ended up there. Nothing in that procedure looks at row order, so shuffling the rows produces the identical model. Before boosting can forecast anything, the past has to be copied into each row as ordinary columns.</p>
+
+<p>We will work with <code>AirPassengers</code>, a monthly count of international airline passengers from 1949 to 1960 that ships with R. It has a strong upward trend and a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> that grows with the level, which makes it the ideal series for this tutorial: it is exactly the shape that breaks naive tree-based forecasting.</p>
+
+<div class="webr-container" data-block-title="Load the airline passenger series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the airline passenger series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rpart)
+library(ggplot2)
+
+ap &lt;- AirPassengers
+ap
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1949 112 118 132 129 121 135 148 148 136 119 104 118
+#&gt; 1950 115 126 141 135 125 149 170 170 158 133 114 140
+#&gt; 1951 145 150 178 163 172 178 199 199 184 162 146 166
+#&gt; 1952 171 180 193 181 183 218 230 242 209 191 172 194
+#&gt; 1953 196 196 236 235 229 243 264 272 237 211 180 201
+#&gt; 1954 204 188 235 227 234 264 302 293 259 229 203 229
+#&gt; 1955 242 233 267 269 270 315 364 347 312 274 237 278
+#&gt; 1956 284 277 317 313 318 374 413 405 355 306 271 306
+#&gt; 1957 315 301 356 348 355 422 465 467 404 347 305 336
+#&gt; 1958 340 318 362 348 363 435 491 505 404 359 310 337
+#&gt; 1959 360 342 406 396 420 472 548 559 463 407 362 405
+#&gt; 1960 417 391 419 461 472 535 622 606 508 461 390 432</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read down any column and the numbers climb steadily year after year. Read across any row and you see the same summer peak every year, with July and August far above February. Those two facts, the trend and the season, are the whole story of this page.</p>
+
+<p>The <code>rpart</code> package gives us decision trees, and <code>ggplot2</code> will draw one chart near the end. We load both now because they persist for the rest of the page.</p>
+
+<p>Now the reframing. For each month we build four columns: the value from twelve months ago, the value from twenty-four months ago, which calendar month it is, and a counter for how far into the series we are.</p>
+
+<div class="webr-container" data-block-title="Turn the series into a supervised table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn the series into a supervised table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n          &lt;- length(ap)
+passengers &lt;- as.numeric(ap)
+
+d &lt;- data.frame(
+  y     = passengers,
+  lag12 = c(rep(NA, 12), passengers[1:(n - 12)]),
+  lag24 = c(rep(NA, 24), passengers[1:(n - 24)]),
+  month = as.numeric(cycle(ap)),
+  t     = seq_len(n)
+)
+head(d, 3)
+#&gt;     y lag12 lag24 month t
+#&gt; 1 112    NA    NA     1 1
+#&gt; 2 118    NA    NA     2 2
+#&gt; 3 132    NA    NA     3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each lag column is built by gluing a block of <code>NA</code> values onto the front of the series and chopping the same number off the back. For <code>lag12</code>, twelve <code>NA</code> values go in front, then the original values from position 1 up to position <code>n - 12</code>. That shift is what slides January 1950's value into January 1951's row.</p>
+
+<p>The first rows are mostly <code>NA</code> because there is no "twelve months ago" for 1949. Look further down and the columns fill in.</p>
+
+<div class="webr-container" data-block-title="Inspect rows where the lags are filled">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect rows where the lags are filled</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d[25:27, ]
+#&gt;      y lag12 lag24 month  t
+#&gt; 25 145   115   112     1 25
+#&gt; 26 150   126   118     2 26
+#&gt; 27 178   141   132     3 27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 25 is January 1951. Its <code>y</code> is 145, the actual count for that month. Its <code>lag12</code> is 115, which is January 1950. Its <code>lag24</code> is 112, which is January 1949. Look back at the printed series and you will find those exact numbers in the January column. The row now carries its own history.</p>
+
+<p>The <code>month</code> column is stored as a plain number from 1 to 12. That does not claim December is twelve times January, and it does not need to: a tree only ever compares a column against thresholds, so it can isolate <code>month &gt;= 7</code> and <code>month &lt;= 8</code> to pick out the summer peak without treating those numbers as a measured quantity.</p>
+
+<p>Rows that still contain <code>NA</code> cannot be used for training, so we drop them.</p>
+
+<div class="webr-container" data-block-title="Drop the incomplete rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the incomplete rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- d[complete.cases(d), ]
+nrow(d)
+#&gt; [1] 120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We started with 144 months and kept 120. The first 24 were spent buying the <code>lag24</code> column. That is the standing cost of lag features: the deeper you look back, the more history you burn before training can start.</p>
+
+<p><img src="screenshots/XGBoost-Forecasting-in-R-supervised-reframing.webp" alt="How a time series becomes a table of features" class="img-responsive img-zoomable" loading="lazy" width="1810" height="690" /></p>
+
+<p><em>Figure 1: A forecasting model reads rows, not a timeline, so the past has to be written into each row as columns.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This page uses four features on purpose.</strong> Lag, rolling, calendar and Fourier features are a large subject with real traps in them, especially leakage, and they get a full treatment in <a href="Feature-Engineering-for-Forecasting-in-R.html">Feature Engineering for Time Series Forecasting in R</a>. Here we keep the feature set deliberately small so that nothing distracts from the behaviour of the model itself.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below builds a 3-month lag. Change it into a 6-month lag, the value from six months earlier, and check that row 7 then holds the value from row 1.</p>
+<div class="webr-container" data-block-title="Your turn: build a lag6 column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a lag6 column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This is a 3-month lag. Make it a 6-month lag.
+ex_lag &lt;- c(rep(NA, 3), passengers[1:(n - 3)])
+
+head(data.frame(y = passengers, ex_lag = ex_lag), 8)
+#&gt;     y ex_lag
+#&gt; 1 112     NA
+#&gt; 2 118     NA
+#&gt; 3 132     NA
+#&gt; 4 129    112
+#&gt; 5 121    118
+#&gt; 6 135    132
+#&gt; 7 148    129
+#&gt; 8 148    121</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="lag6 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">lag6 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lag6 &lt;- c(rep(NA, 6), passengers[1:(n - 6)])
+
+head(data.frame(y = passengers, lag6 = ex_lag6), 8)
+#&gt;     y lag6
+#&gt; 1 112   NA
+#&gt; 2 118   NA
+#&gt; 3 132   NA
+#&gt; 4 129   NA
+#&gt; 5 121   NA
+#&gt; 6 135   NA
+#&gt; 7 148  112
+#&gt; 8 148  118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rep(NA, 6)</code> pads the front so everything slides down six positions, and <code>passengers[1:(n - 6)]</code> drops the last six values so the column stays the same length as <code>y</code>. Row 7 now carries row 1's value, which is exactly what "six months ago" means.</p>
+
+</details>
+</section>
+
+<h2>What is gradient boosting actually doing?</h2>
+
+<p>Boosting is often described as "an ensemble of weak learners", which explains nothing. Here is the actual mechanic, and it is simple enough to write in six lines of R.</p>
+
+<p>Start with the dumbest possible prediction: the mean of the target, for every row. Then measure how wrong you are on each row. That error is called the residual. Now fit a very small tree, not to the target, but <strong>to the residual</strong>. That tree learns where you are too low and where you are too high. Add a small fraction of its output to your prediction. Your errors shrink. Repeat a few hundred times.</p>
+
+<p>Let's watch it happen on a curve simple enough to see. We will use a wiggly function that no single small tree could ever match.</p>
+
+<div class="webr-container" data-block-title="Start from the mean and measure the error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Start from the mean and measure the error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x   &lt;- seq(0, 6, length.out = 60)
+toy &lt;- data.frame(x = x, y = sin(x) + 0.1 * x^2)
+
+pred &lt;- rep(mean(toy$y), nrow(toy))
+head(round(data.frame(y = toy$y, pred = pred, residual = toy$y - pred), 3), 4)
+#&gt;       y  pred residual
+#&gt; 1 0.000 1.214   -1.214
+#&gt; 2 0.103 1.214   -1.112
+#&gt; 3 0.206 1.214   -1.008
+#&gt; 4 0.310 1.214   -0.905
+cat(&quot;round 0 RMSE:&quot;, round(sqrt(mean((toy$y - pred)^2)), 4), &quot;\n&quot;)
+#&gt; round 0 RMSE: 0.6604</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every row gets the same prediction, 1.214, because that is the average of the whole curve. The residual column shows how far off that is at each point. At the left end of the curve the true value is near 0, so we are over-predicting by about 1.2. Our starting error, measured as root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>, is 0.6604.</p>
+
+<p>Now the loop. Each round fits a stump, which is a tree allowed exactly one split, to the current residuals, then adds 30% of that stump's prediction to the running total.</p>
+
+<div class="webr-container" data-block-title="Run five rounds of boosting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run five rounds of boosting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lr &lt;- 0.3
+
+for (round in 1:5) {
+  resid &lt;- toy$y - pred
+  stump &lt;- rpart(resid ~ x, data = toy, maxdepth = 1, cp = 0, xval = 0)
+  pred  &lt;- pred + lr * predict(stump, toy)
+  cat(&quot;round&quot;, round, &quot; RMSE:&quot;, round(sqrt(mean((toy$y - pred)^2)), 4), &quot;\n&quot;)
+}
+#&gt; round 1  RMSE: 0.5316
+#&gt; round 2  RMSE: 0.4489
+#&gt; round 3  RMSE: 0.3932
+#&gt; round 4  RMSE: 0.341
+#&gt; round 5  RMSE: 0.3091</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines do the work. <code>resid</code> recomputes how wrong we currently are. <code>rpart(resid ~ x, ...)</code> fits a single split to that error, so the stump is answering "where along x am I too low, and where am I too high?". Then <code>pred + lr * predict(stump, toy)</code> nudges the prediction in the direction the stump suggests, but only 30% of the way.</p>
+
+<p>The remaining <code>rpart</code> arguments switch off machinery we do not want here. <code>cp = 0</code> turns off the automatic pruning that would otherwise discard a split it judges too small to keep, and <code>xval = 0</code> skips <code>rpart</code>'s own internal cross validation, which we never look at.</p>
+
+<p>The error falls every round, from 0.6604 to 0.3091, and it has more than halved after five rounds. No individual stump is any good. A single split cannot describe a sine wave. But a few hundred of them, each cleaning up after the last, can trace almost any shape.</p>
+
+<p><img src="screenshots/XGBoost-Forecasting-in-R-boosting-loop.webp" alt="One round of the boosting loop" class="img-responsive img-zoomable" loading="lazy" width="2248" height="470" /></p>
+
+<p><em>Figure 2: Each boosting round fits a small tree to what the ensemble still gets wrong, then adds a shrunk slice of it.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every tree after the first is trained on mistakes, not on your data.</strong> This is the difference between boosting and a random forest. A forest grows many trees on the target in parallel and averages them. Boosting grows trees in sequence, and each one only ever sees what the previous ones failed to explain. That is why the order of the trees matters and why you cannot drop one from the middle.</div></div>
+
+<p>That <code>lr</code> value has a name: the learning rate, written as eta in xgboost. It is the single most important dial in boosting. Small values mean each tree contributes little, so you need more of them, but the ensemble is less likely to chase noise.</p>
+
+<p>If you want the formal version, here it is. Otherwise skip to the next section, because the loop above is the whole idea.</p>
+
+<p>The model after $m$ rounds is just the previous model plus a shrunken new tree:</p>
+
+<p>$$F_m(x) = F_{m-1}(x) + \nu \, h_m(x)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$F_m(x)$ = the ensemble's prediction after $m$ rounds</li>
+
+<li>$\nu$ = the learning rate, the fraction of each tree you keep</li>
+
+<li>$h_m(x)$ = the tree fitted at round $m$</li>
+
+</ul>
+
+<p>And that tree is fitted to the residuals from the round before:</p>
+
+<p>$$r_i = y_i - F_{m-1}(x_i)$$</p>
+
+<p>The word "gradient" enters because when your loss is squared error, the residual is exactly the negative gradient of the loss with respect to the prediction. Fitting a tree to the residual is therefore a step of gradient descent, with one difference from the usual version: each step adds a whole function, the new tree, to the model, instead of nudging a numeric parameter. Change the loss to something else, say absolute error, and you fit each tree to that loss's gradient instead. The loop never changes.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun the same five rounds with a learning rate of 0.05 instead of 0.3. Use <code>ex_pred</code> so you do not disturb the running example. Does the error fall faster or slower?</p>
+<div class="webr-container" data-block-title="Your turn: try a smaller learning rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a smaller learning rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lr   &lt;- 0.3   # change this to 0.05 and rerun
+ex_pred &lt;- rep(mean(toy$y), nrow(toy))
+
+for (round in 1:5) {
+  ex_resid &lt;- toy$y - ex_pred
+  ex_stump &lt;- rpart(ex_resid ~ x, data = toy, maxdepth = 1, cp = 0, xval = 0)
+  ex_pred  &lt;- ex_pred + ex_lr * predict(ex_stump, toy)
+  cat(&quot;round&quot;, round, &quot; RMSE:&quot;, round(sqrt(mean((toy$y - ex_pred)^2)), 4), &quot;\n&quot;)
+}
+#&gt; round 1  RMSE: 0.5316
+#&gt; round 2  RMSE: 0.4489
+#&gt; round 3  RMSE: 0.3932
+#&gt; round 4  RMSE: 0.341
+#&gt; round 5  RMSE: 0.3091</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smaller learning rate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller learning rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pred &lt;- rep(mean(toy$y), nrow(toy))
+
+for (round in 1:5) {
+  ex_resid &lt;- toy$y - ex_pred
+  ex_stump &lt;- rpart(ex_resid ~ x, data = toy, maxdepth = 1, cp = 0, xval = 0)
+  ex_pred  &lt;- ex_pred + 0.05 * predict(ex_stump, toy)
+  cat(&quot;round&quot;, round, &quot; RMSE:&quot;, round(sqrt(mean((toy$y - ex_pred)^2)), 4), &quot;\n&quot;)
+}
+#&gt; round 1  RMSE: 0.6378
+#&gt; round 2  RMSE: 0.6166
+#&gt; round 3  RMSE: 0.5968
+#&gt; round 4  RMSE: 0.5782
+#&gt; round 5  RMSE: 0.5607</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> After five rounds the error has only fallen from 0.6604 to 0.5607, against 0.3091 with the larger rate. A small learning rate is not worse, it is slower on purpose. It needs many more rounds, and in exchange it usually generalises better. Learning rate and number of rounds are two ends of the same trade-off, which is why you tune them together.</p>
+
+</details>
+</section>
+
+<h2>How do you fit boosted trees to a real series?</h2>
+
+<p>Now we point that loop at the airline data. The function below is the same six lines, wrapped so we can reuse it. It adds two things: a list of feature names, and a running prediction for a held-out <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> alongside the training one.</p>
+
+<div class="webr-container" data-block-title="A reusable boosting function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable boosting function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">boost_trees &lt;- function(target, feats, train, test,
+                        rounds = 200, lr = 0.1, depth = 3) {
+  y   &lt;- train[[target]]
+  fml &lt;- as.formula(paste(&quot;.resid ~&quot;, paste(feats, collapse = &quot; + &quot;)))
+  pred_train &lt;- rep(mean(y), nrow(train))
+  pred_test  &lt;- rep(mean(y), nrow(test))
+  for (i in seq_len(rounds)) {
+    train$.resid &lt;- y - pred_train
+    tree &lt;- rpart(fml, data = train, maxdepth = depth, cp = 0,
+                  minsplit = 10, minbucket = 5, xval = 0)
+    pred_train &lt;- pred_train + lr * predict(tree, train)
+    pred_test  &lt;- pred_test  + lr * predict(tree, test)
+  }
+  pred_test
+}
+
+train &lt;- d[d$t &lt;= 132, ]
+test  &lt;- d[d$t &gt;  132, ]
+c(nrow(train), nrow(test))
+#&gt; [1] 108  12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three details matter. The <code>fml</code> line is only string assembly: <code>paste</code> glues the feature names together into the text <code>.resid ~ lag12 + lag24 + month + t</code>, and <code>as.formula</code> turns that text into a formula <code>rpart</code> will accept. Each round then writes the current residual into a column called <code>.resid</code> and fits the tree to that, which is the same trick as before. And the same tree is applied to both the training rows and the test rows, so the test predictions are built up from trees that never saw a single test row.</p>
+
+<p>The split is deliberate. Everything up to December 1959 trains the model, and all of 1960 is held out. We never shuffle, because a forecast is a statement about the future and the test set has to sit in the future.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Every 1960 row already knows its own lags.</strong> January 1960's <code>lag12</code> is January 1959, which is real observed history at forecast time, so no prediction is being fed back into another prediction. That keeps this comparison clean against a 12-month ARIMA forecast later on. When your features need values you will not have yet, you need recursive or <a class="auto-link" href="Feature-Engineering-for-Forecasting-in-R.html" title="Feature Engineering for Time Series Forecasting in R">direct multi-step forecasting</a>, both covered in the <a href="Feature-Engineering-for-Forecasting-in-R.html">feature engineering tutorial</a>.</div></div>
+
+<p>Let's forecast 1960.</p>
+
+<div class="webr-container" data-block-title="Forecast 1960 with boosted trees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast 1960 with boosted trees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">feats   &lt;- c(&quot;lag12&quot;, &quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;)
+p_level &lt;- boost_trees(&quot;y&quot;, feats, train, test)
+
+round(data.frame(month = test$month, actual = test$y, forecast = p_level), 1)
+#&gt;     month actual forecast
+#&gt; 133     1    417    419.1
+#&gt; 134     2    391    388.2
+#&gt; 135     3    419    474.0
+#&gt; 136     4    461    448.8
+#&gt; 137     5    472    482.7
+#&gt; 138     6    535    532.7
+#&gt; 139     7    622    545.3
+#&gt; 140     8    606    548.9
+#&gt; 141     9    508    532.5
+#&gt; 142    10    461    473.5
+#&gt; 143    11    390    399.2
+#&gt; 144    12    432    465.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>January is nearly perfect: 419.1 against an actual 417. February, June and November are all close. The model has clearly learned the seasonal shape, because it knows that month 7 should be high and month 11 should be low.</p>
+
+<p>But look at July and August. Actual 622, forecast 545.3. Actual 606, forecast 548.9. Those two months are wrong by 77 and 57 passengers, and they are wrong in the same direction. That is not noise. Let's put a number on it.</p>
+
+<div class="webr-container" data-block-title="Score the forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse &lt;- function(actual, f) sqrt(mean((actual - f)^2))
+mae  &lt;- function(actual, f) mean(abs(actual - f))
+mape &lt;- function(actual, f) mean(abs((actual - f) / actual)) * 100
+
+cat(&quot;RMSE:&quot;, round(rmse(test$y, p_level), 2),
+    &quot; MAE:&quot;, round(mae(test$y, p_level), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, p_level), 2), &quot;%\n&quot;)
+#&gt; RMSE: 34.66  MAE: 24.88  MAPE: 4.92 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three ways of measuring the same twelve misses. Mean absolute error says the typical miss is about 25 passengers. Root mean squared error is 34.66, and the fact that it is meaningfully larger than the MAE tells you a few big misses are doing the damage, because squaring punishes large errors hardest. <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Mean absolute percentage error</a> puts the typical miss at 4.92% of the true value.</p>
+
+<p>An average miss of 5% sounds respectable. Hold that thought.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune rounds and learning rate as a pair, never alone.</strong> Halving the learning rate roughly doubles the rounds you need to reach the same fit. The usual recipe is to fix a small rate you trust, then let a validation set decide how many rounds to run, which is what early stopping does automatically later on this page.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below finds the month the model most badly over-forecast. Change the last line so it finds the largest miss in either direction instead.</p>
+<div class="webr-container" data-block-title="Your turn: find the worst month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the worst month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_err &lt;- test$y - p_level
+
+round(data.frame(month = test$month, actual = test$y,
+                 forecast = p_level, error = ex_err), 1)
+
+which.min(ex_err)   # biggest over-forecast only; make it biggest miss either way
+#&gt; 135
+#&gt;   3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Worst month solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Worst month solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_err &lt;- test$y - p_level
+
+round(data.frame(month = test$month, actual = test$y,
+                 forecast = p_level, error = ex_err), 1)
+#&gt;     month actual forecast error
+#&gt; 133     1    417    419.1  -2.1
+#&gt; 134     2    391    388.2   2.8
+#&gt; 135     3    419    474.0 -55.0
+#&gt; 136     4    461    448.8  12.2
+#&gt; 137     5    472    482.7 -10.7
+#&gt; 138     6    535    532.7   2.3
+#&gt; 139     7    622    545.3  76.7
+#&gt; 140     8    606    548.9  57.1
+#&gt; 141     9    508    532.5 -24.5
+#&gt; 142    10    461    473.5 -12.5
+#&gt; 143    11    390    399.2  -9.2
+#&gt; 144    12    432    465.4 -33.4
+
+which.max(abs(ex_err))
+#&gt; 139
+#&gt;   7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wrapping the error in <code>abs()</code> changes the answer from March to July. The starter reported month 3, a 55-passenger over-forecast, but the real worst miss is month 7, under-forecast by 76.7 passengers, with August close behind at 57.1. Those are the two highest months of the year. The model is not randomly wrong, it is specifically wrong at the top of the range, and the next section explains exactly why. The output prints two numbers because the error vector kept its row names: 139 is the row label and 7 is the position we want.</p>
+
+</details>
+</section>
+
+<h2>Why does the forecast flat-line when the series is trending?</h2>
+
+<p>The July and August misses were not bad luck. They are a hard structural limit, and three numbers make it undeniable.</p>
+
+<div class="webr-container" data-block-title="Compare the model&#x27;s ceiling to reality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the model&#x27;s ceiling to reality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cat(&quot;highest value the model ever saw:&quot;, max(train$y), &quot;\n&quot;)
+cat(&quot;highest value it ever predicts:  &quot;, round(max(p_level), 1), &quot;\n&quot;)
+cat(&quot;highest value in 1960:           &quot;, max(test$y), &quot;\n&quot;)
+#&gt; highest value the model ever saw: 559 
+#&gt; highest value it ever predicts:   548.9 
+#&gt; highest value in 1960:            622</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The busiest month in the training data had 559 passengers. The highest number this model will produce for any input whatsoever is 548.9. And July 1960 actually saw 622.</p>
+
+<p>The model did not merely fail to predict 622. It <strong>cannot</strong> predict 622. There is no combination of feature values you could hand it that would produce a number above roughly 549. The forecast is pressed against a ceiling that the training data set for it.</p>
+
+<p>Here is the reason, stripped to its bones. Every prediction a tree makes is a leaf average, exactly as described at the top of this page, and an average of a set of numbers can never exceed the largest number in that set. Boosting adds many trees together, so the ceiling is not exactly the training maximum, but it is always bounded by what the training targets contained. Nothing in the mechanism can produce a value above the range it was trained on.</p>
+
+<p>Watch it happen on data so simple there is nowhere to hide. We fit a tree to a perfectly straight line, y equals t, for t from 1 to 20, then ask it about the future.</p>
+
+<div class="webr-container" data-block-title="A tree cannot follow a straight line upward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A tree cannot follow a straight line upward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">straight  &lt;- data.frame(t = 1:20, y = 1:20)
+line_tree &lt;- rpart(y ~ t, data = straight, cp = 0, minsplit = 2, xval = 0)
+
+predict(line_tree, data.frame(t = c(18, 20, 25, 100, 1000)))
+#&gt;  1  2  3  4  5 
+#&gt; 18 20 20 20 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside the training range the tree is perfect: t equals 18 gives 18, t equals 20 gives 20. Step one place beyond and it returns 20. Ask about t equals 100, and t equals 1000, and it still says 20. The relationship could not be more obviously linear, and the tree still does not extend it, because "keep going up" is not a thing a tree can represent. Every prediction it can make is a leaf average from data it has already seen.</p>
+
+<p>This is the single most important thing to understand about tree-based forecasting. It is why a method that dominates tabular machine learning can quietly produce a hopeless forecast the moment your series trends upward.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A tree-based model can never predict outside the range of the target it was trained on.</strong> <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a> and ARIMA extrapolate a trend happily because they hold a slope. Trees hold only thresholds and averages. If your series is growing and you train on raw levels, your forecast will flatten out below that ceiling and every long-horizon prediction will be too low. Growing series are the norm in sales, traffic, demand and cost data, so this is not an edge case.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below asks the tree about three points <strong>inside</strong> its training range, where it does fine. Change them to 50, 500 and 5000 to push it far into the future, and compare what comes back with the largest value it was ever trained on.</p>
+<div class="webr-container" data-block-title="Your turn: push the tree far into the future">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: push the tree far into the future</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># These are all inside the training range of 1 to 20. Try 50, 500 and 5000.
+ex_far &lt;- predict(line_tree, data.frame(t = c(5, 10, 15)))
+ex_far
+#&gt;  1  2  3 
+#&gt;  5 10 15
+
+max(straight$y)
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extrapolation ceiling solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extrapolation ceiling solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_far &lt;- predict(line_tree, data.frame(t = c(50, 500, 5000)))
+ex_far
+#&gt;  1  2  3 
+#&gt; 20 20 20
+
+max(straight$y)
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Inside the training range the starter block was perfect, returning 5, 10 and 15 exactly. Step outside and all three predictions collapse to 20, the largest value in the training target. Multiplying the input by 100 changes nothing, because once a row falls into the right-most leaf, there is no right-er leaf to fall into. The prediction saturates and stays there forever.</p>
+
+</details>
+</section>
+
+<h2>How do you fix the trend problem?</h2>
+
+<p>The instinct is to reach for a bigger model: more rounds, deeper trees, more features. That does not work, and you will prove it to yourself in the practice exercises. The ceiling is a property of what trees are, not of how big they are.</p>
+
+<p>The fix is to change what you ask the model to predict. Instead of predicting the passenger count, predict <strong>how much the count changed</strong> compared to the same month last year. Growth stays in a stable, familiar range even while the level keeps climbing, so the ceiling stops being a problem.</p>
+
+<div class="webr-container" data-block-title="Build a growth target">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a growth target</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train$growth &lt;- train$y - train$lag12
+head(train[, c(&quot;t&quot;, &quot;y&quot;, &quot;lag12&quot;, &quot;growth&quot;)], 4)
+#&gt;     t   y lag12 growth
+#&gt; 25 25 145   115     30
+#&gt; 26 26 150   126     24
+#&gt; 27 27 178   141     37
+#&gt; 28 28 163   135     28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>January 1951 had 145 passengers against 115 a year earlier, so growth is 30. These growth numbers sit in the tens while the levels sit in the hundreds, and crucially they do not systematically escape their historical range the way the levels do.</p>
+
+<p>Now we predict growth and add last year's actual value back on to recover a passenger count. Note that <code>lag12</code> drops out of the feature list, because it is now baked into the target itself.</p>
+
+<div class="webr-container" data-block-title="Forecast the growth, then add last year back">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the growth, then add last year back</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_growth &lt;- test$lag12 + boost_trees(&quot;growth&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), train, test)
+
+round(data.frame(month = test$month, actual = test$y,
+                 levels = p_level, growth = p_growth), 1)
+#&gt;     month actual levels growth
+#&gt; 133     1    417  419.1  414.2
+#&gt; 134     2    391  388.2  390.2
+#&gt; 135     3    419  474.0  453.0
+#&gt; 136     4    461  448.8  446.1
+#&gt; 137     5    472  482.7  469.4
+#&gt; 138     6    535  532.7  523.1
+#&gt; 139     7    622  545.3  602.7
+#&gt; 140     8    606  548.9  616.0
+#&gt; 141     9    508  532.5  517.2
+#&gt; 142    10    461  473.5  459.4
+#&gt; 143    11    390  399.2  415.7
+#&gt; 144    12    432  465.4  465.5
+cat(&quot;levels  RMSE:&quot;, round(rmse(test$y, p_level), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, p_level), 2), &quot;%\n&quot;)
+#&gt; levels  RMSE: 34.66  MAPE: 4.92 %
+cat(&quot;growth  RMSE:&quot;, round(rmse(test$y, p_growth), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, p_growth), 2), &quot;%\n&quot;)
+#&gt; growth  RMSE: 17.98  MAPE: 3.02 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at July. The level model said 545.3 against an actual 622. The growth model says 602.7. August goes from 548.9 to 616.0 against an actual 606. The ceiling is gone, because the model is no longer being asked to produce a number it has never seen. It produces a growth figure, and <code>test$lag12</code> supplies the level.</p>
+
+<p>Overall the error nearly halves, from RMSE 34.66 to 17.98. The model is unchanged: same trees, same rounds, same learning rate. Only the question changed.</p>
+
+<div class="webr-container" data-block-title="Plot the two forecasts against reality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the two forecasts against reality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot_df &lt;- data.frame(
+  month  = rep(1:12, 3),
+  value  = c(test$y, p_level, p_growth),
+  series = rep(c(&quot;Actual 1960&quot;, &quot;Levels target&quot;, &quot;Growth target&quot;), each = 12)
+)
+
+ggplot(plot_df, aes(month, value, colour = series)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(title = &quot;1960 forecasts: what the trend ceiling costs you&quot;,
+       x = &quot;Month of 1960&quot;, y = &quot;Passengers (thousands)&quot;, colour = NULL) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that block and the shape of the problem becomes obvious. All three lines track each other closely through the first half of the year. Then the actual line spikes into the summer peak, the growth line follows it up, and the levels line flattens out exactly where the ceiling stops it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>When a tree model fails on a trend, change the target, not the model.</strong> Predicting a year-over-year difference, a first difference, or a ratio all keep the target inside a stable range, which is the one condition trees need. This is the same reasoning that makes ARIMA difference a series before modelling it, arrived at from a completely different direction.</div></div>
+
+<p>Differencing against the same month last year is not the only option. A first difference, the change from the previous month, works when the seasonal pattern is weak. A ratio works when the series grows multiplicatively. A third route is to fit a linear trend first and boost the residuals, which is the hybrid we come back to at the end.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Try a ratio target instead of a difference. The block below builds the ratio correctly but then rebuilds the forecast with the wrong operator. Fix the reconstruction so it undoes a division rather than a subtraction.</p>
+<div class="webr-container" data-block-title="Your turn: try a ratio target">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a ratio target</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train$ratio &lt;- train$y / train$lag12
+
+# The target was a ratio, so adding lag12 back is the wrong inverse.
+ex_ratio &lt;- test$lag12 + boost_trees(&quot;ratio&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), train, test)
+
+cat(&quot;ratio RMSE:&quot;, round(rmse(test$y, ex_ratio), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, ex_ratio), 2), &quot;%\n&quot;)
+#&gt; ratio RMSE: 49.63  MAPE: 9.74 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ratio target solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ratio target solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train$ratio &lt;- train$y / train$lag12
+
+ex_ratio &lt;- test$lag12 * boost_trees(&quot;ratio&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), train, test)
+
+cat(&quot;ratio RMSE:&quot;, round(rmse(test$y, ex_ratio), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, ex_ratio), 2), &quot;%\n&quot;)
+#&gt; ratio RMSE: 20.27  MAPE: 3.18 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying instead of adding takes RMSE from the starter's 49.63 down to 20.27. That gap is the whole lesson about target transforms: whatever you do to the target, you must exactly undo when you rebuild the forecast, and a mismatched inverse produces numbers that look plausible while being worse than doing nothing. Once the inverse is right, the ratio target beats the levels model's 34.66 and lands just behind the difference target's 17.98. The gap between ratio and difference is small enough on one test window that you should not read much into it. Both work because both keep the target range-stable, which was the actual problem.</p>
+
+</details>
+</section>
+
+<h2>How do you run this with the real xgboost package?</h2>
+
+<p>Everything so far ran on a hand-written loop, which was the point: you have now seen the entire mechanism. Production code uses <code>xgboost</code>, which is the same algorithm with second-order gradients, regularisation, clever split-finding and heavily optimised C++ behind it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The blocks in this section do not run in your browser.</strong> The <code>xgboost</code> package is compiled C++ and needs a local <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a>, so unlike every other block on this page you cannot press Run on these. Install it once with <code>install.packages(&quot;xgboost&quot;)</code> and paste them into RStudio. The outputs shown were captured from a real run on R 4.6.0 with xgboost 3.2.1.1.</div></div>
+
+<p>xgboost does not take a data frame and a formula. It takes a numeric matrix wrapped in its own container, <code>xgb.DMatrix</code>, which holds the features and the label together in a memory-efficient layout.</p>
+
+<pre><code class="language-r">library(xgboost)
+packageVersion(&quot;xgboost&quot;)
+#&gt; [1] '3.2.1.1'
+
+dtrain &lt;- xgb.DMatrix(data = as.matrix(train[, feats]), label = train$y)
+dtest  &lt;- xgb.DMatrix(data = as.matrix(test[, feats]))
+dtrain
+#&gt; xgb.DMatrix  dim: 108 x 4  info: label  colnames: yes</code></pre>
+
+<p><code>as.matrix</code> is doing real work here. xgboost accepts only numeric matrices, so factors and characters must be converted to numbers or one-hot encoded before this point. Our <code>month</code> column is already numeric, which is why we built it that way.</p>
+
+<p>Now fit the same model we fit by hand, on raw levels, so you can confirm the ceiling was never an artefact of my simplified loop.</p>
+
+<pre><code class="language-r">set.seed(11)
+fit_level_xgb &lt;- xgb.train(
+  params = list(objective = &quot;reg:squarederror&quot;, eta = 0.1, max_depth = 3,
+                subsample = 0.9, colsample_bytree = 0.9),
+  data = dtrain, nrounds = 200, verbose = 0
+)
+xgb_level &lt;- predict(fit_level_xgb, dtest)
+
+cat(&quot;highest value it ever predicts:&quot;, round(max(xgb_level), 1), &quot;\n&quot;)
+#&gt; highest value it ever predicts: 557.6 
+cat(&quot;highest value it ever saw:     &quot;, max(train$y), &quot;\n&quot;)
+#&gt; highest value it ever saw:      559 
+cat(&quot;RMSE:&quot;, round(rmse(test$y, xgb_level), 2), &quot;\n&quot;)
+#&gt; RMSE: 30.92</code></pre>
+
+<p>There it is again. The most this model will ever output is 557.6, against a training maximum of 559 and a July 1960 actual of 622. A production-grade implementation with regularisation and second-order optimisation hits precisely the same wall, because the wall is built into what a decision tree is.</p>
+
+<p>The parameters map one-to-one onto the loop you already understand.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>xgboost parameter</th>
+<th>Our loop</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>eta</code></td>
+<td><code>lr</code></td>
+<td>Fraction of each tree that gets added</td>
+</tr>
+<tr>
+<td><code>nrounds</code></td>
+<td><code>rounds</code></td>
+<td>How many trees to fit</td>
+</tr>
+<tr>
+<td><code>max_depth</code></td>
+<td><code>depth</code></td>
+<td>How many splits deep each tree goes</td>
+</tr>
+<tr>
+<td><code>subsample</code></td>
+<td>not used</td>
+<td>Fraction of rows sampled per tree</td>
+</tr>
+<tr>
+<td><code>colsample_bytree</code></td>
+<td>not used</td>
+<td>Fraction of features sampled per tree</td>
+</tr>
+<tr>
+<td><code>objective</code></td>
+<td>fixed to squared error</td>
+<td>Which loss to take gradients of</td>
+</tr>
+</tbody>
+</table>
+
+<p>Now the growth target, in xgboost.</p>
+
+<pre><code class="language-r">gfeats   &lt;- c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;)
+dtrain_g &lt;- xgb.DMatrix(data = as.matrix(train[, gfeats]), label = train$growth)
+dtest_g  &lt;- xgb.DMatrix(data = as.matrix(test[, gfeats]))
+
+set.seed(11)
+fit_growth_xgb &lt;- xgb.train(
+  params = list(objective = &quot;reg:squarederror&quot;, eta = 0.1, max_depth = 3,
+                subsample = 0.9, colsample_bytree = 0.9),
+  data = dtrain_g, nrounds = 200, verbose = 0
+)
+xgb_growth &lt;- test$lag12 + predict(fit_growth_xgb, dtest_g)
+
+cat(&quot;RMSE:&quot;, round(rmse(test$y, xgb_growth), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, xgb_growth), 2), &quot;%\n&quot;)
+#&gt; RMSE: 19.99  MAPE: 3.26 %</code></pre>
+
+<p>RMSE falls from 30.92 to 19.99, the same roughly-one-third improvement the hand-written loop produced. The conclusion holds across implementations: the target transform, not the library, is what rescued this forecast.</p>
+
+<p>xgboost can also tell you which features it leaned on.</p>
+
+<pre><code class="language-r">xgb.importance(model = fit_growth_xgb)
+#&gt;    Feature       Gain     Cover Frequency
+#&gt;     &lt;char&gt;      &lt;num&gt;     &lt;num&gt;     &lt;num&gt;
+#&gt; 1:       t 0.67187521 0.5304629 0.4176471
+#&gt; 2:   lag24 0.23536180 0.3613106 0.3991597
+#&gt; 3:   month 0.09276298 0.1082265 0.1831933</code></pre>
+
+<p>Gain is the share of error reduction each feature delivered across all splits, so it is the column to read. The time index <code>t</code> accounts for 67% of it, which makes sense: growth itself accelerates over these twelve years, and <code>t</code> is how the model tracks that. <code>lag24</code> contributes 24%, and <code>month</code> only 9%, because much of the seasonal pattern has already been removed by differencing against the same month last year.</p>
+
+<p>Finally, the honest way to choose <code>nrounds</code>. You hold out a slice of history, watch the error on it each round, and stop when it stops improving. The validation slice must come <strong>after</strong> the training slice in time.</p>
+
+<pre><code class="language-r">fit_rows &lt;- d[d$t &lt;= 96, ]                    # through 1956
+val_rows &lt;- d[d$t &gt; 96 &amp; d$t &lt;= 132, ]        # 1957 to 1959
+fit_rows$growth &lt;- fit_rows$y - fit_rows$lag12
+val_rows$growth &lt;- val_rows$y - val_rows$lag12
+
+dfit &lt;- xgb.DMatrix(as.matrix(fit_rows[, gfeats]), label = fit_rows$growth)
+dval &lt;- xgb.DMatrix(as.matrix(val_rows[, gfeats]), label = val_rows$growth)
+
+set.seed(11)
+fit_es &lt;- xgb.train(
+  params = list(objective = &quot;reg:squarederror&quot;, eta = 0.05, max_depth = 3,
+                subsample = 0.9, colsample_bytree = 0.9),
+  data = dfit, nrounds = 500,
+  evals = list(train = dfit, valid = dval),
+  early_stopping_rounds = 30, verbose = 0
+)
+
+head(attr(fit_es, &quot;evaluation_log&quot;), 8)
+#&gt;     iter train_rmse valid_rmse
+#&gt;    &lt;num&gt;      &lt;num&gt;      &lt;num&gt;
+#&gt; 1:     1   14.67981   19.14024
+#&gt; 2:     2   14.20865   19.13839
+#&gt; 3:     3   13.90640   19.10451
+#&gt; 4:     4   13.45302   19.10672
+#&gt; 5:     5   13.03835   19.10635
+#&gt; 6:     6   12.60789   19.10255
+#&gt; 7:     7   12.20462   19.10229
+#&gt; 8:     8   11.88264   19.10231</code></pre>
+
+<p>Read the two columns against each other. Training error falls steadily, from 14.68 to 11.88 in eight rounds, and it will keep falling if you let it. Validation error barely moves, from 19.140 to 19.102, and then starts creeping back up. Of the 500 rounds we asked for, it ran 37 and picked round 7 as the best.</p>
+
+<p>That gap between a training error that keeps improving and a validation error that does not is textbook overfitting, and here it starts almost immediately. The reason is the honest one: we have 72 usable training rows. Gradient boosting is a high-variance method, meaning the model it fits swings a lot when the training rows change even slightly, and it is built for tens of thousands of rows. A single monthly series with twelve years of history simply does not have enough signal to feed it. Keep that in mind for the scoreboard coming up.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Translate our hand-written call <code>boost_trees(&quot;growth&quot;, gfeats, train, test, rounds = 400, lr = 0.02, depth = 4)</code> into xgboost. The block below still carries the old settings, so change all three to match, then compare the score.</p>
+<pre><code class="language-r"># Change eta to 0.02, max_depth to 4, and nrounds to 400.
+set.seed(11)
+ex_fit &lt;- xgb.train(
+  params = list(objective = &quot;reg:squarederror&quot;, eta = 0.1, max_depth = 3),
+  data = dtrain_g, nrounds = 200, verbose = 0
+)
+ex_pred_x &lt;- test$lag12 + predict(ex_fit, dtest_g)
+cat(&quot;RMSE:&quot;, round(rmse(test$y, ex_pred_x), 2), &quot;\n&quot;)
+#&gt; RMSE: 22.23</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">set.seed(11)
+ex_fit &lt;- xgb.train(
+  params = list(objective = &quot;reg:squarederror&quot;,
+                eta       = 0.02,   # was lr
+                max_depth = 4),     # was depth
+  data = dtrain_g, nrounds = 400,   # was rounds
+  verbose = 0
+)
+ex_pred_x &lt;- test$lag12 + predict(ex_fit, dtest_g)
+cat(&quot;RMSE:&quot;, round(rmse(test$y, ex_pred_x), 2), &quot;\n&quot;)
+#&gt; RMSE: 20.41</code></pre>
+
+<p><strong>Explanation:</strong> <code>lr</code> becomes <code>eta</code>, <code>depth</code> becomes <code>max_depth</code>, and <code>rounds</code> becomes <code>nrounds</code>, which sits outside the params list because it controls the training loop rather than the trees. Our loop has no equivalent of <code>subsample</code> or <code>colsample_bytree</code>, since it always uses every row and every feature. The slower, deeper settings score 20.41 against the starter's 22.23, which is a reminder that a fifth of the learning rate spread over twice the rounds is usually the safer trade.</p>
+
+</details>
+</section>
+
+<h2>How do you validate a forecast without fooling yourself?</h2>
+
+<p>Here is where a lot of published tutorials go wrong, including one of the top-ranking R articles on this exact topic. Standard machine learning practice says to use k-fold cross validation: shuffle the rows, split into five groups, train on four and test on the fifth, repeat. Applied to a time series, that procedure produces a number that is not a forecast error at all.</p>
+
+<p>Let's run it anyway, on the level model, and see what it claims.</p>
+
+<div class="webr-container" data-block-title="Random 5-fold cross validation on a time series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Random 5-fold cross validation on a time series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+folds     &lt;- sample(rep(1:5, length.out = nrow(d)))
+kfold_err &lt;- numeric(5)
+
+for (k in 1:5) {
+  tr &lt;- d[folds != k, ]
+  te &lt;- d[folds == k, ]
+  kfold_err[k] &lt;- rmse(te$y, boost_trees(&quot;y&quot;, feats, tr, te))
+}
+
+round(kfold_err, 2)
+#&gt; [1] 15.81 12.77 12.76 17.95 14.98
+cat(&quot;random 5-fold mean RMSE:&quot;, round(mean(kfold_err), 2), &quot;\n&quot;)
+#&gt; random 5-fold mean RMSE: 14.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE 14.85, and reassuringly consistent across the folds. If you reported that number you would be claiming this model is more than twice as accurate as the 34.66 we actually measured on 1960.</p>
+
+<p>The reason is that random folds destroy the thing you are trying to measure. When you hold out a random fifth of the months, the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> still contains months from before <strong>and after</strong> each held-out month. The model is filling in gaps in the middle of history, surrounded by data on both sides. That is interpolation, and trees are excellent at it. Forecasting is extrapolation off the end, which is the one thing trees are bad at. The random split quietly replaces the hard problem with an easy one.</p>
+
+<p>The correct procedure is rolling-origin evaluation. Pick a cutoff, train only on data before it, forecast the window after it, then slide the cutoff forward and repeat. Every test point stays strictly in the future of its own training set.</p>
+
+<div class="webr-container" data-block-title="Rolling-origin evaluation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling-origin evaluation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">origins     &lt;- c(72, 84, 96, 108, 120)
+rolling_err &lt;- numeric(length(origins))
+
+for (i in seq_along(origins)) {
+  o  &lt;- origins[i]
+  tr &lt;- d[d$t &lt;= o, ]
+  te &lt;- d[d$t &gt; o &amp; d$t &lt;= o + 12, ]
+  rolling_err[i] &lt;- rmse(te$y, boost_trees(&quot;y&quot;, feats, tr, te))
+}
+
+round(rolling_err, 2)
+#&gt; [1] 31.95 33.63 40.11 56.66 39.24
+cat(&quot;rolling-origin mean RMSE:&quot;, round(mean(rolling_err), 2), &quot;\n&quot;)
+#&gt; rolling-origin mean RMSE: 40.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five cutoffs, each followed by a 12-month forecast. The mean is 40.32, which is 2.7 times the number random folds reported. It also lands in the same neighbourhood as the 34.66 we measured on the true 1960 holdout. That agreement is the point: a trustworthy validation scheme should predict roughly what you go on to see.</p>
+
+<p>Notice also that the errors are not stable across origins, ranging from 31.95 to 56.66. A single train-test split would have told you one of those numbers and hidden the other four.</p>
+
+<p>Now the same harness on the growth model, which is the real test of whether the target transform was a fluke of one window.</p>
+
+<div class="webr-container" data-block-title="Rolling-origin evaluation of the growth model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling-origin evaluation of the growth model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rolling_growth &lt;- numeric(length(origins))
+
+for (i in seq_along(origins)) {
+  o  &lt;- origins[i]
+  tr &lt;- d[d$t &lt;= o, ]
+  te &lt;- d[d$t &gt; o &amp; d$t &lt;= o + 12, ]
+  tr$growth &lt;- tr$y - tr$lag12
+  pr &lt;- te$lag12 + boost_trees(&quot;growth&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), tr, te)
+  rolling_growth[i] &lt;- rmse(te$y, pr)
+}
+
+round(rolling_growth, 2)
+#&gt; [1] 26.92  9.39 12.53 36.00 34.77
+cat(&quot;rolling-origin mean RMSE (growth):&quot;, round(mean(rolling_growth), 2), &quot;\n&quot;)
+#&gt; rolling-origin mean RMSE (growth): 23.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>23.92 against 40.32. The growth target wins at four of the five origins and improves the average by 41%, so the 1960 result was not a lucky window. This is the kind of evidence that should move your opinion, and a single holdout could never have provided it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never use random k-fold cross validation to estimate forecast accuracy.</strong> It lets the model see the future of every test point, which turns forecasting into gap-filling and produces an error estimate that can be wildly optimistic. Use rolling-origin evaluation, also called time-series cross validation or walk-forward validation, and see <a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a> for the full treatment.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The harness below evaluates the level model at three origins with a 12-month horizon. Shorten the horizon to 6 months and see how much the numbers move.</p>
+<div class="webr-container" data-block-title="Your turn: rolling origin at a 6-month horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rolling origin at a 6-month horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_origins &lt;- c(96, 108, 120)
+ex_err2    &lt;- numeric(3)
+
+for (i in seq_along(ex_origins)) {
+  o  &lt;- ex_origins[i]
+  tr &lt;- d[d$t &lt;= o, ]
+  te &lt;- d[d$t &gt; o &amp; d$t &lt;= o + 12, ]   # make this a 6-month window
+  ex_err2[i] &lt;- rmse(te$y, boost_trees(&quot;y&quot;, feats, tr, te))
+}
+
+round(ex_err2, 2)
+#&gt; [1] 40.11 56.66 39.24
+round(mean(ex_err2), 2)
+#&gt; [1] 45.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Six-month rolling origin solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Six-month rolling origin solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_origins &lt;- c(96, 108, 120)
+ex_err2    &lt;- numeric(3)
+
+for (i in seq_along(ex_origins)) {
+  o  &lt;- ex_origins[i]
+  tr &lt;- d[d$t &lt;= o, ]
+  te &lt;- d[d$t &gt; o &amp; d$t &lt;= o + 6, ]
+  ex_err2[i] &lt;- rmse(te$y, boost_trees(&quot;y&quot;, feats, tr, te))
+}
+
+round(ex_err2, 2)
+#&gt; [1] 34.68 69.44 15.76
+cat(&quot;mean:&quot;, round(mean(ex_err2), 2), &quot;\n&quot;)
+#&gt; mean: 39.96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The three origins give 34.68, 69.44 and 15.76, a spread of more than four to one, against 40.11, 56.66 and 39.24 at the 12-month horizon. The mean improves from 45.33 to 39.96, which is the expected direction: a shorter horizon is an easier forecast. But notice that the middle origin got substantially worse, from 56.66 to 69.44, because a 6-month window ending in mid-1958 is dominated by the fast-growing summer months where the ceiling costs the most, while the 12-month window dilutes them with easier winter months. Horizon length changes not just how hard the problem is but which part of the year you are graded on.</p>
+
+</details>
+</section>
+
+<h2>Does gradient boosting actually beat ARIMA and ETS, and when should you use each?</h2>
+
+<p>Time to answer the question in the title. We hold the split fixed, train on everything through 1959, forecast all of 1960, and score four alternatives beside our two boosted models.</p>
+
+<p>The <code>forecast</code> package gives us all three classical benchmarks. <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">Seasonal naive</a> simply repeats last year's value for each month, which sounds trivial but is a genuinely hard baseline on seasonal data. ETS and <code>auto.arima</code> both search a family of models and keep the one with the best information criterion, a score that rewards fit and penalises extra parameters.</p>
+
+<div class="webr-container" data-block-title="Fit the classical benchmarks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the classical benchmarks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+train_ts &lt;- ts(passengers[1:132], start = c(1949, 1), frequency = 12)
+
+f_snaive &lt;- forecast(snaive(train_ts), h = 12)$mean
+fit_ets  &lt;- ets(train_ts)
+f_ets    &lt;- forecast(fit_ets, h = 12)$mean
+fit_ar   &lt;- auto.arima(train_ts)
+f_arima  &lt;- forecast(fit_ar, h = 12)$mean
+
+cat(&quot;ETS picked:  &quot;, fit_ets$method, &quot;\n&quot;)
+#&gt; ETS picked:   ETS(M,Ad,M) 
+cat(&quot;ARIMA picked:&quot;, as.character(fit_ar), &quot;\n&quot;)
+#&gt; ARIMA picked: ARIMA(1,1,0)(0,1,0)[12]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both automatic searches landed on sensible models. ETS chose multiplicative errors and <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">multiplicative seasonality</a> with a damped additive trend, which is right for a series whose seasonal swings grow with its level. <code>auto.arima</code> chose one non-seasonal difference and one seasonal difference. That seasonal difference is the same year-over-year subtraction we invented by hand for the growth target, arrived at independently by a completely different tradition.</p>
+
+<p>Now the scoreboard.</p>
+
+<div class="webr-container" data-block-title="Score every model on the same 1960 window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score every model on the same 1960 window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scoreboard &lt;- data.frame(
+  model = c(&quot;Seasonal naive&quot;, &quot;ETS&quot;, &quot;auto.arima&quot;,
+            &quot;Boosted trees (levels)&quot;, &quot;Boosted trees (growth)&quot;),
+  RMSE  = c(rmse(test$y, f_snaive), rmse(test$y, f_ets), rmse(test$y, f_arima),
+            rmse(test$y, p_level),  rmse(test$y, p_growth)),
+  MAE   = c(mae(test$y, f_snaive), mae(test$y, f_ets), mae(test$y, f_arima),
+            mae(test$y, p_level),  mae(test$y, p_growth)),
+  MAPE  = c(mape(test$y, f_snaive), mape(test$y, f_ets), mape(test$y, f_arima),
+            mape(test$y, p_level),  mape(test$y, p_growth))
+)
+scoreboard[, 2:4] &lt;- round(scoreboard[, 2:4], 2)
+print(scoreboard, row.names = FALSE)
+#&gt;                   model  RMSE   MAE MAPE
+#&gt;          Seasonal naive 50.71 47.83 9.99
+#&gt;                     ETS 27.40 22.80 4.66
+#&gt;              auto.arima 23.93 18.53 4.18
+#&gt;  Boosted trees (levels) 34.66 24.88 4.92
+#&gt;  Boosted trees (growth) 17.98 13.86 3.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that table carefully, because it contains two lessons and only one of them is flattering to machine learning.</p>
+
+<p><strong>Boosted trees on raw levels lose to both classical models.</strong> RMSE 34.66 against 23.93 for <code>auto.arima</code> and 27.40 for ETS. A modern ensemble method, correctly implemented, is beaten by a technique from the 1970s, because ARIMA differences the series as a matter of routine and our level model was stuck under its ceiling.</p>
+
+<p><strong>Boosted trees on the growth target win, clearly.</strong> RMSE 17.98 against 23.93, a 25% improvement over the best classical model, and MAPE of 3.02% against 4.18%. The winning ingredient was one line of feature preparation, not the algorithm.</p>
+
+<p>And seasonal naive, at RMSE 50.71, sets the floor. Any model that cannot beat it has earned nothing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>On a single short series, the classics are the benchmark to beat, and beating them takes work.</strong> Gradient boosting has no built-in notion of trend, seasonality or stationarity, so everything ARIMA gets for free you must supply by hand. What boosting offers in return is the ability to absorb things ARIMA cannot: dozens of external drivers, non-linear interactions, and thousands of related series learned in one model.</div></div>
+
+<p>One honest caveat, because the table above is a sample of one. This is a single series and a single 12-month window. The rolling-origin test in the previous section supports the growth-target conclusion across five windows, which is much stronger evidence, but it is still one series. Do not conclude from this page that boosting beats ARIMA in general.</p>
+
+<p>The wider evidence is worth knowing. In the M4 competition (2018), across 100,000 series, pure machine learning methods largely underperformed statistical ones, and the winner was a hybrid of exponential smoothing and a neural network. In the M5 competition (2020), on 42,840 related retail series with prices, promotions and calendar effects, gradient boosting dominated the leaderboard. The difference is not the algorithm's quality, it is the setting. Many related series with rich external drivers is where boosting earns its keep. A single seasonal series is where the classics are hard to beat.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simple <a class="auto-link" href="Combining-Forecasts-in-R.html" title="Combining Forecasts in R: Ensemble Averaging">forecast combinations</a> are famously hard to beat. Average the <code>auto.arima</code> forecast and the growth-model forecast, then score the result.</p>
+<div class="webr-container" data-block-title="Your turn: combine two forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: combine two forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This averages the weakest model with the strongest.
+# Swap f_snaive for f_arima to combine the two best instead.
+ex_combo &lt;- (f_snaive + p_growth) / 2
+
+cat(&quot;combination RMSE:&quot;, round(rmse(test$y, ex_combo), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, ex_combo), 2), &quot;%\n&quot;)
+#&gt; combination RMSE: 27.38  MAPE: 4.89 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Forecast combination solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast combination solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_combo &lt;- (f_arima + p_growth) / 2
+
+cat(&quot;combination RMSE:&quot;, round(rmse(test$y, ex_combo), 2),
+    &quot; MAPE:&quot;, round(mape(test$y, ex_combo), 2), &quot;%\n&quot;)
+#&gt; combination RMSE: 20.19  MAPE: 3.42 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Combining with ARIMA scores 20.19, against 27.38 when the seasonal naive was in the mix. Averaging pulls you toward the middle of your inputs, so a weak ingredient drags the blend down and a strong one lifts it. Even the good combination at 20.19 sits behind the growth model alone at 17.98, though it comfortably beats <code>auto.arima</code> alone at 23.93. Combining is a large win when you cannot tell in advance which model is better, and a small loss when you can. Given how much the rolling-origin errors bounced around, "you cannot tell in advance" is the more common situation.</p>
+
+</details>
+</section>
+
+<h3>So when should you choose which?</h3>
+
+<p>The scoreboard gives you a decision rule that is more useful than "machine learning is better".</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your situation</th>
+<th>Reach for</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One series, a few hundred observations</td>
+<td><a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">ETS or ARIMA</a></td>
+<td>Trend and seasonality handled natively, nothing to hand-engineer</td>
+</tr>
+<tr>
+<td>Thousands of related series</td>
+<td>Gradient boosting</td>
+<td>One global model learns across all of them at once</td>
+</tr>
+<tr>
+<td>Price, weather, promotions, holidays drive the outcome</td>
+<td>Gradient boosting</td>
+<td>Absorbs many external features and their interactions</td>
+</tr>
+<tr>
+<td>You need <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a> you can defend</td>
+<td>ETS or ARIMA</td>
+<td>Intervals come from the model; boosting needs quantile objectives or bootstrapping</td>
+</tr>
+<tr>
+<td>You must explain the forecast to a regulator</td>
+<td>ETS or ARIMA</td>
+<td>Parameters have meanings; a 200-tree ensemble does not</td>
+</tr>
+<tr>
+<td>Sharp non-linear effects and threshold behaviour</td>
+<td>Gradient boosting</td>
+<td>Splits capture "above 30 degrees, demand doubles" naturally</td>
+</tr>
+<tr>
+<td>Short history, long horizon</td>
+<td>ETS or ARIMA</td>
+<td>The extrapolation ceiling gets worse the further out you forecast</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/XGBoost-Forecasting-in-R-model-choice.webp" alt="Choosing between boosting and the classical methods" class="img-responsive img-zoomable" loading="lazy" width="1494" height="690" /></p>
+
+<p><em>Figure 3: Series count and outside drivers decide the method, and the two families combine rather than compete.</em></p>
+
+<p>The framing that serves you best in practice is not either-or. Let a classical model handle what it is built for, trend and seasonality, then let boosting model whatever is left over. Fit <code>auto.arima</code>, extract the residuals, and boost those against your external features. The M4 winner was a hybrid of exactly this spirit, and our growth target was already a half-step in the same direction: we borrowed ARIMA's <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">seasonal differencing</a> and handed the remainder to the trees.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply the first row of that table to our own data. How many rows did our feature table actually give the model, and what does the rule say we should have used?</p>
+<div class="webr-container" data-block-title="Your turn: apply the decision rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: apply the decision rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This counts every month in the raw series. But lag features cost history,
+# and the test year is not available for training. Count what the model
+# could actually train on instead.
+ex_rows &lt;- length(passengers)
+ex_rows
+#&gt; [1] 144</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Decision rule solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decision rule solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rows &lt;- nrow(d)
+ex_rows
+#&gt; [1] 120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw series has 144 months, but only 120 rows survive the lag features and only 108 of those were available for training. That is one series with a few hundred observations at most, so the table says ETS or ARIMA. And that is honestly the right call here: our growth model did win, but it took a trend diagnosis, a target transform and a rolling-origin study to get there, while <code>auto.arima</code> needed one line and no supervision. The early-stopping run made the same point from the other side, halting after 7 useful rounds because there was not enough data to support more.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end forecast in one block</h2>
+
+<p>Everything above, compressed into a single self-contained script. It rebuilds the feature table, splits on time, trains the growth model, and scores it against <code>auto.arima</code> on the same twelve months.</p>
+
+<div class="webr-container" data-block-title="End-to-end boosted forecast, scored against ARIMA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end boosted forecast, scored against ARIMA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ce       &lt;- d
+ce_train &lt;- ce[ce$t &lt;= 132, ]
+ce_test  &lt;- ce[ce$t &gt;  132, ]
+ce_train$growth &lt;- ce_train$y - ce_train$lag12
+
+ce_fc &lt;- ce_test$lag12 +
+  boost_trees(&quot;growth&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), ce_train, ce_test)
+
+ce_ts    &lt;- ts(passengers[1:132], start = c(1949, 1), frequency = 12)
+ce_arima &lt;- forecast(auto.arima(ce_ts), h = 12)$mean
+
+ce_out &lt;- data.frame(
+  month   = month.abb,
+  actual  = ce_test$y,
+  boosted = round(ce_fc, 1),
+  arima   = round(as.numeric(ce_arima), 1)
+)
+print(ce_out, row.names = FALSE)
+#&gt;  month actual boosted arima
+#&gt;    Jan    417   414.2 424.1
+#&gt;    Feb    391   390.2 407.1
+#&gt;    Mar    419   453.0 470.8
+#&gt;    Apr    461   446.1 460.9
+#&gt;    May    472   469.4 484.9
+#&gt;    Jun    535   523.1 536.9
+#&gt;    Jul    622   602.7 612.9
+#&gt;    Aug    606   616.0 623.9
+#&gt;    Sep    508   517.2 527.9
+#&gt;    Oct    461   459.4 471.9
+#&gt;    Nov    390   415.7 426.9
+#&gt;    Dec    432   465.5 469.9
+cat(&quot;\nboosted RMSE:&quot;, round(rmse(ce_test$y, ce_fc), 2),
+    &quot; arima RMSE:&quot;, round(rmse(ce_test$y, ce_arima), 2), &quot;\n&quot;)
+#&gt; 
+#&gt; boosted RMSE: 17.98  arima RMSE: 23.93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Month by month the two forecasts are closer than the RMSE gap suggests. ARIMA is better in August and December, the boosted model is better in most other months, and both nail the summer peak that defeated the level model. The boosted model's edge comes mainly from March and November, where ARIMA overshoots by roughly 50 and 37 passengers respectively.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the page. Every one uses variable names starting with <code>my_</code> so nothing you write here overwrites the tutorial's state.</p>
+
+<h3>Exercise 1: Does the growth target still help over a longer horizon?</h3>
+
+<p>Rebuild the split so training stops at t equal to 120, the end of 1958, and the test set covers the full 24 months of 1959 and 1960. Fit both the level model and the growth model, and report RMSE and MAPE for each. Also print the training maximum next to the level model's highest forecast.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: a 24-month test window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: a 24-month test window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: reuse boost_trees exactly as before, only the split changes.
+# Remember to build my_train$growth before fitting the growth model.
+
+my_train &lt;- d[d$t &lt;= 120, ]
+my_test  &lt;- d[d$t &gt;  120, ]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_train &lt;- d[d$t &lt;= 120, ]
+my_test  &lt;- d[d$t &gt;  120, ]
+my_train$growth &lt;- my_train$y - my_train$lag12
+
+my_level  &lt;- boost_trees(&quot;y&quot;, feats, my_train, my_test)
+my_growth &lt;- my_test$lag12 +
+  boost_trees(&quot;growth&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), my_train, my_test)
+
+cat(&quot;test rows:&quot;, nrow(my_test), &quot;\n&quot;)
+#&gt; test rows: 24 
+cat(&quot;levels RMSE:&quot;, round(rmse(my_test$y, my_level), 2),
+    &quot; MAPE:&quot;, round(mape(my_test$y, my_level), 2), &quot;%\n&quot;)
+#&gt; levels RMSE: 50.78  MAPE: 7.96 %
+cat(&quot;growth RMSE:&quot;, round(rmse(my_test$y, my_growth), 2),
+    &quot; MAPE:&quot;, round(mape(my_test$y, my_growth), 2), &quot;%\n&quot;)
+#&gt; growth RMSE: 34.81  MAPE: 7.22 %
+cat(&quot;max training y:&quot;, max(my_train$y),
+    &quot; max level forecast:&quot;, round(max(my_level), 1), &quot;\n&quot;)
+#&gt; max training y: 505  max level forecast: 493.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both models get worse over 24 months, which is expected since the horizon doubled and the training set shrank. The growth target still helps substantially, cutting RMSE from 50.78 to 34.81. And the ceiling is visible again: the training maximum is 505, the level model's highest forecast is 493.8, and 1960 reaches 622. The further out you forecast a growing series, the more damage that ceiling does.</p>
+
+</details>
+
+<h3>Exercise 2: Can more model capacity break the ceiling?</h3>
+
+<p>The natural reaction to an under-forecast is to make the model bigger. Test that directly. Refit the level model on the original split with 1000 rounds and depth 6 instead of 200 and depth 3, then compare its highest forecast against the plain version and against the training maximum. Report the RMSE too.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: throw capacity at the problem">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: throw capacity at the problem</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: boost_trees takes rounds and depth arguments.
+# Compare max(forecast) for both settings against max(train$y).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_big &lt;- boost_trees(&quot;y&quot;, feats, train, test, rounds = 1000, depth = 6)
+
+cat(&quot;200 rounds depth 3 -&gt; max forecast:&quot;,
+    round(max(boost_trees(&quot;y&quot;, feats, train, test)), 1), &quot;\n&quot;)
+#&gt; 200 rounds depth 3 -&gt; max forecast: 548.9 
+cat(&quot;1000 rounds depth 6 -&gt; max forecast:&quot;, round(max(my_big), 1), &quot;\n&quot;)
+#&gt; 1000 rounds depth 6 -&gt; max forecast: 558.8 
+cat(&quot;highest value in training data:&quot;, max(train$y), &quot;\n&quot;)
+#&gt; highest value in training data: 559 
+cat(&quot;RMSE with more capacity:&quot;, round(rmse(test$y, my_big), 2), &quot;\n&quot;)
+#&gt; RMSE with more capacity: 34.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five times the rounds and twice the depth moved the ceiling from 548.9 to 558.8, and it is still below the training maximum of 559, still nowhere near July's 622. RMSE improved from 34.66 to 34.25, which is nothing. Extra capacity lets the ensemble press harder against the ceiling but can never lift it, because the ceiling comes from leaf averages, not from model size. This is the experiment that proves the fix has to be a target transform.</p>
+
+</details>
+
+<h3>Exercise 3: Build a fair head-to-head harness</h3>
+
+<p>Score the growth model and <code>auto.arima</code> against each other properly, over three origins at t equal to 96, 108 and 120, with a 12-month horizon each. At every origin, retrain both models on that origin's history only, then forecast the next twelve months. Return a data frame with one row per origin and print the two means.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: rolling head-to-head">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: rolling head-to-head</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: at origin o, the ARIMA training series is
+#   ts(passengers[1:o], start = c(1949, 1), frequency = 12)
+# and the boosted model trains on d[d$t &lt;= o, ].
+# Refit auto.arima inside the loop; refitting is the whole point.
+
+my_origins &lt;- c(96, 108, 120)
+my_scores  &lt;- data.frame(origin = my_origins, boosted = NA, arima = NA)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_origins &lt;- c(96, 108, 120)
+my_scores  &lt;- data.frame(origin = my_origins, boosted = NA, arima = NA)
+
+for (i in seq_along(my_origins)) {
+  o  &lt;- my_origins[i]
+  tr &lt;- d[d$t &lt;= o, ]
+  te &lt;- d[d$t &gt; o &amp; d$t &lt;= o + 12, ]
+  tr$growth &lt;- tr$y - tr$lag12
+  pb &lt;- te$lag12 + boost_trees(&quot;growth&quot;, c(&quot;lag24&quot;, &quot;month&quot;, &quot;t&quot;), tr, te)
+  pa &lt;- forecast(auto.arima(ts(passengers[1:o], start = c(1949, 1),
+                               frequency = 12)), h = 12)$mean
+  my_scores$boosted[i] &lt;- rmse(te$y, pb)
+  my_scores$arima[i]   &lt;- rmse(te$y, as.numeric(pa))
+}
+my_scores[, 2:3] &lt;- round(my_scores[, 2:3], 2)
+print(my_scores, row.names = FALSE)
+#&gt;  origin boosted arima
+#&gt;      96   12.53 15.80
+#&gt;     108   36.00 21.50
+#&gt;     120   34.77 47.55
+cat(&quot;mean boosted:&quot;, round(mean(my_scores$boosted), 2),
+    &quot; mean arima:&quot;, round(mean(my_scores$arima), 2), &quot;\n&quot;)
+#&gt; mean boosted: 27.77  mean arima: 28.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Averaged over three origins the two methods are effectively tied, 27.77 against 28.28, and they win at different origins: boosting at 96 and 120, ARIMA at 108. That is a far more honest picture than the single 1960 window, where boosting looked like a decisive 25% winner. It is also the strongest argument on this page for evaluating over multiple origins before you believe any comparison, including the one in this tutorial.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Does gradient boosting require a stationary series?</strong> Not formally, since there is no statistical assumption to violate. Practically, yes: a trending target puts you under the extrapolation ceiling, so you difference or detrend for the same reason ARIMA does, arriving there by engineering rather than by theory.</p>
+
+<p><strong>Should I forecast multiple steps recursively or train a separate model per horizon?</strong> Recursive forecasting feeds each prediction back as the next step's lag, which is compact but lets errors compound. Direct forecasting trains one model per horizon, which avoids compounding at the cost of many models. This page sidestepped the choice by using only lags of 12 months and more, so every test row's features were observed history. Both strategies are worked through in the <a href="Feature-Engineering-for-Forecasting-in-R.html">feature engineering tutorial</a>.</p>
+
+<p><strong>How much data do I need before boosting is worth it?</strong> There is no threshold, but the early-stopping run here is instructive: with 72 training rows it found only 7 useful rounds. As a rough guide, a few thousand rows makes boosting competitive, and its real advantage appears when you can pool many related series into one global model. Below a few hundred rows, prefer the classical methods.</p>
+
+<p><strong>Can I get prediction intervals from a boosted forecast?</strong> Not directly. ARIMA and ETS derive intervals from their error model; boosting has no equivalent. The practical routes are training separate models with a quantile objective (<code>reg:quantileerror</code> in current xgboost) to get upper and lower bounds, or bootstrapping the residuals from a rolling-origin evaluation. Both are more work than the one-line interval you get from <code>forecast()</code>.</p>
+
+<p><strong>Is xgboost the right choice, or should I use lightgbm or ranger?</strong> For forecasting, LightGBM is usually faster on wide feature tables and won M5, while xgboost is more widely documented and installed. <code>ranger</code> fits random forests rather than boosted trees, so it hits the same extrapolation ceiling and needs the same target transform. The ceiling and the validation rules on this page apply identically to all three, because they are all tree ensembles.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The reframing</td>
+<td>Trees read rows, not timelines, so lags and calendar columns must carry the past into each row</td>
+</tr>
+<tr>
+<td>The boosting loop</td>
+<td>Start at the mean, fit each new tree to the current residual, add a shrunken slice, repeat</td>
+</tr>
+<tr>
+<td>Learning rate</td>
+<td>Smaller rate needs more rounds; tune the pair together, or let early stopping choose the rounds</td>
+</tr>
+<tr>
+<td>The extrapolation ceiling</td>
+<td>A tree ensemble can never predict beyond the range of its training target: 548.9 was the ceiling against a real 622</td>
+</tr>
+<tr>
+<td>More capacity does not help</td>
+<td>1000 rounds at depth 6 moved the ceiling to 558.8, still under the training maximum of 559</td>
+</tr>
+<tr>
+<td>The fix</td>
+<td>Change the target, not the model: a growth target cut RMSE from 34.66 to 17.98</td>
+</tr>
+<tr>
+<td>Validation</td>
+<td>Random 5-fold claimed 14.85, <a class="auto-link" href="Time-Series-Cross-Validation-in-R.html" title="Time Series Cross-Validation in R with tsCV()">rolling origin</a> measured 40.32; only the second is a forecast error</td>
+</tr>
+<tr>
+<td>The scoreboard</td>
+<td>Levels lost to <code>auto.arima</code> (34.66 vs 23.93); growth beat it (17.98); seasonal naive floor was 50.71</td>
+</tr>
+<tr>
+<td>Choosing a method</td>
+<td>One short series favours ETS and ARIMA; many series with external drivers favour boosting</td>
+</tr>
+<tr>
+<td>The hybrid</td>
+<td>Let a classical model take trend and season, and boost whatever residual is left</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Chen, T. and Guestrin, C. XGBoost: A Scalable Tree Boosting System. KDD 2016. <a href="https://arxiv.org/abs/1603.02754">Link</a></li>
+
+<li>xgboost R package documentation, including <code>xgb.train</code> and <code>xgb.DMatrix</code>. <a href="https://xgboost.readthedocs.io/en/stable/R-package/index.html">Link</a></li>
+
+<li>Friedman, J. H. Greedy Function Approximation: A Gradient Boosting Machine. Annals of Statistics 29(5), 2001. <a href="https://projecteuclid.org/euclid.aos/1013203451">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. Forecasting: Principles and Practice, 3rd edition, Chapter 5.10 on time series cross validation. <a href="https://otexts.com/fpp3/tscv.html">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. Forecasting: Principles and Practice, 3rd edition, Chapter 12.3 on prediction with machine learning methods. <a href="https://otexts.com/fpp3/nnetar.html">Link</a></li>
+
+<li>M Open Forecasting Center. M4-methods: code and results for the M4 competition, 100,000 series and 61 methods. <a href="https://github.com/Mcompetitions/M4-methods">Link</a></li>
+
+<li>M Open Forecasting Center. M5-methods: code of the winning methods and the accuracy rankings for the M5 retail competition. <a href="https://github.com/Mcompetitions/M5-methods">Link</a></li>
+
+<li>Therneau, T. and Atkinson, E. An Introduction to Recursive Partitioning Using the rpart Routines. CRAN vignette. <a href="https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf">Link</a></li>
+
+<li>Hyndman, R. J. et al. forecast: Forecasting Functions for Time Series and Linear Models. CRAN. <a href="https://cran.r-project.org/web/packages/forecast/index.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Feature-Engineering-for-Forecasting-in-R.html">Feature Engineering for Time Series Forecasting in R</a> builds the full lag, rolling, calendar and Fourier feature families, shows what a leak looks like, and covers recursive versus direct multi-step forecasting in depth.</li>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a> takes rolling-origin evaluation further, including expanding versus sliding windows and how to choose the number of origins.</li>
+
+<li><a href="ETS-vs-ARIMA-in-R.html">ETS vs ARIMA in R</a> compares the two classical families this page benchmarked against, so you know which one to put up as the model to beat.</li>
+
+</ul>
+
+{% endraw %}
