@@ -420,7 +420,7 @@ function saveStarted(s) {
           var curCls = (c.href === '/' + slug) ? ' class="bn-cur"' : '';
           html.push('<li' + curCls + '><a href="' + c.href + '"><span class="bn-n">' + n + '</span>' + esc(c.title) + '</a></li>');
         } else {
-          html.push('<li><span class="bn-soon"><span class="bn-n">' + n + '</span>' + esc(c.title) + '<span class="bn-tag">Soon</span></span></li>');
+          html.push('<li><span class="bn-soon"><span class="bn-n">' + n + '</span>' + esc(c.title) + '</span></li>');
         }
       });
       html.push('</ul>');
@@ -466,7 +466,8 @@ function saveStarted(s) {
     var initial = 'book';
     try { initial = sessionStorage.getItem('bn-state:' + book.key) || 'book'; } catch (e) {}
     show(initial);
-    var curLi = bookPanel.querySelector('.bn-cur');
-    if (curLi && initial === 'book') { try { curLi.scrollIntoView({ block: 'center' }); } catch (e) {} }
+    // No auto-scroll: centering the current chapter scrolled the rail down on
+    // deep chapters, making Part 1 look missing (and nudged the page scroll).
+    // The rail always opens at the top; the reader's position is the page.
   }).catch(function () { /* fail-open: baked sidebar stays */ });
 })();
