@@ -1,0 +1,1814 @@
+---
+title: "tsibble in R: Tidy Time Series Objects, Keys, and Gaps"
+description: "Learn tsibble in R from scratch: set the index and key, find implicit gaps with has_gaps(), fill them with fill_gaps(), and re-index time using index_by()."
+keywords: "tsibble in R, as_tsibble, tsibble key, tsibble index, fill_gaps, has_gaps, index_by, tidy time series in R, tsibble package, yearmonth"
+mathjax: false
+webr: true
+curriculum_id: "TS2-1.2"
+post_type: "C"
+auto_link_terms: "tsibble|tsibbles|tsibble object|as_tsibble()|fill_gaps()|has_gaps()|scan_gaps()|count_gaps()|index_by()|filter_index()|tsibble key|tsibble index|yearmonth()|tidy time series"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "tsibble Objects"
+sidebar_order: "40"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A tsibble is a data frame that knows which column is time (the <strong>index</strong>) and which columns identify separate series (the <strong>key</strong>). That one piece of extra knowledge lets it hold hundreds of time series in a single tidy table, and lets it catch the missing rows a plain data frame hides from you.</p>
+
+<h2>What is a tsibble, and why isn't a plain data frame enough?</h2>
+
+<p>A plain data frame will hold a column of dates without objecting. It just has no idea that the column is time. It will not tell you that a month is missing, it will not stop you from storing the same month twice, and it has no concept of "these rows are store North's series and those rows are store South's". A tsibble knows all three, and you get it by naming two columns.</p>
+
+<p>Here is a small sales table for two stores over six months, turned into a tsibble.</p>
+
+<div class="webr-container" data-block-title="Build your first tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build your first tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(dplyr)
+
+sales &lt;- data.frame(
+  month = rep(c(&quot;2024-01&quot;, &quot;2024-02&quot;, &quot;2024-03&quot;,
+                &quot;2024-04&quot;, &quot;2024-05&quot;, &quot;2024-06&quot;), times = 2),
+  store = rep(c(&quot;North&quot;, &quot;South&quot;), each = 6),
+  units = c(120, 133, 141, 138, 150, 162, 98, 101, 95, 110, 121, 118)
+)
+
+sales_ts &lt;- sales |&gt;
+  mutate(month = yearmonth(month)) |&gt;
+  as_tsibble(index = month, key = store)
+
+sales_ts
+#&gt; # A tsibble: 12 x 3 [1M]
+#&gt; # Key:       store [2]
+#&gt;       month store units
+#&gt;       &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt;  1 2024 Jan North   120
+#&gt;  2 2024 Feb North   133
+#&gt;  3 2024 Mar North   141
+#&gt;  4 2024 Apr North   138
+#&gt;  5 2024 May North   150
+#&gt;  6 2024 Jun North   162
+#&gt;  7 2024 Jan South    98
+#&gt;  8 2024 Feb South   101
+#&gt;  9 2024 Mar South    95
+#&gt; 10 2024 Apr South   110
+#&gt; 11 2024 May South   121
+#&gt; 12 2024 Jun South   118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things happened. <code>sales</code> started life as an ordinary data frame whose <code>month</code> column was plain text like <code>&quot;2024-01&quot;</code>. <code>yearmonth()</code> converted that text into a proper monthly time value. <code>as_tsibble()</code> then took the result and promoted it, with <code>index = month</code> saying "this is the time column" and <code>key = store</code> saying "this column tells one series apart from another". The <code>|&gt;</code> symbol between the steps is R's pipe: it feeds the result on its left into the first argument of the function on its right, so <code>sales |&gt; mutate(...)</code> is another way of writing <code>mutate(sales, ...)</code>.</p>
+
+<p>Now read the two header lines, because they are the whole point. <code>[1M]</code> at the end of the first line is the <strong>interval</strong>: tsibble looked at the gaps between your time values, worked out that they are one month apart, and wrote it down. <code>Key: store [2]</code> says the table contains <strong>2 separate series</strong>, distinguished by <code>store</code>. You never told it either of those numbers. It figured them out and it will keep checking them.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Those two header lines are a contract, not decoration.</strong> Every tsibble operation from here on relies on them: forecasting functions read the interval to know the seasonal period, gap functions read the interval to know which rows should exist, and grouping functions read the key to know where one series ends and the next begins.</div></div>
+
+<p>You can pull each piece of the contract out with a dedicated function, which is handy when you are debugging someone else's data.</p>
+
+<div class="webr-container" data-block-title="Read the index, key and interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the index, key and interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">index_var(sales_ts)
+#&gt; [1] &quot;month&quot;
+
+key_vars(sales_ts)
+#&gt; [1] &quot;store&quot;
+
+interval(sales_ts)
+#&gt; &lt;interval[1]&gt;
+#&gt; [1] 1M</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>index_var()</code> returns the name of the time column, <code>key_vars()</code> returns the names of the identifying columns (there can be more than one), and <code>interval()</code> returns the detected spacing. If a package ever complains that your data is not what it expected, these three calls tell you what the object actually thinks it is.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tsibble of yearly profit for the years 2021 to 2024 using <code>tsibble()</code> directly, with no key at all. A single series does not need one.</p>
+<div class="webr-container" data-block-title="Your turn: build an annual tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build an annual tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use tsibble(year = ..., profit = ..., index = year)
+# Years 2021L to 2024L, profits 4.1, 5.6, 5.2, 6.8
+# Note the L suffix: integer years, not decimals
+
+# ex_profit &lt;- tsibble(...)
+
+# Expected header: A tsibble: 4 x 2 [1Y]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Annual tsibble solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Annual tsibble solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_profit &lt;- tsibble(
+  year   = c(2021L, 2022L, 2023L, 2024L),
+  profit = c(4.1, 5.6, 5.2, 6.8),
+  index  = year
+)
+
+ex_profit
+#&gt; # A tsibble: 4 x 2 [1Y]
+#&gt;    year profit
+#&gt;   &lt;int&gt;  &lt;dbl&gt;
+#&gt; 1  2021    4.1
+#&gt; 2  2022    5.6
+#&gt; 3  2023    5.2
+#&gt; 4  2024    6.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tsibble()</code> builds the object from scratch instead of converting an existing frame, so you pass the columns and name the index in one call. Integer years are recognised as annual data, hence the <code>[1Y]</code> interval. With one series there is nothing to tell apart, so the key is empty and no <code>Key:</code> line prints.</p>
+
+</details>
+</section>
+
+<h2>What do the index, key, and interval actually mean?</h2>
+
+<p>Those three words carry the whole design, so it is worth slowing down on each one.</p>
+
+<p>The <strong>index</strong> is the column that orders your data from past to present. It has to be a genuine time type (a date, a date-time, a year, a <code>yearmonth</code>, a <code>yearquarter</code>), not text and not a plain number pretending to be a year.</p>
+
+<p>The <strong>key</strong> is the set of columns that say <em>which series a row belongs to</em>. In the sales table, <code>store</code> is the key: <code>North</code> is one series, <code>South</code> is another. If you also tracked product categories, the key would be <code>c(store, category)</code> and each store-category combination would be its own series.</p>
+
+<p>The <strong>interval</strong> is the spacing between consecutive index values. You do not declare it. tsibble computes it from your data: it takes the gaps between consecutive time values and keeps the largest step that divides every one of them evenly.</p>
+
+<p>Put together, they make one promise: <strong>index plus key identifies exactly one row.</strong> Everything else in the table is a measured value.</p>
+
+<p><img src="screenshots/tsibble-in-R-anatomy.webp" alt="Diagram showing the index column and the key column pointing to a single unique row, which then points to the measured value" class="img-responsive img-zoomable" loading="lazy" width="1418" height="690" /></p>
+
+<p><em>Figure 1: The index and the key together pick out exactly one row, and everything else is a measured value.</em></p>
+
+<p>Two helper functions report what tsibble knows about your key.</p>
+
+<div class="webr-container" data-block-title="Inspect the key structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the key structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_keys(sales_ts)
+#&gt; [1] 2
+
+key_data(sales_ts)
+#&gt; # A tibble: 2 × 2
+#&gt;   store       .rows
+#&gt;   &lt;chr&gt; &lt;list&lt;int&gt;&gt;
+#&gt; 1 North         [6]
+#&gt; 2 South         [6]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>n_keys()</code> counts the series: 2, one per store. <code>key_data()</code> goes further and shows which rows belong to which series. The <code>.rows</code> column says North occupies 6 rows and South occupies 6 rows. On a table with 300 series, <code>n_keys()</code> is the fastest sanity check you have: if it returns 301 you have a typo somewhere in your identifier column.</p>
+
+<p>The uniqueness promise is easy to verify by hand. Count how many rows share each month.</p>
+
+<div class="webr-container" data-block-title="Verify the uniqueness promise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the uniqueness promise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_ts |&gt; as_tibble() |&gt; count(month)
+#&gt; # A tibble: 6 × 2
+#&gt;      month     n
+#&gt;      &lt;mth&gt; &lt;int&gt;
+#&gt; 1 2024 Jan     2
+#&gt; 2 2024 Feb     2
+#&gt; 3 2024 Mar     2
+#&gt; 4 2024 Apr     2
+#&gt; 5 2024 May     2
+#&gt; 6 2024 Jun     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>as_tibble()</code> step drops the tsibble structure for a moment so that <code>count()</code> behaves exactly as it would on any data frame, counting rows per month rather than per series. Each month appears twice, once for each store. That is allowed, because the <em>combination</em> of month and store is still unique. If any month appeared twice for the same store, tsibble would have refused to build the object at all, which is the subject of a later section.</p>
+
+<p>Real tsibbles look exactly the same, just bigger. The <code>pedestrian</code> dataset ships with the tsibble package and records hourly foot traffic at four sensors in Melbourne.</p>
+
+<div class="webr-container" data-block-title="A real keyed tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A real keyed tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pedestrian
+#&gt; # A tsibble: 66,037 x 5 [1h] &lt;Australia/Melbourne&gt;
+#&gt; # Key:       Sensor [4]
+#&gt;    Sensor         Date_Time           Date        Time Count
+#&gt;    &lt;chr&gt;          &lt;dttm&gt;              &lt;date&gt;     &lt;int&gt; &lt;int&gt;
+#&gt;  1 Birrarung Marr 2015-01-01 00:00:00 2015-01-01     0  1630
+#&gt;  2 Birrarung Marr 2015-01-01 01:00:00 2015-01-01     1   826
+#&gt;  3 Birrarung Marr 2015-01-01 02:00:00 2015-01-01     2   567
+#&gt;  4 Birrarung Marr 2015-01-01 03:00:00 2015-01-01     3   264
+#&gt;  5 Birrarung Marr 2015-01-01 04:00:00 2015-01-01     4   139
+#&gt;  6 Birrarung Marr 2015-01-01 05:00:00 2015-01-01     5    77
+#&gt;  7 Birrarung Marr 2015-01-01 06:00:00 2015-01-01     6    44
+#&gt;  8 Birrarung Marr 2015-01-01 07:00:00 2015-01-01     7    56
+#&gt;  9 Birrarung Marr 2015-01-01 08:00:00 2015-01-01     8   113
+#&gt; 10 Birrarung Marr 2015-01-01 09:00:00 2015-01-01     9   166
+#&gt; # ℹ 66,027 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same structure, different scale. The index is <code>Date_Time</code>, the key is <code>Sensor</code>, the interval is <code>[1h]</code> (hourly), and there are 4 series sharing the 66,037 rows. The extra bit in angle brackets is the time zone, which tsibble tracks so that daylight-saving shifts do not quietly corrupt your hourly counts.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The interval is detected, not declared.</strong> tsibble finds the greatest common divisor of the gaps between your time values, so a series with hourly stamps gets 1h and a series with 5-minute stamps gets 5m. If your observations are genuinely irregular, like the exact moment each customer walked in, pass <code>regular = FALSE</code> to <code>as_tsibble()</code> and the interval will print as <code>[!]</code> instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Report how many series <code>pedestrian</code> holds and what its interval is, using the two helpers you just met.</p>
+<div class="webr-container" data-block-title="Your turn: describe the pedestrian data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: describe the pedestrian data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two calls, one per line:
+# n_keys(...) and interval(...)
+
+# Expected: 4 series, interval 1h</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Describe pedestrian solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Describe pedestrian solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_keys(pedestrian)
+#&gt; [1] 4
+
+interval(pedestrian)
+#&gt; &lt;interval[1]&gt;
+#&gt; [1] 1h</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Four sensors means four series. The <code>1h</code> interval is what tells forecasting packages later that a daily cycle spans 24 observations and a weekly cycle spans 168.</p>
+
+</details>
+</section>
+
+<h2>How do you turn your own data into a tsibble?</h2>
+
+<p>There are three doors into a tsibble, and which one you use depends on what you already have.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>You have</th>
+<th>Use</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A data frame or tibble with a time column</td>
+<td><code>as_tsibble(df, index = , key = )</code></td>
+<td>Your CSV import</td>
+</tr>
+<tr>
+<td>A classic <code>ts</code> object</td>
+<td><code>as_tsibble(x)</code></td>
+<td><code>AirPassengers</code>, <code>USAccDeaths</code></td>
+</tr>
+<tr>
+<td>Nothing yet, typing values by hand</td>
+<td><code>tsibble(col = , ..., index = )</code></td>
+<td>Small examples and tests</td>
+</tr>
+</tbody>
+</table>
+
+<p>Before any of them works, your time column has to be a real time type. R's built-in <code>Date</code> and <code>POSIXct</code> cover days and timestamps, and tsibble adds four classes for the coarser granularities.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Granularity</th>
+<th>Class to use</th>
+<th>How to create it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Yearly</td>
+<td>integer</td>
+<td><code>2024L</code></td>
+</tr>
+<tr>
+<td>Quarterly</td>
+<td><code>yearquarter</code></td>
+<td><code>yearquarter(&quot;2023 Q1&quot;)</code></td>
+</tr>
+<tr>
+<td>Monthly</td>
+<td><code>yearmonth</code></td>
+<td><code>yearmonth(&quot;2024-01&quot;)</code></td>
+</tr>
+<tr>
+<td>Weekly</td>
+<td><code>yearweek</code></td>
+<td><code>yearweek(&quot;2024 W01&quot;)</code></td>
+</tr>
+<tr>
+<td>Daily</td>
+<td><code>Date</code></td>
+<td><code>as.Date(&quot;2024-03-01&quot;)</code></td>
+</tr>
+<tr>
+<td>Sub-daily</td>
+<td><code>POSIXct</code></td>
+<td><code>as.POSIXct(&quot;2024-03-01 09:00&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Start with the easiest door. A classic <code>ts</code> object already carries its own time information, so tsibble can read it without any help from you.</p>
+
+<div class="webr-container" data-block-title="Convert a ts object to a tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a ts object to a tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air_ts &lt;- as_tsibble(AirPassengers)
+air_ts
+#&gt; # A tsibble: 144 x 2 [1M]
+#&gt;       index value
+#&gt;       &lt;mth&gt; &lt;dbl&gt;
+#&gt;  1 1949 Jan   112
+#&gt;  2 1949 Feb   118
+#&gt;  3 1949 Mar   132
+#&gt;  4 1949 Apr   129
+#&gt;  5 1949 May   121
+#&gt;  6 1949 Jun   135
+#&gt;  7 1949 Jul   148
+#&gt;  8 1949 Aug   148
+#&gt;  9 1949 Sep   136
+#&gt; 10 1949 Oct   119
+#&gt; # ℹ 134 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No index or key argument was needed. <code>AirPassengers</code> is monthly data from 1949, and <code>as_tsibble()</code> read the frequency straight out of the <code>ts</code> object, converted the timestamps to <code>yearmonth</code> values, and named the two resulting columns <code>index</code> and <code>value</code>. A single <code>ts</code> object holds only one series, so there is no key.</p>
+
+<p>The second door is building a tsibble by hand, which is what you want for small examples.</p>
+
+<div class="webr-container" data-block-title="Build a quarterly tsibble by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a quarterly tsibble by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q_ts &lt;- tsibble(
+  quarter = yearquarter(c(&quot;2023 Q1&quot;, &quot;2023 Q2&quot;, &quot;2023 Q3&quot;, &quot;2023 Q4&quot;)),
+  revenue = c(41, 45, 39, 52),
+  index   = quarter
+)
+
+q_ts
+#&gt; # A tsibble: 4 x 2 [1Q]
+#&gt;   quarter revenue
+#&gt;     &lt;qtr&gt;   &lt;dbl&gt;
+#&gt; 1 2023 Q1      41
+#&gt; 2 2023 Q2      45
+#&gt; 3 2023 Q3      39
+#&gt; 4 2023 Q4      52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tsibble()</code> takes named vectors the same way <code>data.frame()</code> does, and the <code>index</code> argument names which of them is time. The <code>[1Q]</code> interval confirms it understood quarterly spacing, and <code>&lt;qtr&gt;</code> in the column header confirms the type.</p>
+
+<p>The third door is the one you will use most: an ordinary table where the dates arrived as text.</p>
+
+<div class="webr-container" data-block-title="Convert text dates to a daily tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert text dates to a daily tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits &lt;- data.frame(
+  day    = c(&quot;2024-03-01&quot;, &quot;2024-03-02&quot;, &quot;2024-03-03&quot;, &quot;2024-03-04&quot;),
+  clicks = c(310, 288, 402, 375)
+)
+
+visits_ts &lt;- visits |&gt;
+  mutate(day = as.Date(day)) |&gt;
+  as_tsibble(index = day)
+
+visits_ts
+#&gt; # A tsibble: 4 x 2 [1D]
+#&gt;   day        clicks
+#&gt;   &lt;date&gt;      &lt;dbl&gt;
+#&gt; 1 2024-03-01    310
+#&gt; 2 2024-03-02    288
+#&gt; 3 2024-03-03    402
+#&gt; 4 2024-03-04    375</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as.Date()</code> parses <code>&quot;2024-03-01&quot;</code> into a real date, then <code>as_tsibble()</code> detects that consecutive dates are one day apart and stamps the object <code>[1D]</code>. Skip the <code>as.Date()</code> step and <code>as_tsibble()</code> stops you immediately with <code>Unsupported index type: character</code>, which is the single most common first error people hit.</p>
+
+<p>Now for the trap that catches almost everyone with monthly data.</p>
+
+<div class="webr-container" data-block-title="The first-of-the-month Date trap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The first-of-the-month Date trap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first_of_month &lt;- data.frame(
+  d = as.Date(c(&quot;2024-01-01&quot;, &quot;2024-02-01&quot;, &quot;2024-03-01&quot;)),
+  v = c(10, 12, 11)
+)
+
+fom_ts &lt;- as_tsibble(first_of_month, index = d)
+fom_ts
+#&gt; # A tsibble: 3 x 2 [1D]
+#&gt;   d              v
+#&gt;   &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1 2024-01-01    10
+#&gt; 2 2024-02-01    12
+#&gt; 3 2024-03-01    11
+
+has_gaps(fom_ts)
+#&gt; # A tibble: 1 × 1
+#&gt;   .gaps
+#&gt;   &lt;lgl&gt;
+#&gt; 1 TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is monthly data stored as the first day of each month, which is how nearly every database exports it. But the values are <code>Date</code> objects, and the gaps between them are 31 and 29 days, so the largest step that divides both evenly is one day. tsibble concludes the data is daily, stamps it <code>[1D]</code>, and then reports gaps: of the 61 calendar days between 1 January and 1 March, only 3 have rows, so 58 daily observations look missing. Nothing is broken, it just answered the question you accidentally asked.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Monthly data stored as Date becomes daily data.</strong> Any time your series is monthly, quarterly or weekly, convert the column with yearmonth(), yearquarter() or yearweek() before calling <a class="auto-link" href="fable-in-R.html" title="fable in R: Tidy Time Series Forecasting with tsibble">as_tsibble()</a>. Leaving it as Date silently changes the interval, which then changes the seasonal period every downstream model uses.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the built-in <code>USAccDeaths</code> time series (monthly US accidental deaths) into a tsibble and check its interval in the printed header.</p>
+<div class="webr-container" data-block-title="Your turn: convert USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># USAccDeaths is already a ts object, so one call is enough
+# ex_deaths &lt;- as_tsibble(...)
+
+# Expected header: A tsibble: 72 x 2 [1M]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Convert USAccDeaths solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert USAccDeaths solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_deaths &lt;- as_tsibble(USAccDeaths)
+ex_deaths
+#&gt; # A tsibble: 72 x 2 [1M]
+#&gt;       index value
+#&gt;       &lt;mth&gt; &lt;dbl&gt;
+#&gt;  1 1973 Jan  9007
+#&gt;  2 1973 Feb  8106
+#&gt;  3 1973 Mar  8928
+#&gt;  4 1973 Apr  9137
+#&gt;  5 1973 May 10017
+#&gt;  6 1973 Jun 10826
+#&gt;  7 1973 Jul 11317
+#&gt;  8 1973 Aug 10744
+#&gt;  9 1973 Sep  9713
+#&gt; 10 1973 Oct  9938
+#&gt; # ℹ 62 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 72 rows is six years of monthly observations, and the <code>[1M]</code> interval was carried over from the <code>ts</code> object's frequency of 12. Because it came from a <code>ts</code>, the columns are named <code>index</code> and <code>value</code> rather than anything descriptive. Rename them with <code>rename()</code> if you plan to keep the object around.</p>
+
+</details>
+</section>
+
+<h2>Why does as_tsibble() reject your data, and how do you fix it?</h2>
+
+<p>At some point <code>as_tsibble()</code> will refuse to build your object. This is the error, and it is worth reading carefully because it is telling you something true about your data.</p>
+
+<p>Here is what happens if we forget the key on the two-store sales table.</p>
+
+<div class="webr-container" data-block-title="Trigger the duplicate rows error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trigger the duplicate rows error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_raw &lt;- sales |&gt; mutate(month = yearmonth(month))
+
+msg &lt;- tryCatch(
+  {as_tsibble(sales_raw, index = month); &quot;it worked&quot;},
+  error = function(e) conditionMessage(e)
+)
+cat(msg)
+#&gt; A valid tsibble must have distinct rows identified by key and index.
+#&gt; ℹ Please use `duplicates()` to check the duplicated rows.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>tryCatch()</code> wrapper is only there so the page keeps running after the error; in your own console you would just see the message in red. What it means is simple. We claimed <code>month</code> alone identifies each row, but January appears twice, once for North and once for South. tsibble cannot honour the uniqueness promise, so it refuses.</p>
+
+<p>The error message names its own debugging tool, so use it.</p>
+
+<div class="webr-container" data-block-title="Locate the duplicated rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Locate the duplicated rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">is_duplicated(sales_raw, index = month)
+#&gt; [1] TRUE
+
+duplicates(sales_raw, index = month) |&gt; arrange(month) |&gt; head(4)
+#&gt; # A tibble: 4 × 3
+#&gt;      month store units
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan North   120
+#&gt; 2 2024 Jan South    98
+#&gt; 3 2024 Feb North   133
+#&gt; 4 2024 Feb South   101</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>is_duplicated()</code> answers yes or no, and <code>duplicates()</code> hands back every row caught in a clash so you can look at them. All twelve rows qualify here, so <code>arrange(month)</code> sorts them into pairs and <code>head(4)</code> shows the first two pairs. The answer is then plain to see: the two January rows carry the same timestamp and differ only by <code>store</code>, which is exactly the column we failed to name as the key.</p>
+
+<p>That points to the two fixes, and choosing between them is a modelling decision, not a technical one.</p>
+
+<p><strong>Fix 1, name the missing key.</strong> If North and South really are two series you want to forecast separately, add <code>key = store</code> and you are done. That is what the very first code block did.</p>
+
+<p><strong>Fix 2, aggregate the duplicates away.</strong> If you only care about company-wide sales, collapse the two stores into one number per month first.</p>
+
+<div class="webr-container" data-block-title="Aggregate duplicates into one series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate duplicates into one series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_total &lt;- sales_raw |&gt;
+  summarise(units = sum(units), .by = month) |&gt;
+  as_tsibble(index = month)
+
+sales_total
+#&gt; # A tsibble: 6 x 2 [1M]
+#&gt;      month units
+#&gt;      &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan   218
+#&gt; 2 2024 Feb   234
+#&gt; 3 2024 Mar   236
+#&gt; 4 2024 Apr   248
+#&gt; 5 2024 May   271
+#&gt; 6 2024 Jun   280</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>summarise(.by = month)</code> adds up both stores for each month, leaving one row per month. Now <code>month</code> genuinely is unique, <code>as_tsibble()</code> accepts it, and you have a single national series. January's 218 is North's 120 plus South's 98.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Read the duplicate error as "you have not named enough key columns yet."</strong> Nine times out of ten a real column in your data explains why two rows share a timestamp: a store, a region, a product, a sensor. Find it, name it in the key, and the error disappears without you deleting a single row.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A sensor logged two readings on 2024-05-02 by mistake. Use <code>duplicates()</code> to pull out just the offending rows.</p>
+<div class="webr-container" data-block-title="Your turn: find the duplicate readings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the duplicate readings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_readings &lt;- data.frame(
+  day    = as.Date(c(&quot;2024-05-01&quot;, &quot;2024-05-02&quot;, &quot;2024-05-02&quot;, &quot;2024-05-03&quot;)),
+  temp_c = c(21.4, 22.8, 23.1, 20.9)
+)
+
+# duplicates(..., index = day)
+# your code here
+
+# Expected: 2 rows, both dated 2024-05-02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find duplicate readings solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find duplicate readings solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">duplicates(ex_readings, index = day)
+#&gt; # A tibble: 2 × 2
+#&gt;   day        temp_c
+#&gt;   &lt;date&gt;      &lt;dbl&gt;
+#&gt; 1 2024-05-02   22.8
+#&gt; 2 2024-05-02   23.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>duplicates()</code> returns every row involved in a clash, not just the extras, so you can compare 22.8 against 23.1 and decide which to keep. With no obvious key column here, the honest fixes are to average the pair or to keep whichever reading the logger marked as valid.</p>
+
+</details>
+</section>
+
+<h2>How do you find the gaps hiding in a time series?</h2>
+
+<p>Here is the problem tsibble solves that a plain data frame cannot.</p>
+
+<p>There are two ways a value can be missing from a time series. The first is <strong>explicit</strong>: the row exists, and the value in it is <code>NA</code>. You can see it, <code>sum(is.na(x))</code> counts it, and every R function knows how to complain about it.</p>
+
+<p>The second is <strong>implicit</strong>: the row is simply not there. March never made it into the export. There is no <code>NA</code> to find, because there is no row to hold one. Your data frame has 10 rows instead of 12 and looks completely healthy.</p>
+
+<p>Implicit missingness is dangerous precisely because it is invisible. A forecasting model that assumes evenly spaced observations will treat February as if it were followed by May, and return a wrong answer without any warning or error.</p>
+
+<p><img src="screenshots/tsibble-in-R-gap-workflow.webp" alt="Diagram of the gap workflow: missing rows flow into has_gaps, then to count_gaps and scan_gaps, then to fill_gaps and explicit NA" class="img-responsive img-zoomable" loading="lazy" width="2248" height="594" /></p>
+
+<p><em>Figure 2: The four gap functions in the order you use them, from detection to explicit NA.</em></p>
+
+<p>Let us break the sales data on purpose by deleting two of South's months, then ask tsibble whether anything is wrong.</p>
+
+<div class="webr-container" data-block-title="Detect gaps with has_gaps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect gaps with has_gaps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_gappy &lt;- sales_ts |&gt;
+  filter(!(store == &quot;South&quot; &amp; month %in% yearmonth(c(&quot;2024-03&quot;, &quot;2024-04&quot;))))
+
+nrow(sales_gappy)
+#&gt; [1] 10
+
+has_gaps(sales_gappy)
+#&gt; # A tibble: 2 × 2
+#&gt;   store .gaps
+#&gt;   &lt;chr&gt; &lt;lgl&gt;
+#&gt; 1 North FALSE
+#&gt; 2 South TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>filter()</code> call drops South's March and April, taking the table from 12 rows to 10. <code>has_gaps()</code> then reports one row per series with a <code>.gaps</code> flag: North is complete, South is not. That is the whole detection step, and on a table with 300 series it still returns one tidy row per series, so you can pipe it into <code>filter(.gaps)</code> to list the broken ones.</p>
+
+<p>Knowing <em>that</em> South is broken is a start. Two more functions tell you <em>where</em>.</p>
+
+<div class="webr-container" data-block-title="Locate gaps with scan_gaps and count_gaps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Locate gaps with scan_gaps and count_gaps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scan_gaps(sales_gappy)
+#&gt; # A tsibble: 2 x 2 [1M]
+#&gt; # Key:       store [1]
+#&gt;   store    month
+#&gt;   &lt;chr&gt;    &lt;mth&gt;
+#&gt; 1 South 2024 Mar
+#&gt; 2 South 2024 Apr
+
+count_gaps(sales_gappy)
+#&gt; # A tibble: 1 × 4
+#&gt;   store    .from      .to    .n
+#&gt;   &lt;chr&gt;    &lt;mth&gt;    &lt;mth&gt; &lt;int&gt;
+#&gt; 1 South 2024 Mar 2024 Apr     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two answer the same question at different zoom levels. <code>scan_gaps()</code> lists every missing timestamp individually, one row per hole, which is what you want when there are a handful. <code>count_gaps()</code> collapses consecutive holes into runs and reports the start (<code>.from</code>), the end (<code>.to</code>), and the length (<code>.n</code>), which is what you want when there are thousands.</p>
+
+<p>On real data, <code>count_gaps()</code> is the one you reach for.</p>
+
+<div class="webr-container" data-block-title="Count gaps in real hourly data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count gaps in real hourly data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ped_gaps &lt;- count_gaps(pedestrian)
+
+nrow(ped_gaps)
+#&gt; [1] 18
+
+head(ped_gaps, 5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Sensor         .from               .to                    .n
+#&gt;   &lt;chr&gt;          &lt;dttm&gt;              &lt;dttm&gt;              &lt;int&gt;
+#&gt; 1 Birrarung Marr 2015-04-05 02:00:00 2015-04-05 02:00:00     1
+#&gt; 2 Birrarung Marr 2015-05-07 00:00:00 2015-05-31 23:00:00   600
+#&gt; 3 Birrarung Marr 2015-10-06 00:00:00 2015-10-31 23:00:00   624
+#&gt; 4 Birrarung Marr 2015-11-05 00:00:00 2015-11-06 23:00:00    48
+#&gt; 5 Birrarung Marr 2015-11-20 00:00:00 2015-11-24 23:00:00   120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eighteen separate outages across the four sensors, and the pattern in them is informative. Row 1 is a single missing hour on 5 April 2015, which is the night Melbourne's clocks went back for <a class="auto-link" href="Dates-and-Times-Drills-in-R.html" title="Dates and Times Drills: 15 R Problems That Trip Everyone Up">daylight saving</a>. Rows 2 and 3 are 600 and 624 consecutive hours, roughly 25 and 26 days: the sensor was offline for most of May and most of October. Row 4 is a two-day outage. None of this is visible in the raw 66,037 rows, and none of it would produce a single <code>NA</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Counting <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> will not find implicit gaps.</strong> Running sum(is.na(pedestrian$Count)) on this data returns zero, because every row that exists has a real count in it. The 3,011 missing hours those 18 runs add up to have no rows at all. Only has_gaps() and its relatives can see them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a version of <code>sales_ts</code> where South's first three months are missing entirely, then compare <code>has_gaps()</code> with <code>has_gaps(.full = TRUE)</code>. The two disagree, and the reason is worth knowing.</p>
+<div class="webr-container" data-block-title="Your turn: compare .full = FALSE and TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare .full = FALSE and TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_late &lt;- sales_ts |&gt;
+#   filter(!(store == &quot;South&quot; &amp;
+#            month %in% yearmonth(c(&quot;2024-01&quot;, &quot;2024-02&quot;, &quot;2024-03&quot;))))
+
+# has_gaps(ex_late)
+# has_gaps(ex_late, .full = TRUE)
+
+# Expected: FALSE for South in the first, TRUE in the second</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare .full solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare .full solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_late &lt;- sales_ts |&gt;
+  filter(!(store == &quot;South&quot; &amp;
+           month %in% yearmonth(c(&quot;2024-01&quot;, &quot;2024-02&quot;, &quot;2024-03&quot;))))
+
+has_gaps(ex_late)
+#&gt; # A tibble: 2 × 2
+#&gt;   store .gaps
+#&gt;   &lt;chr&gt; &lt;lgl&gt;
+#&gt; 1 North FALSE
+#&gt; 2 South FALSE
+
+has_gaps(ex_late, .full = TRUE)
+#&gt; # A tibble: 2 × 2
+#&gt;   store .gaps
+#&gt;   &lt;chr&gt; &lt;lgl&gt;
+#&gt; 1 North FALSE
+#&gt; 2 South TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> By default, every gap function judges each series against its own time span. South now runs from April to June with nothing missing inside that window, so the default answer is "no gaps". Setting <code>.full = TRUE</code> judges every series against the full span of the whole table, January to June, and then South's late start counts as three missing months. Use the default when series legitimately begin at different times (a store that opened in April), and <code>.full = TRUE</code> when every series is supposed to cover the same window.</p>
+
+</details>
+</section>
+
+<h2>How do you fill gaps so every period has a row?</h2>
+
+<p>Detection is half the job. <code>fill_gaps()</code> does the other half: it inserts the missing rows so the calendar is complete again.</p>
+
+<div class="webr-container" data-block-title="Turn implicit gaps into explicit NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn implicit gaps into explicit NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_full &lt;- fill_gaps(sales_gappy)
+
+sales_full |&gt; filter(store == &quot;South&quot;)
+#&gt; # A tsibble: 6 x 3 [1M]
+#&gt; # Key:       store [1]
+#&gt;      month store units
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan South    98
+#&gt; 2 2024 Feb South   101
+#&gt; 3 2024 Mar South    NA
+#&gt; 4 2024 Apr South    NA
+#&gt; 5 2024 May South   121
+#&gt; 6 2024 Jun South   118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>South is back to six rows. March and April exist again, and their <code>units</code> values are <code>NA</code>. This is the crucial move: an invisible problem has become a visible one. Every R function that knows how to handle <code>NA</code> can now handle your data, and <code>sum(is.na(sales_full$units))</code> finally returns 2.</p>
+
+<p>You can also fill with a value instead of <code>NA</code>, by naming the column.</p>
+
+<div class="webr-container" data-block-title="Fill gaps with a fixed value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill gaps with a fixed value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fill_gaps(sales_gappy, units = 0) |&gt; filter(store == &quot;South&quot;)
+#&gt; # A tsibble: 6 x 3 [1M]
+#&gt; # Key:       store [1]
+#&gt;      month store units
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan South    98
+#&gt; 2 2024 Feb South   101
+#&gt; 3 2024 Mar South     0
+#&gt; 4 2024 Apr South     0
+#&gt; 5 2024 May South   121
+#&gt; 6 2024 Jun South   118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Whether that zero is right depends entirely on why the data is missing. If the store genuinely sold nothing in March, zero is the correct value. If the sales system was down, zero is simply wrong, and every model fitted to that history will forecast too low. Fill with zero only when absence really does mean none.</p>
+
+<p>For most series, carrying the last known value forward is the safer default. <code>fill_gaps()</code> creates the rows and <code>tidyr::fill()</code> populates them.</p>
+
+<div class="webr-container" data-block-title="Fill gaps then carry values forward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill gaps then carry values forward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+sales_carried &lt;- sales_full |&gt;
+  group_by_key() |&gt;
+  fill(units, .direction = &quot;down&quot;) |&gt;
+  ungroup()
+
+sales_carried |&gt; filter(store == &quot;South&quot;)
+#&gt; # A tsibble: 6 x 3 [1M]
+#&gt; # Key:       store [1]
+#&gt;      month store units
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan South    98
+#&gt; 2 2024 Feb South   101
+#&gt; 3 2024 Mar South   101
+#&gt; 4 2024 Apr South   101
+#&gt; 5 2024 May South   121
+#&gt; 6 2024 Jun South   118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>March and April now hold 101, February's value, carried down. The <code>group_by_key()</code> call is what makes this safe: it tells <code>fill()</code> to work within each store separately, so North's last value can never leak into South's first gap. Without it, <code>fill()</code> would run straight down the combined table and do exactly that.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Create the rows first, decide the values second.</strong> Running fill_gaps() with no arguments and inspecting the NA rows shows you how much you are about to invent. Only then choose between carrying forward, interpolating, or filling with zero. Jumping straight to a filled value hides the size of the problem from yourself.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fill South's two gaps with that store's own average instead of a fixed number. You will need <code>group_by_key()</code> for the average to be per-store.</p>
+<div class="webr-container" data-block-title="Your turn: fill with the per-store mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fill with the per-store mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sales_gappy |&gt;
+#   group_by_key() |&gt;
+#   fill_gaps(units = mean(units)) |&gt;
+#   filter(store == &quot;South&quot;)
+
+# Expected: March and April both show 110. (South's own mean)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fill with group mean solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill with group mean solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_gappy |&gt;
+  group_by_key() |&gt;
+  fill_gaps(units = mean(units)) |&gt;
+  filter(store == &quot;South&quot;)
+#&gt; # A tsibble: 6 x 3 [1M]
+#&gt; # Key:       store [1]
+#&gt; # Groups:    store [1]
+#&gt;      month store units
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan South   98 
+#&gt; 2 2024 Feb South  101 
+#&gt; 3 2024 Mar South  110.
+#&gt; 4 2024 Apr South  110.
+#&gt; 5 2024 May South  121 
+#&gt; 6 2024 Jun South  118 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>group_by_key()</code>, <code>mean(units)</code> is evaluated inside each store, so South's gaps get South's average of its four observed months, 109.5, printed rounded as 110. Drop the <code>group_by_key()</code> line and <code>mean(units)</code> is computed across both stores instead, giving 128.2, which quietly imports North's larger numbers into South's series.</p>
+
+</details>
+</section>
+
+<h2>How does index_by() change the time granularity?</h2>
+
+<p>Hourly data is rarely the granularity you want to model. <code>index_by()</code> is the tool that moves between granularities, and it is best understood as <code>group_by()</code> for the time column only.</p>
+
+<p>Here is hourly pedestrian traffic collapsed into daily totals per sensor.</p>
+
+<div class="webr-container" data-block-title="Aggregate hourly data to daily">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate hourly data to daily</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+ped_daily &lt;- pedestrian |&gt;
+  group_by_key() |&gt;
+  index_by(day = as_date(Date_Time)) |&gt;
+  summarise(daily_count = sum(Count))
+
+ped_daily
+#&gt; # A tsibble: 2,752 x 3 [1D]
+#&gt; # Key:       Sensor [4]
+#&gt;    Sensor         day        daily_count
+#&gt;    &lt;chr&gt;          &lt;date&gt;           &lt;int&gt;
+#&gt;  1 Birrarung Marr 2015-01-01        8950
+#&gt;  2 Birrarung Marr 2015-01-02        3972
+#&gt;  3 Birrarung Marr 2015-01-03        2505
+#&gt;  4 Birrarung Marr 2015-01-04        6765
+#&gt;  5 Birrarung Marr 2015-01-05       10030
+#&gt;  6 Birrarung Marr 2015-01-06        7667
+#&gt;  7 Birrarung Marr 2015-01-07        5242
+#&gt;  8 Birrarung Marr 2015-01-08        5516
+#&gt;  9 Birrarung Marr 2015-01-09        7813
+#&gt; 10 Birrarung Marr 2015-01-10       15291
+#&gt; # ℹ 2,742 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the pipeline one step at a time. <code>group_by_key()</code> says "keep the four sensors apart". <code>index_by(day = as_date(Date_Time))</code> creates a new index called <code>day</code> by throwing away the time-of-day part of each timestamp. <code>summarise(daily_count = sum(Count))</code> then adds up the counts inside each sensor-day.</p>
+
+<p>The result is still a tsibble, and its header proves the transformation worked: 66,037 hourly rows became 2,752 daily rows, the interval changed from <code>[1h]</code> to <code>[1D]</code>, and the key survived with all 4 sensors intact. New Year's Day 2015 saw 8,950 people pass the Birrarung Marr sensor.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Loading lubridate hides tsibble's <a class="auto-link" href="lubridate-interval-in-R.html" title="lubridate interval() in R: Bounded Time Spans">interval()</a> function.</strong> Both packages define a function called interval, and the one loaded last wins, so after <code>library(lubridate)</code> a call to <code>interval(sales_ts)</code> will fail. Write <code>tsibble::interval(sales_ts)</code> to be explicit. This is a naming collision, not a bug in either package.</div></div>
+
+<p>The same pattern moves monthly data up to quarterly. When the new index is derived from the old one by a function, the tilde shorthand is tidier.</p>
+
+<div class="webr-container" data-block-title="Aggregate months into quarters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate months into quarters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_q &lt;- sales_ts |&gt;
+  group_by_key() |&gt;
+  index_by(quarter = ~ yearquarter(.)) |&gt;
+  summarise(units = sum(units))
+
+sales_q
+#&gt; # A tsibble: 4 x 3 [1Q]
+#&gt; # Key:       store [2]
+#&gt;   store quarter units
+#&gt;   &lt;chr&gt;   &lt;qtr&gt; &lt;dbl&gt;
+#&gt; 1 North 2024 Q1   394
+#&gt; 2 North 2024 Q2   450
+#&gt; 3 South 2024 Q1   294
+#&gt; 4 South 2024 Q2   349</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>~ yearquarter(.)</code> formula means "apply <code>yearquarter()</code> to the current index", with the dot standing in for whatever the index happens to be called. Twelve monthly rows became four quarterly rows, two per store. North's Q1 total of 394 is January's 120 plus February's 133 plus March's 141.</p>
+
+<p>For simply cutting out a window of time rather than aggregating, <code>filter_index()</code> is a shortcut that saves you writing date comparisons.</p>
+
+<div class="webr-container" data-block-title="Select a time window with filter_index">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Select a time window with filter_index</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_ts |&gt; filter_index(&quot;2024-02&quot; ~ &quot;2024-04&quot;)
+#&gt; # A tsibble: 6 x 3 [1M]
+#&gt; # Key:       store [2]
+#&gt;      month store units
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 2024 Feb North   133
+#&gt; 2 2024 Mar North   141
+#&gt; 3 2024 Apr North   138
+#&gt; 4 2024 Feb South   101
+#&gt; 5 2024 Mar South    95
+#&gt; 6 2024 Apr South   110</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tilde reads as "from, to", and it is inclusive at both ends. It also understands partial dates, so <code>&quot;2015&quot;</code> means all of 2015 and <code>&quot;2015-03&quot;</code> means all of March 2015. The open forms <code>. ~ &quot;2024-04&quot;</code> and <code>&quot;2024-02&quot; ~ .</code> mean "everything up to" and "everything from".</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>index_by() re-indexes without ever merging two series, as long as you group by key first.</strong> That is what separates it from a plain <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by()</a> on a rounded date column: the key stays intact, the output is still a tsibble, and the new interval is recomputed for you rather than assumed.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the <code>ped_daily</code> object you just built and roll it up one more level, to monthly totals per sensor.</p>
+<div class="webr-container" data-block-title="Your turn: aggregate daily to monthly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: aggregate daily to monthly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same three-step pattern, with yearmonth() instead of as_date()
+# ped_daily |&gt;
+#   group_by_key() |&gt;
+#   index_by(mth = ~ yearmonth(.)) |&gt;
+#   summarise(monthly_count = sum(daily_count))
+
+# Expected: 95 rows, interval 1M, 4 sensors</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Daily to monthly solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily to monthly solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ped_daily |&gt;
+  group_by_key() |&gt;
+  index_by(mth = ~ yearmonth(.)) |&gt;
+  summarise(monthly_count = sum(daily_count))
+#&gt; # A tsibble: 95 x 3 [1M]
+#&gt; # Key:       Sensor [4]
+#&gt;    Sensor              mth monthly_count
+#&gt;    &lt;chr&gt;             &lt;mth&gt;         &lt;int&gt;
+#&gt;  1 Birrarung Marr 2015 Jan        500834
+#&gt;  2 Birrarung Marr 2015 Feb        336921
+#&gt;  3 Birrarung Marr 2015 Mar        531849
+#&gt;  4 Birrarung Marr 2015 Apr        297232
+#&gt;  5 Birrarung Marr 2015 May         60985
+#&gt;  6 Birrarung Marr 2015 Jun        270735
+#&gt;  7 Birrarung Marr 2015 Jul        357525
+#&gt;  8 Birrarung Marr 2015 Aug        231976
+#&gt;  9 Birrarung Marr 2015 Sep        289593
+#&gt; 10 Birrarung Marr 2015 Oct         98432
+#&gt; # ℹ 85 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 2,752 daily rows became 95 monthly rows across four sensors. Notice May 2015 at 60,985 against March's 531,849: that is the 25-day outage <code>count_gaps()</code> found earlier showing up as a suspiciously small total. Aggregating over gaps sums whatever rows exist, so always fill gaps before you roll up, or a broken sensor will look like a quiet month.</p>
+
+</details>
+</section>
+
+<h2>Which dplyr verbs behave differently on a tsibble?</h2>
+
+<p>A tsibble is a data frame, so <code>filter()</code>, <code>mutate()</code>, <code>select()</code> and <code>summarise()</code> all work. Three of them behave slightly differently, and the differences trip people up until they know the rule: <strong>the index and key columns are structural, so tsibble protects them.</strong></p>
+
+<p>Start with <code>select()</code>, which is the most surprising.</p>
+
+<div class="webr-container" data-block-title="select() keeps the index and key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">select() keeps the index and key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_ts |&gt; select(units)
+#&gt; # A tsibble: 12 x 3 [1M]
+#&gt; # Key:       store [2]
+#&gt;    units    month store
+#&gt;    &lt;dbl&gt;    &lt;mth&gt; &lt;chr&gt;
+#&gt;  1   120 2024 Jan North
+#&gt;  2   133 2024 Feb North
+#&gt;  3   141 2024 Mar North
+#&gt;  4   138 2024 Apr North
+#&gt;  5   150 2024 May North
+#&gt;  6   162 2024 Jun North
+#&gt;  7    98 2024 Jan South
+#&gt;  8   101 2024 Feb South
+#&gt;  9    95 2024 Mar South
+#&gt; 10   110 2024 Apr South
+#&gt; 11   121 2024 May South
+#&gt; 12   118 2024 Jun South</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We asked for one column and got three. That is deliberate. Dropping <code>month</code> would leave an object claiming to be a time series with no time in it, so tsibble adds the index and key back automatically. They move to the end of the column order, which is your visual cue that they were re-attached rather than requested.</p>
+
+<p><code>summarise()</code> goes the other way: it removes the key.</p>
+
+<div class="webr-container" data-block-title="summarise() collapses across the key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">summarise() collapses across the key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_ts |&gt; summarise(total = sum(units))
+#&gt; # A tsibble: 6 x 2 [1M]
+#&gt;      month total
+#&gt;      &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan   218
+#&gt; 2 2024 Feb   234
+#&gt; 3 2024 Mar   236
+#&gt; 4 2024 Apr   248
+#&gt; 5 2024 May   271
+#&gt; 6 2024 Jun   280</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>group_by_key()</code>, <code>summarise()</code> treats the whole table as one thing and adds North and South together for each month, returning a single national series with no <code>Key:</code> line. That is either exactly what you wanted or a silent bug, depending on your intent. If you meant to keep the stores apart, <code>group_by_key()</code> before summarising is the fix, which is what the <code>index_by()</code> examples did.</p>
+
+<p>For per-series calculations that keep every row, combine <code>group_by_key()</code> with <code>mutate()</code>.</p>
+
+<div class="webr-container" data-block-title="Per-series running totals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-series running totals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_ts |&gt;
+  group_by_key() |&gt;
+  mutate(cumulative = cumsum(units)) |&gt;
+  ungroup() |&gt;
+  as_tibble() |&gt;
+  head(3)
+#&gt; # A tibble: 3 × 4
+#&gt;      month store units cumulative
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 2024 Jan North   120        120
+#&gt; 2 2024 Feb North   133        253
+#&gt; 3 2024 Mar North   141        394</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cumsum()</code> restarts at each store rather than running continuously through the table, because <code>group_by_key()</code> scoped it. The <code>as_tibble()</code> at the end is the escape hatch: it strips the tsibble structure and hands back a plain tibble, which is what you want when you are done with time-series operations and just need a table to print or join.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">arrange()</a> cannot reorder the index.</strong> Sorting a tsibble by anything other than key then index produces a warning that "current temporal ordering may yield unexpected results", because a time series with shuffled timestamps is not a time series. Convert with <a class="auto-link" href="tibble-as_tibble-in-R.html" title="tibble as_tibble() in R: Convert Objects to Tibbles">as_tibble()</a> first if you genuinely want a table sorted by value.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a three-month <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">rolling mean</a> per store, computed with <code>lag()</code>. The first two months of each store have no history, so they should come out <code>NA</code>.</p>
+<div class="webr-container" data-block-title="Your turn: per-store rolling mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-store rolling mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sales_ts |&gt;
+#   group_by_key() |&gt;
+#   mutate(roll3 = (units + lag(units) + lag(units, 2)) / 3) |&gt;
+#   ungroup() |&gt;
+#   as_tibble() |&gt;
+#   head(4)
+
+# Expected: NA, NA, then 131. and 137. for North</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rolling mean solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling mean solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_ts |&gt;
+  group_by_key() |&gt;
+  mutate(roll3 = (units + lag(units) + lag(units, 2)) / 3) |&gt;
+  ungroup() |&gt;
+  as_tibble() |&gt;
+  head(4)
+#&gt; # A tibble: 4 × 4
+#&gt;      month store units roll3
+#&gt;      &lt;mth&gt; &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2024 Jan North   120   NA 
+#&gt; 2 2024 Feb North   133   NA 
+#&gt; 3 2024 Mar North   141  131.
+#&gt; 4 2024 Apr North   138  137.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lag(units)</code> reaches back one row and <code>lag(units, 2)</code> reaches back two, so March averages 120, 133 and 141 to get 131.3. January and February have nothing to reach back to, so the arithmetic yields <code>NA</code>. <code>group_by_key()</code> is what stops South's first month from lagging into North's last, which would silently produce a nonsense number instead of an honest <code>NA</code>.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: from a messy raw table to a forecast</h2>
+
+<p>Time to put every step together on data that has both problems at once: a duplicated row and a stretch of missing months. This is what a real export from an orders database looks like.</p>
+
+<p>First, build the raw table. Two regions, 24 months each, then one row accidentally duplicated and two months of West's data lost in transit.</p>
+
+<div class="webr-container" data-block-title="Create the messy raw orders table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create the messy raw orders table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+
+raw_orders &lt;- data.frame(
+  month  = rep(format(seq(as.Date(&quot;2022-01-01&quot;), by = &quot;month&quot;,
+                          length.out = 24), &quot;%Y-%m&quot;), times = 2),
+  region = rep(c(&quot;East&quot;, &quot;West&quot;), each = 24),
+  orders = c(round(200 + 20 * sin(seq_len(24) / 2) + rnorm(24, 0, 8)),
+             round(150 + 15 * sin(seq_len(24) / 2) + rnorm(24, 0, 6)))
+)
+
+raw_orders &lt;- rbind(raw_orders, raw_orders[5, ])
+raw_orders &lt;- raw_orders[!(raw_orders$region == &quot;West&quot; &amp;
+                           raw_orders$month %in% c(&quot;2022-07&quot;, &quot;2022-08&quot;)), ]
+
+nrow(raw_orders)
+#&gt; [1] 47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside <code>orders</code>, the <code>sin()</code> term draws a gentle seasonal wave and <code>rnorm()</code> scatters random noise around it, so the numbers rise and fall the way real order volumes do. Forty-eight rows would be clean. We have 47, because one row was added and two were removed. The row count alone cannot tell you which rows were added and which were lost, and a plain data frame gives you no way to find out.</p>
+
+<p>Step one is always to convert the time column and check for duplicates before doing anything else.</p>
+
+<div class="webr-container" data-block-title="Convert the index and check duplicates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert the index and check duplicates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw_orders &lt;- raw_orders |&gt; mutate(month = yearmonth(month))
+
+duplicates(raw_orders, index = month, key = region)
+#&gt; # A tibble: 2 × 3
+#&gt;      month region orders
+#&gt;      &lt;mth&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 2022 May East      221
+#&gt; 2 2022 May East      221</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing both <code>index</code> and <code>key</code> to <code>duplicates()</code> asks the exact question <code>as_tsibble()</code> would ask, without triggering an error. The answer: East's May 2022 appears twice with identical values, a straightforward double-load.</p>
+
+<p>Step two is to remove the duplicate and build the tsibble, then immediately ask about gaps.</p>
+
+<div class="webr-container" data-block-title="Build the tsibble and audit the gaps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the tsibble and audit the gaps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders_ts &lt;- raw_orders |&gt;
+  summarise(orders = first(orders), .by = c(region, month)) |&gt;
+  as_tsibble(index = month, key = region)
+
+has_gaps(orders_ts)
+#&gt; # A tibble: 2 × 2
+#&gt;   region .gaps
+#&gt;   &lt;chr&gt;  &lt;lgl&gt;
+#&gt; 1 East   FALSE
+#&gt; 2 West   TRUE
+
+count_gaps(orders_ts)
+#&gt; # A tibble: 1 × 4
+#&gt;   region    .from      .to    .n
+#&gt;   &lt;chr&gt;     &lt;mth&gt;    &lt;mth&gt; &lt;int&gt;
+#&gt; 1 West   2022 Jul 2022 Aug     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>summarise(.by = c(region, month))</code> puts every region-month combination into its own group, which is what gives <code>as_tsibble()</code> the one row per group it needs. The choice of summary function is where you have to think. Here the pair is one order batch that got loaded twice, so <code>first(orders)</code> keeps East's May at its real 221. Using <code>sum()</code> instead would have added 221 to itself and reported 442, inventing a month that never happened. In your own data, decide deliberately: <code>sum()</code> when the rows are separate real events that belong together, <code>first()</code> or <code>max()</code> when they are the same event logged twice.</p>
+
+<p>The gap audit is unambiguous. East is complete; West is missing July and August 2022.</p>
+
+<p>Step three is to repair the calendar and impute, per series.</p>
+
+<div class="webr-container" data-block-title="Fill and impute per region">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill and impute per region</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders_full &lt;- orders_ts |&gt;
+  fill_gaps() |&gt;
+  group_by_key() |&gt;
+  fill(orders, .direction = &quot;down&quot;) |&gt;
+  ungroup()
+
+has_gaps(orders_full)
+#&gt; # A tibble: 2 × 2
+#&gt;   region .gaps
+#&gt;   &lt;chr&gt;  &lt;lgl&gt;
+#&gt; 1 East   FALSE
+#&gt; 2 West   FALSE
+
+orders_full |&gt; filter(region == &quot;West&quot;, month &gt;= yearmonth(&quot;2022-06&quot;)) |&gt; head(4)
+#&gt; # A tsibble: 4 x 3 [1M]
+#&gt; # Key:       region [1]
+#&gt;   region    month orders
+#&gt;   &lt;chr&gt;     &lt;mth&gt;  &lt;dbl&gt;
+#&gt; 1 West   2022 Jun    151
+#&gt; 2 West   2022 Jul    151
+#&gt; 3 West   2022 Aug    151
+#&gt; 4 West   2022 Sep    132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both regions now report <code>FALSE</code>. July and August carry June's 151 forward, and September resumes with its own real value of 132. The series is complete and evenly spaced, and because you ran <code>count_gaps()</code> first you know exactly which two values you invented.</p>
+
+<p>Step four is the payoff. A complete keyed tsibble is exactly what the forecasting packages in the same family expect, so fitting a model to both regions at once takes one line.</p>
+
+<div class="webr-container" data-block-title="Forecast both regions at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast both regions at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fable)
+
+orders_full |&gt;
+  model(snaive = SNAIVE(orders)) |&gt;
+  forecast(h = 3) |&gt;
+  as_tibble() |&gt;
+  select(region, month, .mean) |&gt;
+  print(n = 6)
+#&gt; # A tibble: 6 × 3
+#&gt;   region    month .mean
+#&gt;   &lt;chr&gt;     &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1 East   2024 Jan   211
+#&gt; 2 East   2024 Feb   215
+#&gt; 3 East   2024 Mar   193
+#&gt; 4 West   2024 Jan   155
+#&gt; 5 West   2024 Feb   157
+#&gt; 6 West   2024 Mar   161</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>model()</code> read the key and fitted a separate <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a> model to each region. <code>forecast(h = 3)</code> produced three months ahead for each. Six forecast rows came back, two series by three horizons, and at no point did you write a loop or split the data.</p>
+
+<p>That is the return on the setup work. Every step in this pipeline, from <code>duplicates()</code> to <code>forecast()</code>, was possible only because the object knew its own index, key and interval.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Audit a device log</h3>
+
+<p>You have voltage readings from two devices over four days, except device B's log lost two of them. Build a keyed tsibble and report exactly which days are missing.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_readings &lt;- data.frame(
+  stamp  = rep(c(&quot;2024-02-01&quot;, &quot;2024-02-02&quot;,
+                 &quot;2024-02-03&quot;, &quot;2024-02-04&quot;), times = 2),
+  device = rep(c(&quot;A&quot;, &quot;B&quot;), each = 4),
+  volts  = c(3.31, 3.28, 3.35, 3.30, 3.11, 3.14, 3.09, 3.12)
+)
+my_readings &lt;- my_readings[-c(6, 7), ]
+
+# Hint: convert stamp with as.Date(), then as_tsibble(index=, key=)
+# Then use count_gaps()
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Device log audit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Device log audit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ts &lt;- my_readings |&gt;
+  mutate(stamp = as.Date(stamp)) |&gt;
+  as_tsibble(index = stamp, key = device)
+
+my_ts
+#&gt; # A tsibble: 6 x 3 [1D]
+#&gt; # Key:       device [2]
+#&gt;   stamp      device volts
+#&gt;   &lt;date&gt;     &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 2024-02-01 A       3.31
+#&gt; 2 2024-02-02 A       3.28
+#&gt; 3 2024-02-03 A       3.35
+#&gt; 4 2024-02-04 A       3.3 
+#&gt; 5 2024-02-01 B       3.11
+#&gt; 6 2024-02-04 B       3.12
+
+count_gaps(my_ts)
+#&gt; # A tibble: 1 × 4
+#&gt;   device .from      .to           .n
+#&gt;   &lt;chr&gt;  &lt;date&gt;     &lt;date&gt;     &lt;int&gt;
+#&gt; 1 B      2024-02-02 2024-02-03     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six rows survive instead of eight, and the printed tsibble shows device B jumping straight from the 1st to the 4th. <code>count_gaps()</code> names the run: device B, 2 February through 3 February, two observations. Because both missing days sit inside B's own span, the default <code>.full = FALSE</code> is enough to catch them.</p>
+
+</details>
+
+<h3>Exercise 2: Repair the log and prove it</h3>
+
+<p>Take the tsibble from Exercise 1, make the calendar complete, carry each device's last known voltage into its gaps, and then prove no gaps remain.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: fill_gaps() creates the rows, tidyr::fill() populates them
+# group_by_key() is what keeps device A's values out of device B's gaps
+# Finish by calling has_gaps() on the result
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Repair the log solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repair the log solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_filled &lt;- my_ts |&gt;
+  fill_gaps() |&gt;
+  group_by_key() |&gt;
+  fill(volts, .direction = &quot;down&quot;) |&gt;
+  ungroup()
+
+my_filled
+#&gt; # A tsibble: 8 x 3 [1D]
+#&gt; # Key:       device [2]
+#&gt;   stamp      device volts
+#&gt;   &lt;date&gt;     &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 2024-02-01 A       3.31
+#&gt; 2 2024-02-02 A       3.28
+#&gt; 3 2024-02-03 A       3.35
+#&gt; 4 2024-02-04 A       3.3 
+#&gt; 5 2024-02-01 B       3.11
+#&gt; 6 2024-02-02 B       3.11
+#&gt; 7 2024-02-03 B       3.11
+#&gt; 8 2024-02-04 B       3.12
+
+has_gaps(my_filled)
+#&gt; # A tibble: 2 × 2
+#&gt;   device .gaps
+#&gt;   &lt;chr&gt;  &lt;lgl&gt;
+#&gt; 1 A      FALSE
+#&gt; 2 B      FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six rows became eight, a complete four-by-two grid. Device B's 2nd and 3rd both carry 3.11 from the 1st, and device A is untouched because <code>group_by_key()</code> walled the two series off from each other. The final <code>has_gaps()</code> returning <code>FALSE</code> twice is the proof that the object is now safe to model.</p>
+
+</details>
+
+<h3>Exercise 3: Find the busiest sensor-day in Melbourne</h3>
+
+<p>Using the <code>ped_daily</code> object built earlier, find the single sensor-day with the highest pedestrian count in the whole dataset.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: a tsibble refuses to be sorted by value, so escape with as_tibble()
+# then slice_max(daily_count, n = 1)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Busiest sensor-day solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Busiest sensor-day solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ped_daily |&gt;
+  as_tibble() |&gt;
+  slice_max(daily_count, n = 1)
+#&gt; # A tibble: 1 × 3
+#&gt;   Sensor         day        daily_count
+#&gt;   &lt;chr&gt;          &lt;date&gt;           &lt;int&gt;
+#&gt; 1 Birrarung Marr 2015-03-08       88086</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 88,086 people passed the Birrarung Marr sensor on 8 March 2015, which was the Sunday of Melbourne's Moomba festival held in that exact park. The <code>as_tibble()</code> step matters: <code>slice_max()</code> reorders rows by value, and a tsibble warns when you break its temporal ordering. Dropping the structure first says "I am done treating this as a time series" and removes the warning entirely.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Do I need a key if I only have one time series?</h3>
+
+<p>No. The key is optional, and a tsibble with no key is perfectly valid, as the annual profit and daily clicks examples showed. Add a key only when your table stacks two or more series on top of each other.</p>
+
+<h3>What is the real advantage over a plain ts object?</h3>
+
+<p>Three things. A <code>ts</code> object holds exactly one series, so 300 series means 300 objects or a wide matrix; a tsibble holds all 300 in one tidy table. A <code>ts</code> stores time as a start point plus a frequency, so it cannot represent an irregular or gapped series at all, whereas a tsibble stores real dates and can tell you precisely what is missing. And a tsibble is still a data frame, so every dplyr and <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> skill you already have keeps working. The trade-off is that a lot of older forecasting code expects <code>ts</code>, which is why <a href="Time-Series-Objects-in-R.html">time series objects in R</a> covers converting between all four classes.</p>
+
+<h3>Why does my interval say 1D when my data is monthly?</h3>
+
+<p>Because your dates are stored as <code>Date</code> values sitting on the first of each month. The gaps between them are 28 to 31 days, and the largest step that divides all of them evenly is one day. Convert the column with <code>yearmonth()</code> before calling <code>as_tsibble()</code> and the interval becomes <code>1M</code>.</p>
+
+<h3>Can a tsibble hold irregularly spaced events?</h3>
+
+<p>Yes, with <code>as_tsibble(regular = FALSE)</code>. The interval then prints as <code>[!]</code>, and the gap functions no longer apply, since "missing" has no meaning when there is no expected spacing. Use it for event logs such as trades or clicks; use the regular form for anything you plan to forecast.</p>
+
+<h3>Does fable require a tsibble?</h3>
+
+<p>Yes. Every function in the fable and <a class="auto-link" href="Time-Series-Features-in-R.html" title="Time Series Features with feasts: Fingerprint Thousands of Series">feasts</a> packages takes a tsibble as input and reads the key to decide how many models to fit and the interval to decide the seasonal period. Getting the tsibble right is genuinely the prerequisite step, which is why the <a href="fable-in-R.html">fable forecasting tutorial</a> assumes the object already exists.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/tsibble-in-R-overview-mindmap.webp" alt="Mindmap of tsibble concepts grouped into structure, building, gap handling, and reshaping" class="img-responsive img-zoomable" loading="lazy" width="1636" height="884" /></p>
+
+<p><em>Figure 3: Everything tsibble gives you, grouped by the job it does.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Job</th>
+<th>Function</th>
+<th>What it gives you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Promote a data frame</td>
+<td><code>as_tsibble(index =, key =)</code></td>
+<td>A time-aware table</td>
+</tr>
+<tr>
+<td>Build from scratch</td>
+<td><code>tsibble(..., index =)</code></td>
+<td>Same, without a source frame</td>
+</tr>
+<tr>
+<td>Convert coarse time</td>
+<td><code>yearmonth()</code>, <code>yearquarter()</code>, <code>yearweek()</code></td>
+<td>The right interval instead of <code>1D</code></td>
+</tr>
+<tr>
+<td>Inspect the contract</td>
+<td><code>index_var()</code>, <code>key_vars()</code>, <code>interval()</code>, <code>n_keys()</code></td>
+<td>What the object thinks it is</td>
+</tr>
+<tr>
+<td>Diagnose a build error</td>
+<td><code>is_duplicated()</code>, <code>duplicates()</code></td>
+<td>The rows that broke uniqueness</td>
+</tr>
+<tr>
+<td>Detect missing rows</td>
+<td><code>has_gaps()</code></td>
+<td>One TRUE/FALSE per series</td>
+</tr>
+<tr>
+<td>Locate missing rows</td>
+<td><code>scan_gaps()</code>, <code>count_gaps()</code></td>
+<td>Every hole, or every run of holes</td>
+</tr>
+<tr>
+<td>Repair the calendar</td>
+<td><code>fill_gaps()</code></td>
+<td>Explicit <code>NA</code> rows you can impute</td>
+</tr>
+<tr>
+<td>Change granularity</td>
+<td><code>index_by()</code> + <code>summarise()</code></td>
+<td>Hourly to daily, monthly to quarterly</td>
+</tr>
+<tr>
+<td>Cut a time window</td>
+<td><code>filter_index(&quot;a&quot; ~ &quot;b&quot;)</code></td>
+<td>A slice without <a class="auto-link" href="Date-Time-Manipulation-Exercises-in-R.html" title="Date-Time Manipulation Exercises in R: 18 Practice Problems">date arithmetic</a></td>
+</tr>
+<tr>
+<td>Leave time behind</td>
+<td><code>as_tibble()</code></td>
+<td>A plain tibble, no structure</td>
+</tr>
+</tbody>
+</table>
+
+<p>The three ideas worth carrying away:</p>
+
+<ol>
+
+<li><strong>The index and key are a promise that each row is unique.</strong> When <code>as_tsibble()</code> errors, it is telling you the promise is broken, and the fix is almost always naming a key column you forgot.</li>
+
+<li><strong>Implicit missingness is invisible until you look for it.</strong> A row that does not exist cannot be an <code>NA</code>, so counting <code>NA</code> values proves nothing. <code>has_gaps()</code> is the only honest check.</li>
+
+<li><strong>Fix the calendar before you model.</strong> Duplicates, then gaps, then imputation, then aggregation. Doing it in that order means every later step operates on a complete, evenly spaced series.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wang, E., Cook, D., and Hyndman, R.J. "A New Tidy Data Structure to Support Exploration and Modeling of Temporal Data." <em>Journal of Computational and Graphical Statistics</em>, 29(3), 2020. <a href="https://robjhyndman.com/publications/tsibble/">Link</a></li>
+
+<li>tsibble package documentation. <a href="https://tsibble.tidyverts.org/">Link</a></li>
+
+<li>Introduction to tsibble (package vignette). <a href="https://tsibble.tidyverts.org/articles/intro-tsibble.html">Link</a></li>
+
+<li>Handle implicit missingness with tsibble (package vignette). <a href="https://cran.r-project.org/web/packages/tsibble/vignettes/implicit-na.html">Link</a></li>
+
+<li><code>fill_gaps()</code> reference page. <a href="https://tsibble.tidyverts.org/reference/fill_gaps.html">Link</a></li>
+
+<li>Hyndman, R.J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Chapter 2: Time series graphics. <a href="https://otexts.com/fpp3/graphics.html">Link</a></li>
+
+<li>Hyndman, R.J. "Tidy time series data using tsibbles." <a href="https://robjhyndman.com/hyndsight/tsibbles/">Link</a></li>
+
+<li>tidyverts, the tidy time series ecosystem. <a href="https://tidyverts.org/">Link</a></li>
+
+<li>tsibble source repository on GitHub. <a href="https://github.com/tidyverts/tsibble">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="fable-in-R.html">Forecasting with fable in R</a></strong> - now that you can build a clean tsibble, fit <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS</a>, <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA</a> and seasonal naive models to every series in it with a single <code>model()</code> call.</li>
+
+<li><strong><a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a></strong> - how tsibble compares with <code>ts</code>, <code>zoo</code> and <code>xts</code>, and how to convert between all four when older code demands a different class.</li>
+
+<li><strong><a href="Time-Series-Features-in-R.html">Time Series Features in R</a></strong> - turn each series in a keyed tsibble into a single row of summary features, so you can triage hundreds of series at once.</li>
+
+</ul>
+
+{% endraw %}
