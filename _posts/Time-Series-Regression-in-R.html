@@ -1,0 +1,1675 @@
+---
+title: "Time Series Regression in R: TSLM and Spurious Regression"
+description: "Fit time series regression in R with TSLM, trend() and season(). See why two unrelated trending series look correlated, how to detect it, and how to fix it."
+keywords: "time series regression in R, TSLM in R, tslm forecast package, spurious regression, trend and season, dynamic regression, Durbin-Watson test in R, regression with time series data, fable TSLM"
+mathjax: true
+webr: true
+curriculum_id: "TS2-6.1"
+post_type: "C"
+auto_link_terms: "time series regression|time series regression in R|TSLM()|tslm()|spurious regression|spurious regression trap|trend() and season()|seasonal dummy variables|regression on time series|Durbin-Watson|piecewise trend|scenario forecast|trend() special"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Time Series Regression"
+sidebar_order: "40"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead"><a class="auto-link" href="Dynamic-Regression-in-R.html" title="Dynamic Regression in R: Regression with ARIMA Errors">Time series regression</a> is <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a> applied to data whose rows are ordered in time, which lets you use the clock itself as a predictor: a trend term, seasonal dummies, or an outside driver like temperature. R's <code>TSLM()</code> builds those time terms for you. The catch is that time ordering breaks the independence assumption least squares relies on, and that is how two completely unrelated series end up with an R-squared of 0.74 and a p-value below 2e-16.</p>
+
+<h2>What makes regression on a time series different?</h2>
+
+<p>Nothing about the arithmetic changes. You are still minimising squared errors, still reading coefficients and p-values off a table. What changes is that the rows arrive in order, so "which quarter is this" and "how far along are we" become predictors you can actually use. Here is what that buys you on quarterly Australian beer production.</p>
+
+<div class="webr-container" data-block-title="Fit a trend plus season model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a trend plus season model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(tsibbledata)
+library(fable)
+library(feasts)
+library(dplyr)
+library(ggplot2)
+
+beer &lt;- aus_production |&gt;
+  filter(Quarter &gt;= yearquarter(&quot;1992 Q1&quot;)) |&gt;
+  select(Quarter, Beer)
+
+fit_beer &lt;- beer |&gt; model(TSLM(Beer ~ trend() + season()))
+report(fit_beer)
+#&gt; Series: Beer 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -42.9029  -7.5995  -0.4594   7.9908  21.7895 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)   441.80044    3.73353 118.333  &lt; 2e-16 ***
+#&gt; trend()        -0.34027    0.06657  -5.111 2.73e-06 ***
+#&gt; season()year2 -34.65973    3.96832  -8.734 9.10e-13 ***
+#&gt; season()year3 -17.82164    4.02249  -4.430 3.45e-05 ***
+#&gt; season()year4  72.79641    4.02305  18.095  &lt; 2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 12.23 on 69 degrees of freedom
+#&gt; Multiple R-squared: 0.9243,	Adjusted R-squared: 0.9199
+#&gt; F-statistic: 210.7 on 4 and 69 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. <code>aus_production</code> is a quarterly <strong>tsibble</strong> that ships with the tsibbledata package. A tsibble is a data frame that knows which of its columns is the time index and how often observations arrive, which is what later lets these functions work out that the period after 2010 Q2 is 2010 Q3. We kept the years from 1992 onward plus the <code>Beer</code> column. <code>model()</code> fits whatever you put inside it, <code>TSLM()</code> is the time series linear model, and <code>report()</code> prints the fitted coefficients and fit statistics the way <code>summary()</code> does for <code>lm()</code>. Inside its formula, <code>trend()</code> and <code>season()</code> are not real R functions you could call on their own, they are placeholders that fable expands into actual columns before fitting.</p>
+
+<p>Now read the coefficients. The intercept 441.8 is average Q1 production in megalitres at the start of the window. <code>trend()</code> at -0.34 says production fell by about a third of a megalitre per quarter, so roughly 1.4 megalitres a year. The three <code>season()</code> rows are each quarter measured against Q1: Q2 runs 34.7 megalitres below Q1, Q3 runs 17.8 below, and Q4 runs 72.8 <strong>above</strong>. That last one is the Australian Christmas summer.</p>
+
+<p>The model explains 92.4% of the variation in beer production, and it did it with four numbers. Let us see how closely it tracks the actual series.</p>
+
+<div class="webr-container" data-block-title="Plot actual against fitted values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot actual against fitted values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(fit_beer) |&gt;
+  ggplot(aes(x = Quarter)) +
+  geom_line(aes(y = Beer, colour = &quot;Actual&quot;)) +
+  geom_line(aes(y = .fitted, colour = &quot;Fitted&quot;)) +
+  labs(title = &quot;Beer production: actual vs fitted&quot;,
+       y = &quot;Megalitres&quot;, colour = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>augment()</code> takes a fitted model and hands back the original data with three extra columns: <code>.fitted</code> (what the model predicted), <code>.resid</code> (actual minus fitted) and <code>.innov</code> (the residual on the scale the model was estimated on, which matters once transformations enter the picture). The fitted line reproduces the sawtooth almost exactly, because the sawtooth <strong>is</strong> the seasonal effect the model estimated.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A trend plus season regression is decomposition done with least squares.</strong> Everything you learn from an <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">STL decomposition</a>, a <a class="auto-link" href="Holts-Method-in-R.html" title="Holt's Method in R: Forecast Trend Without Seasonality">trend component</a> and a repeating seasonal shape, this model gives you as coefficients with standard errors and p-values attached, which means you can also test whether each piece is real.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop <code>season()</code> and fit <code>Beer ~ trend()</code> alone. Print the R-squared and see how much of that 0.9243 was actually the seasonality doing the work.</p>
+<div class="webr-container" data-block-title="Your turn: fit a trend only model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a trend only model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit TSLM(Beer ~ trend()) on beer, then pull r_squared out of glance()
+# ex_trend_only &lt;- beer |&gt; model(...)
+# your code here
+
+# Expected: R-squared near 0.026</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trend only solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trend only solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_trend_only &lt;- beer |&gt; model(TSLM(Beer ~ trend()))
+glance(ex_trend_only) |&gt; select(r_squared, sigma2)
+#&gt; # A tibble: 1 × 2
+#&gt;   r_squared sigma2
+#&gt;       &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1    0.0263  1844.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The trend alone explains 2.6% of the variation. Almost the entire 92% came from seasonality. <code>glance()</code> returns one row of fit statistics per model, which is the quickest way to compare specifications without printing full coefficient tables.</p>
+
+</details>
+</section>
+
+<h2>What do trend() and season() actually put in the model?</h2>
+
+<p>Those specials feel like magic until you see the columns they create. They are not magic. <code>trend()</code> becomes a counter 1, 2, 3, ... and <code>season()</code> becomes a set of 0/1 indicator columns, one per period after the first. Building them by hand takes two lines.</p>
+
+<div class="webr-container" data-block-title="Build the time columns by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the time columns by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+beer_df &lt;- beer |&gt;
+  as_tibble() |&gt;
+  mutate(t = row_number(), qtr = factor(quarter(Quarter)))
+
+head(beer_df, 5)
+#&gt; # A tibble: 5 × 4
+#&gt;   Quarter  Beer     t qtr  
+#&gt;     &lt;qtr&gt; &lt;dbl&gt; &lt;int&gt; &lt;fct&gt;
+#&gt; 1 1992 Q1   443     1 1    
+#&gt; 2 1992 Q2   410     2 2    
+#&gt; 3 1992 Q3   420     3 3    
+#&gt; 4 1992 Q4   532     4 4    
+#&gt; 5 1993 Q1   433     5 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as_tibble()</code> drops the tsibble machinery so we are looking at a plain data frame. <code>row_number()</code> gives the time counter, and <code>quarter()</code> from lubridate extracts 1 to 4 from each quarterly date, which we wrap in <code>factor()</code> so R treats it as a category rather than a number.</p>
+
+<p>Now ask R to show the matrix it would actually hand to the least squares solver.</p>
+
+<div class="webr-container" data-block-title="Inspect the design matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the design matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(model.matrix(~ t + qtr, data = beer_df), 5)
+#&gt;   (Intercept) t qtr2 qtr3 qtr4
+#&gt; 1           1 1    0    0    0
+#&gt; 2           1 2    1    0    0
+#&gt; 3           1 3    0    1    0
+#&gt; 4           1 4    0    0    1
+#&gt; 5           1 5    0    0    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is. Five rows, five columns. The intercept column is all ones. The <code>t</code> column counts quarters. Then three dummy columns, and notice that Q1 gets zeros in all three of them. Q1 is the <strong>base level</strong>, absorbed into the intercept, so every seasonal coefficient you read is a difference from Q1 rather than an absolute amount.</p>
+
+<p>Why only three dummies for four quarters? Because a fourth would be redundant. If a row is not Q2, not Q3 and not Q4, it must be Q1. Adding the fourth column would make the matrix singular and R would silently drop it anyway.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The dropped level is a choice of reference, not a missing effect.</strong> Q1 has an effect on beer production, it just happens to be baked into the 441.8 intercept. If you want Q1 stated explicitly, refit with a different base level using <code>relevel()</code> on the factor.</div></div>
+
+<p>Written as an equation, the model is:</p>
+
+<p>$$y_t = \beta_0 + \beta_1 t + \beta_2 d_{2,t} + \beta_3 d_{3,t} + \beta_4 d_{4,t} + \varepsilon_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = beer production in quarter $t$</li>
+
+<li>$t$ = the time counter, 1 for 1992 Q1 and rising by one each quarter</li>
+
+<li>$d_{k,t}$ = 1 if quarter $t$ falls in season $k$, and 0 otherwise</li>
+
+<li>$\beta_0$ = the intercept, which is average Q1 production at $t = 0$</li>
+
+<li>$\varepsilon_t$ = the error term, which least squares assumes is independent from one period to the next</li>
+
+</ul>
+
+<p>That last assumption is the one that will cause all the trouble later. Park it for now.</p>
+
+<p>If the specials really are just those columns, then feeding the columns to plain <code>lm()</code> must give the same answer. Let us check.</p>
+
+<div class="webr-container" data-block-title="Compare lm against TSLM coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare lm against TSLM coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_plain &lt;- lm(Beer ~ t + qtr, data = beer_df)
+
+round(coef(fit_plain), 4)
+#&gt; (Intercept)           t        qtr2        qtr3        qtr4 
+#&gt;    441.8004     -0.3403    -34.6597    -17.8216     72.7964
+
+round(coef(fit_beer)$estimate, 4)
+#&gt; [1] 441.8004  -0.3403 -34.6597 -17.8216  72.7964</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical to four decimal places, because they are the same fit. <code>TSLM()</code> is a convenience wrapper: it reads the tsibble's index, works out the seasonal period from it, builds the counter and the dummies, and hands the whole thing to least squares. What you gain over <code>lm()</code> is that fable also knows how to extend those columns into the future, which is what makes forecasting possible later.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use tslm() from the forecast package if your data is a ts object rather than a tsibble.</strong> Lowercase <code>tslm()</code> takes the same <code>trend</code> and <code>season</code> shorthand and returns an <code>lm</code> object, so <code>summary()</code> and <code>predict()</code> work as usual. Uppercase <code>TSLM()</code> is the fable version and needs a tsibble.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The fourth row of the data is 1992 Q4, so $t = 4$ and the Q4 dummy is on. Use the coefficients to compute that fitted value by hand, then check it against what the model produced.</p>
+<div class="webr-container" data-block-title="Your turn: reconstruct a fitted value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reconstruct a fitted value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cf &lt;- coef(fit_beer)$estimate
+# cf is c(intercept, trend, season2, season3, season4)
+# Combine the intercept, 4 times the trend coefficient, and the Q4 coefficient
+# ex_hand &lt;- ...
+# your code here
+
+# Expected: both numbers equal 513.2358</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fitted value by hand solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitted value by hand solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cf &lt;- coef(fit_beer)$estimate
+ex_hand &lt;- cf[1] + cf[2] * 4 + cf[5]
+c(by_hand = ex_hand, from_model = augment(fit_beer)$.fitted[4])
+#&gt;    by_hand from_model 
+#&gt;   513.2358   513.2358</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cf[1]</code> is the intercept, <code>cf[2] * 4</code> applies the trend for four quarters, and <code>cf[5]</code> adds the Q4 seasonal jump. The Q2 and Q3 dummies are zero for this row, so they contribute nothing. That is the whole calculation the model performs for every observation.</p>
+
+</details>
+</section>
+
+<h2>Why do two unrelated series so often look related?</h2>
+
+<p>Here is the part that trips up almost everyone who moves from cross-sectional data to time series. Take two series that have nothing to do with each other. Generate them yourself so you know for certain they are unrelated. Then regress one on the other and watch what least squares tells you.</p>
+
+<p>A <strong>random walk</strong> is the simplest series that drifts. Each value equals the previous value plus a fresh random shock, so <code>cumsum(rnorm(n))</code> produces one. Nothing connects <code>walk_x</code> to <code>walk_y</code> below except that both were drawn from the same random number generator on different draws.</p>
+
+<div class="webr-container" data-block-title="Generate two independent random walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generate two independent random walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(8)
+walk_x &lt;- cumsum(rnorm(200))
+walk_y &lt;- cumsum(rnorm(200))
+
+head(round(walk_x, 2), 8)
+#&gt; [1] -0.08  0.76  0.29 -0.26  0.48  0.37  0.20 -0.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each value is the running total of the shocks so far. Because the total carries forward, a run of positive shocks pushes the series up and it stays up until enough negative shocks arrive. That is why random walks look like they have trends even though no trend was built in.</p>
+
+<div class="webr-container" data-block-title="Plot the two random walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the two random walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(walk_x, type = &quot;l&quot;, col = &quot;steelblue&quot;, lwd = 2,
+     ylim = range(c(walk_x, walk_y)),
+     xlab = &quot;Time&quot;, ylab = &quot;Value&quot;, main = &quot;Two independent random walks&quot;)
+lines(walk_y, col = &quot;tomato&quot;, lwd = 2)
+legend(&quot;topleft&quot;, c(&quot;walk_x&quot;, &quot;walk_y&quot;),
+       col = c(&quot;steelblue&quot;, &quot;tomato&quot;), lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both wander. Over this particular stretch they happen to wander in broadly the same direction. Now regress one on the other.</p>
+
+<div class="webr-container" data-block-title="Regress one random walk on the other">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regress one random walk on the other</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spurious &lt;- lm(walk_y ~ walk_x)
+summary(spurious)
+#&gt; Call:
+#&gt; lm(formula = walk_y ~ walk_x)
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -11.780  -1.410   0.120   2.342   8.330 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -0.65047    0.49145  -1.324    0.187    
+#&gt; walk_x       1.12938    0.05079  22.236   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 3.666 on 198 degrees of freedom
+#&gt; Multiple R-squared:  0.7141,	Adjusted R-squared:  0.7126 
+#&gt; F-statistic: 494.4 on 1 and 198 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R-squared of 0.714. A t-statistic of 22.2. A p-value that R will not even print in full. If a colleague handed you this table without telling you where the data came from, you would conclude that <code>walk_x</code> drives <code>walk_y</code> and you would be completely wrong, because you watched the data being generated from two independent streams of noise.</p>
+
+<p>This is a <strong><a class="auto-link" href="Cointegration-in-R.html" title="Cointegration in R: Engle-Granger and Error Correction">spurious regression</a></strong>: a statistically significant relationship between series that have no relationship at all.</p>
+
+<p><img src="screenshots/Time-Series-Regression-in-R-spurious-trap.webp" alt="Two drifting series feed one least squares fit and produce a high R-squared, wandering residuals, and a false conclusion" class="img-responsive img-zoomable" loading="lazy" width="1942" height="690" /></p>
+
+<p><em>Figure 1: Two independently drifting series feed the same least squares fit, and both the high R-squared and the wandering residuals point at the same false conclusion.</em></p>
+
+<p>That was one draw. Maybe we got unlucky. The honest way to answer that is to repeat the whole experiment a thousand times and count how often least squares declares a significant relationship. For comparison, we run the same experiment on pairs of <strong>white noise</strong>, meaning independent random draws with no memory of the value before them, which is the well-behaved case least squares was designed for.</p>
+
+<div class="webr-container" data-block-title="Measure how often the trap springs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure how often the trap springs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+reject_walk &lt;- replicate(1000, {
+  a &lt;- cumsum(rnorm(200)); b &lt;- cumsum(rnorm(200))
+  coef(summary(lm(b ~ a)))[2, 4] &lt; 0.05
+})
+
+set.seed(12)
+reject_noise &lt;- replicate(1000, {
+  a &lt;- rnorm(200); b &lt;- rnorm(200)
+  coef(summary(lm(b ~ a)))[2, 4] &lt; 0.05
+})
+
+c(random_walks = mean(reject_walk), white_noise = mean(reject_noise))
+#&gt; random_walks  white_noise 
+#&gt;        0.847        0.048</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>replicate()</code> runs the block inside it 1000 times and collects the results. Each run generates a fresh pair, fits the regression, and extracts the slope's p-value from row 2, column 4 of the coefficient table. The comparison tests whether that p-value cleared 0.05, and <code>mean()</code> on a logical vector gives the proportion of TRUEs.</p>
+
+<p>Read those two numbers side by side. With white noise, 4.8% of tests came out significant, which is exactly the 5% <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">false positive rate</a> a p-value of 0.05 promises. With random walks, <strong>84.7%</strong> came out significant. Nothing changed except that the series now carry their values forward. The test is not slightly optimistic here, it is broken.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high R-squared on trending data is a symptom, not evidence.</strong> The most dangerous version of this bug is the one that agrees with your prior: you expected advertising to drive sales, the regression says it does with p below 0.001, and both series were simply growing over the same three years.</div></div>
+
+<p>This is not just a simulation curiosity. Watch it happen on real published data. <code>global_economy</code> ships with tsibbledata and holds annual figures for every country from 1960 to 2017. We pair Australia's GDP with Mongolia's population, two quantities with no plausible connection.</p>
+
+<div class="webr-container" data-block-title="Pair two unrelated real world series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pair two unrelated real world series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">econ &lt;- global_economy |&gt; as_tibble()
+
+oz  &lt;- econ |&gt; filter(Country == &quot;Australia&quot;) |&gt; transmute(Year, gdp_tn = GDP / 1e12)
+mng &lt;- econ |&gt; filter(Country == &quot;Mongolia&quot;)  |&gt; transmute(Year, pop_m = Population / 1e6)
+
+pair &lt;- inner_join(oz, mng, by = &quot;Year&quot;) |&gt;
+  filter(!is.na(gdp_tn)) |&gt;
+  as_tsibble(index = Year)
+
+pair
+#&gt; # A tsibble: 58 x 3 [1Y]
+#&gt;     Year gdp_tn pop_m
+#&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1  1960 0.0186 0.956
+#&gt;  2  1961 0.0196 0.982
+#&gt;  3  1962 0.0199 1.01 
+#&gt;  4  1963 0.0215 1.04 
+#&gt;  5  1964 0.0238 1.07 
+#&gt;  6  1965 0.0259 1.11 
+#&gt;  7  1966 0.0273 1.14 
+#&gt;  8  1967 0.0304 1.17 
+#&gt;  9  1968 0.0327 1.21 
+#&gt; 10  1969 0.0366 1.24 
+#&gt; # ℹ 48 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>transmute()</code> keeps only the columns it creates, so each country's slice comes out as <code>Year</code> plus one rescaled measure: GDP in trillions of US dollars, population in millions. <code>inner_join()</code> lines them up on <code>Year</code>, and <code>as_tsibble(index = Year)</code> tells fable which column is time.</p>
+
+<div class="webr-container" data-block-title="Regress Australian GDP on Mongolian population">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regress Australian GDP on Mongolian population</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_bad &lt;- pair |&gt; model(TSLM(gdp_tn ~ pop_m))
+report(fit_bad)
+#&gt; Series: gdp_tn 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -0.30567 -0.22141 -0.02933  0.14785  0.61089 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -0.84138    0.10532  -7.989 8.05e-11 ***
+#&gt; pop_m        0.63034    0.05041  12.504  &lt; 2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 0.2355 on 56 degrees of freedom
+#&gt; Multiple R-squared: 0.7363,	Adjusted R-squared: 0.7316
+#&gt; F-statistic: 156.3 on 1 and 56 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R-squared 0.736, p below 2e-16, three stars. Taken at face value the coefficient says every extra million Mongolians adds 630 billion US dollars to Australia's GDP. Mongolia's entire population is about 3 million people. The number is absurd, and yet nothing in the regression output flags it, because the only thing these two series share is that both got bigger between 1960 and 2017.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the correlation between <code>gdp_tn</code> and <code>pop_m</code> in levels, then compute it again on the year-to-year changes using <code>diff()</code>. The gap between the two is the entire story of this section.</p>
+<div class="webr-container" data-block-title="Your turn: levels versus changes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: levels versus changes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pairs &lt;- pair |&gt; as_tibble()
+# Correlation of the raw columns, then of diff() applied to each
+# your code here
+
+# Expected: about 0.858 in levels, about 0.001 in changes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Levels versus changes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Levels versus changes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pairs &lt;- pair |&gt; as_tibble()
+round(cor(ex_pairs$gdp_tn, ex_pairs$pop_m), 3)
+#&gt; [1] 0.858
+round(cor(diff(ex_pairs$gdp_tn), diff(ex_pairs$pop_m)), 3)
+#&gt; [1] 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>diff()</code> returns the change from each period to the next. In levels the two series correlate at 0.858, which looks like a strong relationship. In changes the correlation is 0.001, which is nothing. The correlation was never between Australian GDP and Mongolian population, it was between "goes up" and "goes up".</p>
+
+</details>
+</section>
+
+<h2>How do you tell a real relationship from a spurious one?</h2>
+
+<p>You cannot spot this from the coefficient table, because a spurious fit and a genuine fit produce the same kind of table. The evidence lives in the <strong>residuals</strong>. Start by looking at them over time.</p>
+
+<div class="webr-container" data-block-title="Plot residuals over time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot residuals over time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(fit_bad) |&gt;
+  ggplot(aes(x = Year, y = .innov)) +
+  geom_hline(yintercept = 0, colour = &quot;grey50&quot;) +
+  geom_line(colour = &quot;tomato&quot;, linewidth = 0.8) +
+  labs(title = &quot;Residuals from the Mongolia model&quot;,
+       y = &quot;Residual (trillion USD)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Least squares assumes the residuals are independent draws, so a residual plot should look like the white noise from the last section: crossing zero constantly, with no memory of where it just was. This one does the opposite. It sits above zero for long stretches, then below for long stretches. Knowing this year's residual tells you almost exactly what next year's will be, and a residual series correlated with its own past is called <strong>autocorrelated</strong>. Autocorrelation means the model is missing something systematic, and the standard errors it reported are far too small.</p>
+
+<p>Eyeballing is a start. The formal version is the <strong><a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a></strong>. It works off the residual <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a>, the <strong>ACF</strong>, which is the correlation of the residual series with a copy of itself shifted back one period, two periods, and so on. Each shift is a <strong>lag</strong>. The test asks whether those autocorrelations up to some lag are jointly indistinguishable from zero, and a small p-value says the residuals still carry structure.</p>
+
+<div class="webr-container" data-block-title="Ljung-Box test on both models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ljung-Box test on both models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(fit_bad)  |&gt; features(.innov, ljung_box, lag = 10)
+#&gt; # A tibble: 1 × 3
+#&gt;   .model               lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;                  &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 TSLM(gdp_tn ~ pop_m)    195.         0
+
+augment(fit_beer) |&gt; features(.innov, ljung_box, lag = 8)
+#&gt; # A tibble: 1 × 3
+#&gt;   .model                          lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;                             &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 TSLM(Beer ~ trend() + season())    10.4     0.240</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two models, two verdicts. The Mongolia model has a p-value of 0, so its residuals are massively autocorrelated and none of its inference can be trusted. The beer model has a p-value of 0.240, comfortably above 0.05, so we cannot reject the idea that its residuals are white noise. Its coefficients are safe to read.</p>
+
+<p>Use a lag of about <code>2m</code> for seasonal data (so 8 for quarterly, 24 for monthly) and 10 for non-seasonal data. That is the convention Hyndman recommends and it is what we used here.</p>
+
+<p>The classic alternative is the <strong>Durbin-Watson statistic</strong>, which measures first-order autocorrelation on a scale from 0 to 4:</p>
+
+<p>$$DW = \frac{\sum_{t=2}^{n} (e_t - e_{t-1})^2}{\sum_{t=1}^{n} e_t^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$e_t$ = the residual at time $t$</li>
+
+<li>$DW \approx 2$ means no autocorrelation, which is what you want</li>
+
+<li>$DW$ near 0 means strong positive autocorrelation, each residual close to the last</li>
+
+<li>$DW$ near 4 means strong negative autocorrelation, residuals flipping sign each period</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Durbin-Watson and the Granger-Newbold rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Durbin-Watson and the Granger-Newbold rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lmtest)
+
+pair_df &lt;- as_tibble(pair)
+dw &lt;- dwtest(lm(gdp_tn ~ pop_m, data = pair_df))
+r2 &lt;- summary(lm(gdp_tn ~ pop_m, data = pair_df))$r.squared
+
+round(c(R2 = r2, DW = unname(dw$statistic)), 3)
+#&gt;    R2    DW 
+#&gt; 0.736 0.092</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>dwtest()</code> from the lmtest package needs a plain <code>lm</code> object. What <code>model()</code> hands back instead is a <strong>mable</strong>, a model table holding one fitted model per column, which <code>dwtest()</code> cannot read, so we refit the same specification on the tibble version of the data. A Durbin-Watson of 0.092 is about as far from 2 as it gets, meaning each residual is almost identical to the one before it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Compare R-squared against Durbin-Watson: if R-squared is larger, suspect a spurious regression.</strong> Granger and Newbold proposed this rule of thumb in 1974 after finding published papers reporting an R-squared of 0.997 alongside a Durbin-Watson of 0.53. Here we have 0.736 against 0.092, which fails the test badly.</div></div>
+
+<p>The last check runs <strong>before</strong> you fit anything. A spurious regression needs both series to be non-stationary, that is, to have no fixed mean they return to. The random walk from earlier is the standard case, and it has a name: a <strong>unit root</strong>, because the previous value enters the current one with a coefficient of exactly 1, so every shock is carried forward forever instead of fading. The KPSS test checks for that, with a <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> of stationarity, so a small p-value means the series is <strong>not</strong> stationary.</p>
+
+<div class="webr-container" data-block-title="KPSS unit root tests on both series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">KPSS unit root tests on both series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pair |&gt; features(gdp_tn, unitroot_kpss)
+#&gt; # A tibble: 1 × 2
+#&gt;   kpss_stat kpss_pvalue
+#&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1      1.23        0.01
+
+pair |&gt; features(pop_m, unitroot_kpss)
+#&gt; # A tibble: 1 × 2
+#&gt;   kpss_stat kpss_pvalue
+#&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1      1.54        0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both p-values come back at 0.01, which is the floor the test reports (the true value is smaller). Both series are non-stationary, so regressing one on the other in levels was always going to return a spurious result. Running these two lines first would have saved the whole exercise. For the full treatment of stationarity testing, see the <a href="Test-Stationarity-in-R.html">stationarity tutorial</a>.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>dwtest()</code> on the beer model to confirm a well-specified regression looks different. Rebuild the plain <code>lm</code> version, since <code>dwtest()</code> cannot read a mable.</p>
+<div class="webr-container" data-block-title="Your turn: Durbin-Watson on the beer model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Durbin-Watson on the beer model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># dwtest() needs an lm object; refit Beer ~ t + qtr on ex_beer_df
+ex_beer_df &lt;- beer |&gt;
+  as_tibble() |&gt;
+  mutate(t = row_number(), qtr = factor(quarter(Quarter)))
+# your code here
+
+# Expected: a DW statistic near 2.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Durbin-Watson on the beer model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Durbin-Watson on the beer model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_beer_df &lt;- beer |&gt;
+  as_tibble() |&gt;
+  mutate(t = row_number(), qtr = factor(quarter(Quarter)))
+ex_dw &lt;- dwtest(lm(Beer ~ t + qtr, data = ex_beer_df))
+round(unname(ex_dw$statistic), 3)
+#&gt; [1] 2.493</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 2.493 sits close to 2, the no-autocorrelation value, and well above the R-squared of 0.924, which is what the Granger-Newbold rule asks for. Combined with the Ljung-Box p-value of 0.240, this model passes every residual check.</p>
+
+</details>
+</section>
+
+<h2>How do you fix a spurious regression?</h2>
+
+<p>Once the diagnosis is in, you have three practical routes plus one important exception. Which one you pick depends on what the residual check told you.</p>
+
+<p><img src="screenshots/Time-Series-Regression-in-R-decision-flow.webp" alt="Decision flow from residual ACF to trusting coefficients, adding terms, or differencing" class="img-responsive img-zoomable" loading="lazy" width="2248" height="954" /></p>
+
+<p><em>Figure 2: The residual ACF decides everything: white noise means trust the coefficients, anything else sends you to a unit-root check.</em></p>
+
+<p><strong>Route one is differencing</strong>, and it is the blunt instrument that almost always works. If both series wander because they carry their level forward, model the changes instead of the levels. <code>difference()</code> from tsibble subtracts each value from the next, and the first row becomes <code>NA</code> because there is nothing before it.</p>
+
+<div class="webr-container" data-block-title="Fix one: regress changes on changes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix one: regress changes on changes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pair_diff &lt;- pair |&gt;
+  mutate(d_gdp = difference(gdp_tn), d_pop = difference(pop_m)) |&gt;
+  filter(!is.na(d_gdp))
+
+fit_diff &lt;- pair_diff |&gt; model(TSLM(d_gdp ~ d_pop))
+report(fit_diff)
+#&gt; Series: d_gdp 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -0.16399 -0.02124 -0.01459  0.01034  0.22703 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 0.022592   0.032634   0.692    0.492
+#&gt; d_pop       0.008071   0.839330   0.010    0.992
+#&gt; 
+#&gt; Residual standard error: 0.07175 on 55 degrees of freedom
+#&gt; Multiple R-squared: 1.681e-06,	Adjusted R-squared: -0.01818
+#&gt; F-statistic: 9.246e-05 on 1 and 55 DF, p-value: 0.99236</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The relationship disappeared. R-squared fell from 0.736 to 0.0000017, and the p-value on <code>d_pop</code> rose from below 2e-16 to 0.992. That is the correct answer: there was never a relationship between Australian GDP and Mongolian population, and asking the question in changes rather than levels lets least squares say so.</p>
+
+<p>Confirm the fix held by re-running the residual test on the new model.</p>
+
+<div class="webr-container" data-block-title="Residual check after differencing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual check after differencing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(fit_diff) |&gt; features(.innov, ljung_box, lag = 10)
+#&gt; # A tibble: 1 × 3
+#&gt;   .model              lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;                 &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 TSLM(d_gdp ~ d_pop)    10.5     0.397</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of 0.397 says the residuals are now indistinguishable from white noise. The model is properly specified even though its answer is "nothing here", which is exactly what a properly specified model should say about unrelated data.</p>
+
+<p><strong>Route two is regression with ARIMA errors</strong>, also called dynamic regression. Instead of assuming the errors are independent, you model them as an ARIMA process, so the regression coefficient is estimated after the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">serial correlation</a> is accounted for. In fable you write it as <code>ARIMA(y ~ x)</code>, and <code>pdq(d = 1)</code> tells it to difference once, which we already know is necessary here.</p>
+
+<div class="webr-container" data-block-title="Fix two: regression with ARIMA errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix two: regression with ARIMA errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_dyn &lt;- pair |&gt; model(ARIMA(gdp_tn ~ pop_m + pdq(d = 1)))
+tidy(fit_dyn) |&gt; select(term, estimate, std.error, statistic, p.value)
+#&gt; # A tibble: 2 × 5
+#&gt;   term  estimate std.error statistic p.value
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 ar1      0.313     0.126      2.48  0.0159
+#&gt; 2 pop_m    0.583     0.330      1.77  0.0828</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tidy()</code> returns one row per estimated parameter, which for this model means the AR(1) term describing the error process plus the regression coefficient we care about. AR stands for autoregressive, and AR(1) means each error is modelled as a fraction of the previous error plus fresh noise, so the estimate of 0.313 says about 31% of one year's error carries into the next. The estimate on <code>pop_m</code> lands at 0.583, close to the 0.630 the naive levels fit reported, but its standard error is 0.330 against the 0.050 claimed earlier. The t-statistic is therefore 1.77 instead of 12.5, and the p-value is 0.083. No longer significant, which is the honest verdict.</p>
+
+<p>That standard error is the whole point. Ignoring the autocorrelation barely moved the coefficient, it made R think the coefficient was roughly six times more precisely estimated than it really was.</p>
+
+<p>Here is the trap inside the fix. Leave out <code>pdq(d = 1)</code> and let fable choose the differencing order automatically, and it can decide no differencing is needed.</p>
+
+<div class="webr-container" data-block-title="What automatic order selection picks here">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What automatic order selection picks here</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_auto &lt;- pair |&gt; model(ARIMA(gdp_tn ~ pop_m))
+tidy(fit_auto) |&gt; select(term, estimate, std.error, statistic, p.value)
+#&gt; # A tibble: 4 × 5
+#&gt;   term      estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 ar1          1.28      0.123     10.4  8.26e-15
+#&gt; 2 ar2         -0.336     0.124     -2.71 8.84e- 3
+#&gt; 3 pop_m        0.627     0.149      4.22 8.73e- 5
+#&gt; 4 intercept   -0.765     0.326     -2.35 2.23e- 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It chose an ARIMA(2,0,0) error process, meaning two AR terms and no differencing, and <code>pop_m</code> comes back significant at p = 0.00009. Those two AR coefficients sum to 0.94, close enough to 1 that the errors behave much like a unit root without the search ever declaring one, so the spurious result stands.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Automatic <a class="auto-link" href="How-to-Choose-ARIMA-Order-in-R.html" title="How to Choose ARIMA Order (p,d,q) in R: ACF and PACF">ARIMA order selection</a> is not a spurious-regression guard.</strong> The search chooses the differencing order from the residuals of a preliminary fit, and when the regression itself is spurious those residuals can look borderline enough to keep d at 0. Test your series for unit roots first, then set the differencing order deliberately.</div></div>
+
+<p><strong>Route three is the exception:</strong> sometimes a levels regression between two non-stationary series <strong>is</strong> legitimate. If a linear combination of them is stationary, meaning they wander but never wander apart, the series are <strong>cointegrated</strong> and the levels relationship is real and economically meaningful. Spot prices and futures prices on the same commodity behave this way. The test is whether the residuals from the levels regression are themselves stationary, which is the Engle-Granger procedure covered in the <a href="Cointegration-in-R.html">cointegration tutorial</a>.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> What happens if you difference only the response and leave the predictor in levels? Fit <code>d_gdp ~ pop_m</code> and look at the p-value.</p>
+<div class="webr-container" data-block-title="Your turn: difference only one side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: difference only one side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build ex_half by differencing gdp_tn only, keep pop_m in levels
+# ex_half &lt;- pair |&gt; mutate(d_gdp = difference(gdp_tn)) |&gt; filter(!is.na(d_gdp))
+# Then fit TSLM(d_gdp ~ pop_m) and inspect glance() and tidy()
+# your code here
+
+# Expected: R-squared about 0.039, p-value on pop_m about 0.139</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Half-differenced solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Half-differenced solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_half &lt;- pair |&gt; mutate(d_gdp = difference(gdp_tn)) |&gt; filter(!is.na(d_gdp))
+ex_fit_half &lt;- ex_half |&gt; model(TSLM(d_gdp ~ pop_m))
+
+glance(ex_fit_half) |&gt; select(r_squared)
+#&gt; # A tibble: 1 × 1
+#&gt;   r_squared
+#&gt;       &lt;dbl&gt;
+#&gt; 1    0.0394
+tidy(ex_fit_half) |&gt; select(term, estimate, p.value)
+#&gt; # A tibble: 2 × 3
+#&gt;   term        estimate p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept)  -0.0239   0.466
+#&gt; 2 pop_m         0.0232   0.139</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Half-differencing removes most of the spurious signal, but it leaves the two sides on incompatible footings: a stationary response regressed on a non-stationary predictor. The p-value of 0.139 happens to be fine here, but the specification has no interpretation. Difference both sides or neither.</p>
+
+</details>
+</section>
+
+<h2>Which predictors can you put in a TSLM formula?</h2>
+
+<p>Beyond <code>trend()</code> and <code>season()</code>, a TSLM formula accepts anything a normal formula accepts, plus a couple more time specials. Here is the full menu.</p>
+
+<p><img src="screenshots/Time-Series-Regression-in-R-predictor-menu.webp" alt="TSLM formula branching into time specials and ordinary data columns" class="img-responsive img-zoomable" loading="lazy" width="1468" height="1578" /></p>
+
+<p><em>Figure 3: A TSLM formula mixes time specials that fable constructs with ordinary columns that already exist in your tsibble.</em></p>
+
+<p>Start with <code>fourier(K)</code>, which represents seasonality as smooth sine and cosine waves instead of one dummy per period. Each value of <code>K</code> adds a sine and cosine pair, so <code>K = 2</code> costs four columns. For quarterly data with <code>K = m/2 = 2</code>, the Fourier version spans exactly the same space as the dummies, so the two models must be identical.</p>
+
+<div class="webr-container" data-block-title="Fourier terms against seasonal dummies">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fourier terms against seasonal dummies</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">season_vs_fourier &lt;- beer |&gt; model(
+  dummies = TSLM(Beer ~ trend() + season()),
+  fourier = TSLM(Beer ~ trend() + fourier(K = 2)))
+
+glance(season_vs_fourier) |&gt; select(.model, r_squared, sigma2, CV)
+#&gt; # A tibble: 2 × 4
+#&gt;   .model  r_squared sigma2    CV
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 dummies     0.924   150.  160.
+#&gt; 2 fourier     0.924   150.  160.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical on every statistic, as predicted. <code>CV</code> here is the <a class="auto-link" href="Compare-Bayesian-Models-in-R.html" title="Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits">leave-one-out cross-validation</a> error that fable computes for TSLM models, and it is the statistic to compare when choosing between specifications on the same response.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for fourier() when the seasonal period is long.</strong> Half-hourly data has a daily period of 48, so <code>season()</code> would burn 47 dummy columns, while <code>fourier(K = 4)</code> captures the main shape in 8. You choose K by trying a few values and keeping the one with the lowest CV or AICc, the small-sample corrected <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">Akaike information criterion</a>, which is another lower-is-better score for comparing models on the same response.</div></div>
+
+<p>Next, ordinary columns. Any variable already sitting in your tsibble can be a predictor, including logical columns that act as dummies. Let us build a dataset where that matters: daily electricity demand for the Australian state of Victoria, which <code>vic_elec</code> records at half-hourly resolution.</p>
+
+<div class="webr-container" data-block-title="Build a daily electricity dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a daily electricity dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elec &lt;- vic_elec |&gt;
+  filter(year(Time) == 2014) |&gt;
+  index_by(Date = as_date(Time)) |&gt;
+  summarise(Demand = sum(Demand) / 1e3,
+            Temp = max(Temperature),
+            Holiday = any(Holiday)) |&gt;
+  mutate(Workday = !Holiday &amp; !wday(Date, label = TRUE) %in% c(&quot;Sat&quot;, &quot;Sun&quot;))
+
+elec
+#&gt; # A tsibble: 365 x 5 [1D]
+#&gt;    Date       Demand  Temp Holiday Workday
+#&gt;    &lt;date&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;lgl&gt;   &lt;lgl&gt;  
+#&gt;  1 2014-01-01   175.  26   TRUE    FALSE  
+#&gt;  2 2014-01-02   188.  23   FALSE   TRUE   
+#&gt;  3 2014-01-03   189.  22.2 FALSE   TRUE   
+#&gt;  4 2014-01-04   174.  20.3 FALSE   FALSE  
+#&gt;  5 2014-01-05   170.  26.1 FALSE   FALSE  
+#&gt;  6 2014-01-06   195.  19.6 FALSE   TRUE   
+#&gt;  7 2014-01-07   200.  20   FALSE   TRUE   
+#&gt;  8 2014-01-08   205.  27.4 FALSE   TRUE   
+#&gt;  9 2014-01-09   227.  32.4 FALSE   TRUE   
+#&gt; 10 2014-01-10   258.  34   FALSE   TRUE   
+#&gt; # ℹ 355 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>index_by()</code> is the tsibble equivalent of <code>group_by()</code> for the time index: it regroups half-hourly stamps into calendar days, and <code>summarise()</code> then collapses each day into total demand in gigawatt hours, the day's maximum temperature, and whether any part of the day was a public holiday. <code>Workday</code> is TRUE when the day is neither a holiday nor a weekend.</p>
+
+<p>Before fitting anything, look at the shape of the relationship.</p>
+
+<div class="webr-container" data-block-title="Plot demand against temperature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot demand against temperature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elec |&gt;
+  ggplot(aes(x = Temp, y = Demand, colour = Workday)) +
+  geom_point(alpha = 0.7) +
+  labs(title = &quot;Daily electricity demand against maximum temperature&quot;,
+       x = &quot;Max temperature (Celsius)&quot;, y = &quot;Demand (GWh)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The cloud is U-shaped. Demand is high on cold days because people heat their homes, falls through the mild twenties, then climbs steeply on hot days because air conditioners come on. A straight line through a U is flat, so a linear temperature term should explain almost nothing. Let us confirm that and then fix it.</p>
+
+<div class="webr-container" data-block-title="Compare three specifications">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare three specifications</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elec_fits &lt;- elec |&gt; model(
+  linear_temp  = TSLM(Demand ~ Temp),
+  quadratic    = TSLM(Demand ~ Temp + I(Temp^2)),
+  plus_workday = TSLM(Demand ~ Temp + I(Temp^2) + Workday))
+
+glance(elec_fits) |&gt; select(.model, r_squared, CV, AICc)
+#&gt; # A tibble: 3 × 4
+#&gt;   .model       r_squared    CV  AICc
+#&gt;   &lt;chr&gt;            &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 linear_temp    0.00925  717. 2397.
+#&gt; 2 quadratic      0.460    388. 2178.
+#&gt; 3 plus_workday   0.834    120. 1749.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Exactly as the scatter predicted. Temperature entered linearly explains 0.9% of daily demand, which would tempt an unwary analyst to conclude that weather does not matter. Adding the squared term, wrapped in <code>I()</code> so R treats <code>^</code> as arithmetic rather than formula syntax, lifts R-squared to 0.460. Adding the workday flag reaches 0.834. CV falls from 717 to 120 across the same three models, confirming the gain is real predictive power and not just extra parameters.</p>
+
+<div class="webr-container" data-block-title="Report the winning electricity model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the winning electricity model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_elec &lt;- elec |&gt; model(TSLM(Demand ~ Temp + I(Temp^2) + Workday))
+report(fit_elec)
+#&gt; Series: Demand 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -33.5401  -5.9352  -0.2086   6.4521  47.4895 
+#&gt; 
+#&gt; Coefficients:
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) 361.25257    6.02666   59.94   &lt;2e-16 ***
+#&gt; Temp        -15.12829    0.50942  -29.70   &lt;2e-16 ***
+#&gt; I(Temp^2)     0.32169    0.01033   31.15   &lt;2e-16 ***
+#&gt; WorkdayTRUE  35.07724    1.23009   28.52   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 10.89 on 361 degrees of freedom
+#&gt; Multiple R-squared: 0.8339,	Adjusted R-squared: 0.8325
+#&gt; F-statistic: 604 on 3 and 361 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The negative linear term and positive squared term together draw the U: demand falls as it warms up, bottoms out, then rises again. The turning point sits at <code>15.128 / (2 * 0.3217)</code>, which is about 23.5 degrees Celsius. <code>WorkdayTRUE</code> says a working day uses 35.1 GWh more than a weekend or holiday at the same temperature, and R named the coefficient that way because a logical predictor is treated as a two-level factor with FALSE as the base.</p>
+
+<p>Finally, <code>trend()</code> accepts <strong>knots</strong>, which bend the straight line at dates you choose. Use this when a series clearly changed its growth rate at a known moment rather than growing at one constant rate throughout.</p>
+
+<div class="webr-container" data-block-title="Bend the trend at chosen knots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bend the trend at chosen knots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oz_gdp &lt;- global_economy |&gt;
+  filter(Country == &quot;Australia&quot;) |&gt;
+  transmute(Year, gdp_tn = GDP / 1e12) |&gt;
+  filter(!is.na(gdp_tn))
+
+trend_shapes &lt;- oz_gdp |&gt; model(
+  straight  = TSLM(gdp_tn ~ trend()),
+  piecewise = TSLM(gdp_tn ~ trend(knots = c(1990, 2005))))
+
+glance(trend_shapes) |&gt; select(.model, r_squared, CV)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model    r_squared     CV
+#&gt;   &lt;chr&gt;         &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 straight      0.771 0.0508
+#&gt; 2 piecewise     0.947 0.0143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two knots turn one straight line into three joined segments with different slopes, lifting R-squared from 0.771 to 0.947 and cutting CV by more than two thirds. Choose knots from what you know happened, not by fishing for the best fit, because a knot placed on a random wiggle will not repeat out of sample.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>fourier(K = 1)</code> on the beer data and compare it with <code>K = 2</code>. One Fourier pair cannot span four quarters, so the fit should be visibly worse.</p>
+<div class="webr-container" data-block-title="Your turn: choose K for fourier terms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: choose K for fourier terms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit two models named k1 and k2 with fourier(K = 1) and fourier(K = 2)
+# ex_k &lt;- beer |&gt; model(...)
+# Then compare with glance()
+# your code here
+
+# Expected: K=1 gives R-squared about 0.818, K=2 about 0.924</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Choosing K solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choosing K solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_k &lt;- beer |&gt; model(
+  k1 = TSLM(Beer ~ trend() + fourier(K = 1)),
+  k2 = TSLM(Beer ~ trend() + fourier(K = 2)))
+
+glance(ex_k) |&gt; select(.model, r_squared, CV)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model r_squared    CV
+#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 k1         0.818  375.
+#&gt; 2 k2         0.924  160.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>K = 1</code> gives a single smooth wave per year, which cannot reproduce the sharp Q4 spike, so R-squared stops at 0.818 and CV more than doubles. For quarterly data the maximum useful K is 2, which is <code>m / 2</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast from a time series regression?</h2>
+
+<p>A regression forecast needs values of the predictors for the future periods. Whether that is trivial or hard splits every time series regression into two camps.</p>
+
+<p>When the only predictors are time specials, the future is already known: quarter 75 follows quarter 74, and the quarter after 2010 Q2 is 2010 Q3. <code>forecast()</code> extends the columns itself.</p>
+
+<div class="webr-container" data-block-title="Forecast two years from trend and season">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast two years from trend and season</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_beer &lt;- beer |&gt;
+  model(TSLM(Beer ~ trend() + season())) |&gt;
+  forecast(h = &quot;2 years&quot;)
+
+fc_beer |&gt; as_tibble() |&gt; select(Quarter, .mean)
+#&gt; # A tibble: 8 × 2
+#&gt;   Quarter .mean
+#&gt;     &lt;qtr&gt; &lt;dbl&gt;
+#&gt; 1 2010 Q3  398.
+#&gt; 2 2010 Q4  489.
+#&gt; 3 2011 Q1  416.
+#&gt; 4 2011 Q2  381.
+#&gt; 5 2011 Q3  397.
+#&gt; 6 2011 Q4  487.
+#&gt; 7 2012 Q1  414.
+#&gt; 8 2012 Q2  379.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eight quarters, and the Q4 spike repeats in both years while the whole path drifts gently downward at the trend rate. The <code>.mean</code> column is the point forecast; the forecast object also carries a full distribution, which is what <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a> are drawn from.</p>
+
+<div class="webr-container" data-block-title="Plot the regression forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the regression forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_line(aes(x = Quarter, y = Beer), data = beer, colour = &quot;grey30&quot;) +
+  geom_line(aes(x = Quarter, y = .mean), data = as_tibble(fc_beer),
+            colour = &quot;tomato&quot;, linewidth = 1) +
+  labs(title = &quot;Beer production with a two-year regression forecast&quot;,
+       y = &quot;Megalitres&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The forecast continues the pattern the model learned, which is exactly what a trend-plus-season regression can and cannot do: it extrapolates the average shape forever and knows nothing about anything else.</p>
+
+<p>The other camp is harder. To forecast electricity demand you need tomorrow's temperature, and that is a forecasting problem of its own. The usual answer is to stop pretending you know and instead ask what-if questions, which fable calls <strong>scenario forecasting</strong>. You build the future predictor values by hand with <code>new_data()</code> and pass them in.</p>
+
+<div class="webr-container" data-block-title="Scenario forecast at three temperatures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scenario forecast at three temperatures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scenarios &lt;- new_data(elec, 3) |&gt;
+  mutate(Temp = c(12, 24, 40), Workday = TRUE)
+
+forecast(fit_elec, new_data = scenarios) |&gt;
+  as_tibble() |&gt;
+  select(Date, Temp, .mean)
+#&gt; # A tibble: 3 × 3
+#&gt;   Date        Temp .mean
+#&gt;   &lt;date&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2015-01-01    12  261.
+#&gt; 2 2015-01-02    24  219.
+#&gt; 3 2015-01-03    40  306.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>new_data(elec, 3)</code> creates the next three dates after the data ends, and <code>mutate()</code> fills in the predictor values we want to explore. The answers trace the U: a cold working day at 12 degrees draws 261 GWh, a mild one at 24 degrees draws 219, and a scorching 40-degree day draws 306. That 40-degree figure is the number a grid operator actually needs, and it comes from a model that took four lines to fit.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A regression forecast is only as good as the predictor forecast behind it.</strong> When you feed real future values, as in a what-if scenario, the intervals reflect only the model's own uncertainty. When you feed forecasted predictors, the real uncertainty is larger than the interval shows, because the predictor's own <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">forecast error</a> is not included.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun the same three temperatures with <code>Workday = FALSE</code> and read off the weekend saving.</p>
+<div class="webr-container" data-block-title="Your turn: the weekend scenario">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the weekend scenario</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build ex_weekend the same way but with Workday = FALSE
+# your code here
+
+# Expected: each forecast about 35 GWh lower than the workday version</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weekend scenario solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weekend scenario solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_weekend &lt;- new_data(elec, 3) |&gt;
+  mutate(Temp = c(12, 24, 40), Workday = FALSE)
+
+forecast(fit_elec, new_data = ex_weekend) |&gt;
+  as_tibble() |&gt;
+  select(Date, Temp, .mean)
+#&gt; # A tibble: 3 × 3
+#&gt;   Date        Temp .mean
+#&gt;   &lt;date&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2015-01-01    12  226.
+#&gt; 2 2015-01-02    24  183.
+#&gt; 3 2015-01-03    40  271.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every figure drops by 35.1 GWh, the <code>WorkdayTRUE</code> coefficient exactly. A dummy variable shifts the whole curve up or down without changing its shape, so the temperature response is unchanged.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: forecasting daily electricity demand</h2>
+
+<p>Time to run the whole workflow on one problem: fit on data the model can see, score on data it cannot, and compare against a benchmark that costs nothing. We train on January through October 2014 and hold back November and December.</p>
+
+<div class="webr-container" data-block-title="Split into training and test periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split into training and test periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elec_train &lt;- elec |&gt; filter(Date &lt; as_date(&quot;2014-11-01&quot;))
+elec_test  &lt;- elec |&gt; filter(Date &gt;= as_date(&quot;2014-11-01&quot;))
+
+c(train_days = nrow(elec_train), test_days = nrow(elec_test))
+#&gt; train_days  test_days 
+#&gt;        304         61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>304 days to learn from, 61 to be judged on. Now fit the regression alongside a <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a> benchmark that simply repeats the value from the same weekday last week. Any model worth deploying has to beat that.</p>
+
+<div class="webr-container" data-block-title="Fit the regression and a benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the regression and a benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elec_models &lt;- elec_train |&gt; model(
+  regression     = TSLM(Demand ~ Temp + I(Temp^2) + Workday),
+  seasonal_naive = SNAIVE(Demand ~ lag(&quot;week&quot;)))
+
+glance(elec_models) |&gt; select(.model, sigma2)
+#&gt; # A tibble: 2 × 2
+#&gt;   .model         sigma2
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;
+#&gt; 1 regression       108.
+#&gt; 2 seasonal_naive   676.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sigma2</code> is the estimated residual variance in-sample. The regression sits at 108 against 676 for the benchmark, so it fits the training period roughly six times more tightly. In-sample fit is not the test, though. Check the residuals before believing anything.</p>
+
+<div class="webr-container" data-block-title="Check the residuals for leftover structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the residuals for leftover structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(elec_models) |&gt;
+  filter(.model == &quot;regression&quot;) |&gt;
+  features(.innov, ljung_box, lag = 14)
+#&gt; # A tibble: 1 × 3
+#&gt;   .model     lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 regression    289.         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of 0. The residuals are still autocorrelated, and that is worth reporting rather than quietly dropping. It does <strong>not</strong> mean this regression is spurious: temperature genuinely drives electricity demand, and both series are stationary enough that the trap from earlier does not apply. What it means is that consecutive days share something the model has not captured, probably humidity, wind, and the fact that a hot day after a hot day is worse than a hot day after a cool one. The consequences are that the coefficient standard errors are too small and the prediction intervals too narrow, and the fix would be dynamic regression, which is covered in the <a href="Dynamic-Regression-in-R.html">regression with ARIMA errors tutorial</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="Autocorrelation-in-Residuals.html" title="Autocorrelation in Residuals: Durbin-Watson & Breusch-Godfrey Tests">Autocorrelated residuals</a> and a spurious regression are different diagnoses.</strong> Both show up as a failed Ljung-Box test, so use the unit-root check to tell them apart. Non-stationary series on both sides means spurious. <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">Stationary series</a> with correlated errors means an inefficient but real model.</div></div>
+
+<p>With that caveat recorded, score both models on the two months they never saw.</p>
+
+<div class="webr-container" data-block-title="Score both models on held-out data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score both models on held-out data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elec_fc &lt;- elec_models |&gt; forecast(new_data = elec_test)
+
+accuracy(elec_fc, elec_test) |&gt; select(.model, RMSE, MAE, MAPE)
+#&gt; # A tibble: 2 × 4
+#&gt;   .model          RMSE   MAE  MAPE
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 regression      13.4  10.9  5.41
+#&gt; 2 seasonal_naive  16.9  11.6  5.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression wins on all three measures: RMSE 13.4 against 16.9, MAE 10.9 against 11.6, MAPE 5.41% against 5.84%. Note that the margin is far narrower than the in-sample variance suggested, which is the usual gap between fitting and forecasting. Note also that the regression had an advantage a real deployment would not give it: <code>elec_test</code> contains the <strong>actual</strong> temperatures for November and December, so this measures how well the model would do given a perfect weather forecast.</p>
+
+<div class="webr-container" data-block-title="Plot forecast against actual">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot forecast against actual</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_line(aes(x = Date, y = Demand), data = elec_test, colour = &quot;grey30&quot;) +
+  geom_line(aes(x = Date, y = .mean, colour = .model), data = as_tibble(elec_fc)) +
+  labs(title = &quot;November to December 2014: forecast versus actual&quot;,
+       y = &quot;Demand (GWh)&quot;, colour = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression line tracks the hot-day spikes because it sees the temperature that caused them. The seasonal naive line is the same shape shifted a week to the right, which is why it lands well on ordinary weeks and badly whenever the weather turns.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Does a sensible pairing survive differencing?</h3>
+
+<p>Australian GDP and Australian population is a far more plausible pairing than the Mongolian one. Pull both from <code>global_economy</code>, fit the levels regression, then fit the differenced regression, and decide which result you would report. Save your work to <code>au</code>, <code>my_levels</code> and <code>my_diff</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: GDP against domestic population">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: GDP against domestic population</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build au: Australia only, Year plus gdp_tn (GDP/1e12) and pop_m (Population/1e6)
+# Hint: transmute() then filter(!is.na(gdp_tn)) then as_tsibble(index = Year)
+
+# Fit my_levels  = TSLM(gdp_tn ~ pop_m)
+# Fit my_diff    = TSLM on the differenced columns
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">au &lt;- global_economy |&gt;
+  filter(Country == &quot;Australia&quot;) |&gt;
+  transmute(Year, gdp_tn = GDP / 1e12, pop_m = Population / 1e6) |&gt;
+  filter(!is.na(gdp_tn)) |&gt;
+  as_tsibble(index = Year)
+
+my_levels &lt;- au |&gt; model(TSLM(gdp_tn ~ pop_m))
+glance(my_levels) |&gt; select(r_squared)
+#&gt; # A tibble: 1 × 1
+#&gt;   r_squared
+#&gt;       &lt;dbl&gt;
+#&gt; 1     0.819
+
+my_diff &lt;- au |&gt;
+  mutate(d_gdp = difference(gdp_tn), d_pop = difference(pop_m)) |&gt;
+  filter(!is.na(d_gdp)) |&gt;
+  model(TSLM(d_gdp ~ d_pop))
+tidy(my_diff) |&gt; select(term, estimate, p.value)
+#&gt; # A tibble: 2 × 3
+#&gt;   term         estimate p.value
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept) -0.00161    0.960
+#&gt; 2 d_pop        0.0975     0.431</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> In levels, R-squared is 0.819 and the relationship looks strong. In changes, the p-value on <code>d_pop</code> is 0.431 and there is nothing left. Population growth and GDP growth are both real phenomena, but this annual data cannot show that one drives the other, because both simply rise over the same 58 years. Report the differenced result, or move to a cointegration test if you believe the levels relationship is structural.</p>
+
+</details>
+
+<h3>Exercise 2: Build a spurious-regression checker</h3>
+
+<p>Write <code>my_check()</code>, a function that takes a fitted mable and returns a one-row tibble with the R-squared, the Durbin-Watson statistic computed from the residuals, and a verdict applying the Granger-Newbold rule. Apply it to <code>my_levels</code> and <code>my_diff</code> from Exercise 1.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: automate the diagnosis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: automate the diagnosis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># my_check &lt;- function(fit) {
+#   g  &lt;- glance(fit)
+#   dw &lt;- ... compute sum(diff(e)^2) / sum(e^2) from augment(fit)$.innov
+#   tibble(r_squared = ..., durbin_watson = ..., verdict = ...)
+# }
+# Hint: the rule is &quot;suspect&quot; when r_squared &gt; durbin_watson
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_check &lt;- function(fit) {
+  g  &lt;- glance(fit)
+  dw &lt;- augment(fit) |&gt;
+    pull(.innov) |&gt;
+    (\(e) sum(diff(e)^2) / sum(e^2))()
+  tibble(r_squared = round(g$r_squared, 3),
+         durbin_watson = round(dw, 3),
+         verdict = if (g$r_squared &gt; dw) &quot;suspect: likely spurious&quot; else &quot;looks safe&quot;)
+}
+
+my_check(my_levels)
+#&gt; # A tibble: 1 × 3
+#&gt;   r_squared durbin_watson verdict                 
+#&gt;       &lt;dbl&gt;         &lt;dbl&gt; &lt;chr&gt;                   
+#&gt; 1     0.819         0.132 suspect: likely spurious
+my_check(my_diff)
+#&gt; # A tibble: 1 × 3
+#&gt;   r_squared durbin_watson verdict   
+#&gt;       &lt;dbl&gt;         &lt;dbl&gt; &lt;chr&gt;     
+#&gt; 1     0.011          1.40 looks safe</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Durbin-Watson formula is coded directly rather than pulled from <code>dwtest()</code> so the function works on any mable without refitting through <code>lm()</code>. The <code>(\(e) ...)()</code> construction is an anonymous function applied immediately to the piped vector. The levels model fails the rule at 0.819 against 0.132; the differenced model passes at 0.011 against 1.40.</p>
+
+</details>
+
+<h3>Exercise 3: A full workflow on retail turnover</h3>
+
+<p>Take Victorian cafe and restaurant turnover from <code>aus_retail</code>. Fit a trend-plus-season model on the raw scale and another on the log scale, check the residuals of both, then try bending the trend with knots at January 2000 and January 2010. Then answer the trap in this exercise: why can you not use <code>CV</code> to choose between the raw and logged models?</p>
+
+<div class="webr-container" data-block-title="Exercise 3: retail turnover end to end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: retail turnover end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># retail &lt;- aus_retail |&gt; filter(State == &quot;Victoria&quot;,
+#   Industry == &quot;Cafes, restaurants and takeaway food services&quot;) |&gt; select(Month, Turnover)
+# Fit my_retail with two models: levels and logged
+# Then my_knots with trend(knots = yearmonth(c(&quot;2000 Jan&quot;, &quot;2010 Jan&quot;)))
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">retail &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;,
+         Industry == &quot;Cafes, restaurants and takeaway food services&quot;) |&gt;
+  select(Month, Turnover)
+
+my_retail &lt;- retail |&gt; model(
+  levels = TSLM(Turnover ~ trend() + season()),
+  logged = TSLM(log(Turnover) ~ trend() + season()))
+glance(my_retail) |&gt; select(.model, r_squared, CV)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model r_squared        CV
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 levels     0.942 3930.    
+#&gt; 2 logged     0.980    0.0106
+
+augment(my_retail) |&gt; features(.innov, ljung_box, lag = 24)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 levels   5880.         0
+#&gt; 2 logged   4437.         0
+
+my_knots &lt;- retail |&gt; model(
+  plain = TSLM(log(Turnover) ~ trend() + season()),
+  bent  = TSLM(log(Turnover) ~ trend(knots = yearmonth(c(&quot;2000 Jan&quot;, &quot;2010 Jan&quot;))) + season()))
+glance(my_knots) |&gt; select(.model, r_squared, CV)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model r_squared      CV
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 plain      0.980 0.0106 
+#&gt; 2 bent       0.985 0.00768</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The logged model reaches a higher R-squared because turnover grows multiplicatively, so a log transform straightens the growth and stabilises the variance. The knots help further, cutting CV from 0.0106 to 0.00768 on the same log scale. But the CV of 3930 for the levels model and 0.0106 for the logged model are <strong>not comparable</strong>: one is measured in squared dollars, the other in squared log-dollars. Only compare CV, AICc or sigma2 across models sharing the same response. Both models still fail Ljung-Box, which for stationary-enough retail data points to dynamic regression rather than a spurious fit.</p>
+
+</details>
+
+<h2>Frequently asked questions</h2>
+
+<p><strong>What is the difference between tslm() and TSLM()?</strong> Lowercase <code>tslm()</code> comes from the forecast package, takes a <code>ts</code> object, and returns an <code>lm</code> object you can hand to <code>summary()</code> and <code>predict()</code>. Uppercase <code>TSLM()</code> comes from fable, takes a tsibble, and returns a mable you interrogate with <code>report()</code>, <code>glance()</code>, <code>tidy()</code> and <code>augment()</code>. The models are the same; the surrounding grammar differs.</p>
+
+<p><strong>Is a high R-squared on time series data ever trustworthy?</strong> Yes, when the residuals pass the checks. The beer model reaches 0.924 with a Ljung-Box p-value of 0.240 and a Durbin-Watson of 2.49, so its R-squared is meaningful. The rule is never about the R-squared on its own, it is about the R-squared <strong>and</strong> what the residuals look like.</p>
+
+<p><strong>Do I have to difference every time series regression?</strong> No. Difference when both sides are non-stationary and not cointegrated. Series that are already stationary, or where the non-stationarity is a deterministic trend you have modelled with <code>trend()</code>, do not need it. The KPSS test tells you which case you are in.</p>
+
+<p><strong>Can I put <a class="auto-link" href="recipes-step_lag-in-R.html" title="recipes step_lag() in R: Create Lagged Predictors">lagged predictors</a> in a TSLM formula?</strong> Yes, <code>lag()</code> works inside the formula, as in <code>TSLM(y ~ lag(x, 1) + lag(x, 2))</code>. That is the distributed-lag model. Just remember that lagging does not fix non-stationarity, so run the unit-root check first regardless.</p>
+
+<p><strong>Does the spurious regression problem affect ARIMA models too?</strong> Not in the same way. A pure ARIMA model of one series has no external regressor to be spurious about. The risk returns as soon as you add one, as in <code>ARIMA(y ~ x)</code> or <code>Arima(y, xreg = x)</code>, and this page showed that automatic order selection can leave <code>d</code> at 0 and preserve the trap.</p>
+
+<p><strong>Why did fable name the coefficient WorkdayTRUE?</strong> A logical predictor is treated as a two-level factor with FALSE as the base level, so R appends the level name of the non-base level to the variable name. The same happens with character or <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">factor predictors</a>: a <code>Region</code> column with levels North and South produces <code>RegionSouth</code>.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TSLM()</code></td>
+<td>Least squares on a tsibble, with time specials that fable expands into real columns</td>
+</tr>
+<tr>
+<td><code>trend()</code></td>
+<td>A counter 1, 2, 3, ... which is identical to <code>t = row_number()</code> in a plain <code>lm()</code></td>
+</tr>
+<tr>
+<td><code>season()</code></td>
+<td>One 0/1 dummy per period after the first; the base period lives in the intercept</td>
+</tr>
+<tr>
+<td><code>fourier(K)</code></td>
+<td>Sine and cosine pairs instead of dummies; essential when the seasonal period is long</td>
+</tr>
+<tr>
+<td><code>trend(knots =)</code></td>
+<td>Bends the trend at dates you choose, for series that changed growth rate</td>
+</tr>
+<tr>
+<td>Spurious regression</td>
+<td>Two non-stationary series regressed in levels; 84.7% of random-walk pairs test significant</td>
+</tr>
+<tr>
+<td>The symptom</td>
+<td>High R-squared, tiny p-values, and residuals that wander instead of crossing zero</td>
+</tr>
+<tr>
+<td>Ljung-Box</td>
+<td>The formal residual check; use lag 10, or <code>2m</code> for seasonal data</td>
+</tr>
+<tr>
+<td>Durbin-Watson</td>
+<td>Near 2 is clean; if R-squared exceeds it, suspect a spurious fit (Granger-Newbold)</td>
+</tr>
+<tr>
+<td>KPSS</td>
+<td>Run it on both series before any levels regression; small p-value means non-stationary</td>
+</tr>
+<tr>
+<td>Fix 1</td>
+<td>Difference both sides and refit</td>
+</tr>
+<tr>
+<td>Fix 2</td>
+<td><code>ARIMA(y ~ x + pdq(d = 1))</code>, and set <code>d</code> yourself rather than trusting the search</td>
+</tr>
+<tr>
+<td>The exception</td>
+<td>Cointegrated series can be regressed in levels legitimately</td>
+</tr>
+<tr>
+<td>Forecasting</td>
+<td>Time specials extend themselves; external predictors need scenarios via <code>new_data()</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 7: Time series regression models. <a href="https://otexts.com/fpp3/regression.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. Section 7.3: Evaluating the regression model, including spurious regression. <a href="https://otexts.com/fpp3/regression-evaluation.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. Section 7.4: Some useful predictors (trend, dummies, Fourier terms, knots). <a href="https://otexts.com/fpp3/useful-predictors.html">Link</a></li>
+
+<li>fable package documentation. <code>TSLM()</code>: fit a linear model with time series components. <a href="https://fable.tidyverts.org/reference/TSLM.html">Link</a></li>
+
+<li>forecast package documentation. <code>tslm()</code>: fit a linear model with time series components. <a href="https://pkg.robjhyndman.com/forecast/reference/tslm.html">Link</a></li>
+
+<li>Granger, C.W.J. & Newbold, P. Spurious regressions in econometrics. <em>Journal of Econometrics</em>, 2(2), 111-120 (1974). <a href="https://doi.org/10.1016/0304-4076%2874%2990034-7">Link</a></li>
+
+<li>lmtest package documentation. <code>dwtest()</code>: Durbin-Watson test for autocorrelation of disturbances. <a href="https://cran.r-project.org/web/packages/lmtest/lmtest.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> covers ADF, KPSS and differencing in full, which is the check to run before any levels regression between two series.</li>
+
+<li><a href="Dynamic-Regression-in-R.html">Dynamic Regression in R</a> shows how to model the error process with ARIMA so the regression coefficients get honest standard errors.</li>
+
+<li><a href="Cointegration-in-R.html">Cointegration in R</a> explains the exception, where a regression in levels between two non-stationary series is genuinely valid.</li>
+
+</ul>
+
+{% endraw %}
