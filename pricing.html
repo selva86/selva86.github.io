@@ -380,15 +380,15 @@ a{text-decoration:none;color:inherit}
         <ul>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Decompose series with STL and X-13ARIMA-SEATS</li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> ETS, Holt-Winters and ARIMA with fable</li>
-          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Dynamic harmonic regression, TBATS and Prophet</li>
+          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> <a class="auto-link" href="Forecasting-Short-Time-Series-in-R.html" title="Forecasting Very Short (and Very Long) Time Series in R">Dynamic harmonic regression</a>, TBATS and Prophet</li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> State-space models and the Kalman filter (bsts)</li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Volatility with ARCH/GARCH and Value at Risk</li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Multivariate series: VAR, cointegration and VECM</li>
-          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Hierarchical forecast reconciliation (MinT)</li>
+          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Hierarchical <a class="auto-link" href="Hierarchical-Time-Series-in-R.html" title="Hierarchical and Grouped Time Series in R: Reconciliation">forecast reconciliation</a> (MinT)</li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> ML and deep forecasting: DeepAR, N-BEATS, N-HiTS</li>
-          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Conformal prediction intervals for time series</li>
-          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Intermittent demand: Croston, ADIDA and TSB</li>
-          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Rolling-origin backtesting and forecast value added</li>
+          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> <a class="auto-link" href="Conformal-Prediction-in-R.html" title="Conformal Prediction in R: Distribution-Free Forecast Intervals">Conformal prediction</a> intervals for time series</li>
+          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> <a class="auto-link" href="Croston-Method-in-R.html" title="Intermittent Demand Forecasting in R: Croston and Friends">Intermittent demand</a>: Croston, ADIDA and TSB</li>
+          <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Rolling-origin backtesting and <a class="auto-link" href="Forecast-Value-Added-in-R.html" title="Forecast Value Added: When Human Judgment Helps">forecast value added</a></li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> A capstone forecasting project and certificate</li>
         </ul>
       </div>
@@ -564,7 +564,7 @@ var PRICES = {
 function rsSignal(s, m){
   try {
     var k = 'rs-sig:' + s;
-    if (s !== 'checkout_start' && sessionStorage.getItem(k)) return;
+    if (s !== 'checkout_start' && s !== 'checkout_lead' && sessionStorage.getItem(k)) return;
     sessionStorage.setItem(k, '1');
     var a = localStorage.getItem('rsc-aid');
     if (!a) { a = Math.random().toString(36).slice(2, 12); localStorage.setItem('rsc-aid', a); }
@@ -575,6 +575,9 @@ function rsSignal(s, m){
   } catch (e) {}
 }
 window.addEventListener('load', function(){ rsSignal('pricing_view', document.referrer.slice(0, 120)); });
+/* Recovery emails land here with ?code=BACK15XXXXX - apply it to checkout automatically. */
+var recoveryCode = (function(){ try { var c = new URLSearchParams(location.search).get('code');
+  return (c && /^[A-Z0-9]{6,20}$/.test(c)) ? c : null; } catch (e) { return null; } })();
 var mode='annual';
 var _modeReady=false;
 function setMode(m){
@@ -710,7 +713,9 @@ gtag('config', 'G-D5XKCMN7FR');
             try {
               if (!ev || !ev.name || typeof gtag !== "function") return;
               var d = ev.data || {};
-              if (ev.name === "checkout.loaded") {
+              if (ev.name === "checkout.customer.created" || ev.name === "checkout.customer.updated") {
+                try { var ce = d.customer && d.customer.email; if (ce) rsSignal("checkout_lead", ce); } catch (e6) {}
+              } else if (ev.name === "checkout.loaded") {
                 gtag("event", "begin_checkout", { currency: d.currency_code, value: d.totals && d.totals.total });
                 try { rsSignal("checkout_start", String((d.items && d.items[0] && (d.items[0].price_id || (d.items[0].price && d.items[0].price.id))) || "")); } catch (e3) {}
                 try {
@@ -766,6 +771,7 @@ gtag('config', 'G-D5XKCMN7FR');
         var claims = jwtClaims(tok);
         try {
           window.Paddle.Checkout.open({
+            discountCode: recoveryCode || undefined,
             items: [{ priceId: priceId, quantity: 1 }],
             customer: claims.email ? { email: claims.email } : undefined,
             customData: (function () {
@@ -868,6 +874,7 @@ gtag('config', 'G-D5XKCMN7FR');
     var claims = jwtClaims(tok);
     try {
       window.Paddle.Checkout.open({
+        discountCode: recoveryCode || undefined,
         items: [{ priceId: paddle.teamsPriceId, quantity: seats() }],
         customer: claims.email ? { email: claims.email } : undefined,
         customData: { user_id: claims.sub || "", plan: "teams" },

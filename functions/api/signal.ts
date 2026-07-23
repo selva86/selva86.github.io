@@ -13,10 +13,11 @@
 // learn nothing. Table is created on first use (same pattern as traffic_daily).
 
 import type { Env, RequestData } from "../_middleware";
+import { sweepAbandonedCheckouts } from "../_lib/cartrecovery";
 
 const SIGNALS = new Set([
   "pricing_view", "pricing_toggle", "checkout_start", "checkout_closed",
-  "purchase_client", "paywall_hit", "signin_wall_hit",
+  "purchase_client", "checkout_lead", "paywall_hit", "signin_wall_hit",
   "lesson_start", "lesson_complete", "cert_view", "track_view",
 ]);
 
@@ -57,5 +58,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
       clean(b.m, 200),
     ).run();
   } catch (_) { /* never fail the caller */ }
+  // opportunistic cart-recovery sweep (KV-throttled to one run / 30 min)
+  try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
   return done;
 };

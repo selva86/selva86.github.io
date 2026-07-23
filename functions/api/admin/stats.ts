@@ -28,6 +28,7 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, err500 } from "../../_lib/errors";
 import { ensureIntentTable } from "../signal";
+import { sweepAbandonedCheckouts } from "../../_lib/cartrecovery";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const IST_OFFSET = 19800; // +5:30 in seconds
@@ -160,7 +161,7 @@ async function intentStats(DB: D1Database, now: number, range: RangeKey) {
   const seriesN = SERIES_DAYS[range];
   const seriesStart = istDayStart(now - (seriesN - 1) * 86400);
 
-  const [counts, series, recent, actors] = await Promise.all([
+  const [counts, series, recent, actors, leads] = await Promise.all([
     DB.prepare(
       "SELECT signal, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, anon_id)) AS actors " +
       "FROM intent_signals WHERE at >= ?1 GROUP BY signal ORDER BY n DESC"
@@ -176,6 +177,15 @@ async function intentStats(DB: D1Database, now: number, range: RangeKey) {
     DB.prepare(
       "SELECT COUNT(DISTINCT COALESCE(user_id, anon_id)) AS n FROM intent_signals WHERE at >= ?1"
     ).bind(rs).first<{ n: number }>(),
+    // checkout initiators: everyone who typed an email into the Paddle overlay
+    DB.prepare(
+      "SELECT i.meta AS email, MAX(i.at) AS last_at, " +
+      "MAX(CASE WHEN r.path = 'skipped:purchased' THEN 2 WHEN r.meta IS NOT NULL THEN 1 ELSE 0 END) AS state " +
+      "FROM intent_signals i " +
+      "LEFT JOIN intent_signals r ON r.signal = 'recovery_sent' AND r.meta = i.meta " +
+      "WHERE i.signal = 'checkout_lead' AND i.at >= ?1 " +
+      "GROUP BY i.meta ORDER BY last_at DESC LIMIT 15"
+    ).bind(rs).all<{ email: string; last_at: number; state: number }>(),
   ]);
 
   const days: string[] = [];
@@ -190,6 +200,7 @@ async function intentStats(DB: D1Database, now: number, range: RangeKey) {
   return {
     counts: counts.results ?? [],
     actors: actors?.n ?? 0,
+    checkout_leads: leads.results ?? [],
     series: { days, signals: ser },
     recent: recent.results ?? [],
   };
@@ -518,6 +529,7 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
     ? (rParam as RangeKey) : "today";
 
   const now = Math.floor(Date.now() / 1000);
+  try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
   try {
     const [d1, cf, lb, intent] = await Promise.all([
       d1Stats(context.env.DB, now, range),
@@ -530,6 +542,7 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
         xp: [], solvers: [], active: [], readers: [], streaks: [], hot_leads: [], at_risk: [],
       })),
       intentStats(context.env.DB, now, range).catch((e: Error) => ({
+        checkout_leads: [],
         error: String(e?.message || e),
         counts: [], actors: 0, series: { days: [], signals: [] }, recent: [],
       })),
