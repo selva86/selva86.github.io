@@ -210,6 +210,31 @@ try {
   ));
 } catch (_) {}
 
+// Post the parked attribution the moment a session exists, BEFORE redirecting
+// away. On OAuth signups the admin email is parked server-side waiting for
+// exactly this; keepalive lets the request outlive the navigation. The
+// localStorage copy is kept until a confirmed 2xx (auth-hydrate.js retries it
+// on the next page load), so a dropped request loses nothing.
+function postSignupContextNow(session) {
+  try {
+    var raw = localStorage.getItem('rsc-signup-src');
+    if (!raw || !session || !session.access_token) return;
+    var src = JSON.parse(raw);
+    if (!src || !src.ts || (Date.now() - src.ts) > 3600000) {
+      localStorage.removeItem('rsc-signup-src');
+      return;
+    }
+    fetch('/api/me/signup-context', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ page: src.signup_page || '', trigger: src.signup_trigger || '', next: src.signup_next || '' })
+    }).then(function (r) {
+      if (r && r.ok) { try { localStorage.removeItem('rsc-signup-src'); } catch (e) {} }
+    }).catch(function () {});
+  } catch (e) {}
+}
+
 // The OAuth / magic-link round-trip MUST land on a page that can parse the
 // access_token from the URL hash and persist it to localStorage — that's
 // signin.html itself (and /account.html). Tutorial pages and most other
@@ -267,6 +292,7 @@ function showMsg(kind, text) {
   // Already signed in? Skip the form.
   const { data: { session } } = await supa.auth.getSession();
   if (session) {
+    postSignupContextNow(session);
     window.location.replace(REDIRECT_AFTER_AUTH);
     return;
   }
@@ -342,7 +368,13 @@ function showMsg(kind, text) {
         buttonWidth: rowWidth,
         getSupabase: () => Promise.resolve(supa),
         onBeforeSignIn: () => { if (wantsNewsletter()) recordOptinSignal(); },
-        onSuccess: () => { window.location.replace(REDIRECT_AFTER_AUTH); },
+        onSuccess: async () => {
+          try {
+            const { data: { session: s2 } } = await supa.auth.getSession();
+            postSignupContextNow(s2);
+          } catch (e) {}
+          window.location.replace(REDIRECT_AFTER_AUTH);
+        },
         onError: (m) => showMsg('error', m),
       }).then(ok => {
         if (ok) oauthGoogleBtn.style.display = 'none';

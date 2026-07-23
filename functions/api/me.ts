@@ -15,7 +15,7 @@ import type { Env, RequestData } from "../_middleware";
 import { json } from "../_lib/errors";
 import { getUserById, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
 import { resolvePro } from "../_lib/entitlement";
-import { notifyNewSignup } from "../_lib/notify";
+import { notifyNewSignup, flushPendingSignup } from "../_lib/notify";
 import { ensureHandle } from "../_lib/profile";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
@@ -57,6 +57,15 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   }
 
   if (!u) return json({ user: null, pro: false });
+
+  // Fresh-user fallback: if the webhook parked a source-less signup
+  // notification and the client never posted attribution (closed the tab
+  // mid-OAuth, blocked fetch), send it on their next page load. One cheap KV
+  // get, and only for users created in the last 48h.
+  if (u.created_at && Date.now() / 1000 - u.created_at < 48 * 3600) {
+    const uid = u.id;
+    context.waitUntil(flushPendingSignup(context.env, uid));
+  }
 
   // Newsletter consent sync, self-healing (Phase 6/A): if signup metadata
   // carries the opt-in but the D1 flag never got set (missed webhook, failed
