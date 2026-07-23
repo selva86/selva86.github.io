@@ -315,7 +315,7 @@ function dayFinalTs(dayStr: string): number {
   return Math.floor(Date.parse(dayStr + "T00:00:00Z") / 1000) + 86400 + 7200;
 }
 
-async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range: RangeKey) {
+async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range: RangeKey, retried = false) {
   if (!env.CF_ANALYTICS_TOKEN || !env.CF_ACCOUNT_TAG) {
     return { configured: false as const };
   }
@@ -324,7 +324,12 @@ async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range:
 
   await ensureTrafficTable(DB);
 
-  const siteTag = env.CF_SITE_TAG || DEFAULT_SITE_TAG;
+  // Web Analytics has TWO identifiers: the site TOKEN (in the JS snippet) and
+  // the site TAG (what GraphQL filters on). They often differ. If a previous
+  // run auto-discovered the real tag, prefer it; else env override; else the
+  // beacon token as a first guess.
+  const discovered = await env.KV.get("admin:cf:sitetag").catch(() => null);
+  const siteTag = discovered || env.CF_SITE_TAG || DEFAULT_SITE_TAG;
   const iso = (s: number) => new Date(s * 1000).toISOString();
   const todayUtc = utcDayStart(now);
   const cfWindowStart = todayUtc - 29 * 86400; // CF free retention: 30 days
@@ -406,6 +411,41 @@ async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range:
     };
   }
   const acc = body.data.viewer.accounts[0];
+
+  // Self-heal a wrong site tag: if this tag matched zero traffic, discover the
+  // account's real site tags by hostname and retry once with the one serving
+  // r-statistics.co. The discovery is persisted so this runs at most once.
+  const gotNothing = !(acc.total?.[0]?.count) && !(acc.days?.length);
+  if (gotNothing && !discovered && !retried) {
+    const disco = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.CF_ANALYTICS_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `query($accountTag: string!, $since: Time!, $now: Time!) {
+          viewer { accounts(filter: {accountTag: $accountTag}) {
+            sites: rumPageloadEventsAdaptiveGroups(limit: 20, orderBy: [sum_visits_DESC],
+              filter: {datetime_geq: $since, datetime_leq: $now}) {
+              sum { visits } dimensions { siteTag requestHost }
+            }
+          } }
+        }`,
+        variables: { accountTag: env.CF_ACCOUNT_TAG, since: iso(now - 7 * 86400), now: iso(now) },
+      }),
+    }).then((r) => r.json() as Promise<any>).catch(() => null);
+    const sites: any[] = disco?.data?.viewer?.accounts?.[0]?.sites ?? [];
+    const match = sites.find((s) =>
+      String(s.dimensions?.requestHost || "").includes("r-statistics.co") &&
+      s.dimensions?.siteTag && s.dimensions.siteTag !== siteTag);
+    if (match) {
+      await env.KV.put("admin:cf:sitetag", match.dimensions.siteTag);
+      return cfAnalytics(env, DB, now, range, true);   // one retry with the real tag
+    }
+    return {
+      configured: true as const,
+      error: "no traffic found for site tag " + siteTag + "; tags seen: " +
+        (sites.map((s) => s.dimensions?.siteTag + " (" + s.dimensions?.requestHost + ")").slice(0, 5).join(", ") || "none"),
+    };
+  }
 
   // ---- snapshot: upsert per-day visits/pageviews + backfilled top pages
   const cfDays = new Map<string, { visits: number; views: number }>();
