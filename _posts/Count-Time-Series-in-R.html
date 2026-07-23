@@ -1,0 +1,747 @@
+---
+title: "Count Time Series in R: INGARCH with tscount"
+description: "Learn to model count time series in R with INGARCH models and the tscount package: fit, compare, diagnose, and forecast integer-valued count data with code."
+keywords: "count time series, INGARCH, tscount, tsglm, Poisson autoregression, negative binomial time series, count data forecasting, integer valued time series, overdispersion"
+mathjax: true
+webr: true
+curriculum_id: "TS2-11.4"
+post_type: "C"
+auto_link_terms: "count time series|INGARCH|INGARCH model|tscount|tsglm|integer-valued time series|Poisson autoregression|count data model|negative binomial time series|count forecasting"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Count Time Series (INGARCH)"
+sidebar_order: "58"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A count time series is a sequence of whole-number counts recorded over time, like weekly disease cases or daily support tickets. INGARCH models, fit in R with the tscount package, forecast these integer counts while respecting a fact that ordinary ARIMA ignores: a count can never be negative or fractional.</p>
+
+<p>This tutorial builds up from the raw data to a working forecast. The exploration uses base R and runs right here in your browser. The modeling uses the tscount package, which you run in a local R session, and every result you see below was produced by actually running that code.</p>
+
+<h2>What makes a count time series different from an ordinary time series?</h2>
+
+<p>Most forecasting tutorials assume your data is continuous: temperatures, stock prices, sales in dollars. Counts are different. They are whole numbers that stop at zero, they are often small, and their spread tends to grow as their level grows. Feed counts into a method built for continuous, bell-shaped data and it will hand you a forecast of 11.54 cases, or even a negative one.</p>
+
+<p>Let's make this concrete with a real dataset. The <code>campy</code> data records the number of Campylobacter infections reported every four weeks in a region of Quebec, 140 observations in all. We will paste the counts in directly so you can explore them immediately.</p>
+
+<div class="webr-container" data-block-title="Load the counts and take a first look">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the counts and take a first look</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 140 four-week counts of Campylobacter infections (Quebec)
+campy &lt;- c(2, 3, 4, 1, 6, 9, 12, 8, 5, 7, 11, 9, 6, 6, 9, 6, 12, 8, 7, 5,
+           10, 12, 12, 9, 12, 8, 9, 14, 5, 5, 9, 14, 8, 10, 16, 13, 12, 10,
+           7, 9, 6, 8, 6, 4, 6, 6, 11, 8, 10, 11, 13, 5, 6, 3, 4, 8, 2, 7,
+           12, 12, 14, 12, 7, 7, 8, 7, 7, 3, 5, 5, 10, 7, 8, 13, 13, 11, 12,
+           6, 8, 4, 7, 6, 9, 14, 11, 11, 15, 22, 17, 5, 10, 12, 16, 6, 16,
+           11, 13, 15, 20, 55, 47, 28, 16, 21, 15, 9, 19, 20, 16, 14, 24, 16,
+           33, 19, 21, 18, 10, 17, 12, 15, 19, 18, 9, 8, 25, 17, 13, 21, 11,
+           12, 10, 13, 5, 7, 13, 17, 16, 21, 16, 9)
+
+length(campy)
+#&gt; [1] 140
+
+head(campy, 12)
+#&gt;  [1]  2  3  4  1  6  9 12  8  5  7 11  9
+
+plot(campy, type = &quot;h&quot;, lwd = 2, col = &quot;#4C6EF5&quot;,
+     xlab = &quot;Time (four-week periods)&quot;, ylab = &quot;Reported cases&quot;,
+     main = &quot;Campylobacter infections over time&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows exactly the features that make counts awkward. Every value is a whole number. Many are small (the minimum is 1). There is a yearly rise and fall. And around observation 100 there is a sharp outbreak that peaks at 55 cases, far above the usual level.</p>
+
+<p>That last point hints at the deepest issue. For continuous data we often assume the spread is roughly constant. For counts, the spread grows with the level. A helpful first check is to compare the mean with the variance.</p>
+
+<div class="webr-container" data-block-title="Measure the mean and the variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the mean and the variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(mean = mean(campy), variance = var(campy),
+        ratio = var(campy) / mean(campy)), 2)
+#&gt;     mean variance    ratio
+#&gt;    11.54    53.24     4.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is why that ratio matters. The Poisson distribution, the natural starting point for counts, assumes the variance equals the mean. Our variance is 4.6 times the mean. When the variance is bigger than the mean, statisticians call it <strong><a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a></strong>, and it is the rule rather than the exception for real count data. Any honest count model has to allow for it.</p>
+
+<p>Now let's see what a standard tool does with this series. We will let <code>auto.arima</code> pick an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a> and forecast three steps ahead.</p>
+
+<div class="webr-container" data-block-title="Try a standard ARIMA forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Try a standard ARIMA forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+ar_fit &lt;- auto.arima(campy)
+fc &lt;- forecast(ar_fit, h = 3)
+round(as.numeric(fc$mean), 2)
+#&gt; [1] 11.54 12.80 13.43</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The forecasts are 11.54, 12.80, and 13.43. You cannot observe 11.54 infections; counts are whole numbers. And because ARIMA builds symmetric, bell-shaped intervals, a series with smaller counts would get an interval that dips below zero, predicting a negative number of cases. ARIMA simply does not know that counts stop at zero and come in whole units.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Counts need models built for integers, not continuous approximations.</strong> A method that assumes normal, constant-variance data will produce fractional forecasts, mis-stated uncertainty, and sometimes impossible negative predictions for count data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Overdispersion should show up in different stretches of the series, not just overall. Compute the variance-to-mean ratio separately for the first 70 observations and the last 70, and check that both are clearly above 1.</p>
+<div class="webr-container" data-block-title="Your turn: dispersion by halves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: dispersion by halves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first_half &lt;- campy[1:70]
+last_half  &lt;- campy[71:140]
+# your code here: divide var() by mean() for each half
+# Expected: two ratios, both above 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Dispersion by halves solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dispersion by halves solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first_half &lt;- campy[1:70]
+last_half  &lt;- campy[71:140]
+round(c(first = var(first_half) / mean(first_half),
+        last  = var(last_half)  / mean(last_half)), 2)
+#&gt; first  last
+#&gt;  1.38  4.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both halves are overdispersed (ratio above 1), and the second half, which contains the big outbreak, is far more overdispersed than the first. Overdispersion is a property of the whole series, so the model must handle it everywhere.</p>
+
+</details>
+</section>
+
+<h2>What is the INGARCH model, and how does it actually work?</h2>
+
+<p>The trick behind INGARCH is to stop modeling the counts directly and instead model their <strong>conditional mean</strong>, the expected count at each time step given everything that came before. Call that expected count $\lambda_t$. At every step the model draws the actual count from a count distribution (Poisson to start) whose mean is $\lambda_t$, so the counts are always whole numbers by construction.</p>
+
+<p>The clever part is how $\lambda_t$ moves over time. It responds to two things. First, the most recent count: if you just saw a spike, your expectation for right now should rise. Second, the most recent expectation itself: the level has momentum and carries forward smoothly. Think of a thermostat with memory. It reacts to the last reading, but it also remembers where it was aiming a moment ago.</p>
+
+<p><img src="screenshots/Count-Time-Series-in-R-mechanism.webp" alt="How INGARCH turns the recent count and recent mean into the next count." class="img-responsive img-zoomable" loading="lazy" width="2248" height="438" /></p>
+
+<p><em>Figure 1: How INGARCH turns the recent count and recent mean into the next count.</em></p>
+
+<p>Those two feedback channels give the model its name. It is the count-data cousin of the GARCH models used for financial volatility, so it is called the <strong>integer-valued GARCH</strong>, or INGARCH, model. The simplest useful version uses one lag of each channel, written INGARCH(1,1).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>INGARCH goes by several names.</strong> You will also see it called INARCH, the autoregressive conditional Poisson (ACP) model, or Poisson autoregression. They all describe the same idea: a conditional mean that feeds back on past counts and past means.</div></div>
+
+<p>If you like equations, here is the INGARCH(1,1) model in full. If not, the simulation just below teaches the same thing in code, so feel free to skip ahead.</p>
+
+<p>$$Y_t \mid \mathcal{F}_{t-1} \sim \text{Poisson}(\lambda_t), \qquad \lambda_t = \beta_0 + \beta_1 Y_{t-1} + \alpha_1 \lambda_{t-1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$Y_t$ = the count at time $t$</li>
+
+<li>$\mathcal{F}_{t-1}$ = the history, everything known up to time $t-1$</li>
+
+<li>$\lambda_t$ = the conditional mean, the expected count right now</li>
+
+<li>$\beta_0$ = a baseline level (the intercept)</li>
+
+<li>$\beta_1$ = how strongly the most recent count pushes the mean up (reactivity)</li>
+
+<li>$\alpha_1$ = how strongly the previous mean carries forward (memory)</li>
+
+</ul>
+
+<p>The best way to believe this is to build it yourself. The loop below starts with a level, then at each step computes $\lambda_t$ from the last count and last mean, and draws a Poisson count. This is the entire mechanism in a few lines.</p>
+
+<div class="webr-container" data-block-title="Simulate an INGARCH process by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate an INGARCH process by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n &lt;- 200
+lambda &lt;- numeric(n)   # the conditional means
+y &lt;- numeric(n)        # the observed counts
+
+lambda[1] &lt;- 5
+y[1] &lt;- rpois(1, lambda[1])
+
+beta0 &lt;- 2; beta1 &lt;- 0.4; alpha1 &lt;- 0.3
+for (t in 2:n) {
+  lambda[t] &lt;- beta0 + beta1 * y[t - 1] + alpha1 * lambda[t - 1]
+  y[t] &lt;- rpois(1, lambda[t])
+}
+
+head(y, 20)
+#&gt;  [1] 4 0 3 0 1 7 3 4 8 4 3 4 8 9 9 8 7 6 4 5
+
+round(mean(y), 2)
+#&gt; [1] 5.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what happened. We never told the series to hover around any particular value, yet it settled into a stable band with an average near 5.6. That stable level is not an accident. It is set by the coefficients: a bigger $\beta_0$ lifts the whole series, while $\beta_1$ and $\alpha_1$ control how much recent history pulls each new value. Every count is a whole number because it came out of <code>rpois</code>, exactly as a real count series would.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The two feedback strengths add up to $\beta_1 + \alpha_1 = 0.7$ in the simulation above. Rerun it with <code>alpha1 = 0.6</code> so they add up to 1, and watch what happens to the average count.</p>
+<div class="webr-container" data-block-title="Your turn: raise the memory term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: raise the memory term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_lambda &lt;- numeric(200); ex_y &lt;- numeric(200)
+ex_lambda[1] &lt;- 5; ex_y[1] &lt;- rpois(1, ex_lambda[1])
+for (t in 2:200) {
+  # your code here: use beta1 = 0.4 and alpha1 = 0.6 in the lambda update
+  ex_y[t] &lt;- rpois(1, ex_lambda[t])
+}
+round(mean(ex_y), 2)
+# Expected: a much larger average than before</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stronger memory solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stronger memory solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_lambda &lt;- numeric(200); ex_y &lt;- numeric(200)
+ex_lambda[1] &lt;- 5; ex_y[1] &lt;- rpois(1, ex_lambda[1])
+for (t in 2:200) {
+  ex_lambda[t] &lt;- 2 + 0.4 * ex_y[t - 1] + 0.6 * ex_lambda[t - 1]
+  ex_y[t] &lt;- rpois(1, ex_lambda[t])
+}
+round(mean(ex_y), 2)
+#&gt; [1] 182.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With the two coefficients summing to exactly 1, the series loses its anchor and drifts upward without bound, so the average explodes from about 5.6 to 182.5. That is the boundary of stability, and it is the reason well-behaved INGARCH models keep the feedback coefficients adding up to less than 1. We will meet this rule again in the next section.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an INGARCH model in R with tscount?</h2>
+
+<p>You do not need to write the loop yourself. The <code>tscount</code> package fits INGARCH models by maximum likelihood with a single function, <code>tsglm()</code>. Because it is a specialized package, the modeling code in this section and the ones that follow runs in a local R session rather than in your browser. Every output shown is the real result of running that code.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Install tscount before you start.</strong> Run <code>install.packages(&quot;tscount&quot;)</code> once in your R session. The package provides the <code>campy</code> dataset used here, so you can reproduce every result exactly.</div></div>
+
+<p>Let's fit the INGARCH(1,1) Poisson model from the previous section to the real data. The <code>model</code> argument is where you specify the two feedback channels: <code>past_obs</code> is the lag on past counts (the $\beta$ terms) and <code>past_mean</code> is the lag on past means (the $\alpha$ terms).</p>
+
+<pre><code class="language-r"># Run this in a local R session (needs the tscount package)
+library(tscount)
+data(campy)
+
+pois11 &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 1), distr = &quot;poisson&quot;)
+summary(pois11)
+#&gt;
+#&gt; Call:
+#&gt; tsglm(ts = campy, model = list(past_obs = 1, past_mean = 1),
+#&gt;     distr = &quot;poisson&quot;)
+#&gt;
+#&gt; Coefficients:
+#&gt;              Estimate  Std.Error  CI(lower)  CI(upper)
+#&gt; (Intercept)     2.389     0.6162      1.181      3.597
+#&gt; beta_1          0.518     0.0595      0.402      0.635
+#&gt; alpha_1         0.269     0.0853      0.102      0.436
+#&gt; Standard errors and confidence intervals (level =  95 %) obtained
+#&gt; by normal approximation.
+#&gt;
+#&gt; Link function: identity
+#&gt; Distribution family: poisson
+#&gt; Number of coefficients: 3
+#&gt; Log-likelihood: -436.7283
+#&gt; AIC: 879.4566
+#&gt; BIC: 888.2815
+#&gt; QIC: 879.7023</code></pre>
+
+<p>Read the coefficients like the pieces of the recursion you just simulated. The <code>(Intercept)</code> of 2.389 is the baseline $\beta_0$. The <code>beta_1</code> of 0.518 is the reactivity: a little over half of a surprise in the latest count feeds into the next expected count. The <code>alpha_1</code> of 0.269 is the memory: about a quarter of the previous expectation carries forward. Both <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> exclude zero, so both channels earn their place.</p>
+
+<p>Notice that the <a class="auto-link" href="GLM-Exercises-in-R.html" title="GLM Exercises in R: 10 Poisson, Binomial & Gamma Practice Problems, Solved Step-by-Step">link function</a> is <code>identity</code>. That means $\lambda_t$ is built by plain addition, exactly as in the formula, which keeps the coefficients easy to read. There is also a <code>log</code> link, which we will meet shortly, for when you need covariates or a multiplicative structure.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The two feedback coefficients must sum to less than 1 for a stable model.</strong> Here beta_1 plus alpha_1 is 0.518 plus 0.269, which is 0.787. That is comfortably below 1, so the series has a well-defined long-run level, the exact stability rule the exploding simulation in the last section demonstrated.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the same INGARCH(1,1) model but with <code>link = &quot;log&quot;</code> instead of the default identity link, using the <a class="auto-link" href="Geometric-and-Negative-Binomial-Distributions-in-R.html" title="Geometric & Negative Binomial Distributions in R: Waiting Time Models">negative binomial distribution</a>, and read off its <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>.</p>
+<pre><code class="language-r"># Run locally. Change the link argument, then read the AIC.
+logfit &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 1),
+                link = &quot;identity&quot;, distr = &quot;nbinom&quot;)   # change &quot;identity&quot; to &quot;log&quot;
+AIC(logfit)
+# Expected: an AIC near 820</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">logfit &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 1),
+                link = &quot;log&quot;, distr = &quot;nbinom&quot;)
+round(AIC(logfit), 2)
+#&gt; [1] 820.5</code></pre>
+
+<p><strong>Explanation:</strong> The log link models the logarithm of the conditional mean, so the feedback becomes multiplicative. Its AIC of 820.5 is almost identical to the identity-link version we build next, so for this series the choice of link barely matters. The log link earns its keep when you add covariates that can push the mean in either direction.</p>
+
+</details>
+</section>
+
+<h2>How do you pick the distribution and model order?</h2>
+
+<p>Two decisions turn the basic INGARCH into a model that fits your data: which conditional distribution to use, and how many lags to include. The good news is that both decisions are guided by numbers you already know how to read.</p>
+
+<p><img src="screenshots/Count-Time-Series-in-R-distr-choice.webp" alt="Picking the conditional distribution and link function." class="img-responsive img-zoomable" loading="lazy" width="1710" height="1026" /></p>
+
+<p><em>Figure 2: Picking the conditional distribution and link function.</em></p>
+
+<p>Start with the distribution. We saw that <code>campy</code> is heavily overdispersed: its variance is 4.6 times its mean. The Poisson distribution cannot represent that, because it forces the variance to equal the mean. The <strong>negative binomial</strong> distribution adds one extra parameter that lets the variance exceed the mean, so it is the right choice for overdispersed counts. Let's refit with it.</p>
+
+<pre><code class="language-r">nbin11 &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 1), distr = &quot;nbinom&quot;)
+summary(nbin11)
+#&gt;
+#&gt; Call:
+#&gt; tsglm(ts = campy, model = list(past_obs = 1, past_mean = 1),
+#&gt;     distr = &quot;nbinom&quot;)
+#&gt;
+#&gt; Coefficients:
+#&gt;              Estimate  Std.Error  CI(lower)  CI(upper)
+#&gt; (Intercept)     2.389      0.969     0.4895      4.289
+#&gt; beta_1          0.518      0.101     0.3200      0.717
+#&gt; alpha_1         0.269      0.139    -0.0029      0.542
+#&gt; sigmasq         0.109         NA         NA         NA
+#&gt; Standard errors and confidence intervals (level =  95 %) obtained
+#&gt; by normal approximation.
+#&gt;
+#&gt; Link function: identity
+#&gt; Distribution family: nbinom (with overdispersion coefficient 'sigmasq')
+#&gt; Number of coefficients: 4
+#&gt; Log-likelihood: -406.4186
+#&gt; AIC: 820.8371
+#&gt; BIC: 832.6037
+#&gt; QIC: 889.7003</code></pre>
+
+<p>The mean coefficients barely move, which is reassuring: the story about reactivity and memory is unchanged. What is new is <code>sigmasq</code>, the overdispersion parameter that quantifies the extra spread. And notice the log-likelihood jumped from -436.7 to -406.4. That is a large improvement from a single extra parameter.</p>
+
+<p>To compare models properly we use the AIC and BIC, two scores that reward fit but penalize extra parameters, so lower is better. While we are at it, we will add a seasonal model. The <code>campy</code> counts rise and fall once a year, and the data is recorded 13 times a year, so a feedback term at lag 13 lets last year's level inform this year's. We add it with <code>past_mean = 13</code>.</p>
+
+<pre><code class="language-r">seas &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 13), distr = &quot;nbinom&quot;)
+
+comparison &lt;- data.frame(
+  model = c(&quot;Poisson (1,1)&quot;, &quot;NegBin (1,1)&quot;, &quot;NegBin seasonal&quot;),
+  AIC = round(c(AIC(pois11), AIC(nbin11), AIC(seas)), 1),
+  BIC = round(c(BIC(pois11), BIC(nbin11), BIC(seas)), 1))
+print(comparison, row.names = FALSE)
+#&gt;            model   AIC   BIC
+#&gt;    Poisson (1,1) 879.5 888.3
+#&gt;     NegBin (1,1) 820.8 832.6
+#&gt;  NegBin seasonal 820.1 831.8</code></pre>
+
+<p>The table tells a clear story. Switching from Poisson to negative binomial drops the AIC by nearly 60 points, a decisive win driven entirely by handling overdispersion. Adding the seasonal lag helps a little more. The negative binomial matters far more than the exact lag structure here, which is typical: get the distribution right first, then fine-tune the lags.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let AIC or BIC and the <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">residual autocorrelation</a> guide which lags to add.</strong> Do not add lags by guesswork. Compare candidate models by AIC or BIC, and add a seasonal lag when the autocorrelation of the series (or of the residuals) shows a clear spike at that season.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Maybe the count from two periods ago also helps. Fit a negative binomial model that regresses on both the first and second lags of past counts, using <code>past_obs = c(1, 2)</code>, and compare its AIC with the 820.8 of the plain (1,1) model.</p>
+<pre><code class="language-r"># Run locally. Fill in past_obs with the two lags, then read the AIC.
+ex_fit &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 1), distr = &quot;nbinom&quot;)
+AIC(ex_fit)
+# Expected: compare against 820.8</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_fit &lt;- tsglm(campy, model = list(past_obs = c(1, 2), past_mean = 1), distr = &quot;nbinom&quot;)
+round(AIC(ex_fit), 2)
+#&gt; [1] 823.05</code></pre>
+
+<p><strong>Explanation:</strong> The AIC rises from 820.8 to 823.05, so the second lag makes the model worse once you account for the extra parameter. More lags are not automatically better; the AIC keeps you honest by charging for every coefficient you add.</p>
+
+</details>
+</section>
+
+<h2>How do you check whether the model fits the data well?</h2>
+
+<p>A model that fits the training data is not the same as a model that captures the real structure. Before you trust a forecast, you check three things: whether the residuals still contain patterns, whether competing models score better, and whether the predicted probabilities are honest.</p>
+
+<p>Start with the residuals. A Pearson residual is each observed count minus the count the model expected, divided by the model's standard deviation at that step, so the values are on a comparable scale. If the model has captured the dependence in the series, these leftover residuals should look like noise, with no autocorrelation. We check with the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a>.</p>
+
+<pre><code class="language-r">acf(residuals(seas, type = &quot;pearson&quot;), plot = FALSE, lag.max = 13)
+#&gt;
+#&gt; Autocorrelations of series 'residuals(seas, type = &quot;pearson&quot;)', by lag
+#&gt;
+#&gt; 0.0000 0.0769 0.1538 0.2308 0.3077 0.3846 0.4615 0.5385 0.6154 0.6923 0.7692
+#&gt;  1.000 -0.021  0.024  0.058  0.103  0.067 -0.084  0.181  0.014  0.059  0.012
+#&gt; 0.8462 0.9231 1.0000
+#&gt;  0.117  0.198  0.193</code></pre>
+
+<p>Ignore the value at lag 0, which is always 1. The rest are mostly small, which is what we want: the model has soaked up the strong autocorrelation we saw in the raw series. A couple of values near lag 12 and 13 are a little larger (0.198 and 0.193), a gentle hint that some yearly structure remains, but nothing alarming.</p>
+
+<p>Next, compare models with <strong><a class="auto-link" href="Forecast-Scoring-Rules-in-R.html" title="Forecast Scoring Rules in R: CRPS and Pinball Loss">proper scoring rules</a></strong>. A scoring rule grades the whole predictive distribution, not just the point forecast, and lower scores are better. The <code>scoring()</code> function reports several at once; we will look at three.</p>
+
+<pre><code class="language-r">scores &lt;- rbind(Poisson = scoring(pois11),
+                NegBin = scoring(nbin11),
+                Seasonal = scoring(seas))
+round(scores[, c(&quot;logarithmic&quot;, &quot;quadratic&quot;, &quot;rankprob&quot;)], 3)
+#&gt;          logarithmic quadratic rankprob
+#&gt; Poisson        3.119    -0.067    2.719
+#&gt; NegBin         2.903    -0.070    2.667
+#&gt; Seasonal       2.900    -0.071    2.649</code></pre>
+
+<p>The negative binomial models beat the Poisson on every score, and the seasonal model edges ahead on the ranked probability score. This agrees with the AIC table, which is exactly the confirmation you want: two independent yardsticks pointing the same way.</p>
+
+<p>The final check is calibration. A forecast is calibrated if events it calls "20 percent likely" actually happen about 20 percent of the time. The probability integral transform (PIT) histogram tests this. If the model is well calibrated, the bars are flat and even; a U-shape or a hump signals trouble. It produces a plot rather than printed numbers, so run it locally and read the shape.</p>
+
+<pre><code class="language-r">pit(seas)
+# A roughly flat, uniform histogram means the model is well calibrated.</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A good fit is not the same as an honest forecast.</strong> A model can match the training data yet still be poorly calibrated, so its <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a> lie about how sure it is. Always look at residual autocorrelation and the PIT histogram before you trust the intervals a model produces.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The eye can miss residual autocorrelation. Run a Box-Ljung test on the <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">Pearson residuals</a> of the seasonal model at lag 13 to test formally whether any autocorrelation remains.</p>
+<pre><code class="language-r"># Run locally. Fill in the residual type and the lag.
+Box.test(residuals(seas, type = &quot;pearson&quot;), lag = 1, type = &quot;Ljung-Box&quot;)
+# Expected: a p-value you can compare against 0.05</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">Box.test(residuals(seas, type = &quot;pearson&quot;), lag = 13, type = &quot;Ljung-Box&quot;)
+#&gt;
+#&gt; 	Box-Ljung test
+#&gt;
+#&gt; data:  residuals(seas, type = &quot;pearson&quot;)
+#&gt; X-squared = 23.345, df = 13, p-value = 0.03771</code></pre>
+
+<p><strong>Explanation:</strong> The <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> of 0.038 is just below 0.05, so there is mild evidence of <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a>, consistent with the small spikes we saw near lag 12 and 13. The model is good but not perfect; a more elaborate seasonal structure could squeeze out the rest.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast future counts with prediction intervals?</h2>
+
+<p>The whole point of a count model is to predict future counts, and to say how uncertain those predictions are. The <code>predict()</code> function does both. You give it the number of steps ahead with <code>n.ahead</code>, the confidence level with <code>level</code>, and a crucial switch, <code>global = TRUE</code>, which builds the prediction intervals by simulation instead of a <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">normal approximation</a>.</p>
+
+<p>That switch matters. For counts, especially small or skewed ones, the normal approximation gives intervals that are symmetric and can slip below zero. Setting <code>global = TRUE</code> runs a parametric bootstrap that respects the count distribution, so the intervals are made of whole numbers and can be asymmetric. The <code>B</code> argument sets how many bootstrap paths to draw.</p>
+
+<pre><code class="language-r">set.seed(2024)
+fc6 &lt;- predict(seas, n.ahead = 6, level = 0.9, global = TRUE, B = 2000)
+
+round(fc6$pred, 2)
+#&gt; Time Series:
+#&gt; Start = c(2000, 11)
+#&gt; End = c(2001, 3)
+#&gt; Frequency = 13
+#&gt; [1] 10.51 12.30 11.92 11.65 11.40 11.46
+
+fc6$interval
+#&gt; Time Series:
+#&gt; Start = c(2000, 11)
+#&gt; End = c(2001, 3)
+#&gt; Frequency = 13
+#&gt;          lower upper
+#&gt; 2000.769     2    25
+#&gt; 2000.846     2    32
+#&gt; 2000.923     2    32
+#&gt; 2001.000     2    34
+#&gt; 2001.077     1    33
+#&gt; 2001.154     2    33</code></pre>
+
+<p>The point forecasts settle toward the series average of about 11 or 12 cases, which is what a stable model should do as it looks further ahead. The intervals are the real payoff. They are made of whole numbers, they are wide (a 90 percent interval of 2 to 25 for the next period), and they are asymmetric, stretching further above the point forecast than below. That asymmetry is honest: an outbreak can push counts far up, but they can never fall below zero.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use global = TRUE for count-aware prediction intervals.</strong> The default normal-approximation intervals are symmetric and can dip below zero. The bootstrap intervals from global = TRUE are integer-valued and can be asymmetric, which reflects how counts actually behave.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecasts are often needed just one step ahead. Produce a one-step-ahead forecast from the seasonal model with an 80 percent prediction interval.</p>
+<pre><code class="language-r"># Run locally. Set n.ahead and level for a one-step 80% interval.
+set.seed(1)
+p1 &lt;- predict(seas, n.ahead = 6, level = 0.9, global = TRUE, B = 2000)
+p1$interval
+# Expected: a single row with an 80% interval</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">set.seed(1)
+p1 &lt;- predict(seas, n.ahead = 1, level = 0.8, global = TRUE, B = 2000)
+round(p1$pred, 2)
+#&gt; [1] 10.51
+p1$interval
+#&gt;          lower upper
+#&gt; 2000.769     5    17</code></pre>
+
+<p><strong>Explanation:</strong> The one-step point forecast is 10.51 cases, with an 80 percent interval of 5 to 17. The interval is tighter than the 90 percent one above, both because we look only one step ahead and because 80 percent asks for less coverage than 90 percent.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: A full count time series workflow</h2>
+
+<p>Here is the entire pipeline in one place: explore, fit the best model, confirm it with a score, and forecast. Run it top to bottom in a local R session and you have a working count forecaster.</p>
+
+<pre><code class="language-r"># tscount and campy are already loaded from earlier in the session
+
+# 1. Explore: counts are overdispersed (variance far exceeds the mean)
+round(c(mean = mean(campy), variance = var(campy)), 2)
+#&gt;     mean variance
+#&gt;    11.54    53.24
+
+# 2. Fit: negative binomial INGARCH with a seasonal lag
+fit &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = 13), distr = &quot;nbinom&quot;)
+
+# 3. Confirm: the logarithmic score (lower is better)
+round(scoring(fit)[&quot;logarithmic&quot;], 3)
+#&gt; logarithmic
+#&gt;         2.9
+
+# 4. Forecast: three periods ahead with a count-aware 90% interval
+set.seed(7)
+fc &lt;- predict(fit, n.ahead = 3, level = 0.9, global = TRUE, B = 2000)
+round(fc$pred, 2)
+#&gt; [1] 10.51 12.30 11.92
+fc$interval
+#&gt;          lower upper
+#&gt; 2000.769     2    23
+#&gt; 2000.846     3    28
+#&gt; 2000.923     3    29</code></pre>
+
+<p>That is the complete recipe. Explore to see that counts are overdispersed, fit a negative binomial INGARCH with any seasonal lag the data calls for, confirm the fit with a score and the diagnostics from the previous section, then forecast with <code>global = TRUE</code> so the intervals respect the count nature of the data.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine the ideas above. Each uses distinct variable names so your work will not overwrite the models from the tutorial. Every one runs in a local R session with <code>tscount</code> and <code>campy</code> loaded.</p>
+
+<h3>Exercise 1: Does a second observation lag pay off?</h3>
+
+<p>Fit two negative binomial models to <code>campy</code>: the plain INGARCH(1,1), and one that adds a second lag of past counts with <code>past_obs = c(1, 2)</code>. Compare them on both AIC and the logarithmic score, and decide which wins.</p>
+
+<pre><code class="language-r"># Hint: fit m11 and m21, then build a small data.frame of AIC and
+# scoring(...)[&quot;logarithmic&quot;] for each.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">m11 &lt;- tsglm(campy, model = list(past_obs = 1,      past_mean = 1), distr = &quot;nbinom&quot;)
+m21 &lt;- tsglm(campy, model = list(past_obs = c(1, 2), past_mean = 1), distr = &quot;nbinom&quot;)
+
+data.frame(
+  model = c(&quot;(1,1)&quot;, &quot;(2,1)&quot;),
+  AIC = round(c(AIC(m11), AIC(m21)), 2),
+  logscore = round(c(scoring(m11)[&quot;logarithmic&quot;], scoring(m21)[&quot;logarithmic&quot;]), 3))
+#&gt;   model    AIC logscore
+#&gt; 1 (1,1) 820.84    2.903
+#&gt; 2 (2,1) 823.05    2.904</code></pre>
+
+<p><strong>Explanation:</strong> The simpler (1,1) model wins on both yardsticks: lower AIC and a marginally lower logarithmic score. The extra lag adds complexity without improving prediction, so you keep the smaller model.</p>
+
+</details>
+
+<h3>Exercise 2: Find the best seasonal feedback lag</h3>
+
+<p>You suspect a seasonal feedback term helps, but you are not sure which lag. Write a loop that fits a negative binomial INGARCH with <code>past_obs = 1</code> and a single <code>past_mean</code> lag of 1, 7, and 13, printing the AIC for each so you can pick the best.</p>
+
+<pre><code class="language-r"># Hint: loop over the candidate lags with for (L in c(1, 7, 13)) { ... }
+# and print AIC(fit) inside the loop.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">for (L in c(1, 7, 13)) {
+  fit &lt;- tsglm(campy, model = list(past_obs = 1, past_mean = L), distr = &quot;nbinom&quot;)
+  cat(sprintf(&quot;past_mean lag %2d -&gt; AIC %.2f\n&quot;, L, AIC(fit)))
+}
+#&gt; past_mean lag  1 -&gt; AIC 820.84
+#&gt; past_mean lag  7 -&gt; AIC 822.99
+#&gt; past_mean lag 13 -&gt; AIC 820.07</code></pre>
+
+<p><strong>Explanation:</strong> The lag-13 model gives the lowest AIC (820.07), the seasonal lag we chose in the tutorial, while lag 7 is actually worse than no seasonal term at all. Looping over candidate lags and comparing AIC is exactly how you search for the right seasonal structure, and here it confirms that last year's level (lag 13) carries the most useful signal.</p>
+
+</details>
+
+<h3>Exercise 3: Simulate a process, then recover its parameters</h3>
+
+<p>This is the ultimate test of understanding. Use the hand-coded recursion from Section 2 to simulate 500 counts from an INGARCH(1,1) process with a known intercept of 2, a <code>beta1</code> of 0.4, and an <code>alpha1</code> of 0.3. Then fit a Poisson INGARCH(1,1) with <code>tsglm()</code> and check how close the estimated coefficients come to the truth.</p>
+
+<pre><code class="language-r"># Hint: build the series with a for loop (as in Section 2), then
+# fit tsglm(y, model = list(past_obs = 1, past_mean = 1), distr = &quot;poisson&quot;)
+# and read coef(). Use set.seed(2025) for a reproducible series.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">set.seed(2025)
+n &lt;- 500
+lam &lt;- numeric(n); yy &lt;- numeric(n)
+lam[1] &lt;- 6; yy[1] &lt;- rpois(1, lam[1])
+b0 &lt;- 2; b1 &lt;- 0.4; a1 &lt;- 0.3
+for (t in 2:n) {
+  lam[t] &lt;- b0 + b1 * yy[t - 1] + a1 * lam[t - 1]
+  yy[t] &lt;- rpois(1, lam[t])
+}
+
+rec &lt;- tsglm(yy, model = list(past_obs = 1, past_mean = 1), distr = &quot;poisson&quot;)
+round(coef(rec), 3)
+#&gt; (Intercept)      beta_1     alpha_1
+#&gt;       1.836       0.371       0.355</code></pre>
+
+<p><strong>Explanation:</strong> The estimates (1.836, 0.371, 0.355) land close to the true values (2, 0.4, 0.3). They are not exact because 500 observations carry only so much information, but they recover the right story: a moderate baseline, and reactivity a bit stronger than memory. Recovering known parameters from <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> is the standard way to trust that an estimator, and your understanding of it, actually works.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use a Poisson INGARCH instead of a negative binomial one?</h3>
+
+<p>Use the Poisson version only when the variance of your counts is close to their mean, a situation called equidispersion. The moment the variance is clearly larger than the mean, which is common, switch to the negative binomial version. It adds one overdispersion parameter that lets the spread exceed the mean, and as we saw it dropped the AIC by nearly 60 points on the campy data.</p>
+
+<h3>What is the difference between INGARCH and INAR models?</h3>
+
+<p>Both model integer counts over time, but through different mechanisms. INGARCH is observation-driven: it updates a conditional mean with a GARCH-like recursion on past counts and past means, which makes feedback and covariates easy to add. INAR (integer autoregressive) models instead use "thinning" operators, where each past count survives into the present with some probability. The <code>tscount</code> package fits the INGARCH family.</p>
+
+<h3>Can INGARCH models handle zeros and very low counts?</h3>
+
+<p>Yes. Because each count is drawn from a Poisson or negative binomial distribution, zeros arise naturally and no forecast can go negative. If your series is mostly zeros, however, with only occasional demand, a dedicated intermittent-demand method like Croston can be a better fit than a standard INGARCH model.</p>
+
+<h3>Can I include external predictors in the model?</h3>
+
+<p>Yes. <code>tsglm()</code> accepts an <code>xreg</code> argument for <a class="auto-link" href="ARIMAX-in-R.html" title="ARIMAX in R: ARIMA with External Regressors (xreg)">external regressors</a> such as a holiday indicator or a temperature series. With the log link the covariate effects are multiplicative and can push the mean up or down, which is the main reason to prefer the log link over the identity link.</p>
+
+<h3>How much data do I need to fit an INGARCH model?</h3>
+
+<p>There is no hard rule, but you need enough observations to estimate the coefficients reliably, and a seasonal feedback term needs several full cycles to be trustworthy. The campy series has 140 four-week observations spanning about a decade, which comfortably supports the lag-13 seasonal term we used.</p>
+
+<h2>Summary</h2>
+
+<p>Count time series need models built for whole, non-negative numbers. INGARCH models, fit with <code>tscount</code>, give you exactly that: a conditional mean that reacts to recent counts and remembers its own level, wrapped in a Poisson or negative binomial distribution so every forecast is a genuine count.</p>
+
+<p><img src="screenshots/Count-Time-Series-in-R-workflow.webp" alt="The end-to-end count time series workflow." class="img-responsive img-zoomable" loading="lazy" width="2248" height="354" /></p>
+
+<p><em>Figure 3: The end-to-end count time series workflow.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What to do</th>
+<th>Key tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Explore</td>
+<td>Plot the counts; compare variance to mean</td>
+<td><code>plot()</code>, <code>var()</code>, <code>mean()</code></td>
+</tr>
+<tr>
+<td>Choose distribution</td>
+<td>Poisson if variance is close to the mean, negative binomial if it is much larger</td>
+<td><code>distr = &quot;poisson&quot;</code> or <code>&quot;nbinom&quot;</code></td>
+</tr>
+<tr>
+<td>Fit</td>
+<td>Set feedback lags in the model list</td>
+<td><code>tsglm(model = list(past_obs, past_mean))</code></td>
+</tr>
+<tr>
+<td>Compare</td>
+<td>Rank models; lower is better</td>
+<td><code>AIC()</code>, <code>BIC()</code>, <code>scoring()</code></td>
+</tr>
+<tr>
+<td>Diagnose</td>
+<td>Residual <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ACF</a> and PIT calibration</td>
+<td><code>acf()</code>, <code>pit()</code>, <code>Box.test()</code></td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td>Bootstrap intervals that respect counts</td>
+<td><code>predict(global = TRUE)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The habits that matter most: check for overdispersion before you pick a distribution, let AIC and the scoring rules choose between models rather than guessing, and always forecast with <code>global = TRUE</code> so your intervals stay in the land of real counts.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Liboschik, T., Fokianos, K., and Fried, R. (2017). tscount: An R Package for Analysis of Count Time Series Following Generalized Linear Models. <em>Journal of Statistical Software</em>, 82(5). <a href="https://www.jstatsoft.org/article/view/v082i05">Link</a></li>
+
+<li>tscount package vignette. Introduction to tsglm and related functions. <a href="https://cran.r-project.org/web/packages/tscount/vignettes/tsglm.pdf">Link</a></li>
+
+<li>tscount reference manual. CRAN. <a href="https://cran.r-project.org/web/packages/tscount/tscount.pdf">Link</a></li>
+
+<li>tscount package page. CRAN. <a href="https://cran.r-project.org/package=tscount">Link</a></li>
+
+<li>tsglm function reference. rdrr.io. <a href="https://rdrr.io/cran/tscount/man/tsglm.html">Link</a></li>
+
+<li>A class of count time series models uniting compound Poisson INAR and INGARCH models. <em>arXiv preprint</em> arXiv:2204.12449 (2022). <a href="https://arxiv.org/abs/2204.12449">Link</a></li>
+
+<li>Hyndman, R.J., and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. Section on counts and other forecasting topics. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+<li>Fokianos, K., Rahbek, A., and Tjostheim, D. (2009). Poisson Autoregression. <em>Journal of the American Statistical Association</em>, 104(488), 1430-1439. doi:10.1198/jasa.2009.tm08270</li>
+
+<li>Ferland, R., Latour, A., and Oraichi, D. (2006). Integer-Valued GARCH Process. <em>Journal of Time Series Analysis</em>, 27(6), 923-942. doi:10.1111/j.1467-9892.2006.00496.x</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a> - the cross-sectional count model that INGARCH extends across time.</li>
+
+<li><a href="Croston-Method-in-R.html">Intermittent Demand Forecasting with Croston</a> - forecasting sparse, low-count demand series.</li>
+
+<li><a href="How-to-Choose-ARIMA-Order-in-R.html">How to Choose ARIMA Order in R</a> - order selection for the continuous, Gaussian cousin of these models.</li>
+
+</ul>
+
+{% endraw %}
