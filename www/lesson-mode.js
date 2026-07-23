@@ -321,7 +321,7 @@
           (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
           (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
           '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
-          '<p class="lm-gate-price">From $9/month · $129/year founding price</p>' +
+          '<p class="lm-gate-price">From $9/month, or $65 for a full year</p>' +
           '<p class="lm-gate-fine">14-day money-back guarantee · cancel anytime</p>' +
           '<a class="lm-gate-free" data-gate-free hidden>The first lessons of this course are free &rarr;</a><br>' +
           '<a class="lm-gate-back" href="' + esc(exitTarget()) + '">&larr; Back to ' + esc(exitLabel()) + '</a>' +
