@@ -1,0 +1,746 @@
+---
+title: "Forecast Value Added: When Human Judgment Helps"
+description: "Learn Forecast Value Added (FVA) in R: measure whether your statistical model and analyst overrides beat a naive baseline, and where human judgment helps."
+keywords: "forecast value added, FVA analysis, forecast accuracy, naive forecast benchmark, judgmental overrides, demand forecasting in R, MAPE, forecasting process"
+mathjax: true
+webr: true
+curriculum_id: "TS2-13.3"
+post_type: "C"
+auto_link_terms: "forecast value added|FVA analysis|FVA|naive benchmark|naive forecast benchmark|judgmental override|judgmental overrides|forecast override|forecast overrides|when human judgment helps"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Forecast Value Added"
+sidebar_order: "64"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Forecast Value Added (FVA) is a simple audit that asks one question of every step in your forecasting process: did this step make the forecast more accurate than the step before it? A step that beats the previous one has positive FVA and earns its place. A step that makes the forecast worse has negative FVA and is quietly costing you money.</p>
+
+<p>Most forecasting processes are a chain of steps. A computer produces a statistical forecast, then a human reviews it and nudges the numbers up or down. Each step takes time and salary. FVA is how you find out which steps actually help and which ones just add noise. Everything in this tutorial runs in the code boxes right on this page, so you can change a number and re-run it. We use base R for the first four sections and the <code>forecast</code> package in the last one.</p>
+
+<h2>What is Forecast Value Added, and why should you measure it?</h2>
+
+<p>Think of your forecast as passing through a relay of hands. First a naive rule of thumb, then a statistical model, then an analyst who overrides the model. FVA checks each hand in turn and asks whether it improved accuracy or made it worse. The trick is that you always compare a step to a cheaper alternative, so a step only "wins" if it beats something you could have done for free.</p>
+
+<p>That free alternative is the <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">naive forecast</a>. It is the placebo in a drug trial: if an expensive treatment cannot beat a sugar pill, the treatment is not working. In forecasting, the classic placebo is the random walk, where next month's forecast is simply this month's actual value. If your fancy model cannot beat "next month looks like this month," the model is not adding value.</p>
+
+<p>Let's make this concrete. Below is one product's demand over 12 months, together with three competing forecasts of that same demand: the naive random walk, a statistical model, and the analyst's overridden numbers. Run it to see all four side by side.</p>
+
+<div class="webr-container" data-block-title="Three forecasts of the same demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three forecasts of the same demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">month       &lt;- 1:12
+actual      &lt;- c(102, 108, 100, 115, 120, 112, 118, 165, 122, 128, 121, 130)
+naive       &lt;- c(100, 102, 108, 100, 115, 120, 112, 118, 165, 122, 128, 121)
+statistical &lt;- c(105, 106, 110, 108, 114, 118, 116, 120, 124, 125, 126, 127)
+override    &lt;- c( 90, 119, 112, 106, 132, 103, 129, 160, 111, 139, 110, 142)
+
+demand &lt;- data.frame(month, actual, naive, statistical, override)
+demand
+#&gt;    month actual naive statistical override
+#&gt; 1      1    102   100         105       90
+#&gt; 2      2    108   102         106      119
+#&gt; 3      3    100   108         110      112
+#&gt; 4      4    115   100         108      106
+#&gt; 5      5    120   115         114      132
+#&gt; 6      6    112   120         118      103
+#&gt; 7      7    118   112         116      129
+#&gt; 8      8    165   118         120      160
+#&gt; 9      9    122   165         124      111
+#&gt; 10    10    128   122         125      139
+#&gt; 11    11    121   128         126      110
+#&gt; 12    12    130   121         127      142</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is how to read the table. The <code>actual</code> column is what really sold each month. The <code>naive</code> column just copies last month's actual forward, which is why <code>naive</code> in month 2 is 102, the actual from month 1 (month 1 uses the prior December value of 100). The <code>statistical</code> column is a smooth model, and the <code>override</code> column is what the analyst submitted after editing the model.</p>
+
+<p>One month stands out. Month 8 jumped to 165 because of a promotion, and you can already see the forecasts disagree wildly there. Hold that thought, because month 8 turns out to be the whole story.</p>
+
+<p>The relay of hands is easier to picture as a ladder, where each rung is judged against the rung below it.</p>
+
+<p><img src="screenshots/Forecast-Value-Added-in-R-process-ladder.webp" alt="The forecast value added ladder" class="img-responsive img-zoomable" loading="lazy" width="2042" height="394" /></p>
+
+<p><em>Figure 1: The FVA ladder: each step is judged against the step before it.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every step must beat the step below it, or it is waste.</strong> A statistical model only earns its keep if it beats the naive baseline, and a human override only earns its keep if it beats the statistical model it edited.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The naive forecast is deliberately dumb, and that is the point.</strong> Because anyone can produce it in seconds with no software and no analyst, it sets the floor that every later step has to clear to justify its cost.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the size of each month's miss for the statistical forecast, which is the absolute difference between the actual value and the statistical forecast.</p>
+<div class="webr-container" data-block-title="Your turn: absolute error per month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: absolute error per month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: set ex_stat_error to the per-month absolute error of the statistical forecast
+# Hint: abs() gives the size of a difference and ignores its sign
+ex_stat_error &lt;- NA
+ex_stat_error
+# Expected: 3 2 10 7 6 6 2 45 2 3 5 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Absolute error per month solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Absolute error per month solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_stat_error &lt;- abs(actual - statistical)
+ex_stat_error
+#&gt;  [1]  3  2 10  7  6  6  2 45  2  3  5  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>abs()</code> turns each difference into a positive size of the miss. Notice month 8 has an error of 45, far bigger than any other month, because the model never saw the promotion coming.</p>
+
+</details>
+</section>
+
+<h2>How do you measure whether a forecast is any good?</h2>
+
+<p>Before you can say one forecast beats another, you need a single number that scores accuracy. The most common one in demand planning is the <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Mean Absolute Percentage Error</a>, or MAPE. It answers a plain question: on average, by what percentage did the forecast miss?</p>
+
+<p>The recipe is short. For each month, take the miss, divide it by the actual value to turn it into a percentage, drop the sign, and average those percentages across all months. Writing it as a formula makes the steps explicit.</p>
+
+<p>$$\text{MAPE} = \frac{100}{n} \sum_{t=1}^{n} \left| \frac{A_t - F_t}{A_t} \right|$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$A_t$ = the actual value in period $t$</li>
+
+<li>$F_t$ = the forecast for period $t$</li>
+
+<li>$n$ = the number of periods you are scoring</li>
+
+</ul>
+
+<p>Lower MAPE is better, because it means the forecast missed by a smaller percentage. Let's write that recipe as a function and score all three forecasts at once.</p>
+
+<div class="webr-container" data-block-title="Define MAPE and score each forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define MAPE and score each forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mape &lt;- function(actual, forecast) {
+  mean(abs((actual - forecast) / actual)) * 100
+}
+
+round(c(naive       = mape(actual, naive),
+        statistical = mape(actual, statistical),
+        override    = mape(actual, override)), 1)
+#&gt;       naive statistical    override
+#&gt;        10.5         5.9         9.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the three numbers as report cards. The naive forecast missed by 10.5% on average, which is our floor to beat. The statistical model cut that almost in half to 5.9%, so the model is clearly doing something useful. The override, at 9.0%, is better than naive but noticeably worse than the model it started from.</p>
+
+<p>That last comparison is the surprise. The analyst took a 5.9% forecast and handed back a 9.0% forecast. On the whole, the human editing made things worse. We will pin down exactly where that damage happened in a moment.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>MAPE is unit-free, so you can compare very different products.</strong> A 6% MAPE means the same thing whether you sell 50 units or 50,000, which is why demand planners lean on it, but avoid it when actuals can be zero, since dividing by zero blows up.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Some teams prefer Mean Absolute Error (MAE), the average miss in plain units instead of percentages. Complete the function so it returns the MAE, then score the override.</p>
+<div class="webr-container" data-block-title="Your turn: mean absolute error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean absolute error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: complete ex_mae() so it returns the average absolute miss in units
+ex_mae &lt;- function(actual, forecast) {
+  # your code here
+}
+# Then run:  ex_mae(actual, override)   # target: 10.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean absolute error solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean absolute error solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mae &lt;- function(actual, forecast) mean(abs(actual - forecast))
+ex_mae(actual, override)
+#&gt; [1] 10.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> MAE drops the "divide by actual" step, so the answer stays in units. The override was off by about 10.5 units per month on average. MAE and MAPE often tell the same story, but MAE keeps the original scale.</p>
+
+</details>
+</section>
+
+<h2>How do you calculate Forecast Value Added?</h2>
+
+<p>Now we can define FVA precisely. Forecast Value Added is just the drop in error that a step produced compared to a benchmark. Because error is bad, a drop in error is good, so we subtract the step's error from the benchmark's error.</p>
+
+<p>$$\text{FVA} = \text{error}_{\text{benchmark}} - \text{error}_{\text{step}}$$</p>
+
+<p>A positive FVA means the step lowered the error and added value. A negative FVA means the step raised the error and destroyed value. In a real process you report two FVA numbers for each step: one against the naive floor, and one against the step immediately before it. Let's build that standard table, which practitioners call the FVA stairstep report.</p>
+
+<div class="webr-container" data-block-title="Build the FVA stairstep table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the FVA stairstep table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_naive &lt;- mape(actual, naive)
+m_stat  &lt;- mape(actual, statistical)
+m_over  &lt;- mape(actual, override)
+
+fva &lt;- data.frame(
+  step         = c(&quot;Naive&quot;, &quot;Statistical&quot;, &quot;Override&quot;),
+  MAPE         = round(c(m_naive, m_stat, m_over), 1),
+  fva_vs_naive = round(c(NA, m_naive - m_stat, m_naive - m_over), 1),
+  fva_vs_stat  = round(c(NA, NA, m_stat - m_over), 1)
+)
+fva
+#&gt;          step MAPE fva_vs_naive fva_vs_stat
+#&gt; 1       Naive 10.5           NA          NA
+#&gt; 2 Statistical  5.9          4.6          NA
+#&gt; 3    Override  9.0          1.5        -3.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk down the table one row at a time. The naive row is the baseline, so its FVA cells are blank. The statistical row shows <code>fva_vs_naive</code> of 4.6, meaning the model cut MAPE by 4.6 points versus naive. That is a strong, positive result: the model earns its keep.</p>
+
+<p>The override row is where the process leaks. Its <code>fva_vs_naive</code> is 1.5, still positive, so at a glance the analyst looks helpful. But look at <code>fva_vs_stat</code>, which is -3.1. Compared to the model it actually edited, the override added 3.1 points of error. The analyst was measured against the wrong yardstick and looked fine, when in truth the editing set the forecast back.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A positive FVA against naive can hide a negative FVA against the model.</strong> Always score each step against the step right before it, not just against the naive floor, or a value-destroying override will slip through looking harmless.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the override's value against the naive baseline directly. Compute the naive MAPE minus the override MAPE and round to one decimal.</p>
+<div class="webr-container" data-block-title="Your turn: override FVA vs naive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: override FVA vs naive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: FVA vs naive is the naive MAPE minus the override MAPE
+# Fill in the blank and round to 1 decimal place
+ex_fva_naive &lt;- NA
+ex_fva_naive
+# Expected: 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Override FVA vs naive solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Override FVA vs naive solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mape(actual, naive) - mape(actual, override), 1)
+#&gt; [1] 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The override beat the naive floor by 1.5 points, which matches the <code>fva_vs_naive</code> cell in the table. The problem is not that the analyst lost to naive, it is that the analyst lost to the model.</p>
+
+</details>
+</section>
+
+<h2>When does human judgment actually help?</h2>
+
+<p>The overall numbers make the analyst look like a net drag. But averages hide as much as they reveal. To find out where the human helped and where they hurt, split the months into two groups: the single promotion month, when the analyst knew about a marketing push the model could not see, and the routine months, when the analyst was just tweaking a stable forecast.</p>
+
+<div class="webr-container" data-block-title="Split FVA by promo and routine months">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split FVA by promo and routine months</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">promo &lt;- month == 8
+
+segment &lt;- data.frame(
+  segment       = c(&quot;Promo month&quot;, &quot;Routine months&quot;),
+  stat_MAPE     = round(c(mape(actual[promo],  statistical[promo]),
+                          mape(actual[!promo], statistical[!promo])), 1),
+  override_MAPE = round(c(mape(actual[promo],  override[promo]),
+                          mape(actual[!promo], override[!promo])), 1)
+)
+segment$override_FVA &lt;- segment$stat_MAPE - segment$override_MAPE
+segment
+#&gt;          segment stat_MAPE override_MAPE override_FVA
+#&gt; 1    Promo month      27.3           3.0         24.3
+#&gt; 2 Routine months       3.9           9.6         -5.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the split makes it clear. On the promotion month the model missed badly, off by 27.3%, because it had no way to know a promotion was coming. The analyst, who did know, cut that miss to 3.0%, an enormous FVA of 24.3 points. This is human judgment at its best: the person had information the model simply did not have.</p>
+
+<p>On routine months the picture flips. The model was already sharp at 3.9%, and the analyst's tinkering pushed the error up to 9.6%, an FVA of -5.7 points. With nothing special to add, the human was just injecting noise into an already-good forecast.</p>
+
+<p>So the answer to the title is precise. Human judgment helps when the human knows something the model cannot know, such as a promotion, a new competitor, or a one-off event. It hurts when the human overrides a stable forecast out of habit. The quadrant below sums up the rule.</p>
+
+<p><img src="screenshots/Forecast-Value-Added-in-R-judgment-quadrant.webp" alt="When human judgment helps a forecast" class="img-responsive img-zoomable" loading="lazy" width="1080" height="1080" /></p>
+
+<p><em>Figure 2: Human overrides add value only when the analyst knows something the model does not.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Overrides add value only where the human holds information the model lacks.</strong> Everywhere else, an override is a coin flip that, on average, lands on noise, which is why disciplined teams reserve manual edits for known events and leave routine months to the model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count how many of the routine months the override missed by more than the model did. A high count confirms the tinkering was almost always harmful.</p>
+<div class="webr-container" data-block-title="Your turn: count the routine misses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the routine misses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: on routine months (!promo), count where the override missed by more than the model
+# Hint: compare abs(actual - override) with abs(actual - statistical), then sum() the TRUEs
+ex_routine_misses &lt;- NA
+ex_routine_misses
+# Expected: 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count the routine misses solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the routine misses solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum(abs(actual[!promo] - override[!promo]) &gt; abs(actual[!promo] - statistical[!promo]))
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> There are 11 routine months, and the override was worse on every single one. The analyst added value on exactly one month out of twelve, and it happened to be the month that mattered most.</p>
+
+</details>
+</section>
+
+<h2>How do you run an FVA analysis on real forecasts?</h2>
+
+<p>The example so far used hand-picked numbers so the lesson was clear. In practice you generate the naive and statistical forecasts yourself, then test any override on data the models never saw. Let's do that with the <code>forecast</code> package and the built-in <code>AirPassengers</code> series of monthly airline passengers.</p>
+
+<p>The method is standard. Train the models on the early years, hold out the last two years as a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, and score each forecast on that untouched holdout. We use a seasonal naive forecast as the baseline, an automatically chosen <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model as the statistical step, and an analyst who expects continued route expansion and lifts the model by 5%.</p>
+
+<div class="webr-container" data-block-title="Fit naive and statistical forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit naive and statistical forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+train &lt;- window(AirPassengers, end = c(1958, 12))
+test  &lt;- window(AirPassengers, start = c(1959, 1))
+
+fc_naive &lt;- snaive(train, h = length(test))          # seasonal naive baseline
+fc_stat  &lt;- forecast(ets(train), h = length(test))   # statistical model
+fc_over  &lt;- fc_stat$mean * 1.05                       # analyst lifts it 5%
+
+air_mape &lt;- round(c(
+  naive       = mape(test, fc_naive$mean),
+  statistical = mape(test, fc_stat$mean),
+  override    = mape(test, fc_over)
+), 1)
+air_mape
+#&gt;       naive statistical    override
+#&gt;        15.5        13.3         9.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>window()</code> function slices the series by date, so <code>train</code> holds every month through the end of 1958 and <code>test</code> holds 1959 onward. The <code>snaive()</code> function repeats last year's same month as the forecast, a sensible floor for seasonal data, and <code>ets()</code> fits an exponential smoothing model automatically. Both <code>snaive()</code> and <code>forecast()</code> return an object that keeps its point predictions in a <code>$mean</code> component, which is the column we score and the one the analyst multiplies by 1.05. We reuse the same <code>mape()</code> function from earlier, so nothing new to learn there. Now turn those three MAPEs into the same stairstep report.</p>
+
+<div class="webr-container" data-block-title="FVA stairstep on the holdout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">FVA stairstep on the holdout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(
+  step         = c(&quot;Seasonal naive&quot;, &quot;Statistical (ETS)&quot;, &quot;Analyst override&quot;),
+  MAPE         = as.numeric(air_mape),
+  fva_vs_naive = c(NA, round(air_mape[&quot;naive&quot;] - air_mape[&quot;statistical&quot;], 1),
+                       round(air_mape[&quot;naive&quot;] - air_mape[&quot;override&quot;], 1)),
+  fva_vs_stat  = c(NA, NA, round(air_mape[&quot;statistical&quot;] - air_mape[&quot;override&quot;], 1)),
+  row.names = NULL
+)
+#&gt;                step MAPE fva_vs_naive fva_vs_stat
+#&gt; 1    Seasonal naive 15.5           NA          NA
+#&gt; 2 Statistical (ETS) 13.3          2.2          NA
+#&gt; 3  Analyst override  9.6          5.9         3.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the human comes out ahead. The statistical model beat seasonal naive by 2.2 points, and the analyst's 5% lift beat the model by another 3.7 points. Why did the override help this time? The exponential smoothing model damped the upward trend, so it under-forecast a business that was still growing fast. The analyst knew growth was continuing and corrected exactly that blind spot. This is the same lesson as the promotion month, on real data: the override won because the human supplied information the model had discounted.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always judge an override on a holdout, never on the data the model was fit to.</strong> Scoring an edit on months the model already saw flatters everyone, and splitting the report by product or event keeps a few great overrides from hiding a pile of harmful ones.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Not every hunch is right. Suppose a different analyst feared a slump and trimmed the model by 5% instead. Compute that override's FVA against the statistical model.</p>
+<div class="webr-container" data-block-title="Your turn: test a downward override">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test a downward override</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: multiply fc_stat$mean by 0.95, then compute FVA vs the statistical model
+# FVA vs statistical = statistical MAPE minus the downward-override MAPE, rounded to 1 decimal
+ex_down_fva &lt;- NA
+ex_down_fva
+# Expected: -4.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Downward override solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Downward override solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mape(test, fc_stat$mean) - mape(test, fc_stat$mean * 0.95), 1)
+#&gt; [1] -4.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Trimming the forecast on a growing series made it worse, for an FVA of -4.3 points. Same tool, opposite result: the upward edit helped because it matched what actually happened, the downward edit hurt because it did not. FVA measures only the accuracy of the final number, not the reasoning behind the edit.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the pieces above. The <code>mape()</code> function you wrote earlier is still available, so lean on it.</p>
+
+<h3>Exercise 1: Build the stairstep for a new product</h3>
+
+<p>A second product has its own promotion in month 8. Build the full FVA stairstep table for it: MAPE for each step, plus FVA versus naive and versus the statistical model.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: a second product with one promo spike in month 8
+my_actual &lt;- c(48, 52, 47, 55, 60, 58, 62, 90, 64, 68, 63, 70)
+my_naive  &lt;- c(50, 48, 52, 47, 55, 60, 58, 62, 90, 64, 68, 63)
+my_stat   &lt;- c(51, 52, 53, 56, 58, 60, 61, 63, 66, 67, 68, 69)
+my_over   &lt;- c(46, 57, 44, 60, 55, 63, 55, 88, 70, 62, 71, 64)
+
+# Your task: build a data.frame with MAPE, fva_vs_naive, and fva_vs_stat.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="FVA table for a new product">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">FVA table for a new product</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_mape &lt;- round(c(naive = mape(my_actual, my_naive),
+                   statistical = mape(my_actual, my_stat),
+                   override = mape(my_actual, my_over)), 1)
+
+data.frame(
+  step         = c(&quot;Naive&quot;, &quot;Statistical&quot;, &quot;Override&quot;),
+  MAPE         = as.numeric(my_mape),
+  fva_vs_naive = c(NA, round(my_mape[&quot;naive&quot;] - my_mape[&quot;statistical&quot;], 1),
+                       round(my_mape[&quot;naive&quot;] - my_mape[&quot;override&quot;], 1)),
+  fva_vs_stat  = c(NA, NA, round(my_mape[&quot;statistical&quot;] - my_mape[&quot;override&quot;], 1)),
+  row.names = NULL
+)
+#&gt;          step MAPE fva_vs_naive fva_vs_stat
+#&gt; 1       Naive 12.6           NA          NA
+#&gt; 2 Statistical  6.1          6.5          NA
+#&gt; 3    Override  8.3          4.3        -2.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same pattern as the tutorial. The model added 6.5 points over naive, but the override gave back 2.2 of them, so this product has the same leaky-override problem.</p>
+
+</details>
+
+<h3>Exercise 2: Write a reusable FVA reporter</h3>
+
+<p>Turn the stairstep logic into a function. Write <code>fva_report()</code> that takes the actuals, a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of forecasts, and the name of the benchmark, and returns a data frame of MAPE and FVA versus that benchmark for every forecast.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: complete this function
+fva_report &lt;- function(actual, forecasts, benchmark) {
+  # 1. compute the MAPE of each forecast in the list
+  # 2. FVA vs benchmark = benchmark MAPE minus each MAPE
+  # 3. return a data.frame with forecast, MAPE, fva_vs_benchmark
+}
+# Test it on the tutorial data with:
+# fva_report(actual, list(naive = naive, statistical = statistical, override = override), &quot;naive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reusable fva_report function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reusable fva_report function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fva_report &lt;- function(actual, forecasts, benchmark) {
+  mapes &lt;- sapply(forecasts, function(f) mean(abs((actual - f) / actual)) * 100)
+  data.frame(
+    forecast         = names(mapes),
+    MAPE             = round(mapes, 1),
+    fva_vs_benchmark = round(mapes[benchmark] - mapes, 1),
+    row.names = NULL
+  )
+}
+
+fva_report(actual,
+           list(naive = naive, statistical = statistical, override = override),
+           benchmark = &quot;naive&quot;)
+#&gt;      forecast MAPE fva_vs_benchmark
+#&gt; 1       naive 10.5              0.0
+#&gt; 2 statistical  5.9              4.6
+#&gt; 3    override  9.0              1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sapply()</code> runs the MAPE calculation over every forecast in the list at once. Indexing <code>mapes[benchmark]</code> grabs the benchmark's score, and subtracting each MAPE from it gives the FVA column. Now any process can be scored with one call.</p>
+
+</details>
+
+<h3>Exercise 3: Find the override's best month</h3>
+
+<p>The override was harmful in most months but helpful in one. Find the single month where the override reduced the error the most compared to the statistical model, and report how many units of error it saved.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 3: for each month, compare the override's miss with the model's miss.
+# A negative change means the override was closer to actual (it helped).
+# Find the month with the biggest help and the units of error it saved.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Best override month solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Best override month solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_change &lt;- abs(actual - override) - abs(actual - statistical)  # positive = override worse
+best &lt;- which.min(my_change)
+c(month = best, error_saved = -my_change[best])
+#&gt;       month error_saved
+#&gt;           8          40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>my_change</code> is positive when the override missed by more than the model. The most negative value is the override's best moment, and <code>which.min()</code> finds it: month 8, the promotion, where the override cut the error by 40 units. One well-informed edit paid for the whole review process.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What counts as a good FVA value?</h3>
+
+<p>Any FVA above zero means the step helped, so zero is the bar. In practice, a statistical model should show a clearly positive FVA against naive, and you want each human step to show a positive FVA against the step it edited. A step sitting near zero is a candidate for removal, because it costs effort without moving accuracy.</p>
+
+<h3>Which naive forecast should I use as the benchmark?</h3>
+
+<p>Use the simplest forecast that respects your data's pattern. For data without seasonality, the random walk (this period equals last period) is standard. For seasonal data like monthly sales, a seasonal naive forecast (this month equals the same month last year) is fairer, which is why the airline example used <code>snaive()</code>.</p>
+
+<h3>Does a negative FVA mean we should fire the analysts?</h3>
+
+<p>No. It means you should redirect their effort. The segmented analysis showed the same analyst adding huge value on the promotion month and destroying value on routine months. The goal is to stop overriding stable forecasts and concentrate human attention on the events that models cannot see.</p>
+
+<h3>Is MAPE the only metric I can use for FVA?</h3>
+
+<p>Not at all. FVA works with any error metric, including MAE, RMSE, or weighted variants. Just keep the metric fixed across every row of a stairstep report so the comparisons are apples to apples. MAPE is popular because its percentages compare cleanly across products of different sizes.</p>
+
+<h3>How much history do I need before I trust an FVA result?</h3>
+
+<p>One month is an anecdote, not evidence. The 12-month examples here illustrate the mechanics, but for a real decision you want many periods and, ideally, many products, so a lucky override does not fool you. Segment the results by event type so consistent patterns, rather than one-off wins, drive your changes.</p>
+
+<h2>Summary</h2>
+
+<p>Forecast Value Added turns a vague worry ("is our forecasting process worth the effort?") into a number you can act on. The workflow is short and repeatable.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>What it tells you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pick a benchmark</td>
+<td>Choose a naive forecast (random walk or seasonal naive)</td>
+<td>The free floor every step must beat</td>
+</tr>
+<tr>
+<td>Score each step</td>
+<td>Compute MAPE for naive, statistical, and override</td>
+<td>The accuracy report card</td>
+</tr>
+<tr>
+<td>Build the stairstep</td>
+<td>FVA = benchmark error minus step error</td>
+<td>Which steps add value, which destroy it</td>
+</tr>
+<tr>
+<td>Compare to the previous step</td>
+<td>Score each step against the one before it, not just naive</td>
+<td>Catches value-destroying overrides</td>
+</tr>
+<tr>
+<td>Segment the results</td>
+<td>Split by event type (promo vs routine)</td>
+<td>Where human judgment truly helps</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Forecast-Value-Added-in-R-overview-mindmap.webp" alt="Forecast Value Added at a glance" class="img-responsive img-zoomable" loading="lazy" width="1886" height="1078" /></p>
+
+<p><em>Figure 3: Forecast Value Added at a glance.</em></p>
+
+<p>The headline lesson is about people, not math. Human overrides are worth it precisely when the human knows something the model cannot, such as a promotion or a <a class="auto-link" href="Forecasting-Structural-Breaks-in-R.html" title="Forecasting Through Structural Breaks in R">structural change</a>. When they are just editing a stable forecast, they tend to add noise. FVA is how you tell the two apart and put everyone's effort where it pays off.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gilliland, M. <em>Forecast Value Added Analysis: Step by Step</em>. SAS white paper. <a href="https://www.sas.com/content/dam/SAS/en_us/doc/whitepaper1/forecast-value-added-analysis-106186.pdf">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Evaluating forecast accuracy. <a href="https://otexts.com/fpp3/accuracy.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Some simple forecasting methods (naive benchmarks). <a href="https://otexts.com/fpp3/simple-methods.html">Link</a></li>
+
+<li>Hyndman, R.J. et al. <em>forecast: Forecasting Functions for Time Series and Linear Models</em>. CRAN. <a href="https://cran.r-project.org/package=forecast">Link</a></li>
+
+<li>Hyndman, R.J. <em>forecast package documentation</em>. <a href="https://pkg.robjhyndman.com/forecast/">Link</a></li>
+
+<li>Hyndman, R.J. <em>Show me the evidence</em> (on evidence-based forecasting and simple benchmarks). <a href="https://robjhyndman.com/hyndsight/show-me-the-evidence/">Link</a></li>
+
+<li>Lokad. <em>Forecast Value Added (FVA)</em>. <a href="https://www.lokad.com/forecast-value-added/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a>: a deeper look at MAPE, MAE, RMSE, and how to choose the right error metric for your data.</li>
+
+<li><a href="Benchmark-Forecasts-in-R.html">Benchmark Forecasts in R</a>: how to build the naive and seasonal-naive baselines that every FVA analysis starts from.</li>
+
+<li><a href="Forecast-Monitoring-in-R.html">Monitoring Forecast Models in Production</a>: once your process adds value, this shows how to watch it over time and catch accuracy drift.</li>
+
+</ul>
+
+{% endraw %}
