@@ -340,7 +340,7 @@ export async function loadProfileStats(DB: D1Database, userId: string, totalXp: 
         "SELECT COUNT(*) AS n FROM reading_progress WHERE user_id = ?1"
       ).bind(userId).first<{ n: number }>().catch(() => ({ n: 0 } as { n: number })),
       DB.prepare(
-        "SELECT COUNT(DISTINCT quiz_slug) AS n FROM quiz_attempts WHERE user_id = ?1 AND passed = 1"
+        "SELECT COUNT(DISTINCT track) AS n FROM quiz_attempts WHERE user_id = ?1 AND passed = 1"
       ).bind(userId).first<{ n: number }>().catch(() => ({ n: 0 } as { n: number })),
       DB.prepare(
         "SELECT COUNT(*) + 1 AS r FROM users WHERE total_xp > ?1 AND deleted_at IS NULL"
