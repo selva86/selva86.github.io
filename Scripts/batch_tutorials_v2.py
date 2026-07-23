@@ -94,6 +94,16 @@ def compose_v4_prompt(cid, entry, rewrite, slug):
             "headings from memory. Keep the slug and title.\n"
         )
 
+    # Optional per-chapter brief: Scripts/briefs/<cid>.md carries chapter-specific
+    # requirements (e.g. the industry-grade case-study spec) appended as the final,
+    # highest-precedence override block.
+    brief_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'briefs', '%s.md' % cid)
+    if os.path.exists(brief_path):
+        with open(brief_path, encoding='utf-8') as f:
+            overrides += ("\n=== CHAPTER BRIEF (mandatory requirements for this specific "
+                          "chapter; highest precedence, wins over everything above) ===\n"
+                          + f.read().strip() + "\n")
+
     # Reuse bt.compose_prompt to inline the skill body + ARGUMENT, then bolt on the
     # overrides so they are the last thing the model reads.
     base = bt.compose_prompt(V4_WRITER, v4_arg)
