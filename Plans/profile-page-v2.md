@@ -158,3 +158,64 @@ Then eyeball on preview, merge to master.
 6. Playwright verification -> preview eyeball -> merge.
 
 Estimated effort: one focused day. No dependency on any external provisioning.
+
+---
+
+# v2-FINAL addendum (owner-approved scope, 2026-07-24)
+
+## 8. Scope additions since section 3
+
+- Open-to-work badge: status + target role + work preference (remote/hybrid/any).
+- Link set: website, resume URL, up to 3 project links; all https-only.
+- GitHub link: AUTO-VERIFIED from Supabase OAuth metadata when the user signed
+  in with GitHub (stored once into users.github_login by /api/me when NULL);
+  manual URL fallback (no verified mark) for others.
+- Consistency line in the stats band: "active N of the last 26 weeks".
+- Problem-log framing reserved for the transcript (fast follow, not v2).
+- Owner-bar editor: bio, links, open-to-work (extends POST /api/me/profile;
+  legacy {public} body keeps working).
+
+## 9. Schema decision (avoids ALTER sprawl)
+
+ONE new JSON column `profile_json` TEXT holding
+{bio, website, resume, projects[], open_to_work, role, work_pref}
++ `github_login` TEXT (auth-path-written, verified by construction).
+Both added via the existing lazy ensureProfileColumns try/catch pattern.
+Server validates on write: bio <= 140 chars control-stripped; every URL
+https:// only, <= 200 chars, hostname sanity; projects capped at 3;
+role <= 60 chars. Corrupt profile_json parses to {} (never throws).
+
+## 10. Failure-mode analysis
+
+| Risk | Verdict / mitigation |
+|---|---|
+| XSS via bio/links/role | escHtml at every render site incl. inside card.svg; URLs must match ^https:// and reject javascript:/data: by construction |
+| card.svg leaks private data | route 404s unless public_profile=1; contains only what the public page shows |
+| Lazy-migration race (two isolates ALTER at once) | existing try/catch pattern already tolerates it (duplicate-column errors swallowed) |
+| Legacy POST {public} callers break | POST accepts either shape; public toggle unchanged |
+| github_login wrong on account-linked users | check app_metadata.providers array, not just provider; write only when column NULL |
+| Heatmap tz confusion | stays UTC-bucketed (as today), footnote says so; dashboard IST metrics unaffected |
+| Rank vanity on small base | rank shown only when total users >= 100 (292 today, fine) |
+| Zero-activity page looks broken | designed empty state: Newcomer tier + invitation copy + empty grid |
+| D1 load per view | +2 cheap queries (rank, weeks-active); card.svg edge-cached 1h |
+| Cert links vs pending fix/cert-integrity branch | profile links /cert/<id> which exists on master; no coupling |
+| Preview env has empty dev D1 | seed 2 test users + activity into r-stats-dev before Playwright |
+| LinkedIn add-to-profile params drift | URL degrades to LinkedIn's generic add form; harmless |
+
+## 11. Test checklist (run on CF preview against seeded dev D1)
+
+[ ] Public profile: header, tier chip + progress, 6 stats + consistency,
+    labeled 52-week heatmap w/ tooltips, skills bars, difficulty donut,
+    cert cards + LinkedIn URL correctness, links row, open-to-work badge
+[ ] Private profile: stranger = data-free shell (view-source clean);
+    owner token = own-view + toggle round-trip both directions
+[ ] Owner editor: bio/links/open-to-work save + re-render; javascript: URL
+    rejected; 141-char bio rejected; legacy {public:true} still works
+[ ] card.svg: 200 + well-formed SVG on public; 404 on private; renders in
+    <img>; user strings escaped (test with a name containing <script>)
+[ ] GitHub verified: user with github provider metadata shows verified mark;
+    magic-link user shows manual link only
+[ ] OG meta on public only; noindex present on all
+[ ] Zero-activity profile intentional-looking
+[ ] Mobile 390px: no horizontal scroll
+[ ] Perf sanity: page + card.svg respond < 1s warm
