@@ -1,0 +1,1157 @@
+---
+title: "Retail Demand Forecasting in R: an End-to-End Case Study"
+description: "A complete retail demand forecasting case study in R: explore sales data, backtest ETS and ARIMA models, quantify uncertainty, and set inventory safety stock."
+keywords: "retail demand forecasting in R, demand forecasting R, forecast retail sales R, fable demand forecasting, ETS ARIMA forecasting R, time series forecasting case study, safety stock forecasting, inventory forecasting R, seasonal demand forecast R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-13.4"
+post_type: "C"
+auto_link_terms: "retail demand forecasting|demand forecasting in R|retail demand forecasting in R|forecast retail demand|demand forecasting case study|end-to-end forecasting workflow|forecast to inventory decision|safety stock from a forecast|service level forecasting|turn a forecast into a decision|retail sales forecasting"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Retail Demand Forecasting"
+sidebar_order: "64"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Retail demand forecasting predicts how much a store will sell in future periods, so the business can hold the right amount of stock. This is a full case study on one real retail series: we start from raw monthly sales, explore what drives them, test several models honestly, quantify how uncertain the forecast is, and finish by deciding exactly how much stock to hold. Every number on this page was produced by running the code, not estimated.</p>
+
+<h2>How does an end-to-end retail demand forecast work in R?</h2>
+
+<p>Picture a group of department stores in the Australian state of Victoria. Every month they record their total sales, and every year the planning team has to answer one question: how much stock should we carry, month by month, so we neither run out during the Christmas rush nor drown in leftover inventory in February? To answer that, they first need a forecast of demand. Here is the entire forecast for the next year, produced by a single command, before we explain any of the moving parts.</p>
+
+<div class="webr-container" data-block-title="Load libraries and forecast a year of demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and forecast a year of demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(fable)
+library(tsibbledata)
+library(dplyr)
+
+library(distributional)
+library(lubridate)
+demand &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry == &quot;Department stores&quot;) |&gt;
+  as_tibble() |&gt;
+  transmute(Month, Sales = Turnover) |&gt;
+  as_tsibble(index = Month)
+
+demand |&gt;
+  model(ets = ETS(Sales)) |&gt;
+  forecast(h = 12)
+#&gt; # A fable: 12 x 4 [1M]
+#&gt; # Key:     .model [1]
+#&gt;    .model    Month        Sales .mean
+#&gt;    &lt;chr&gt;     &lt;mth&gt;       &lt;dist&gt; &lt;dbl&gt;
+#&gt;  1 ets    2019 Jan  N(369, 355)  369.
+#&gt;  2 ets    2019 Feb  N(288, 219)  288.
+#&gt;  3 ets    2019 Mar  N(367, 359)  367.
+#&gt;  4 ets    2019 Apr  N(385, 400)  385.
+#&gt;  5 ets    2019 May  N(382, 400)  382.
+#&gt;  6 ets    2019 Jun  N(399, 442)  399.
+#&gt;  7 ets    2019 Jul  N(377, 403)  377.
+#&gt;  8 ets    2019 Aug  N(338, 329)  338.
+#&gt;  9 ets    2019 Sep  N(353, 365)  353.
+#&gt; 10 ets    2019 Oct  N(390, 453)  390.
+#&gt; 11 ets    2019 Nov  N(442, 593)  442.
+#&gt; 12 ets    2019 Dec N(744, 1717)  744.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read what came back. <code>aus_retail</code> is a dataset of Australian retail turnover that ships with the <code>tsibbledata</code> package, and we kept a single slice of it: department-store sales in Victoria, renamed to <code>Sales</code>. The <code>model(ets = ETS(Sales))</code> step fitted an <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model, and <code>forecast(h = 12)</code> asked it for the next 12 months. The result is a small table where each row is a future month, the <code>Sales</code> column holds the forecast as a probability distribution written <code>N(mean, variance)</code>, and <code>.mean</code> is the single best-guess number pulled out of that distribution. Look at the last row: the model expects December to reach 744, more than double a quiet month, which is precisely the peak the stocking decision has to get right.</p>
+
+<p>That one command is the destination. The rest of this page is the journey that makes the forecast trustworthy and turns it into a stocking decision. Figure 1 lays out the whole route.</p>
+
+<p><img src="screenshots/Retail-Demand-Forecasting-in-R-workflow.webp" alt="The end-to-end retail demand forecasting workflow, from raw sales history to a stocking decision" class="img-responsive img-zoomable" loading="lazy" width="2248" height="232" /></p>
+
+<p><em>Figure 1: The whole journey from raw sales to a stocking decision.</em></p>
+
+<p>Before we go further, let us look at the raw material we are working with. The <code>demand</code> object we built is a tsibble, which is a table that knows one column is time. Printing it shows the shape of the data.</p>
+
+<div class="webr-container" data-block-title="Inspect the demand series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the demand series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">demand
+#&gt; # A tsibble: 441 x 2 [1M]
+#&gt;       Month Sales
+#&gt;       &lt;mth&gt; &lt;dbl&gt;
+#&gt;  1 1982 Apr 104. 
+#&gt;  2 1982 May 110. 
+#&gt;  3 1982 Jun  96.7
+#&gt;  4 1982 Jul 105. 
+#&gt;  5 1982 Aug  92.5
+#&gt;  6 1982 Sep  98.3
+#&gt;  7 1982 Oct 103. 
+#&gt;  8 1982 Nov 115. 
+#&gt;  9 1982 Dec 208. 
+#&gt; 10 1983 Jan  81.5
+#&gt; # ℹ 431 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We have 441 monthly observations running from April 1982 to December 2018, one number per month. Notice the very first December already jumps to 208 while the months around it sit near 100. That Christmas spike is the single most important feature of retail demand, and we will come back to it many times.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Sales here are monthly turnover in millions of dollars, used as our demand signal.</strong> Real demand planning often works in units per product, but the workflow is identical: swap the column and everything downstream still holds. We use the tidyverts tools (<code>tsibble</code>, <code>fable</code> and friends) throughout because they keep the time structure attached as we wrangle.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the demand series for a different Victorian category, "Cafes, restaurants and takeaway food services", and count how many months it covers. The starter below builds the series for you.</p>
+<div class="webr-container" data-block-title="Your turn: build a second demand series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a second demand series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cafes &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;,
+         Industry == &quot;Cafes, restaurants and takeaway food services&quot;) |&gt;
+  as_tibble() |&gt;
+  transmute(Month, Sales = Turnover) |&gt;
+  as_tsibble(index = Month)
+# your code: count the months in ex_cafes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count the months in the cafes series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the months in the cafes series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(ex_cafes)
+#&gt; [1] 441</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nrow()</code> counts the rows, and each row is one month. Every series in <code>aus_retail</code> covers the same 441 months, so any category you pick starts and ends on the same dates.</p>
+
+</details>
+</section>
+
+<h2>What is the demand data telling us?</h2>
+
+<p>Before modeling anything, look at the data. A quick plot answers more questions than a page of <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a>, so we draw the whole history first.</p>
+
+<div class="webr-container" data-block-title="Plot the full demand history">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the full demand history</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(feasts)
+library(ggplot2)
+
+autoplot(demand, Sales) +
+  labs(y = &quot;Monthly sales ($m)&quot;, title = &quot;Victoria department store demand&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that and three things jump out. The line drifts upward over the decades, so there is a long-run trend. Every year has a sharp spike, so there is strong yearly seasonality. And the spikes get taller as the years pass, so the size of the <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">seasonal swing</a> grows with the overall level. That last point matters for model choice, and we will name it properly soon.</p>
+
+<p>Let us quantify the spike. If we average sales within each calendar month across all years, the seasonal shape shows up as plain numbers.</p>
+
+<div class="webr-container" data-block-title="Average demand by calendar month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average demand by calendar month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">demand |&gt;
+  as_tibble() |&gt;
+  mutate(month = lubridate::month(Month, label = TRUE)) |&gt;
+  group_by(month) |&gt;
+  summarise(avg_sales = round(mean(Sales), 0)) |&gt;
+  arrange(desc(avg_sales)) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 2
+#&gt;   month avg_sales
+#&gt;   &lt;ord&gt;     &lt;dbl&gt;
+#&gt; 1 Dec         516
+#&gt; 2 Nov         299
+#&gt; 3 Jun         262
+#&gt; 4 May         261
+#&gt; 5 Oct         261
+#&gt; 6 Apr         255</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>December averages 516, nearly double November at 299, and roughly twice a typical off-peak month near 260. For a department store this is the whole ballgame: get December right and you have got most of the year right.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Seasonality is the dominant signal in retail demand, so the model must nail the December peak.</strong> A forecast that is smooth and pleasant but misses Christmas is worse than useless, because Christmas is when the stocking decision has real money on the line.</div></div>
+
+<p>We can go one level deeper and formally split the series into its parts. <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">STL decomposition</a> separates any series into a slow-moving trend, a repeating seasonal pattern, plus whatever noise is left over. The <code>feat_stl</code> feature reports how strong each part is, on a 0-to-1 scale.</p>
+
+<div class="webr-container" data-block-title="Measure trend and seasonal strength">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure trend and seasonal strength</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">demand |&gt;
+  features(Sales, feat_stl) |&gt;
+  select(trend_strength, seasonal_strength_year)
+#&gt; # A tibble: 1 × 2
+#&gt;   trend_strength seasonal_strength_year
+#&gt;            &lt;dbl&gt;                  &lt;dbl&gt;
+#&gt; 1          0.988                  0.986</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both strengths are about 0.99, which is close to the maximum of 1. In plain terms, almost all of the movement in this series is explained by its trend and its yearly season, and very little is random noise. That is good news: a demand series this regular is highly forecastable.</p>
+
+<p>To see the pieces themselves, pull out the decomposition components and look at the first rows, then plot them.</p>
+
+<div class="webr-container" data-block-title="Decompose the series with STL">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose the series with STL</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dcmp &lt;- demand |&gt;
+  model(STL(Sales)) |&gt;
+  components()
+
+dcmp |&gt; select(Month, trend, season_year, remainder)
+#&gt; # A tsibble: 441 x 4 [1M]
+#&gt;       Month trend season_year remainder
+#&gt;       &lt;mth&gt; &lt;dbl&gt;       &lt;dbl&gt;     &lt;dbl&gt;
+#&gt;  1 1982 Apr  107.       -5.95    3.04  
+#&gt;  2 1982 May  107.        5.89   -3.11  
+#&gt;  3 1982 Jun  108.      -12.7     1.70  
+#&gt;  4 1982 Jul  108.       -8.71    5.26  
+#&gt;  5 1982 Aug  108.      -18.3     2.29  
+#&gt;  6 1982 Sep  109.      -14.0     3.40  
+#&gt;  7 1982 Oct  109.       -7.35    0.797 
+#&gt;  8 1982 Nov  110.        4.86   -0.0548
+#&gt;  9 1982 Dec  110.      136.    -37.5   
+#&gt; 10 1983 Jan  111.      -25.4    -3.78  
+#&gt; # ℹ 431 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each month's actual sales equal <code>trend + season_year + remainder</code>. The <code>trend</code> column is the smooth backbone, <code>season_year</code> is the repeating monthly adjustment, and <code>remainder</code> is the small unexplained wiggle. Look at row 9, the first December: its <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal adjustment</a> is +136, a massive positive bump, while the quiet months carry small negative adjustments. Plotting the components with <code>autoplot(dcmp)</code> stacks these three panels so you can see each one on its own.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Put a single number on the Christmas spike. Compute the December average divided by the overall monthly average. The starter builds both averages for you.</p>
+<div class="webr-container" data-block-title="Your turn: size the Christmas spike">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: size the Christmas spike</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_all &lt;- mean(demand$Sales)                 # overall monthly average
+ex_dec &lt;- demand |&gt; as_tibble() |&gt;
+  filter(lubridate::month(Month) == 12) |&gt;
+  summarise(dec = mean(Sales)) |&gt; pull(dec)  # December average
+# your code: divide the December average by the overall average</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="How big is the Christmas spike?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How big is the Christmas spike?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(ex_dec / ex_all, 2)
+#&gt; [1] 1.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> December demand runs about 1.9 times the average month. That single multiple is why inventory planning for this category lives or dies by the December forecast.</p>
+
+</details>
+</section>
+
+<h2>How do you test a demand forecast honestly?</h2>
+
+<p>Here is the mistake that ruins most forecasting projects: judging a model by how well it fits the data it was trained on. A flexible model can trace the past almost perfectly and still forecast the future terribly, the same way memorizing last year's exam does not mean you understand the subject. The only honest test is to hide the most recent stretch of data, forecast it as if it were unknown, then compare against what actually happened.</p>
+
+<p>So we split the series in time. Everything up to December 2016 becomes the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a>, and the final two years (2017 and 2018) become the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>. <code>filter_index()</code> slices a tsibble by date in one line.</p>
+
+<div class="webr-container" data-block-title="Split into training and test sets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split into training and test sets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- demand |&gt; filter_index(. ~ &quot;2016 Dec&quot;)
+test  &lt;- demand |&gt; filter_index(&quot;2017 Jan&quot; ~ .)
+
+cat(&quot;train:&quot;, nrow(train), &quot; test:&quot;, nrow(test), &quot;\n&quot;)
+#&gt; train: 417  test: 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training set holds 417 months and the test set holds the last 24. We deliberately kept two full years in the test set so the evaluation covers two separate Christmases, not just one lucky (or unlucky) December. Figure 2 shows the shape of this honest test.</p>
+
+<p><img src="screenshots/Retail-Demand-Forecasting-in-R-backtest.webp" alt="An honest backtest splits history into an older training portion and a recent test portion, fits on the training data, forecasts the test window, and scores against the real values" class="img-responsive img-zoomable" loading="lazy" width="2248" height="436" /></p>
+
+<p><em>Figure 2: Train on older months, test on recent ones, then score.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A model scored on its own training data almost always looks better than it really is.</strong> Always hold out the most recent months, forecast them as if they were unknown, then score against the truth. The recent window matters because it is the closest thing you have to the future you actually care about.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose you only wanted a one-year test instead of two. Build a test set that holds out just 2018, and count its months. The starter makes the slice.</p>
+<div class="webr-container" data-block-title="Your turn: hold out only the last year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hold out only the last year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_test &lt;- demand |&gt; filter_index(&quot;2018 Jan&quot; ~ .)
+# your code: how many months are in ex_test, and what range do they cover?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count the held-out months">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the held-out months</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(ex_test)
+#&gt; [1] 12
+range(ex_test$Month)
+#&gt; &lt;yearmonth[2]&gt;
+#&gt; [1] &quot;2018 Jan&quot; &quot;2018 Dec&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>filter_index(&quot;2018 Jan&quot; ~ .)</code> keeps every month from January 2018 to the end, which is the 12 months of 2018. A shorter test window trains on more data but tests on fewer Christmases, so you trade evidence for training history.</p>
+
+</details>
+</section>
+
+<h2>Which model forecasts demand best?</h2>
+
+<p>Now we fit real models and let the backtest pick a winner. We will try four, from dumb to smart, because a smart model is only worth its complexity if it beats the dumb one.</p>
+
+<p>The first is <code>SNAIVE</code>, the <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a> method, which forecasts each month to equal the same month last year. It is the baseline every serious model must clear. The second is <code>ETS</code>, exponential smoothing, which tracks a level, a trend, and a season and updates them as new data arrives. The third is <code>ARIMA</code>, which models each value from its own recent past values and past errors. The fourth is a version of <code>ETS</code> fitted to the logarithm of sales, our way of handling the fact that the seasonal swings grow with the level.</p>
+
+<p>That last idea deserves one check. When the size of the seasonal wobble grows with the level, a transformation can even it out. The Guerrero method suggests a good power transformation automatically.</p>
+
+<div class="webr-container" data-block-title="Find a variance-stabilizing transformation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find a variance-stabilizing transformation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">demand |&gt; features(Sales, features = guerrero)
+#&gt; # A tibble: 1 × 1
+#&gt;   lambda_guerrero
+#&gt;             &lt;dbl&gt;
+#&gt; 1           0.173</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The suggested power (lambda) is 0.173, which sits close to 0. A lambda of exactly 0 corresponds to a <a class="auto-link" href="Time-Series-Transformations-in-R.html" title="Box-Cox and Transformations for Time Series in R">log transformation</a>, so taking logs is a sensible, interpretable choice, which is why our fourth model uses <code>log(Sales)</code>. Now we fit all four at once.</p>
+
+<div class="webr-container" data-block-title="Fit four candidate models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit four candidate models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- train |&gt;
+  model(
+    snaive  = SNAIVE(Sales),
+    ets     = ETS(Sales),
+    arima   = ARIMA(Sales),
+    ets_log = ETS(log(Sales))
+  )
+fit
+#&gt; # A mable: 1 x 4
+#&gt;     snaive          ets                     arima      ets_log
+#&gt;    &lt;model&gt;      &lt;model&gt;                   &lt;model&gt;      &lt;model&gt;
+#&gt; 1 &lt;SNAIVE&gt; &lt;ETS(M,A,M)&gt; &lt;ARIMA(0,1,2)(0,1,1)[12]&gt; &lt;ETS(A,A,A)&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a <a class="auto-link" href="fable-in-R.html" title="fable in R: Tidy Time Series Forecasting with tsibble">mable</a>, short for model table, holding all four fitted models in one row. Look at what the automatic search chose. We never specified an <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">ETS or ARIMA</a> shape; writing <code>ETS(Sales)</code> told fable to search the family and keep the best fit. It landed on <code>ETS(M,A,M)</code>, meaning multiplicative errors and an additive trend, paired with a multiplicative season. The <code>M</code> on the season is important: it means the model already assumes the seasonal swing scales with the level, which is exactly the behavior we spotted in the plot.</p>
+
+<p>To read one model in detail, <code>report()</code> prints its inner workings.</p>
+
+<div class="webr-container" data-block-title="Report the fitted ETS model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the fitted ETS model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt; select(ets) |&gt; report()
+#&gt; Series: Sales 
+#&gt; Model: ETS(M,A,M) 
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.1009497 
+#&gt;     beta  = 0.005779738 
+#&gt;     gamma = 0.2220998 
+#&gt;   sigma^2:  0.0027
+#&gt;      AIC     AICc      BIC 
+#&gt; 4648.269 4649.803 4716.832 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three smoothing parameters say how fast the model reacts to new information. A small <code>alpha</code> of about 0.10 means the level updates slowly and smoothly, <code>beta</code> near zero means the trend barely changes, and <code>gamma</code> of about 0.22 means the seasonal pattern adapts at a moderate pace. (The report also lists twelve seasonal starting values, which we have left out here for space.) These are learned from the data, not set by us.</p>
+
+<p>A mable is not a forecast. To get one, pass it to <code>forecast()</code> with a horizon. Because we want to compare against the held-out 24 months, we forecast 24 months ahead.</p>
+
+<div class="webr-container" data-block-title="Forecast the held-out window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the held-out window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- fit |&gt; forecast(h = 24)
+fc
+#&gt; # A fable: 96 x 4 [1M]
+#&gt; # Key:     .model [4]
+#&gt;    .model    Month       Sales .mean
+#&gt;    &lt;chr&gt;     &lt;mth&gt;      &lt;dist&gt; &lt;dbl&gt;
+#&gt;  1 snaive 2017 Jan N(367, 306)  367.
+#&gt;  2 snaive 2017 Feb N(291, 306)  291.
+#&gt;  3 snaive 2017 Mar N(368, 306)  368.
+#&gt;  4 snaive 2017 Apr N(368, 306)  368.
+#&gt;  5 snaive 2017 May N(362, 306)  362.
+#&gt;  6 snaive 2017 Jun N(397, 306)  397.
+#&gt;  7 snaive 2017 Jul N(359, 306)  359.
+#&gt;  8 snaive 2017 Aug N(316, 306)  316 
+#&gt;  9 snaive 2017 Sep N(336, 306)  336.
+#&gt; 10 snaive 2017 Oct N(364, 306)  364.
+#&gt; # ℹ 86 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is 96 rows, which is 4 models times 24 months. Now for the moment of truth. <code>accuracy()</code> lines each forecast up against the real value in that month and scores it. We pass the full <code>demand</code> series so it can find the actual 2017 and 2018 numbers.</p>
+
+<div class="webr-container" data-block-title="Score every model on held-out demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score every model on held-out demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acc &lt;- accuracy(fc, demand)
+acc |&gt; select(.model, RMSE, MAE, MAPE, MASE, RMSSE) |&gt; arrange(RMSSE)
+#&gt; # A tibble: 4 × 6
+#&gt;   .model   RMSE   MAE  MAPE  MASE RMSSE
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets      13.1  10.2  2.60 0.755 0.748
+#&gt; 2 arima    13.1  10.6  2.98 0.781 0.751
+#&gt; 3 ets_log  13.3  10.5  2.66 0.773 0.759
+#&gt; 4 snaive   15.9  13.1  3.45 0.968 0.907</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table from the bottom up. The naive baseline (<code>snaive</code>) has the largest errors, as expected. All three real models beat it, and the plain <code>ets</code> model wins on every measure, with an average error (MAE) of about 10.2 million dollars a month and a MAPE of 2.6 percent. Notice that <code>ets_log</code>, the version with the log transform, actually did slightly worse than plain <code>ets</code>. That is a genuine and useful result: the multiplicative <code>ETS(M,A,M)</code> already handles the growing seasonal swing on its own, so the extra log transform is redundant here rather than helpful.</p>
+
+<p>The two right-hand columns, MASE and RMSSE, are scaled errors. They divide a model's error by the error of the naive baseline, so a value below 1 means the model beat the baseline. The winning <code>ets</code> scores 0.748, meaning its errors are about a quarter smaller than just repeating last year.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Scaled errors like MASE and RMSSE tell you whether a model earned its keep.</strong> Below 1 beats the naive baseline, above 1 loses to it. Because the scaling removes the size of the series, you can compare a tiny product line against a whole department on the same footing.</div></div>
+
+<p>Numbers land harder as a picture. Let us plot the actual demand against the point forecasts from the winner and the baseline over the test window.</p>
+
+<div class="webr-container" data-block-title="Plot forecasts against actual demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot forecasts against actual demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+recent  &lt;- demand |&gt; filter_index(&quot;2015 Jan&quot; ~ .) |&gt; as_tibble() |&gt; mutate(Month = as.Date(Month))
+fc_plot &lt;- fc |&gt; filter(.model %in% c(&quot;ets&quot;, &quot;snaive&quot;)) |&gt; as_tibble() |&gt; mutate(Month = as.Date(Month))
+
+ggplot() +
+  geom_line(data = recent, aes(Month, Sales), colour = &quot;grey40&quot;) +
+  geom_line(data = fc_plot, aes(Month, .mean, colour = .model), linewidth = 0.8) +
+  labs(y = &quot;Monthly sales ($m)&quot;, colour = &quot;Model&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and the grey line is the truth while the coloured lines are the two forecasts. The <code>ets</code> line tracks the real Christmas peaks closely, while the <code>snaive</code> line is a flatter copy of the previous year that lags the growth. Seeing the fit is worth a dozen accuracy tables.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The winner was chosen by RMSSE, but a planner might care more about plain average error. Rank the four models by MAE instead. The starter selects the columns for you.</p>
+<div class="webr-container" data-block-title="Your turn: rank the models by MAE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank the models by MAE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rank &lt;- acc |&gt; select(.model, MAE)
+# your code: arrange ex_rank so the smallest MAE is on top</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Models ranked by mean absolute error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Models ranked by mean absolute error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acc |&gt; select(.model, MAE) |&gt; arrange(MAE)
+#&gt; # A tibble: 4 × 2
+#&gt;   .model    MAE
+#&gt;   &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 ets      10.2
+#&gt; 2 ets_log  10.5
+#&gt; 3 arima    10.6
+#&gt; 4 snaive   13.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ets</code> still leads, so the choice is robust: it wins whether you rank by scaled error or by plain average error. When different metrics agree, you can trust the pick.</p>
+
+</details>
+</section>
+
+<h2>How certain is the forecast, and why does that matter for stock?</h2>
+
+<p>A point forecast is a single number, and single numbers are dangerous for inventory. If the model predicts 744 and you stock exactly 744, you have a coin-flip chance of running out, because real demand lands above the forecast half the time. To decide stock levels you need the whole range of likely demand, not just its center.</p>
+
+<p>Every forecast in a fable already carries that range as its distribution. The <code>hilo()</code> function turns a distribution into a plain low-high band at whatever <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence level</a> you name. Here is the 95 percent band for the winning model over the first few test months.</p>
+
+<div class="webr-container" data-block-title="Read a 95 percent forecast interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read a 95 percent forecast interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt;
+  filter(.model == &quot;ets&quot;) |&gt;
+  hilo(level = 95) |&gt;
+  as_tibble() |&gt;
+  transmute(Month, mean = round(.mean, 0), interval = `95%`) |&gt;
+  head(6)
+#&gt; # A tibble: 6 × 3
+#&gt;      Month  mean               interval
+#&gt;      &lt;mth&gt; &lt;dbl&gt;                 &lt;hilo&gt;
+#&gt; 1 2017 Jan   362 [324.8573, 398.8265]95
+#&gt; 2 2017 Feb   284 [255.0384, 313.4771]95
+#&gt; 3 2017 Mar   359 [322.1447, 396.4708]95
+#&gt; 4 2017 Apr   373 [333.8923, 411.5087]95
+#&gt; 5 2017 May   367 [328.6337, 405.6497]95
+#&gt; 6 2017 Jun   387 [346.4780, 428.3873]95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row now shows a best guess plus the range the model is 95 percent sure the true demand falls within. For January 2017 the model expects about 362 and is 95 percent confident the real figure lands between roughly 325 and 399. That spread, not the single number, is what an inventory decision actually needs.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for hilo() whenever someone asks "how sure are you?"</strong> It converts any <a class="auto-link" href="Distributional-Forecasts-in-R.html" title="Distributional Forecasts in R with fable">forecast distribution</a> into plain low-high numbers at the level you choose, so you can hand a stakeholder an honest range without touching a standard-error formula.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Business reports often prefer an 80 percent band to a 95 percent one. Produce the 80 percent interval for the winning model. The starter filters to the <code>ets</code> forecasts.</p>
+<div class="webr-container" data-block-title="Your turn: get an 80 percent interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: get an 80 percent interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ets &lt;- fc |&gt; filter(.model == &quot;ets&quot;)
+# your code: pipe ex_ets through hilo() at the 80 percent level</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="An 80 percent interval for the winner">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An 80 percent interval for the winner</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt;
+  filter(.model == &quot;ets&quot;) |&gt;
+  hilo(level = 80) |&gt;
+  as_tibble() |&gt;
+  transmute(Month, mean = round(.mean, 0), interval = `80%`) |&gt;
+  head(4)
+#&gt; # A tibble: 4 × 3
+#&gt;      Month  mean               interval
+#&gt;      &lt;mth&gt; &lt;dbl&gt;                 &lt;hilo&gt;
+#&gt; 1 2017 Jan   362 [337.6590, 386.0249]80
+#&gt; 2 2017 Feb   284 [265.1522, 303.3633]80
+#&gt; 3 2017 Mar   359 [335.0081, 383.6073]80
+#&gt; 4 2017 Apr   373 [347.3252, 398.0758]80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 80 percent band is narrower than the 95 percent band, because you are asking the model to be sure about a smaller range. Same forecast, same <code>hilo()</code> verb, just a lower confidence level.</p>
+
+</details>
+</section>
+
+<h2>How do you turn the forecast into an inventory decision?</h2>
+
+<p>This is the payoff, and it is the part most tutorials skip. A forecast is only useful if it changes a decision, and the decision here is: how much stock do we hold for each month? The bridge between the two is a service level, which is the probability you want of not running out. A 95 percent service level means you are willing to stock out only 1 month in 20.</p>
+
+<p>First we commit to the winner and use all the data. We refit <code>ETS(Sales)</code> on the full history (no need to hold anything back now that the model is chosen) and forecast the real future, 2019.</p>
+
+<div class="webr-container" data-block-title="Refit the winner and forecast 2019">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit the winner and forecast 2019</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_full &lt;- demand |&gt; model(ets = ETS(Sales))
+fc_2019 &lt;- fit_full |&gt; forecast(h = 12)
+
+fc_2019 |&gt; hilo(level = 95) |&gt;
+  as_tibble() |&gt;
+  transmute(Month, point = round(.mean, 0),
+            lo = round(`95%`$lower, 0), hi = round(`95%`$upper, 0))
+#&gt; # A tibble: 12 × 4
+#&gt;       Month point    lo    hi
+#&gt;       &lt;mth&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1 2019 Jan   369   332   405
+#&gt;  2 2019 Feb   288   259   317
+#&gt;  3 2019 Mar   367   330   404
+#&gt;  4 2019 Apr   385   346   424
+#&gt;  5 2019 May   382   343   421
+#&gt;  6 2019 Jun   399   357   440
+#&gt;  7 2019 Jul   377   338   417
+#&gt;  8 2019 Aug   338   303   374
+#&gt;  9 2019 Sep   353   316   391
+#&gt; 10 2019 Oct   390   348   431
+#&gt; 11 2019 Nov   442   394   489
+#&gt; 12 2019 Dec   744   663   825</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>December 2019 is forecast at 744, with a 95 percent range of 663 to 825. That December row is where the stocking decision bites, so let us pull out its distribution and read off its two key numbers: the mean and the standard deviation.</p>
+
+<div class="webr-container" data-block-title="Extract the December demand distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the December demand distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dec &lt;- fc_2019 |&gt; filter(lubridate::month(Month) == 12)
+dec_dist &lt;- dec$Sales[[1]]
+
+mu  &lt;- mean(dec_dist)
+sig &lt;- sqrt(distributional::variance(dec_dist))
+cat(&quot;December mean:&quot;, round(mu, 1), &quot;  sd:&quot;, round(sig, 1), &quot;\n&quot;)
+#&gt; December mean: 744   sd: 41.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model says December demand is centered on 744 with a standard deviation of about 41. The standard deviation is the width of our uncertainty, and it is the raw material for the stocking decision. Figure 3 shows the idea: pick a service level, read the matching quantile of the demand distribution, and that quantile is the stock to hold.</p>
+
+<p><img src="screenshots/Retail-Demand-Forecasting-in-R-inventory.webp" alt="A forecast distribution is converted into a stock level by choosing a service level and reading the matching quantile" class="img-responsive img-zoomable" loading="lazy" width="2248" height="334" /></p>
+
+<p><em>Figure 3: A forecast distribution becomes a stock level via a quantile.</em></p>
+
+<p>Now we build the actual stocking table. For a normal demand distribution, the stock needed for a given service level is the mean plus a multiple of the standard deviation, where the multiple <code>z</code> comes from the normal curve (<code>qnorm()</code>). The safety stock is the extra cushion above the average forecast.</p>
+
+<div class="webr-container" data-block-title="Build a service-level stocking table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a service-level stocking table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stock_plan &lt;- tibble(service_level = c(0.80, 0.90, 0.95, 0.99)) |&gt;
+  mutate(
+    z             = round(qnorm(service_level), 2),
+    stock_to_hold = round(mu + qnorm(service_level) * sig, 0),
+    safety_stock  = round(qnorm(service_level) * sig, 0)
+  )
+stock_plan
+#&gt; # A tibble: 4 × 4
+#&gt;   service_level     z stock_to_hold safety_stock
+#&gt;           &lt;dbl&gt; &lt;dbl&gt;         &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1          0.8   0.84           779           35
+#&gt; 2          0.9   1.28           797           53
+#&gt; 3          0.95  1.64           812           68
+#&gt; 4          0.99  2.33           840           96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read this as a menu of choices. To be 95 percent sure of meeting December demand, hold 812 worth of stock, which is 68 above the 744 forecast. Want near-certainty at 99 percent? That costs 840, a 96 cushion. The jump from 95 to 99 percent raises the safety stock from 68 to 96, a 40 percent bigger cushion for only 4 extra points of coverage, which is the diminishing return every inventory manager learns to respect.</p>
+
+<p>You do not have to trust the formula on faith. The stock level it produces is exactly the quantile of the forecast distribution, which fable can compute directly.</p>
+
+<div class="webr-container" data-block-title="Confirm the stock level equals the forecast quantile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the stock level equals the forecast quantile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cat(&quot;formula  mu + z*sig :&quot;, round(mu + qnorm(0.95) * sig, 1), &quot;\n&quot;)
+cat(&quot;fable quantile 0.95 :&quot;, round(quantile(dec_dist, 0.95)[[1]], 1), &quot;\n&quot;)
+#&gt; formula  mu + z*sig : 812.1 
+#&gt; fable quantile 0.95 : 812.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two agree at 812.1. This is the classic safety-stock formula meeting the modern forecast distribution, and they are the same thing.</p>
+
+<p>If you like the math, here it is in one line. The safety stock you hold above the forecast mean is:</p>
+
+<p>$$SS = z_{sl} \cdot \sigma$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$SS$ = the safety stock (the cushion above the average forecast)</li>
+
+<li>$z_{sl}$ = the normal multiplier for your chosen service level (for example 1.645 at 95 percent)</li>
+
+<li>$\sigma$ = the standard deviation of the demand forecast</li>
+
+</ul>
+
+<p>If you are not interested in the formula, skip it: the stock table above is all you need to act.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The forecast's uncertainty is the direct input to safety stock, so a sharper forecast frees up cash.</strong> A smaller $\sigma$ means a smaller cushion for the same service level, which is inventory you no longer have to buy and warehouse. That is the concrete business value of a better model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A manager wants the stock level for a 97.5 percent service level. The December mean <code>mu</code> and standard deviation <code>sig</code> are already in memory from above.</p>
+<div class="webr-container" data-block-title="Your turn: stock for a 97.5 percent service level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stock for a 97.5 percent service level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mu and sig are the December mean and standard deviation from above
+# your code: compute mu + qnorm(0.975) * sig, rounded to a whole number</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stock for a 97.5 percent service level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stock for a 97.5 percent service level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mu + qnorm(0.975) * sig, 0)
+#&gt; [1] 825</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 97.5 percent the multiplier <code>qnorm(0.975)</code> is about 1.96, so the stock level is 825, sitting neatly between the 95 percent (812) and 99 percent (840) levels from the table.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: from raw data to a stocking decision</h2>
+
+<p>Here is the whole case study compressed into one runnable block, so you can see the pipeline as a single thought. It rebuilds the series, backtests the winning model, refits on all the data, forecasts December, and reports the 95 percent stock level, using fresh <code>cx_</code> variable names so it does not disturb anything above.</p>
+
+<div class="webr-container" data-block-title="End-to-end demand forecast and stocking decision">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end demand forecast and stocking decision</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cx_demand &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry == &quot;Department stores&quot;) |&gt;
+  as_tibble() |&gt; transmute(Month, Sales = Turnover) |&gt;
+  as_tsibble(index = Month)
+
+cx_fit   &lt;- cx_demand |&gt; filter_index(. ~ &quot;2016 Dec&quot;) |&gt; model(ets = ETS(Sales))
+cx_rmsse &lt;- cx_fit |&gt; forecast(h = 24) |&gt; accuracy(cx_demand) |&gt; pull(RMSSE)
+
+cx_final &lt;- cx_demand |&gt; model(ets = ETS(Sales)) |&gt; forecast(h = 12)
+cx_dec   &lt;- cx_final |&gt; filter(lubridate::month(Month) == 12)
+cx_mu    &lt;- mean(cx_dec$Sales[[1]])
+cx_sd    &lt;- sqrt(distributional::variance(cx_dec$Sales[[1]]))
+cx_stock &lt;- cx_mu + qnorm(0.95) * cx_sd
+
+tibble(
+  backtest_RMSSE = round(cx_rmsse, 3),
+  dec_forecast   = round(cx_mu, 0),
+  stock_95       = round(cx_stock, 0),
+  safety_stock   = round(cx_stock - cx_mu, 0)
+)
+#&gt; # A tibble: 1 × 4
+#&gt;   backtest_RMSSE dec_forecast stock_95 safety_stock
+#&gt;            &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1          0.748          744      812           68</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One block carries the whole story: the model beats the naive baseline (RMSSE 0.748), forecasts December demand at 744, and recommends holding 812 to hit a 95 percent service level, a 68-unit cushion. That final row is the deliverable an inventory team can act on.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These build on the objects created above (<code>sig</code>, <code>fc_2019</code>). Use the distinct variable names given so you do not overwrite the tutorial's state.</p>
+
+<h3>Exercise 1: The cost of a higher service level</h3>
+
+<p>Higher service levels cost more stock. Using the December standard deviation <code>sig</code>, compute the safety stock for a 90 percent and a 99 percent service level, then report how many extra units the jump from 90 to 99 costs.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: safety stock at two service levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: safety stock at two service levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: safety stock at service level sl is qnorm(sl) * sig.
+# Build a 2-row tibble for sl = 0.90 and 0.99, then the extra units between them.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ss &lt;- tibble(service_level = c(0.90, 0.99)) |&gt;
+  mutate(safety_stock = round(qnorm(service_level) * sig, 0))
+ss
+#&gt; # A tibble: 2 × 2
+#&gt;   service_level safety_stock
+#&gt;           &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1          0.9            53
+#&gt; 2          0.99           96
+cat(&quot;Extra units to go from 90% to 99%:&quot;,
+    round(qnorm(0.99) * sig - qnorm(0.90) * sig, 0), &quot;\n&quot;)
+#&gt; Extra units to go from 90% to 99%: 43</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Moving from a 90 to a 99 percent service level nearly doubles the cushion, from 53 to 96, an extra 43 units of stock. Those last few points of certainty are expensive, which is why 95 percent is such a common compromise.</p>
+
+</details>
+
+<h3>Exercise 2: A full-year stocking plan</h3>
+
+<p>The December decision was one month. Build the whole 2019 plan: for each month, take the forecast mean and its standard deviation, and compute the 95 percent stock level and the safety stock. Use the <code>fc_2019</code> forecast from the tutorial.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: a 95 percent stock level for every month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: a 95 percent stock level for every month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: add a column sd = sqrt(distributional::variance(Sales)),
+# then stock_95 = .mean + qnorm(0.95) * sd, and safety = qnorm(0.95) * sd.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">year_plan &lt;- fc_2019 |&gt;
+  mutate(sd = sqrt(distributional::variance(Sales))) |&gt;
+  as_tibble() |&gt;
+  transmute(
+    Month,
+    forecast = round(.mean, 0),
+    stock_95 = round(.mean + qnorm(0.95) * sd, 0),
+    safety   = round(qnorm(0.95) * sd, 0)
+  )
+year_plan
+#&gt; # A tibble: 12 × 4
+#&gt;       Month forecast stock_95 safety
+#&gt;       &lt;mth&gt;    &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 2019 Jan      369      400     31
+#&gt;  2 2019 Feb      288      313     24
+#&gt;  3 2019 Mar      367      398     31
+#&gt;  4 2019 Apr      385      418     33
+#&gt;  5 2019 May      382      415     33
+#&gt;  6 2019 Jun      399      433     35
+#&gt;  7 2019 Jul      377      410     33
+#&gt;  8 2019 Aug      338      368     30
+#&gt;  9 2019 Sep      353      385     31
+#&gt; 10 2019 Oct      390      425     35
+#&gt; 11 2019 Nov      442      482     40
+#&gt; 12 2019 Dec      744      812     68</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The safety stock is largest in the high-demand months (December at 68, November at 40) because bigger sales carry bigger absolute uncertainty. This one table is a complete, defensible inventory plan for the year.</p>
+
+</details>
+
+<h3>Exercise 3: Repeat the workflow on a new category</h3>
+
+<p>The real test of a workflow is whether it transfers. Build the demand series for Victoria "Clothing retailing", split at the same date, fit <code>SNAIVE</code> and <code>ETS</code>, and report which one wins the backtest by RMSSE.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: pick the best model for a new category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: pick the best model for a new category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rebuild the series (Sales = Turnover), filter_index to &quot;2016 Dec&quot; for training,
+# model(snaive = SNAIVE(Sales), ets = ETS(Sales)), forecast h = 24, accuracy vs full series.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clothing &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry == &quot;Clothing retailing&quot;) |&gt;
+  as_tibble() |&gt; transmute(Month, Sales = Turnover) |&gt;
+  as_tsibble(index = Month)
+
+cl_fit &lt;- clothing |&gt;
+  filter_index(. ~ &quot;2016 Dec&quot;) |&gt;
+  model(snaive = SNAIVE(Sales), ets = ETS(Sales))
+
+cl_fit |&gt;
+  forecast(h = 24) |&gt;
+  accuracy(clothing) |&gt;
+  select(.model, RMSSE, MASE) |&gt;
+  arrange(RMSSE)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model RMSSE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets    0.753 0.814
+#&gt; 2 snaive 1.47  1.63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The exact same workflow ports straight to clothing, where <code>ets</code> again wins convincingly (RMSSE 0.753 against the baseline's 1.47). A method that generalizes across categories is the one worth building a process around.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Should I forecast demand in units or in dollars?</strong> Whichever drives your decision. This case study used monthly turnover in dollars, but if you order stock in units, forecast units. The workflow does not change: swap the response column and every step from decomposition to safety stock works the same way.</p>
+
+<p><strong>How much history do I need?</strong> Enough to see the seasonality several times over. For monthly retail data with a yearly season, aim for at least three to four full years so the model can learn the seasonal shape, and hold out one to two recent years to test it. We had 35 years, which is generous.</p>
+
+<p><strong>Why hold out two years instead of one?</strong> Because one held-out December could be a fluke. Testing across two separate Christmases gives you more confidence that the winning model is genuinely better and not just lucky on a single peak.</p>
+
+<p><strong>How do I choose between <a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a>?</strong> Do not choose up front. Fit both, plus a naive baseline, and let a held-out backtest decide, exactly as we did. Here ETS won narrowly, but on a different series ARIMA might. The framework makes fitting both a one-line change, so there is no reason to guess.</p>
+
+<p><strong>How often should I refresh the forecast?</strong> Refit whenever new data arrives, typically monthly for this kind of series. The whole pipeline is a short script, so re-running it each month with the latest sales keeps both the forecast and the stocking plan current.</p>
+
+<p><strong>Can I add promotions or price as drivers?</strong> Yes. When demand depends on known drivers like price or a promotion flag, a <a class="auto-link" href="Dynamic-Regression-in-R.html" title="Dynamic Regression in R: Regression with ARIMA Errors">dynamic regression model</a> (<code>ARIMA(Sales ~ price + promo)</code>) folds them in. Some of those richer workflows use packages that run best in a local R session rather than in your browser.</p>
+
+<h2>Summary</h2>
+
+<p>Retail demand forecasting is not one model but a short, honest pipeline. You explore the data to find its <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">trend and seasonality</a>, split it in time to test fairly, fit a few models from a naive baseline upward, pick the winner on held-out accuracy, quantify the uncertainty, and convert that uncertainty into a stocking decision. Every step is a handful of tidyverts verbs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Verb</th>
+<th>What it did</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Explore</td>
+<td><code>autoplot()</code>, <code>features()</code></td>
+<td>Revealed a strong trend and a dominant December peak</td>
+</tr>
+<tr>
+<td>Split</td>
+<td><code>filter_index()</code></td>
+<td>Held out the last 24 months for an honest test</td>
+</tr>
+<tr>
+<td>Fit</td>
+<td><code>model()</code></td>
+<td>Trained SNAIVE, ETS, ARIMA, and a logged ETS at once</td>
+</tr>
+<tr>
+<td>Evaluate</td>
+<td><code>accuracy()</code></td>
+<td>Picked ETS by scaled error (RMSSE 0.748)</td>
+</tr>
+<tr>
+<td>Quantify</td>
+<td><code>hilo()</code></td>
+<td>Turned the forecast into low-high demand ranges</td>
+</tr>
+<tr>
+<td>Decide</td>
+<td><code>qnorm()</code>, <code>quantile()</code></td>
+<td>Converted the December distribution into a 95 percent stock level</td>
+</tr>
+</tbody>
+</table>
+
+<p>The headline lesson: a forecast only matters when it changes a decision. By carrying the demand distribution all the way to a service level, we turned a monthly sales prediction of 744 into a concrete instruction, hold 812 units of stock, that a business can act on with a known 95 percent chance of not stocking out.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. <a href="https://otexts.com/fpp3/">Link</a> - the free textbook behind every method on this page, from STL decomposition to ETS to honest backtesting.</li>
+
+<li>fable package documentation, tidyverts. <a href="https://fable.tidyverts.org/">Link</a> - the reference for the <code>model()</code>, <code>forecast()</code>, and <code>accuracy()</code> verbs used throughout.</li>
+
+<li>feasts package documentation (decomposition and features). <a href="https://feasts.tidyverts.org/">Link</a> - covers <code>STL()</code>, <code>feat_stl</code>, and the <code>guerrero</code> feature we used to explore the series.</li>
+
+<li>tsibble package documentation, tidyverts. <a href="https://tsibble.tidyverts.org/">Link</a> - explains the time-aware table and the <code>filter_index()</code> date slicing behind the train/test split.</li>
+
+<li>O'Hara-Wild, M., Hyndman, R.J., & Wang, E. <em>tsibbledata: Diverse Datasets for tsibble</em>. <a href="https://tsibbledata.tidyverts.org/">Link</a> - the package that ships the <code>aus_retail</code> series this case study is built on.</li>
+
+<li>Hyndman, R.J. Tidy forecasting in R. <a href="https://robjhyndman.com/hyndsight/fable/">Link</a> - a short tour of the fable workflow from its author, good for seeing the big picture.</li>
+
+<li>Australian Bureau of Statistics, Retail Trade, Australia (source of <code>aus_retail</code>). <a href="https://www.abs.gov.au/statistics/industry/retail-and-wholesale-trade/retail-trade-australia">Link</a> - the official source of the monthly turnover figures behind the dataset.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Batch-Forecasting-in-R.html">Forecast Hundreds of Series Automatically in R</a> - scale this single-series workflow to hundreds of products or stores at once.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE</a> - a deeper look at the error measures we used to pick the winning model.</li>
+
+<li><a href="fable-in-R.html">fable in R: Tidy Time Series Forecasting</a> - the framework this case study is built on, explained from the single-series basics up.</li>
+
+</ul>
+
+{% endraw %}
