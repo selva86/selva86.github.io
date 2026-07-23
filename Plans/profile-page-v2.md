@@ -219,3 +219,39 @@ role <= 60 chars. Corrupt profile_json parses to {} (never throws).
 [ ] Zero-activity profile intentional-looking
 [ ] Mobile 390px: no horizontal scroll
 [ ] Perf sanity: page + card.svg respond < 1s warm
+
+---
+
+# v2 scope additions (owner-approved 2026-07-24, round 2)
+
+12. OWNER-ONLY VIEW COUNTER: profile_views(handle, day, n) D1 table,
+    incremented on public GETs, "N views this month" in the owner bar only.
+13. CURRENTLY-LEARNING AUTO-LINE: top track by graded activity in the last
+    30 days via hub-tracks.json ("Deep in Time Series this month"); omitted
+    when idle - never stale.
+14. RUNNABLE PINNED SNIPPET (the moat feature): one owner-pinned R snippet
+    (profile_json.snippet {title, code}, code <= 2,000 chars, escaped into
+    the standard editor markup). Renders with the site Run button; the R
+    engine loads lazily on first Run so profile load stays instant. Report
+    link for content moderation. Public profiles only.
+15. HANDLE CUSTOMIZATION, one change allowed:
+    - POST /api/me/profile {handle} - regex + reserved-set + uniqueness;
+      permitted only while users.prev_handle IS NULL (one change, enforced
+      atomically in the UPDATE's WHERE clause).
+    - On rename: prev_handle = old, handle = new. Lookups try handle first,
+      then prev_handle -> 301 to the new URL (covers /u/<old> AND the
+      embedded card.svg, since <img> follows redirects).
+    - Freed old handles stay RESERVED (candidate handles are checked against
+      all prev_handle values too), so a stranger can never take over a
+      previously shared URL - redirects keep working forever.
+    - Failure cases: rename race (unique index wins, loser 409s), reserved
+      word (400), same-handle no-op (400), card.svg cache serving old handle
+      for <= 1h post-rename (acceptable, self-heals).
+
+Additional test checklist items:
+[ ] View counter increments for stranger views, renders only in owner bar
+[ ] Currently-learning shows for active profile, absent for idle one
+[ ] Pinned snippet: renders escaped, Run executes, hostile code string
+    displays as text (no HTML breakout), report link present
+[ ] Handle change: happy path 301s old->new incl. card.svg; second change
+    rejected; reserved + taken + prev-handle-of-another-user all rejected
