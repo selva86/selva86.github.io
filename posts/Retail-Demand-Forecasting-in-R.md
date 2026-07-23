@@ -1,778 +1,936 @@
 ---
 title: "Retail Demand Forecasting in R: an End-to-End Case Study"
 slug: "Retail-Demand-Forecasting-in-R"
-description: "A complete retail demand forecasting case study in R: explore sales data, backtest ETS and ARIMA models, quantify uncertainty, and set inventory safety stock."
-keywords: "retail demand forecasting in R, demand forecasting R, forecast retail sales R, fable demand forecasting, ETS ARIMA forecasting R, time series forecasting case study, safety stock forecasting, inventory forecasting R, seasonal demand forecast R"
-auto_link_terms: "retail demand forecasting|demand forecasting in R|retail demand forecasting in R|forecast retail demand|demand forecasting case study|end-to-end forecasting workflow|forecast to inventory decision|safety stock from a forecast|service level forecasting|turn a forecast into a decision|retail sales forecasting"
+description: "A full retail demand forecasting case study in R: audit the data, run EDA, fit five models, backtest with rolling-origin CV, and ship an order-book forecast."
+keywords: "retail demand forecasting in R, demand forecasting case study, forecast retail sales R, fable forecasting, rolling origin cross validation, seasonal ARIMA retail, safety stock forecast, aus_retail"
+auto_link_terms: "retail demand forecasting|demand forecasting in R|retail sales forecasting|retail forecasting case study|forecast retail demand|demand forecasting case study|store demand forecasting|retail forecasting engagement|forecasting demand in R"
 auto_link_case_sensitive: false
-mathjax: true
+mathjax: false
 webr: true
 date: "2026-07-23"
 curriculum_id: "TS2-13.4"
 post_type: "C"
 sidebar_section: "Time Series"
 sidebar_title: "Retail Demand Forecasting"
-sidebar_order: "64"
-difficulty: "Intermediate"
+sidebar_order: 64
+difficulty: "Advanced"
 ---
 
-<p class="lead">Retail demand forecasting predicts how much a store will sell in future periods, so the business can hold the right amount of stock. This is a full case study on one real retail series: we start from raw monthly sales, explore what drives them, test several models honestly, quantify how uncertain the forecast is, and finish by deciding exactly how much stock to hold. Every number on this page was produced by running the code, not estimated.</p>
+<p class="lead">Retail demand forecasting in R means turning a store's sales history into a defensible order-book number: you audit the data, explore its trend and seasonality, fit and backtest several models, then hand operations a forecast with a safety-stock band. This is a full case study, run the way a consulting team would run it for a client, from the business brief to the production hand-off. Every step uses the tidyverts stack (tsibble, feasts, fable), and every block runs in your browser.</p>
 
-## How does an end-to-end retail demand forecast work in R?
+## What decision does a retail demand forecast actually feed?
 
-Picture a group of department stores in the Australian state of Victoria. Every month they record their total sales, and every year the planning team has to answer one question: how much stock should we carry, month by month, so we neither run out during the Christmas rush nor drown in leftover inventory in February? To answer that, they first need a forecast of demand. Here is the entire forecast for the next year, produced by a single command, before we explain any of the moving parts.
+Imagine you are the demand analyst at Southern Cross, a department-store chain. Every month you sign off on the stock orders that hit the shelves eight to twelve weeks later. Order too little and December shoppers find empty racks, which is lost sales you never recover. Order too much and January turns into a round of deep markdowns, clearing surplus stock at a loss. Your forecast is the single number that tips that decision one way or the other.
 
-```r title="Load libraries and forecast a year of demand"
-library(tsibble)
-library(fable)
-library(tsibbledata)
-library(dplyr)
+The stakes are large because December is not a normal month. In this business a quiet month turns over around A$350 million; last December it was A$724 million. Miss that December by just 5% and you are staring at either A$36 million of empty shelves or A$36 million of stock to clear at a discount. That is the cost of a wrong forecast, in dollars a category manager feels.
 
-demand <- aus_retail |>
+So before we touch a model, here is the deliverable we are building toward: the forecast for next December's order book. Our data runs through December 2018, so "next December" is December 2019. In a few lines we can load the real sales history, fit a seasonal model, and read off the number.
+
+```r title="The forecast this case study builds"
+library(fable); library(feasts); library(tsibble); library(tsibbledata)
+library(dplyr); library(lubridate); library(ggplot2); library(tidyr)
+
+dept <- aus_retail |>
   filter(State == "Victoria", Industry == "Department stores") |>
-  as_tibble() |>
-  transmute(Month, Sales = Turnover) |>
-  as_tsibble(index = Month)
+  filter(year(Month) >= 2005) |>
+  select(Month, Turnover)
 
-demand |>
-  model(ets = ETS(Sales)) |>
-  forecast(h = 12)
-#> # A fable: 12 x 4 [1M]
-#> # Key:     .model [1]
-#>    .model    Month        Sales .mean
-#>    <chr>     <mth>       <dist> <dbl>
-#>  1 ets    2019 Jan  N(369, 355)  369.
-#>  2 ets    2019 Feb  N(288, 219)  288.
-#>  3 ets    2019 Mar  N(367, 359)  367.
-#>  4 ets    2019 Apr  N(385, 400)  385.
-#>  5 ets    2019 May  N(382, 400)  382.
-#>  6 ets    2019 Jun  N(399, 442)  399.
-#>  7 ets    2019 Jul  N(377, 403)  377.
-#>  8 ets    2019 Aug  N(338, 329)  338.
-#>  9 ets    2019 Sep  N(353, 365)  353.
-#> 10 ets    2019 Oct  N(390, 453)  390.
-#> 11 ets    2019 Nov  N(442, 593)  442.
-#> 12 ets    2019 Dec N(744, 1717)  744.
+dept |>
+  model(arima = ARIMA(log(Turnover))) |>
+  forecast(h = 12) |>
+  hilo(level = 95) |>
+  as_tibble() |>
+  filter(Month == yearmonth("2019 Dec")) |>
+  transmute(Month, point = round(.mean, 1),
+            lower = round(`95%`$lower, 1),
+            upper = round(`95%`$upper, 1))
+#> # A tibble: 1 × 4
+#>      Month point lower upper
+#>      <mth> <dbl> <dbl> <dbl>
+#> 1 2019 Dec  735.  675.   799
 ```
 
-Read what came back. `aus_retail` is a dataset of Australian retail turnover that ships with the `tsibbledata` package, and we kept a single slice of it: department-store sales in Victoria, renamed to `Sales`. The `model(ets = ETS(Sales))` step fitted an exponential smoothing model, and `forecast(h = 12)` asked it for the next 12 months. The result is a small table where each row is a future month, the `Sales` column holds the forecast as a probability distribution written `N(mean, variance)`, and `.mean` is the single best-guess number pulled out of that distribution. Look at the last row: the model expects December to reach 744, more than double a quiet month, which is precisely the peak the stocking decision has to get right.
+That one row is the whole engagement in miniature. The model expects December 2019 turnover of about A$735 million, and it is 95% confident the true figure lands between A$675 million and A$799 million. The point forecast sizes the base order; the upper bound sizes the safety stock. Everything else in this tutorial exists to earn the right to hand that number to operations with a straight face.
 
-That one command is the destination. The rest of this page is the journey that makes the forecast trustworthy and turns it into a stocking decision. Figure 1 lays out the whole route.
+The data comes from the Australian Bureau of Statistics: monthly turnover for all Victorian department stores (series A3349641R). We treat it as the demand signal for our fictional chain, so the dollar figures are category-scale, but the workflow is identical whether you forecast a chain, a store, or a single product line.
 
-![The end-to-end retail demand forecasting workflow, from raw sales history to a stocking decision](screenshots/Retail-Demand-Forecasting-in-R-workflow.webp)
+[KEY INSIGHT]
+**A demand forecast is not a number, it is an order decision waiting to happen.** Everything a forecaster does, from cleaning the data to choosing the model to sizing the interval, exists to make one downstream decision less wrong, so we judge every choice by whether it improves that order.
 
-*Figure 1: The whole journey from raw sales to a stocking decision.*
+An engagement like this always moves through the same seven phases, and the rest of the tutorial follows them in order.
 
-Before we go further, let us look at the raw material we are working with. The `demand` object we built is a tsibble, which is a table that knows one column is time. Printing it shows the shape of the data.
+![A flowchart of the seven phases: business brief, data audit, EDA, model portfolio, backtest tournament, recommendation, production](screenshots/Retail-Demand-Forecasting-in-R-engagement-flow.webp)
 
-```r title="Inspect the demand series"
-demand
-#> # A tsibble: 441 x 2 [1M]
-#>       Month Sales
-#>       <mth> <dbl>
-#>  1 1982 Apr 104. 
-#>  2 1982 May 110. 
-#>  3 1982 Jun  96.7
-#>  4 1982 Jul 105. 
-#>  5 1982 Aug  92.5
-#>  6 1982 Sep  98.3
-#>  7 1982 Oct 103. 
-#>  8 1982 Nov 115. 
-#>  9 1982 Dec 208. 
-#> 10 1983 Jan  81.5
-#> # ℹ 431 more rows
-```
+*Figure 1: The seven phases of an end-to-end forecasting engagement.*
 
-We have 441 monthly observations running from April 1982 to December 2018, one number per month. Notice the very first December already jumps to 208 while the months around it sit near 100. That Christmas spike is the single most important feature of retail demand, and we will come back to it many times.
+**Try it:** The November order matters almost as much as December. Change the target month in the payoff block to forecast November 2019 instead, and read off the point and upper bound.
 
-[NOTE]
-**Sales here are monthly turnover in millions of dollars, used as our demand signal.** Real demand planning often works in units per product, but the workflow is identical: swap the column and everything downstream still holds. We use the tidyverts tools (`tsibble`, `fable` and friends) throughout because they keep the time structure attached as we wrangle.
-
-**Try it:** Build the demand series for a different Victorian category, "Cafes, restaurants and takeaway food services", and count how many months it covers. The starter below builds the series for you.
-
-```r title="Your turn: build a second demand series"
-ex_cafes <- aus_retail |>
-  filter(State == "Victoria",
-         Industry == "Cafes, restaurants and takeaway food services") |>
+```r title="Your turn: forecast November 2019"
+dept |>
+  model(arima = ARIMA(log(Turnover))) |>
+  forecast(h = 12) |>
+  hilo(level = 95) |>
   as_tibble() |>
-  transmute(Month, Sales = Turnover) |>
-  as_tsibble(index = Month)
-# your code: count the months in ex_cafes
+  filter(Month == yearmonth("2019 Dec")) |>   # change to 2019 Nov
+  transmute(Month, point = round(.mean, 1), upper = round(`95%`$upper, 1))
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Count the months in the cafes series"
-nrow(ex_cafes)
-#> [1] 441
+```r title="November 2019 forecast"
+dept |>
+  model(arima = ARIMA(log(Turnover))) |>
+  forecast(h = 12) |>
+  hilo(level = 95) |>
+  as_tibble() |>
+  filter(Month == yearmonth("2019 Nov")) |>
+  transmute(Month, point = round(.mean, 1), upper = round(`95%`$upper, 1))
+#> # A tibble: 1 × 3
+#>      Month point upper
+#>      <mth> <dbl> <dbl>
+#> 1 2019 Nov  437.  474.
 ```
 
-**Explanation:** `nrow()` counts the rows, and each row is one month. Every series in `aus_retail` covers the same 441 months, so any category you pick starts and ends on the same dates.
+**Explanation:** November clears about A$437 million, roughly 60% of December's volume. The build-up to Christmas starts in November, which is why the two months carry the year's biggest orders.
 
 </details>
 
-## What is the demand data telling us?
+## What do you check before you trust the data?
 
-Before modeling anything, look at the data. A quick plot answers more questions than a page of summary statistics, so we draw the whole history first.
+A forecast is only as honest as the data under it, so the first real job is an audit. You are looking for four things: how much history you have, whether the calendar has holes in it, whether the numbers are on a sensible scale, and whether anything looks like a data error rather than real demand. Skip this and you will happily fit a beautiful model to a broken series.
 
-```r title="Plot the full demand history"
-library(feasts)
-library(ggplot2)
+Start by looking at the object itself. Our data is a tsibble, which is a data frame that knows one of its columns is time. That time column is the index, and its spacing (here, one month) is the interval.
 
-autoplot(demand, Sales) +
-  labs(y = "Monthly sales ($m)", title = "Victoria department store demand")
+```r title="Glimpse the demand history"
+dept
+#> # A tsibble: 168 x 2 [1M]
+#>       Month Turnover
+#>       <mth>    <dbl>
+#>  1 2005 Jan     300.
+#>  2 2005 Feb     260.
+#>  3 2005 Mar     320.
+#>  4 2005 Apr     286 
+#>  5 2005 May     318.
+#>  6 2005 Jun     358.
+#>  7 2005 Jul     318.
+#>  8 2005 Aug     289 
+#>  9 2005 Sep     306.
+#> 10 2005 Oct     316.
+#> # ℹ 158 more rows
 ```
 
-Run that and three things jump out. The line drifts upward over the decades, so there is a long-run trend. Every year has a sharp spike, so there is strong yearly seasonality. And the spikes get taller as the years pass, so the size of the seasonal swing grows with the overall level. That last point matters for model choice, and we will name it properly soon.
+The header tells you almost everything: 168 monthly rows, indexed by `Month`, with turnover in the second column. That `[1M]` is the interval, one month between rows. Fourteen years of monthly history is a comfortable amount to model with.
 
-Let us quantify the spike. If we average sales within each calendar month across all years, the seasonal shape shows up as plain numbers.
+Now the checks that actually catch problems. A demand series can hide missing months (a store that closed, a data-feed outage) that quietly break seasonal models. The `count_gaps()` function from tsibble reports any implicit gaps in the calendar, and a simple sum finds missing values.
 
-```r title="Average demand by calendar month"
-demand |>
+```r title="Check coverage and calendar gaps"
+c(rows = nrow(dept),
+  first = as.character(min(dept$Month)),
+  last  = as.character(max(dept$Month)),
+  missing = sum(is.na(dept$Turnover)))
+#>       rows      first       last    missing 
+#>      "168" "2005 Jan" "2018 Dec"        "0" 
+
+count_gaps(dept)
+#> # A tibble: 0 × 3
+#> # ℹ 3 variables: .from <mth>, .to <mth>, .n <int>
+```
+
+Both checks come back clean: 168 months from January 2005 to December 2018, no missing values, and a zero-row gap table, which means every month between the first and last is present. This is a well-behaved series. On a messier one you would fill gaps with `fill_gaps()` and decide how to handle the missing values before modeling.
+
+[NOTE]
+**We do not have the chain's promotion calendar, so we build a defensible proxy for it.** The single biggest promotional event in department-store retail is the Christmas and Boxing-Day trading peak, which lands every December, so we flag December as the holiday period and treat the rest as regular months.
+
+```r title="Engineer a December holiday flag"
+dept <- dept |>
+  mutate(promo = if_else(month(Month) == 12, "holiday", "regular"))
+dept |> count(promo)
+#> # A tibble: 2 × 2
+#>   promo       n
+#>   <chr>   <int>
+#> 1 holiday    14
+#> 2 regular   154
+```
+
+Fourteen Decembers (one per year) are flagged as holiday months, and the other 154 are regular. We will not feed this column to the models as a separate variable, because the seasonal term in each model already carries a December effect. Instead we use it to keep the audit honest and, later, to read the size of the December effect straight off a fitted regression.
+
+With the checks passed, look at the whole series at once. A single line chart tells you more about a demand signal than any summary table.
+
+![Line chart of monthly turnover from 2005 to 2018 showing a rising trend and a sharp spike every December, with the largest December peak annotated](screenshots/Retail-Demand-Forecasting-in-R-demand-signal.webp)
+
+*Figure 2: Monthly demand with the recurring December Christmas peak.*
+
+Three features jump out, and each one shapes the modeling to come. First, the level drifts upward over the years, so there is a trend. Second, every single December spikes to almost double the surrounding months, so there is a strong yearly season. Third, the size of that December spike grows as the overall level grows, which is the tell-tale sign that we should model on a log scale, where a percentage swing is a constant distance.
+
+[WARNING]
+**Do not "clean" the December spike as an outlier.** A demand spike that repeats on the same calendar month every year is real seasonality, not a data error, and clipping it would teach the model to under-forecast the most important month of the year. Only investigate spikes that appear once and never again.
+
+**Try it:** Confirm the series really has no gaps a second way, by counting how many of the 168 rows fall in December. If the calendar is complete, you should find exactly 14.
+
+```r title="Your turn: count the Decembers"
+dept |>
   as_tibble() |>
-  mutate(month = lubridate::month(Month, label = TRUE)) |>
-  group_by(month) |>
-  summarise(avg_sales = round(mean(Sales), 0)) |>
-  arrange(desc(avg_sales)) |>
-  head(6)
-#> # A tibble: 6 × 2
-#>   month avg_sales
-#>   <ord>     <dbl>
-#> 1 Dec         516
-#> 2 Nov         299
-#> 3 Jun         262
-#> 4 May         261
-#> 5 Oct         261
-#> 6 Apr         255
+  # filter to December rows, then count them
+  nrow()
 ```
 
-December averages 516, nearly double November at 299, and roughly twice a typical off-peak month near 260. For a department store this is the whole ballgame: get December right and you have got most of the year right.
+<details>
+<summary>Click to reveal solution</summary>
 
-[KEY INSIGHT]
-**Seasonality is the dominant signal in retail demand, so the model must nail the December peak.** A forecast that is smooth and pleasant but misses Christmas is worse than useless, because Christmas is when the stocking decision has real money on the line.
+```r title="Count December rows"
+dept |>
+  as_tibble() |>
+  filter(month(Month) == 12) |>
+  nrow()
+#> [1] 14
+```
 
-We can go one level deeper and formally split the series into its parts. STL decomposition separates any series into a slow-moving trend, a repeating seasonal pattern, plus whatever noise is left over. The `feat_stl` feature reports how strong each part is, on a 0-to-1 scale.
+**Explanation:** Fourteen Decembers across fourteen complete years confirms the calendar has no holes, which matches the zero-row gap table from the audit.
+
+</details>
+
+## What does the demand actually look like?
+
+The audit told us the data is trustworthy. Now we explore its structure, because the shape of a series decides which models can fit it. We will look at three things: how much of the signal is trend versus season, what the seasonal shape looks like across years, and how big the December driver really is. Each view will change a modeling decision.
+
+Start with a number that summarizes the whole series. The `feat_stl()` feature from feasts runs an STL decomposition under the hood and reports the strength of the trend and the strength of the seasonality, each on a 0-to-1 scale where 1 means "dominates completely".
 
 ```r title="Measure trend and seasonal strength"
-demand |>
-  features(Sales, feat_stl) |>
-  select(trend_strength, seasonal_strength_year)
+dept |>
+  features(Turnover, feat_stl) |>
+  transmute(trend_strength = round(trend_strength, 3),
+            seasonal_strength_year = round(seasonal_strength_year, 3))
 #> # A tibble: 1 × 2
 #>   trend_strength seasonal_strength_year
 #>            <dbl>                  <dbl>
-#> 1          0.988                  0.986
+#> 1          0.773                  0.991
 ```
 
-Both strengths are about 0.99, which is close to the maximum of 1. In plain terms, almost all of the movement in this series is explained by its trend and its yearly season, and very little is random noise. That is good news: a demand series this regular is highly forecastable.
+A seasonal strength of 0.991 is about as high as this measure ever gets. It says the yearly pattern is the overwhelming feature of this series, far more than the trend at 0.773. That single fact rules out any model that cannot handle strong seasonality and puts the season front and centre for everything that follows.
 
-To see the pieces themselves, pull out the decomposition components and look at the first rows, then plot them.
+To see those two components pulled apart, decompose the log series with STL. STL splits the data into a smooth trend, a repeating seasonal pattern, and a remainder that holds whatever is left.
 
 ```r title="Decompose the series with STL"
-dcmp <- demand |>
-  model(STL(Sales)) |>
+dcmp <- dept |>
+  model(STL(log(Turnover) ~ trend(window = 21) + season(window = "periodic"))) |>
   components()
-
-dcmp |> select(Month, trend, season_year, remainder)
-#> # A tsibble: 441 x 4 [1M]
-#>       Month trend season_year remainder
-#>       <mth> <dbl>       <dbl>     <dbl>
-#>  1 1982 Apr  107.       -5.95    3.04  
-#>  2 1982 May  107.        5.89   -3.11  
-#>  3 1982 Jun  108.      -12.7     1.70  
-#>  4 1982 Jul  108.       -8.71    5.26  
-#>  5 1982 Aug  108.      -18.3     2.29  
-#>  6 1982 Sep  109.      -14.0     3.40  
-#>  7 1982 Oct  109.       -7.35    0.797 
-#>  8 1982 Nov  110.        4.86   -0.0548
-#>  9 1982 Dec  110.      136.    -37.5   
-#> 10 1983 Jan  111.      -25.4    -3.78  
-#> # ℹ 431 more rows
+head(dcmp, 3)
+#> # A dable: 3 x 7 [1M]
+#> # Key:     .model [1]
+#> # :        log(Turnover) = trend + season_year + remainder
+#>   .model             Month `log(Turnover)` trend season_year remainder season_adjust
+#>   <chr>              <mth>           <dbl> <dbl>       <dbl>     <dbl>         <dbl>
+#> 1 "STL(log(Turno… 2005 Jan            5.70  5.80     -0.0702   -0.0283          5.77
+#> 2 "STL(log(Turno… 2005 Feb            5.56  5.80     -0.293     0.0532          5.85
+#> 3 "STL(log(Turno… 2005 Mar            5.77  5.80     -0.0636    0.0330          5.83
 ```
 
-Each month's actual sales equal `trend + season_year + remainder`. The `trend` column is the smooth backbone, `season_year` is the repeating monthly adjustment, and `remainder` is the small unexplained wiggle. Look at row 9, the first December: its seasonal adjustment is +136, a massive positive bump, while the quiet months carry small negative adjustments. Plotting the components with `autoplot(dcmp)` stacks these three panels so you can see each one on its own.
+Each row now carries the observed log value split into `trend`, `season_year`, and `remainder` columns. Plotting all four panels makes the split obvious.
 
-**Try it:** Put a single number on the Christmas spike. Compute the December average divided by the overall monthly average. The starter builds both averages for you.
+![STL decomposition of the log series into four panels: the data, a slowly rising trend, a large repeating yearly season, and a small remainder](screenshots/Retail-Demand-Forecasting-in-R-stl-decomposition.webp)
 
-```r title="Your turn: size the Christmas spike"
-ex_all <- mean(demand$Sales)                 # overall monthly average
-ex_dec <- demand |> as_tibble() |>
-  filter(lubridate::month(Month) == 12) |>
-  summarise(dec = mean(Sales)) |> pull(dec)  # December average
-# your code: divide the December average by the overall average
-```
+*Figure 3: STL splits the log series into trend, season and remainder.*
 
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="How big is the Christmas spike?"
-round(ex_dec / ex_all, 2)
-#> [1] 1.9
-```
-
-**Explanation:** December demand runs about 1.9 times the average month. That single multiple is why inventory planning for this category lives or dies by the December forecast.
-
-</details>
-
-## How do you test a demand forecast honestly?
-
-Here is the mistake that ruins most forecasting projects: judging a model by how well it fits the data it was trained on. A flexible model can trace the past almost perfectly and still forecast the future terribly, the same way memorizing last year's exam does not mean you understand the subject. The only honest test is to hide the most recent stretch of data, forecast it as if it were unknown, then compare against what actually happened.
-
-So we split the series in time. Everything up to December 2016 becomes the training set, and the final two years (2017 and 2018) become the test set. `filter_index()` slices a tsibble by date in one line.
-
-```r title="Split into training and test sets"
-train <- demand |> filter_index(. ~ "2016 Dec")
-test  <- demand |> filter_index("2017 Jan" ~ .)
-
-cat("train:", nrow(train), " test:", nrow(test), "\n")
-#> train: 417  test: 24
-```
-
-The training set holds 417 months and the test set holds the last 24. We deliberately kept two full years in the test set so the evaluation covers two separate Christmases, not just one lucky (or unlucky) December. Figure 2 shows the shape of this honest test.
-
-![An honest backtest splits history into an older training portion and a recent test portion, fits on the training data, forecasts the test window, and scores against the real values](screenshots/Retail-Demand-Forecasting-in-R-backtest.webp)
-
-*Figure 2: Train on older months, test on recent ones, then score.*
-
-[WARNING]
-**A model scored on its own training data almost always looks better than it really is.** Always hold out the most recent months, forecast them as if they were unknown, then score against the truth. The recent window matters because it is the closest thing you have to the future you actually care about.
-
-**Try it:** Suppose you only wanted a one-year test instead of two. Build a test set that holds out just 2018, and count its months. The starter makes the slice.
-
-```r title="Your turn: hold out only the last year"
-ex_test <- demand |> filter_index("2018 Jan" ~ .)
-# your code: how many months are in ex_test, and what range do they cover?
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Count the held-out months"
-nrow(ex_test)
-#> [1] 12
-range(ex_test$Month)
-#> <yearmonth[2]>
-#> [1] "2018 Jan" "2018 Dec"
-```
-
-**Explanation:** `filter_index("2018 Jan" ~ .)` keeps every month from January 2018 to the end, which is the 12 months of 2018. A shorter test window trains on more data but tests on fewer Christmases, so you trade evidence for training history.
-
-</details>
-
-## Which model forecasts demand best?
-
-Now we fit real models and let the backtest pick a winner. We will try four, from dumb to smart, because a smart model is only worth its complexity if it beats the dumb one.
-
-The first is `SNAIVE`, the seasonal naive method, which forecasts each month to equal the same month last year. It is the baseline every serious model must clear. The second is `ETS`, exponential smoothing, which tracks a level, a trend, and a season and updates them as new data arrives. The third is `ARIMA`, which models each value from its own recent past values and past errors. The fourth is a version of `ETS` fitted to the logarithm of sales, our way of handling the fact that the seasonal swings grow with the level.
-
-That last idea deserves one check. When the size of the seasonal wobble grows with the level, a transformation can even it out. The Guerrero method suggests a good power transformation automatically.
-
-```r title="Find a variance-stabilizing transformation"
-demand |> features(Sales, features = guerrero)
-#> # A tibble: 1 × 1
-#>   lambda_guerrero
-#>             <dbl>
-#> 1           0.173
-```
-
-The suggested power (lambda) is 0.173, which sits close to 0. A lambda of exactly 0 corresponds to a log transformation, so taking logs is a sensible, interpretable choice, which is why our fourth model uses `log(Sales)`. Now we fit all four at once.
-
-```r title="Fit four candidate models"
-fit <- train |>
-  model(
-    snaive  = SNAIVE(Sales),
-    ets     = ETS(Sales),
-    arima   = ARIMA(Sales),
-    ets_log = ETS(log(Sales))
-  )
-fit
-#> # A mable: 1 x 4
-#>     snaive          ets                     arima      ets_log
-#>    <model>      <model>                   <model>      <model>
-#> 1 <SNAIVE> <ETS(M,A,M)> <ARIMA(0,1,2)(0,1,1)[12]> <ETS(A,A,A)>
-```
-
-The result is a mable, short for model table, holding all four fitted models in one row. Look at what the automatic search chose. We never specified an ETS or ARIMA shape; writing `ETS(Sales)` told fable to search the family and keep the best fit. It landed on `ETS(M,A,M)`, meaning multiplicative errors and an additive trend, paired with a multiplicative season. The `M` on the season is important: it means the model already assumes the seasonal swing scales with the level, which is exactly the behavior we spotted in the plot.
-
-To read one model in detail, `report()` prints its inner workings.
-
-```r title="Report the fitted ETS model"
-fit |> select(ets) |> report()
-#> Series: Sales 
-#> Model: ETS(M,A,M) 
-#>   Smoothing parameters:
-#>     alpha = 0.1009497 
-#>     beta  = 0.005779738 
-#>     gamma = 0.2220998 
-#>   sigma^2:  0.0027
-#>      AIC     AICc      BIC 
-#> 4648.269 4649.803 4716.832 
-```
-
-The three smoothing parameters say how fast the model reacts to new information. A small `alpha` of about 0.10 means the level updates slowly and smoothly, `beta` near zero means the trend barely changes, and `gamma` of about 0.22 means the seasonal pattern adapts at a moderate pace. (The report also lists twelve seasonal starting values, which we have left out here for space.) These are learned from the data, not set by us.
-
-A mable is not a forecast. To get one, pass it to `forecast()` with a horizon. Because we want to compare against the held-out 24 months, we forecast 24 months ahead.
-
-```r title="Forecast the held-out window"
-fc <- fit |> forecast(h = 24)
-fc
-#> # A fable: 96 x 4 [1M]
-#> # Key:     .model [4]
-#>    .model    Month       Sales .mean
-#>    <chr>     <mth>      <dist> <dbl>
-#>  1 snaive 2017 Jan N(367, 306)  367.
-#>  2 snaive 2017 Feb N(291, 306)  291.
-#>  3 snaive 2017 Mar N(368, 306)  368.
-#>  4 snaive 2017 Apr N(368, 306)  368.
-#>  5 snaive 2017 May N(362, 306)  362.
-#>  6 snaive 2017 Jun N(397, 306)  397.
-#>  7 snaive 2017 Jul N(359, 306)  359.
-#>  8 snaive 2017 Aug N(316, 306)  316 
-#>  9 snaive 2017 Sep N(336, 306)  336.
-#> 10 snaive 2017 Oct N(364, 306)  364.
-#> # ℹ 86 more rows
-```
-
-That is 96 rows, which is 4 models times 24 months. Now for the moment of truth. `accuracy()` lines each forecast up against the real value in that month and scores it. We pass the full `demand` series so it can find the actual 2017 and 2018 numbers.
-
-```r title="Score every model on held-out demand"
-acc <- accuracy(fc, demand)
-acc |> select(.model, RMSE, MAE, MAPE, MASE, RMSSE) |> arrange(RMSSE)
-#> # A tibble: 4 × 6
-#>   .model   RMSE   MAE  MAPE  MASE RMSSE
-#>   <chr>   <dbl> <dbl> <dbl> <dbl> <dbl>
-#> 1 ets      13.1  10.2  2.60 0.755 0.748
-#> 2 arima    13.1  10.6  2.98 0.781 0.751
-#> 3 ets_log  13.3  10.5  2.66 0.773 0.759
-#> 4 snaive   15.9  13.1  3.45 0.968 0.907
-```
-
-Read the table from the bottom up. The naive baseline (`snaive`) has the largest errors, as expected. All three real models beat it, and the plain `ets` model wins on every measure, with an average error (MAE) of about 10.2 million dollars a month and a MAPE of 2.6 percent. Notice that `ets_log`, the version with the log transform, actually did slightly worse than plain `ets`. That is a genuine and useful result: the multiplicative `ETS(M,A,M)` already handles the growing seasonal swing on its own, so the extra log transform is redundant here rather than helpful.
-
-The two right-hand columns, MASE and RMSSE, are scaled errors. They divide a model's error by the error of the naive baseline, so a value below 1 means the model beat the baseline. The winning `ets` scores 0.748, meaning its errors are about a quarter smaller than just repeating last year.
+Read the panels top to bottom. The trend panel rises gently, then flattens after 2013. The season panel is enormous and perfectly regular, dwarfing the trend, which is exactly what the strength number warned us about. The remainder panel is tiny and patternless, which is good news: it means trend plus season explains almost all of the demand, leaving little unexplained noise. A model that nails the trend and the season will be a strong model here.
 
 [KEY INSIGHT]
-**Scaled errors like MASE and RMSSE tell you whether a model earned its keep.** Below 1 beats the naive baseline, above 1 loses to it. Because the scaling removes the size of the series, you can compare a tiny product line against a whole department on the same footing.
+**When seasonal strength is this high, getting the season right matters more than anything else.** A model that captures the December pattern but fumbles the trend will still forecast well, whereas a model that nails the trend but smears the season will fail every December, which is the month you most need to get right.
 
-Numbers land harder as a picture. Let us plot the actual demand against the point forecasts from the winner and the baseline over the test window.
+Next, look at the seasonal shape itself. Overlaying one line per year shows whether the pattern is stable, and where in the calendar the action happens.
 
-```r title="Plot forecasts against actual demand"
-library(ggplot2)
-recent  <- demand |> filter_index("2015 Jan" ~ .) |> as_tibble() |> mutate(Month = as.Date(Month))
-fc_plot <- fc |> filter(.model %in% c("ets", "snaive")) |> as_tibble() |> mutate(Month = as.Date(Month))
-
-ggplot() +
-  geom_line(data = recent, aes(Month, Sales), colour = "grey40") +
-  geom_line(data = fc_plot, aes(Month, .mean, colour = .model), linewidth = 0.8) +
-  labs(y = "Monthly sales ($m)", colour = "Model")
-```
-
-Run it and the grey line is the truth while the coloured lines are the two forecasts. The `ets` line tracks the real Christmas peaks closely, while the `snaive` line is a flatter copy of the previous year that lags the growth. Seeing the fit is worth a dozen accuracy tables.
-
-**Try it:** The winner was chosen by RMSSE, but a planner might care more about plain average error. Rank the four models by MAE instead. The starter selects the columns for you.
-
-```r title="Your turn: rank the models by MAE"
-ex_rank <- acc |> select(.model, MAE)
-# your code: arrange ex_rank so the smallest MAE is on top
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Models ranked by mean absolute error"
-acc |> select(.model, MAE) |> arrange(MAE)
-#> # A tibble: 4 × 2
-#>   .model    MAE
-#>   <chr>   <dbl>
-#> 1 ets      10.2
-#> 2 ets_log  10.5
-#> 3 arima    10.6
-#> 4 snaive   13.1
-```
-
-**Explanation:** `ets` still leads, so the choice is robust: it wins whether you rank by scaled error or by plain average error. When different metrics agree, you can trust the pick.
-
-</details>
-
-## How certain is the forecast, and why does that matter for stock?
-
-A point forecast is a single number, and single numbers are dangerous for inventory. If the model predicts 744 and you stock exactly 744, you have a coin-flip chance of running out, because real demand lands above the forecast half the time. To decide stock levels you need the whole range of likely demand, not just its center.
-
-Every forecast in a fable already carries that range as its distribution. The `hilo()` function turns a distribution into a plain low-high band at whatever confidence level you name. Here is the 95 percent band for the winning model over the first few test months.
-
-```r title="Read a 95 percent forecast interval"
-fc |>
-  filter(.model == "ets") |>
-  hilo(level = 95) |>
+```r title="Plot the seasonal shape across years"
+season_df <- dept |>
   as_tibble() |>
-  transmute(Month, mean = round(.mean, 0), interval = `95%`) |>
-  head(6)
-#> # A tibble: 6 × 3
-#>      Month  mean               interval
-#>      <mth> <dbl>                 <hilo>
-#> 1 2017 Jan   362 [324.8573, 398.8265]95
-#> 2 2017 Feb   284 [255.0384, 313.4771]95
-#> 3 2017 Mar   359 [322.1447, 396.4708]95
-#> 4 2017 Apr   373 [333.8923, 411.5087]95
-#> 5 2017 May   367 [328.6337, 405.6497]95
-#> 6 2017 Jun   387 [346.4780, 428.3873]95
+  mutate(year = year(Month), month = month(Month, label = TRUE))
+
+ggplot(season_df, aes(month, Turnover, group = year, colour = year)) +
+  geom_line() +
+  labs(title = "Seasonal shape by year", x = "Month", y = "Turnover (A$m)")
 ```
 
-Each row now shows a best guess plus the range the model is 95 percent sure the true demand falls within. For January 2017 the model expects about 362 and is 95 percent confident the real figure lands between roughly 325 and 399. That spread, not the single number, is what an inventory decision actually needs.
+![Seasonal plot with one coloured line per year, all sharing the same shape: a February trough and a steep climb to a December peak](screenshots/Retail-Demand-Forecasting-in-R-seasonal-shape.webp)
 
-[TIP]
-**Reach for hilo() whenever someone asks "how sure are you?"** It converts any forecast distribution into plain low-high numbers at the level you choose, so you can hand a stakeholder an honest range without touching a standard-error formula.
+*Figure 4: The seasonal shape repeats every year, peaking in December.*
 
-**Try it:** Business reports often prefer an 80 percent band to a 95 percent one. Produce the 80 percent interval for the winning model. The starter filters to the `ets` forecasts.
+Every year traces the same path: a dip in February, a plateau through winter, and a steep climb from October into a December spike. The lines are stacked in colour order, with later years sitting higher, which is the trend showing through. The shape barely changes from year to year, and a stable seasonal shape is exactly what you want, because it means last year's pattern is a reliable guide to next year's.
 
-```r title="Your turn: get an 80 percent interval"
-ex_ets <- fc |> filter(.model == "ets")
-# your code: pipe ex_ets through hilo() at the 80 percent level
-```
+[NOTE]
+**The feasts package has a one-line shortcut for this plot.** Running `dept |> gg_season(Turnover)` produces the same seasonal view without the manual reshaping, and `gg_subseries()` gives a companion view with one panel per month.
 
-<details>
-<summary>Click to reveal solution</summary>
+Finally, quantify the driver. The single most useful EDA number for this business is how much bigger December is than an average month. We compute the average turnover per calendar month and compare each to the overall average.
 
-```r title="An 80 percent interval for the winner"
-fc |>
-  filter(.model == "ets") |>
-  hilo(level = 80) |>
+```r title="Quantify the December lift"
+dept |>
   as_tibble() |>
-  transmute(Month, mean = round(.mean, 0), interval = `80%`) |>
+  mutate(month = month(Month, label = TRUE)) |>
+  group_by(month) |>
+  summarise(avg_turnover = round(mean(Turnover)), .groups = "drop") |>
+  mutate(vs_average = round(avg_turnover / mean(avg_turnover), 2)) |>
+  arrange(desc(avg_turnover)) |>
   head(4)
 #> # A tibble: 4 × 3
-#>      Month  mean               interval
-#>      <mth> <dbl>                 <hilo>
-#> 1 2017 Jan   362 [337.6590, 386.0249]80
-#> 2 2017 Feb   284 [265.1522, 303.3633]80
-#> 3 2017 Mar   359 [335.0081, 383.6073]80
-#> 4 2017 Apr   373 [347.3252, 398.0758]80
+#>   month avg_turnover vs_average
+#>   <ord>        <dbl>      <dbl>
+#> 1 Dec            672       1.85
+#> 2 Nov            399       1.1 
+#> 3 Jun            360       0.99
+#> 4 Jul            350       0.96
 ```
 
-**Explanation:** The 80 percent band is narrower than the 95 percent band, because you are asking the model to be sure about a smaller range. Same forecast, same `hilo()` verb, just a lower confidence level.
+December averages A$672 million against an all-month average of about A$363 million, a lift of 1.85 times, or 85% above a normal month. November is a distant second at 1.1 times. The bar chart below makes the gap unmistakable.
 
-</details>
+![Bar chart of average turnover by calendar month, with December towering 85% above the annual-average line](screenshots/Retail-Demand-Forecasting-in-R-december-lift.webp)
 
-## How do you turn the forecast into an inventory decision?
+*Figure 5: December turnover runs about 85% above the annual average.*
 
-This is the payoff, and it is the part most tutorials skip. A forecast is only useful if it changes a decision, and the decision here is: how much stock do we hold for each month? The bridge between the two is a service level, which is the probability you want of not running out. A 95 percent service level means you are willing to stock out only 1 month in 20.
+This is the driver every model must reproduce. It also justifies the log transform one more time: an 85% December lift is a multiplicative effect, and logs turn multiplicative effects into additive ones that seasonal models handle cleanly.
 
-First we commit to the winner and use all the data. We refit `ETS(Sales)` on the full history (no need to hold anything back now that the model is chosen) and forecast the real future, 2019.
+**Try it:** December is the peak, but February is the trough. Adapt the lift calculation to find February's multiplier. Is it as far below average as December is above?
 
-```r title="Refit the winner and forecast 2019"
-fit_full <- demand |> model(ets = ETS(Sales))
-fc_2019 <- fit_full |> forecast(h = 12)
-
-fc_2019 |> hilo(level = 95) |>
+```r title="Your turn: find the February trough"
+dept |>
   as_tibble() |>
-  transmute(Month, point = round(.mean, 0),
-            lo = round(`95%`$lower, 0), hi = round(`95%`$upper, 0))
-#> # A tibble: 12 × 4
-#>       Month point    lo    hi
-#>       <mth> <dbl> <dbl> <dbl>
-#>  1 2019 Jan   369   332   405
-#>  2 2019 Feb   288   259   317
-#>  3 2019 Mar   367   330   404
-#>  4 2019 Apr   385   346   424
-#>  5 2019 May   382   343   421
-#>  6 2019 Jun   399   357   440
-#>  7 2019 Jul   377   338   417
-#>  8 2019 Aug   338   303   374
-#>  9 2019 Sep   353   316   391
-#> 10 2019 Oct   390   348   431
-#> 11 2019 Nov   442   394   489
-#> 12 2019 Dec   744   663   825
-```
-
-December 2019 is forecast at 744, with a 95 percent range of 663 to 825. That December row is where the stocking decision bites, so let us pull out its distribution and read off its two key numbers: the mean and the standard deviation.
-
-```r title="Extract the December demand distribution"
-dec <- fc_2019 |> filter(lubridate::month(Month) == 12)
-dec_dist <- dec$Sales[[1]]
-
-mu  <- mean(dec_dist)
-sig <- sqrt(distributional::variance(dec_dist))
-cat("December mean:", round(mu, 1), "  sd:", round(sig, 1), "\n")
-#> December mean: 744   sd: 41.4
-```
-
-The model says December demand is centered on 744 with a standard deviation of about 41. The standard deviation is the width of our uncertainty, and it is the raw material for the stocking decision. Figure 3 shows the idea: pick a service level, read the matching quantile of the demand distribution, and that quantile is the stock to hold.
-
-![A forecast distribution is converted into a stock level by choosing a service level and reading the matching quantile](screenshots/Retail-Demand-Forecasting-in-R-inventory.webp)
-
-*Figure 3: A forecast distribution becomes a stock level via a quantile.*
-
-Now we build the actual stocking table. For a normal demand distribution, the stock needed for a given service level is the mean plus a multiple of the standard deviation, where the multiple `z` comes from the normal curve (`qnorm()`). The safety stock is the extra cushion above the average forecast.
-
-```r title="Build a service-level stocking table"
-stock_plan <- tibble(service_level = c(0.80, 0.90, 0.95, 0.99)) |>
-  mutate(
-    z             = round(qnorm(service_level), 2),
-    stock_to_hold = round(mu + qnorm(service_level) * sig, 0),
-    safety_stock  = round(qnorm(service_level) * sig, 0)
-  )
-stock_plan
-#> # A tibble: 4 × 4
-#>   service_level     z stock_to_hold safety_stock
-#>           <dbl> <dbl>         <dbl>        <dbl>
-#> 1          0.8   0.84           779           35
-#> 2          0.9   1.28           797           53
-#> 3          0.95  1.64           812           68
-#> 4          0.99  2.33           840           96
-```
-
-Read this as a menu of choices. To be 95 percent sure of meeting December demand, hold 812 worth of stock, which is 68 above the 744 forecast. Want near-certainty at 99 percent? That costs 840, a 96 cushion. The jump from 95 to 99 percent raises the safety stock from 68 to 96, a 40 percent bigger cushion for only 4 extra points of coverage, which is the diminishing return every inventory manager learns to respect.
-
-You do not have to trust the formula on faith. The stock level it produces is exactly the quantile of the forecast distribution, which fable can compute directly.
-
-```r title="Confirm the stock level equals the forecast quantile"
-cat("formula  mu + z*sig :", round(mu + qnorm(0.95) * sig, 1), "\n")
-cat("fable quantile 0.95 :", round(quantile(dec_dist, 0.95)[[1]], 1), "\n")
-#> formula  mu + z*sig : 812.1 
-#> fable quantile 0.95 : 812.1
-```
-
-The two agree at 812.1. This is the classic safety-stock formula meeting the modern forecast distribution, and they are the same thing.
-
-If you like the math, here it is in one line. The safety stock you hold above the forecast mean is:
-
-$$SS = z_{sl} \cdot \sigma$$
-
-Where:
-
-- $SS$ = the safety stock (the cushion above the average forecast)
-- $z_{sl}$ = the normal multiplier for your chosen service level (for example 1.645 at 95 percent)
-- $\sigma$ = the standard deviation of the demand forecast
-
-If you are not interested in the formula, skip it: the stock table above is all you need to act.
-
-[KEY INSIGHT]
-**The forecast's uncertainty is the direct input to safety stock, so a sharper forecast frees up cash.** A smaller $\sigma$ means a smaller cushion for the same service level, which is inventory you no longer have to buy and warehouse. That is the concrete business value of a better model.
-
-**Try it:** A manager wants the stock level for a 97.5 percent service level. The December mean `mu` and standard deviation `sig` are already in memory from above.
-
-```r title="Your turn: stock for a 97.5 percent service level"
-# mu and sig are the December mean and standard deviation from above
-# your code: compute mu + qnorm(0.975) * sig, rounded to a whole number
+  mutate(month = month(Month, label = TRUE)) |>
+  group_by(month) |>
+  summarise(avg_turnover = round(mean(Turnover)), .groups = "drop") |>
+  mutate(vs_average = round(avg_turnover / mean(avg_turnover), 2)) |>
+  # keep only February
+  head(12)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Stock for a 97.5 percent service level"
-round(mu + qnorm(0.975) * sig, 0)
-#> [1] 825
+```r title="February trough multiplier"
+dept |>
+  as_tibble() |>
+  mutate(month = month(Month, label = TRUE)) |>
+  group_by(month) |>
+  summarise(avg_turnover = round(mean(Turnover)), .groups = "drop") |>
+  mutate(vs_average = round(avg_turnover / mean(avg_turnover), 2)) |>
+  filter(month == "Feb")
+#> # A tibble: 1 × 3
+#>   month avg_turnover vs_average
+#>   <ord>        <dbl>      <dbl>
+#> 1 Feb            263       0.72
 ```
 
-**Explanation:** At 97.5 percent the multiplier `qnorm(0.975)` is about 1.96, so the stock level is 825, sitting neatly between the 95 percent (812) and 99 percent (840) levels from the table.
+**Explanation:** February runs at 0.72 times the average, 28% below a normal month. The peak is far more extreme than the trough (85% up versus 28% down), which is typical of retail: Christmas adds a huge spike, while the quiet months only dip modestly.
 
 </details>
 
-## Complete Example: from raw data to a stocking decision
+## Which forecasting strategies are worth trying?
 
-Here is the whole case study compressed into one runnable block, so you can see the pipeline as a single thought. It rebuilds the series, backtests the winning model, refits on all the data, forecasts December, and reports the 95 percent stock level, using fresh `cx_` variable names so it does not disturb anything above.
+We now know the shape of the problem: a strong, stable yearly season riding on a gentle trend, best handled on the log scale. That knowledge points to a short list of candidate strategies, and a good forecaster tries several rather than betting on one. We will fit five genuinely different models, each a plausible answer to this specific problem.
 
-```r title="End-to-end demand forecast and stocking decision"
-cx_demand <- aus_retail |>
-  filter(State == "Victoria", Industry == "Department stores") |>
-  as_tibble() |> transmute(Month, Sales = Turnover) |>
-  as_tsibble(index = Month)
+Before fitting anything, split the history. We train on everything up to the end of 2016 and hold out 2017 and 2018 as a first test, so no model gets to see the two years we will judge it on.
 
-cx_fit   <- cx_demand |> filter_index(. ~ "2016 Dec") |> model(ets = ETS(Sales))
-cx_rmsse <- cx_fit |> forecast(h = 24) |> accuracy(cx_demand) |> pull(RMSSE)
-
-cx_final <- cx_demand |> model(ets = ETS(Sales)) |> forecast(h = 12)
-cx_dec   <- cx_final |> filter(lubridate::month(Month) == 12)
-cx_mu    <- mean(cx_dec$Sales[[1]])
-cx_sd    <- sqrt(distributional::variance(cx_dec$Sales[[1]]))
-cx_stock <- cx_mu + qnorm(0.95) * cx_sd
-
-tibble(
-  backtest_RMSSE = round(cx_rmsse, 3),
-  dec_forecast   = round(cx_mu, 0),
-  stock_95       = round(cx_stock, 0),
-  safety_stock   = round(cx_stock - cx_mu, 0)
-)
-#> # A tibble: 1 × 4
-#>   backtest_RMSSE dec_forecast stock_95 safety_stock
-#>            <dbl>        <dbl>    <dbl>        <dbl>
-#> 1          0.748          744      812           68
+```r title="Split into training and test windows"
+train <- dept |> filter(Month <= yearmonth("2016 Dec"))
+test  <- dept |> filter(Month >  yearmonth("2016 Dec"))
+c(train_months = nrow(train), test_months = nrow(test))
+#> train_months  test_months 
+#>          144           24 
 ```
 
-One block carries the whole story: the model beats the naive baseline (RMSSE 0.748), forecasts December demand at 744, and recommends holding 812 to hit a 95 percent service level, a 68-unit cushion. That final row is the deliverable an inventory team can act on.
+Now the portfolio. Each model earns its place for a reason:
+
+1. **Seasonal naive** simply repeats last year's value for each month. It is the honest benchmark: if a fancy model cannot beat "same as last year", the fancy model is not worth deploying.
+2. **ETS** (exponential smoothing) tracks a slowly changing level, trend, and season, giving more weight to recent months. It suits a series whose pattern drifts gradually, which ours does.
+3. **ARIMA** models the correlations between a month and its recent and year-ago neighbours. It is the natural counterpart to ETS and often wins on strongly seasonal data.
+4. **Regression (TSLM)** fits a straight-line trend plus a dummy for each calendar month. The December dummy is, in effect, our promotional-lift term, and the model is transparent: you can read the size of every seasonal effect straight off its coefficients.
+5. **Ensemble** averages the ETS, ARIMA, and regression forecasts. Combining models often beats any single one, because their errors partly cancel.
+
+All five fit in one `model()` call, and the ensemble is built by averaging the three model-based columns.
+
+```r title="Fit five forecasting strategies"
+fits <- train |>
+  model(
+    snaive = SNAIVE(Turnover),
+    ets    = ETS(log(Turnover)),
+    arima  = ARIMA(log(Turnover)),
+    tslm   = TSLM(log(Turnover) ~ trend() + season())
+  ) |>
+  mutate(ensemble = (ets + arima + tslm) / 3)
+fits
+#> # A mable: 1 x 5
+#>     snaive          ets                              arima    tslm      ensemble
+#>    <model>      <model>                            <model> <model>       <model>
+#> 1 <SNAIVE> <ETS(A,A,A)> <ARIMA(1,0,2)(0,1,1)[12] w/ drift>  <TSLM> <COMBINATION>
+```
+
+The result is a mable (a model table) with one column per strategy. Notice how much each label tells you. `ETS(A,A,A)` means additive error, trend, and season. The ARIMA search landed on a seasonal model with drift. Let us read that ARIMA in full, since it is our most complex fit.
+
+```r title="Report the fitted ARIMA model"
+fits |> select(arima) |> report()
+#> Series: Turnover 
+#> Model: ARIMA(1,0,2)(0,1,1)[12] w/ drift 
+#> Transformation: log(Turnover) 
+#> 
+#> Coefficients:
+#>          ar1      ma1     ma2     sma1  constant
+#>       0.9084  -0.9869  0.3411  -0.7735     8e-04
+#> s.e.  0.0554   0.0898  0.0954   0.0872     3e-04
+#> 
+#> sigma^2 estimated as 0.001421:  log likelihood=242.51
+#> AIC=-473.02   AICc=-472.34   BIC=-455.72
+```
+
+The label `ARIMA(1,0,2)(0,1,1)[12] w/ drift` reads as a seasonal ARIMA: the second bracket took one seasonal difference (the `1` in the middle) to remove the yearly pattern, and `[12]` confirms a twelve-month season. The `w/ drift` means it lets the forecast keep climbing with the trend rather than flattening out. You do not need to hand-tune any of this; the search found it.
+
+The regression model is the transparent one, so use it to put a number on the December driver we saw in EDA. Its December coefficient is on the log scale, so exponentiating it turns it back into a multiplier.
+
+```r title="Read the December effect from the regression"
+fits |>
+  select(tslm) |>
+  tidy() |>
+  filter(term == "season()year12") |>
+  transmute(term, estimate = round(estimate, 3),
+            lift = round(exp(estimate), 2), p.value)
+#> # A tibble: 1 × 4
+#>   term           estimate  lift  p.value
+#>   <chr>             <dbl> <dbl>    <dbl>
+#> 1 season()year12    0.711  2.04 1.41e-78
+```
+
+The regression says December multiplies the baseline month by 2.04, and the p-value of 1.41e-78 means that effect is about as certain as statistics ever gets. That squares with the 1.85 lift we measured in EDA (the regression compares December to the January baseline, not to the annual average, which is why its multiplier is a touch higher). The model has learned exactly the driver we found by eye.
+
+[TIP]
+**Always include the seasonal naive model, even when you expect it to lose.** It is the yardstick every other model is measured against, and a model that cannot beat "repeat last year" is telling you the extra complexity is buying you nothing.
+
+**Try it:** ETS can also damp its trend, so the forecast levels off instead of climbing forever. Add a damped-trend ETS to the portfolio and confirm it fits without error.
+
+```r title="Your turn: add a damped-trend ETS"
+train |>
+  model(
+    ets        = ETS(log(Turnover)),
+    ets_damped = ETS(log(Turnover))   # specify a damped additive trend
+  )
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Damped-trend ETS"
+train |>
+  model(
+    ets        = ETS(log(Turnover)),
+    ets_damped = ETS(log(Turnover) ~ trend("Ad"))
+  )
+#> # A mable: 1 x 2
+#>            ets    ets_damped
+#>        <model>       <model>
+#> 1 <ETS(A,A,A)> <ETS(A,Ad,A)>
+```
+
+**Explanation:** `trend("Ad")` forces an additive damped trend, shown as `ETS(A,Ad,A)`. Damping is useful when you doubt a trend will continue at full strength, which matters more at long horizons than short ones.
+
+</details>
+
+## Which model actually wins on data it hasn't seen?
+
+Five models are fitted. Now comes the honest part: judging them on data they never saw. This is the step that decides whether a forecasting project succeeds, because a model that fits the training data closely can still forecast the future terribly. We will judge in three ways: a first look on the hold-out, a proper rolling backtest, and a check that the prediction intervals are trustworthy.
+
+Start with the simple hold-out. We forecast the 24 held-out months and score each model with `accuracy()`. The headline measures are MAPE (average error as a percent), MAE (average error in dollars), and MASE (error scaled against the seasonal naive, where below 1 means "better than repeating last year").
+
+```r title="Score the models on the hold-out"
+fc <- fits |> forecast(h = nrow(test))
+fc |>
+  accuracy(dept) |>
+  select(.model, RMSE, MAE, MAPE, MASE) |>
+  arrange(MASE)
+#> # A tibble: 5 × 5
+#>   .model    RMSE   MAE  MAPE  MASE
+#>   <chr>    <dbl> <dbl> <dbl> <dbl>
+#> 1 ets       12.2  9.73  2.62 0.699
+#> 2 ensemble  14.6 12.5   3.20 0.898
+#> 3 arima     15.0 12.5   3.16 0.899
+#> 4 snaive    15.9 13.1   3.45 0.942
+#> 5 tslm      17.9 15.5   3.91 1.11 
+```
+
+On this split ETS looks like the clear winner, at a MASE of 0.699 and a MAPE of 2.62%. But hold that thought. A single two-year window is one roll of the dice: ETS may simply have suited 2017 and 2018. The regression (tslm) even scores above 1, meaning it did worse than the naive benchmark on this stretch. To trust any ranking, we need to test each model over many different starting points.
+
+That is what rolling-origin cross-validation does. We start with ten years of data, forecast the next twelve months, then step the origin forward six months and repeat, over and over. Each model is scored across nine different forecast origins, so a single lucky window cannot flatter it. The `stretch_tsibble()` function builds those expanding windows for us.
+
+```r title="Backtest with rolling-origin cross-validation"
+dept_cv <- dept |> stretch_tsibble(.init = 120, .step = 6)
+
+cv_fits <- dept_cv |>
+  model(
+    snaive = SNAIVE(Turnover),
+    ets    = ETS(log(Turnover)),
+    arima  = ARIMA(log(Turnover)),
+    tslm   = TSLM(log(Turnover) ~ trend() + season())
+  ) |>
+  mutate(ensemble = (ets + arima + tslm) / 3)
+
+cv_by_h <- cv_fits |>
+  forecast(h = 12) |>
+  group_by(.id, .model) |>
+  mutate(h = row_number()) |>
+  ungroup() |>
+  as_fable(response = "Turnover", distribution = Turnover) |>
+  accuracy(dept, by = c(".model", "h")) |>
+  select(.model, h, MASE)
+
+cv_by_h |>
+  filter(h %in% c(1, 3, 6, 12)) |>
+  mutate(MASE = round(MASE, 2)) |>
+  pivot_wider(names_from = h, values_from = MASE, names_prefix = "h=")
+#> # A tibble: 5 × 5
+#>   .model   `h=1` `h=3` `h=6` `h=12`
+#>   <chr>    <dbl> <dbl> <dbl>  <dbl>
+#> 1 arima     1.13  0.57  1.35   1.31
+#> 2 ensemble  1.14  0.67  1.13   1.39
+#> 3 ets       1.34  0.72  1.24   1.26
+#> 4 snaive    0.59  1.25  1.39   1.54
+#> 5 tslm      1.07  0.94  1.52   1.75
+```
+
+Read this table by column, because it tells a different story at each horizon. One month ahead, seasonal naive is untouchable (MASE 0.59): next month usually looks like the same month last year, so the simplest rule wins. Three months ahead, ARIMA takes the lead (0.57) with the ensemble close behind. But look at the long horizons: at twelve months the regression collapses to 1.75, the worst of any cell, because its straight-line trend keeps extrapolating past where demand actually flattened. The picture is clearer as a chart.
+
+![Line chart of MASE by forecast horizon for all five models, showing seasonal naive best at horizon one, ARIMA and the ensemble strong in the middle, and the regression worst at long horizons](screenshots/Retail-Demand-Forecasting-in-R-tournament.webp)
+
+*Figure 6: Rolling-origin backtest: no model wins at every horizon.*
+
+No single model owns every horizon, which is normal and important. To pick one model to deploy, average the error over all twelve horizons and all nine origins into one honest number per model.
+
+```r title="Rank the models overall"
+cv_fits |>
+  forecast(h = 12) |>
+  accuracy(dept) |>
+  select(.model, MAE, MAPE, MASE) |>
+  mutate(MAE = round(MAE, 1), MAPE = round(MAPE, 2), MASE = round(MASE, 3)) |>
+  arrange(MASE)
+#> # A tibble: 5 × 4
+#>   .model     MAE  MAPE  MASE
+#>   <chr>    <dbl> <dbl> <dbl>
+#> 1 ensemble  13.4  3.48 0.991
+#> 2 arima     13.4  3.47 0.995
+#> 3 ets       14    3.66 1.04 
+#> 4 snaive    15.1  3.95 1.12 
+#> 5 tslm      15.3  3.89 1.13 
+```
+
+Across the full backtest the ensemble and ARIMA are neck and neck at the top, both around a MASE of 0.99 and an average miss of A$13.4 million a month. ETS, which looked dominant on the single hold-out, drops to third once it faces many origins. That reversal is exactly why we backtest.
+
+[KEY INSIGHT]
+**One test window is luck; a rolling backtest is a verdict.** ETS topped the single hold-out and finished third across nine origins, so trusting the one-window result would have deployed the wrong model. Always judge a forecast over many origins before you believe its ranking.
+
+Point accuracy is only half the story. Operations sizes safety stock from the prediction interval, so an interval whose stated range does not match the real uncertainty is dangerous even if the point forecast is good. We check two things: the Winkler score (which rewards intervals that are both narrow and honest, lower is better) and the empirical coverage (of the months that fell inside the 95% interval, we want about 95%).
+
+```r title="Check the prediction intervals, not just the point"
+actuals <- test |> as_tibble() |> select(Month, actual = Turnover)
+
+fc |>
+  accuracy(dept, measures = interval_accuracy_measures, level = 95) |>
+  select(.model, winkler) |>
+  left_join(
+    fc |> hilo(level = 95) |> as_tibble() |>
+      left_join(actuals, by = "Month") |>
+      mutate(covered = actual >= `95%`$lower & actual <= `95%`$upper) |>
+      group_by(.model) |>
+      summarise(coverage95 = round(100 * mean(covered)), .groups = "drop"),
+    by = ".model"
+  ) |>
+  mutate(winkler = round(winkler, 1)) |>
+  arrange(winkler)
+#> # A tibble: 5 × 3
+#>   .model   winkler coverage95
+#>   <chr>      <dbl>      <dbl>
+#> 1 arima       67.1         96
+#> 2 ets         68.3        100
+#> 3 tslm        75.4         92
+#> 4 snaive      83.3        100
+#> 5 ensemble   500.           0
+```
+
+Now the recommendation writes itself. ARIMA has the best Winkler score and a coverage of 96%, almost exactly the 95% it promises, so its intervals are both tight and honest. ETS covers everything (100%), meaning its intervals are wider than they need to be, wasteful for safety stock. And the ensemble, which tied ARIMA on point accuracy, has a broken interval: a Winkler of 500 and 0% coverage.
+
+[WARNING]
+**An ensemble can be great on the point forecast and useless on the interval.** When you average models that were fitted on a log scale, fable cannot always propagate the uncertainty through the combination, so the ensemble's prediction intervals collapse. Treat a combination forecast as a point-forecast tool, and take your intervals from a single model.
+
+That warning settles the choice. The ensemble and ARIMA are tied on the number that sizes the order, but only ARIMA gives a trustworthy band to size the safety stock. So ARIMA is our production model: near-best point accuracy and the best-calibrated intervals in the field.
+
+**Try it:** RMSE punishes big misses more harshly than MAE does. Re-rank the overall backtest by RMSE instead of MASE and see whether the top two change.
+
+```r title="Your turn: rank the backtest by RMSE"
+cv_fits |>
+  forecast(h = 12) |>
+  accuracy(dept) |>
+  select(.model, RMSE, MASE) |>
+  arrange(MASE)   # change to arrange(RMSE)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Backtest ranked by RMSE"
+cv_fits |>
+  forecast(h = 12) |>
+  accuracy(dept) |>
+  select(.model, RMSE, MASE) |>
+  mutate(RMSE = round(RMSE, 1)) |>
+  arrange(RMSE)
+#> # A tibble: 5 × 3
+#>   .model    RMSE  MASE
+#>   <chr>    <dbl> <dbl>
+#> 1 arima     17.3 0.995
+#> 2 ensemble  17.3 0.991
+#> 3 ets       18.5 1.04 
+#> 4 tslm      18.7 1.13 
+#> 5 snaive    19.6 1.12
+```
+
+**Explanation:** ARIMA and the ensemble still hold the top two spots on RMSE, which reassures us the choice is not an artefact of one error measure. The lower ranks shuffle a little because RMSE weights the large December misses more heavily than MASE does.
+
+</details>
+
+## What do you tell the people who place the orders?
+
+This section is for the people who never see a line of R: the category managers and the operations team who turn the forecast into purchase orders. It should read on its own, so here is the whole engagement in plain language.
+
+**The recommendation, in one sentence:** deploy the seasonal ARIMA model for the monthly order book, and keep "same as last month" only as a sanity check for the very next month.
+
+To produce the numbers operations actually needs, we refit that ARIMA on all of the history and forecast the full 2019 order year, with a safety-stock band.
+
+```r title="Produce the 2019 order-book forecast"
+final_fit <- dept |> model(arima = ARIMA(log(Turnover)))
+final_fc  <- final_fit |> forecast(h = 12)
+
+final_fc |>
+  hilo(level = 95) |>
+  as_tibble() |>
+  transmute(Month,
+            order_to = round(.mean),
+            safety_to_95 = round(`95%`$upper)) |>
+  filter(month(Month) %in% c(11, 12))
+#> # A tibble: 2 × 3
+#>      Month order_to safety_to_95
+#>      <mth>    <dbl>        <dbl>
+#> 1 2019 Nov      437          474
+#> 2 2019 Dec      735          799
+```
+
+![The deployed ARIMA forecast for 2019 shown as a fan chart with 80% and 95% prediction bands extending past the historical series](screenshots/Retail-Demand-Forecasting-in-R-forecast-2019.webp)
+
+*Figure 7: The deployed seasonal ARIMA forecast for the 2019 order book.*
+
+Here is what those numbers mean for the business, with no statistics jargon:
+
+| What you asked | What the forecast says |
+|---|---|
+| How big is the December order? | Plan for about A$735 million of demand. |
+| How much safety stock on top? | Hold up to A$799 million, an 8.7% buffer, to cover a strong Christmas. |
+| How accurate is this, really? | In backtests the model misses by about A$13.4 million in an average month. |
+| Is that better than what we do now? | Yes: the "same as last year" rule misses by about A$15.1 million, so this is roughly A$20 million a year of stock moved to the right side of the order. |
+
+[TIP]
+**Order to the point forecast, size the safety stock from the upper bound.** The point of A$735 million is your best single guess, so it sets the base order; the 95% upper bound of A$799 million is the level demand only exceeds about one year in forty, so covering it caps your stock-out risk at that small chance.
+
+**The decision rule for operations:** each month, order to the model's point forecast, and hold safety stock up to the 95% upper bound for that month. For the fast-moving peak months of November and December, review the order by hand as well, because the cost of being wrong is highest there.
+
+**The top three caveats, stated up front:**
+
+1. The forecast assumes 2019 looks broadly like the recent past. A new competitor, a store opening, or an economic shock is not in the data and will not be in the forecast.
+2. The safety-stock band covers normal year-to-year variation, not a one-off surprise. Treat the upper bound as a planning level, not a guarantee.
+3. This is a chain-level (category-level) forecast. Individual stores and product lines are noisier and need their own treatment, covered in the next section.
+
+**Try it:** Operations also wants the January number, because that is when the markdowns happen. Adapt the order-book block to show January and February 2019 instead of November and December.
+
+```r title="Your turn: show the post-Christmas months"
+final_fc |>
+  hilo(level = 95) |>
+  as_tibble() |>
+  transmute(Month, order_to = round(.mean), safety_to_95 = round(`95%`$upper)) |>
+  filter(month(Month) %in% c(11, 12))   # change to 1, 2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="January and February 2019"
+final_fc |>
+  hilo(level = 95) |>
+  as_tibble() |>
+  transmute(Month, order_to = round(.mean), safety_to_95 = round(`95%`$upper)) |>
+  filter(month(Month) %in% c(1, 2))
+#> # A tibble: 2 × 3
+#>      Month order_to safety_to_95
+#>      <mth>    <dbl>        <dbl>
+#> 1 2019 Jan      370          398
+#> 2 2019 Feb      287          309
+```
+
+**Explanation:** Demand drops sharply after Christmas, from A$735 million in December to A$370 million in January and a A$287 million trough in February. Ordering to those lower numbers is how you avoid the January markdown pile.
+
+</details>
+
+## What happens after the forecast goes live?
+
+Shipping the model is not the end of the job; it is the start of the maintenance. A forecast that was accurate in 2018 can quietly drift out of calibration as the business changes, so you monitor it and refit on a schedule.
+
+The core monitoring idea is simple: keep scoring the live model against what actually happened, and raise a flag when its error drifts past a threshold you set in advance. Here is that check in miniature, comparing the deployed model's backtest error against a control limit.
+
+```r title="Monitor the live model against a control limit"
+train |>
+  model(arima = ARIMA(log(Turnover))) |>
+  forecast(h = 24) |>
+  accuracy(dept) |>
+  filter(.model == "arima") |>
+  transmute(.model, MASE = round(MASE, 2),
+            status = if_else(MASE < 1.2, "in control", "investigate"))
+#> # A tibble: 1 × 3
+#>   .model  MASE status    
+#>   <chr>  <dbl> <chr>     
+#> 1 arima    0.9 in control
+```
+
+A MASE of 0.9 sits comfortably under our 1.2 control limit, so the model is in control. In production you would run this check every month on the newest actuals; the first time the status flips to "investigate", you refit or dig into what changed. A sensible refit cadence for monthly retail data is to re-estimate the model every quarter, and immediately after any known structural change such as a big store opening.
+
+[NOTE]
+**Store-level and product-level forecasts must be reconciled with the chain total.** If you forecast each store separately, the store forecasts will not add up to the chain forecast unless you reconcile them, which is a whole technique in itself. Our chain-level number is the top of that hierarchy.
+
+Two r-statistics.co chapters carry this forward: [Forecast Monitoring in R](Forecast-Monitoring-in-R.html) builds the full monitoring dashboard this check hints at, and [Forecast Reconciliation in R](Forecast-Reconciliation-in-R.html) and [Hierarchical Time Series in R](Hierarchical-Time-Series-in-R.html) show how to make store, region, and chain forecasts agree.
+
+**Try it:** A tighter business might set a stricter control limit. Change the threshold from 1.2 to 1.0 and see whether the deployed model still passes.
+
+```r title="Your turn: tighten the control limit"
+train |>
+  model(arima = ARIMA(log(Turnover))) |>
+  forecast(h = 24) |>
+  accuracy(dept) |>
+  filter(.model == "arima") |>
+  transmute(.model, MASE = round(MASE, 2),
+            status = if_else(MASE < 1.2, "in control", "investigate"))  # change 1.2 to 1.0
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Stricter control limit"
+train |>
+  model(arima = ARIMA(log(Turnover))) |>
+  forecast(h = 24) |>
+  accuracy(dept) |>
+  filter(.model == "arima") |>
+  transmute(.model, MASE = round(MASE, 2),
+            status = if_else(MASE < 1.0, "in control", "investigate"))
+#> # A tibble: 1 × 3
+#>   .model  MASE status    
+#>   <chr>  <dbl> <chr>     
+#> 1 arima    0.9 in control
+```
+
+**Explanation:** At a MASE of 0.9 the model still passes even under the stricter 1.0 limit, because it beats the seasonal-naive baseline over the two-year test. Where you set the limit is a business call: tighter limits catch drift sooner but raise more false alarms.
+
+</details>
 
 ## Practice Exercises
 
-These build on the objects created above (`sig`, `fc_2019`). Use the distinct variable names given so you do not overwrite the tutorial's state.
+These capstone problems put the whole engagement to work. Each runs in the same session as the tutorial, so the variables above are available. Try each before opening the solution.
 
-### Exercise 1: The cost of a higher service level
+### Exercise 1: Does ARIMA win on a different store?
 
-Higher service levels cost more stock. Using the December standard deviation `sig`, compute the safety stock for a 90 percent and a 99 percent service level, then report how many extra units the jump from 90 to 99 costs.
+Our tournament crowned ARIMA on Victoria's department stores. Rerun the core of it on **Queensland** department stores: filter the series, train through 2016, forecast 24 months, and rank seasonal naive, ETS, and ARIMA by MASE. Does the same model win?
 
-```r title="Exercise 1: safety stock at two service levels"
-# Hint: safety stock at service level sl is qnorm(sl) * sig.
-# Build a 2-row tibble for sl = 0.90 and 0.99, then the extra units between them.
-
-# Write your code below:
+```r title="Your turn: repeat the tournament on Queensland"
+# Filter aus_retail to Queensland Department stores (year >= 2005),
+# train through 2016 Dec, forecast h = 24, score with accuracy(), rank by MASE.
 
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-ss <- tibble(service_level = c(0.90, 0.99)) |>
-  mutate(safety_stock = round(qnorm(service_level) * sig, 0))
-ss
-#> # A tibble: 2 × 2
-#>   service_level safety_stock
-#>           <dbl>        <dbl>
-#> 1          0.9            53
-#> 2          0.99           96
-cat("Extra units to go from 90% to 99%:",
-    round(qnorm(0.99) * sig - qnorm(0.90) * sig, 0), "\n")
-#> Extra units to go from 90% to 99%: 43
-```
+```r title="Queensland tournament"
+qld <- aus_retail |>
+  filter(State == "Queensland", Industry == "Department stores") |>
+  filter(year(Month) >= 2005) |>
+  select(Month, Turnover)
+qld_train <- qld |> filter(Month <= yearmonth("2016 Dec"))
 
-**Explanation:** Moving from a 90 to a 99 percent service level nearly doubles the cushion, from 53 to 96, an extra 43 units of stock. Those last few points of certainty are expensive, which is why 95 percent is such a common compromise.
-
-</details>
-
-### Exercise 2: A full-year stocking plan
-
-The December decision was one month. Build the whole 2019 plan: for each month, take the forecast mean and its standard deviation, and compute the 95 percent stock level and the safety stock. Use the `fc_2019` forecast from the tutorial.
-
-```r title="Exercise 2: a 95 percent stock level for every month"
-# Hint: add a column sd = sqrt(distributional::variance(Sales)),
-# then stock_95 = .mean + qnorm(0.95) * sd, and safety = qnorm(0.95) * sd.
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 2 solution"
-year_plan <- fc_2019 |>
-  mutate(sd = sqrt(distributional::variance(Sales))) |>
-  as_tibble() |>
-  transmute(
-    Month,
-    forecast = round(.mean, 0),
-    stock_95 = round(.mean + qnorm(0.95) * sd, 0),
-    safety   = round(qnorm(0.95) * sd, 0)
-  )
-year_plan
-#> # A tibble: 12 × 4
-#>       Month forecast stock_95 safety
-#>       <mth>    <dbl>    <dbl>  <dbl>
-#>  1 2019 Jan      369      400     31
-#>  2 2019 Feb      288      313     24
-#>  3 2019 Mar      367      398     31
-#>  4 2019 Apr      385      418     33
-#>  5 2019 May      382      415     33
-#>  6 2019 Jun      399      433     35
-#>  7 2019 Jul      377      410     33
-#>  8 2019 Aug      338      368     30
-#>  9 2019 Sep      353      385     31
-#> 10 2019 Oct      390      425     35
-#> 11 2019 Nov      442      482     40
-#> 12 2019 Dec      744      812     68
-```
-
-**Explanation:** The safety stock is largest in the high-demand months (December at 68, November at 40) because bigger sales carry bigger absolute uncertainty. This one table is a complete, defensible inventory plan for the year.
-
-</details>
-
-### Exercise 3: Repeat the workflow on a new category
-
-The real test of a workflow is whether it transfers. Build the demand series for Victoria "Clothing retailing", split at the same date, fit `SNAIVE` and `ETS`, and report which one wins the backtest by RMSSE.
-
-```r title="Exercise 3: pick the best model for a new category"
-# Hint: rebuild the series (Sales = Turnover), filter_index to "2016 Dec" for training,
-# model(snaive = SNAIVE(Sales), ets = ETS(Sales)), forecast h = 24, accuracy vs full series.
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-clothing <- aus_retail |>
-  filter(State == "Victoria", Industry == "Clothing retailing") |>
-  as_tibble() |> transmute(Month, Sales = Turnover) |>
-  as_tsibble(index = Month)
-
-cl_fit <- clothing |>
-  filter_index(. ~ "2016 Dec") |>
-  model(snaive = SNAIVE(Sales), ets = ETS(Sales))
-
-cl_fit |>
+qld_train |>
+  model(snaive = SNAIVE(Turnover), ets = ETS(log(Turnover)), arima = ARIMA(log(Turnover))) |>
   forecast(h = 24) |>
-  accuracy(clothing) |>
-  select(.model, RMSSE, MASE) |>
-  arrange(RMSSE)
-#> # A tibble: 2 × 3
-#>   .model RMSSE  MASE
+  accuracy(qld) |>
+  select(.model, MASE, MAPE) |>
+  arrange(MASE)
+#> # A tibble: 3 × 3
+#>   .model  MASE  MAPE
 #>   <chr>  <dbl> <dbl>
-#> 1 ets    0.753 0.814
-#> 2 snaive 1.47  1.63
+#> 1 ets    0.603  2.67
+#> 2 arima  0.650  2.79
+#> 3 snaive 0.673  3.04
 ```
 
-**Explanation:** The exact same workflow ports straight to clothing, where `ets` again wins convincingly (RMSSE 0.753 against the baseline's 1.47). A method that generalizes across categories is the one worth building a process around.
+**Explanation:** On Queensland the ranking flips: ETS edges ARIMA, though both comfortably beat seasonal naive. The lesson is that the best model is series-specific, which is exactly why you run the tournament for each series rather than assuming one winner everywhere.
 
 </details>
 
-## Frequently Asked Questions
+### Exercise 2: Add a dynamic-regression model
 
-**Should I forecast demand in units or in dollars?**
-Whichever drives your decision. This case study used monthly turnover in dollars, but if you order stock in units, forecast units. The workflow does not change: swap the response column and every step from decomposition to safety stock works the same way.
+A dynamic regression combines a trend-plus-season regression with ARIMA errors, so it should, in theory, get the best of both. Fit `ARIMA(log(Turnover) ~ trend() + season())` alongside the plain ARIMA on the Victorian training set, forecast the hold-out, and see which ranks higher. Does the extra structure help here?
 
-**How much history do I need?**
-Enough to see the seasonality several times over. For monthly retail data with a yearly season, aim for at least three to four full years so the model can learn the seasonal shape, and hold out one to two recent years to test it. We had 35 years, which is generous.
+```r title="Your turn: fit and rank a dynamic regression"
+# Fit arima = ARIMA(log(Turnover)) and dynreg = ARIMA(log(Turnover) ~ trend() + season())
+# on train, forecast h = nrow(test), score with accuracy(dept), rank by MASE.
 
-**Why hold out two years instead of one?**
-Because one held-out December could be a fluke. Testing across two separate Christmases gives you more confidence that the winning model is genuinely better and not just lucky on a single peak.
+```
 
-**How do I choose between ETS and ARIMA?**
-Do not choose up front. Fit both, plus a naive baseline, and let a held-out backtest decide, exactly as we did. Here ETS won narrowly, but on a different series ARIMA might. The framework makes fitting both a one-line change, so there is no reason to guess.
+<details>
+<summary>Click to reveal solution</summary>
 
-**How often should I refresh the forecast?**
-Refit whenever new data arrives, typically monthly for this kind of series. The whole pipeline is a short script, so re-running it each month with the latest sales keeps both the forecast and the stocking plan current.
+```r title="Dynamic regression versus plain ARIMA"
+train |>
+  model(
+    arima  = ARIMA(log(Turnover)),
+    dynreg = ARIMA(log(Turnover) ~ trend() + season())
+  ) |>
+  forecast(h = nrow(test)) |>
+  accuracy(dept) |>
+  select(.model, MASE, MAPE) |>
+  arrange(MASE)
+#> # A tibble: 2 × 3
+#>   .model  MASE  MAPE
+#>   <chr>  <dbl> <dbl>
+#> 1 arima  0.899  3.16
+#> 2 dynreg 1.04   3.66
+```
 
-**Can I add promotions or price as drivers?**
-Yes. When demand depends on known drivers like price or a promotion flag, a dynamic regression model (`ARIMA(Sales ~ price + promo)`) folds them in. Some of those richer workflows use packages that run best in a local R session rather than in your browser.
+**Explanation:** The plain ARIMA wins. Forcing a deterministic trend and seasonal dummies into the regression part actually hurts here, because the automatic ARIMA already captures the season more flexibly through its seasonal difference. More structure is not always better.
+
+</details>
+
+### Exercise 3: Turn the interval into an order quantity
+
+Operations wants a single order number for December 2019 that covers demand four years in five (an 80% service level). From `final_fc`, extract the December 2019 point forecast and its 80% upper bound, and report the point, the order-with-buffer, and the buffer as a percentage.
+
+```r title="Your turn: size the December order"
+# From final_fc, use hilo(level = 80), keep December 2019,
+# and compute point, the 80% upper bound, and the percentage buffer.
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="December order with an 80% buffer"
+dec_fc <- final_fc |> hilo(level = 80) |> as_tibble() |>
+  filter(Month == yearmonth("2019 Dec"))
+point   <- dec_fc$.mean
+upper80 <- dec_fc$`80%`$upper
+c(point = round(point),
+  order_with_buffer = round(upper80),
+  extra_units = round(upper80 - point),
+  buffer_pct = round(100 * (upper80 - point) / point, 1))
+#>             point order_with_buffer       extra_units        buffer_pct 
+#>             735.0             776.0              41.0               5.6 
+```
+
+**Explanation:** An 80% service level asks for A$776 million, a 5.6% buffer over the A$735 million point forecast. Compare that to the 8.7% buffer the 95% level demanded: the higher the service level you promise, the more safety stock you must carry, which is the core inventory trade-off.
+
+</details>
+
+## Complete Example
+
+Here is the entire engagement compressed into one runnable script: load the real sales history, split it, fit the five-model portfolio, backtest it, and rank the models. This is the skeleton you would adapt for any new demand series.
+
+```r title="The whole engagement end to end"
+library(fable); library(feasts); library(tsibble); library(tsibbledata); library(dplyr); library(lubridate)
+
+# 1. Load the demand history
+series <- aus_retail |>
+  filter(State == "Victoria", Industry == "Department stores") |>
+  filter(year(Month) >= 2005) |>
+  select(Month, Turnover)
+
+# 2. Split off a test window
+tr <- series |> filter(Month <= yearmonth("2016 Dec"))
+
+# 3. Fit the five-strategy portfolio
+models <- tr |>
+  model(
+    snaive = SNAIVE(Turnover),
+    ets    = ETS(log(Turnover)),
+    arima  = ARIMA(log(Turnover)),
+    tslm   = TSLM(log(Turnover) ~ trend() + season())
+  ) |>
+  mutate(ensemble = (ets + arima + tslm) / 3)
+
+# 4. Forecast the hold-out and rank
+models |>
+  forecast(h = 24) |>
+  accuracy(series) |>
+  select(.model, MASE, MAPE) |>
+  arrange(MASE)
+#> # A tibble: 5 × 3
+#>   .model    MASE  MAPE
+#>   <chr>    <dbl> <dbl>
+#> 1 ets      0.699  2.62
+#> 2 ensemble 0.898  3.20
+#> 3 arima    0.899  3.16
+#> 4 snaive   0.942  3.45
+#> 5 tslm     1.11   3.91
+```
+
+From four numbered steps you have a ranked, backtested set of forecasts. Swapping in a different series, a longer horizon, or an extra model is a one-line change to this skeleton, which is the real payoff of doing retail demand forecasting the tidyverts way.
+
+## Frequently asked questions
+
+**How much sales history do you need to forecast retail demand?**
+For a monthly series with a yearly season, aim for at least three or four complete years so the model can see the seasonal pattern repeat; more is better. This case study used fourteen years, which is comfortable. With only one or two years a seasonal model has too few Decembers to learn from, and you should lean on the seasonal naive benchmark until more history builds up.
+
+**Which model is best for retail demand forecasting?**
+There is no single winner. On the Victorian series the seasonal ARIMA and the ensemble tied at the top; on the Queensland series in the exercises, ETS edged ahead. That is why the workflow runs a tournament for each series rather than assuming one model wins everywhere. Fit several models, backtest them across many origins, then let the numbers pick.
+
+**Why forecast on the log scale instead of the raw sales figures?**
+Retail demand is multiplicative: the December spike grows in dollars as the overall level of the business grows. Taking the logarithm turns that percentage effect into a constant additive one, which the seasonal models handle cleanly, and it keeps the prediction intervals from dropping below zero in the quiet months.
+
+**How do I choose the safety-stock level?**
+Pick the service level you want to promise, then read the matching upper bound off the forecast. A 95% upper bound covers all but about one year in twenty and asks for a larger buffer; an 80% bound covers four years in five with a smaller buffer. Exercise 3 works both out for December: an 8.7% buffer at the 95% level versus 5.6% at the 80% level. A higher service level costs more stock, which is the core inventory trade-off.
+
+**Can I use this workflow for a single store or product instead of a whole chain?**
+Yes, the steps are identical: audit, explore, fit a portfolio, backtest, then deploy. Individual stores and products are noisier than the chain total, so expect wider intervals and a larger role for the seasonal naive benchmark. If you forecast many of them separately, reconcile the forecasts so the store numbers add up to the chain number.
+
+**What does a MASE below 1 actually mean?**
+MASE scales a model's average error against the seasonal naive forecast, which simply repeats the value from twelve months ago. A MASE below 1 means the model beats that "same month last year" rule; above 1 means it does worse. It is a fair yardstick because it is unit-free and always compares against the simplest sensible baseline.
 
 ## Summary
 
-Retail demand forecasting is not one model but a short, honest pipeline. You explore the data to find its trend and seasonality, split it in time to test fairly, fit a few models from a naive baseline upward, pick the winner on held-out accuracy, quantify the uncertainty, and convert that uncertainty into a stocking decision. Every step is a handful of tidyverts verbs.
+An end-to-end retail demand forecast is a sequence of decisions, not a single model call. The table maps each phase of the engagement to what it produces.
 
-| Step | Verb | What it did |
+| Phase | What you do | What it produces |
 |---|---|---|
-| Explore | `autoplot()`, `features()` | Revealed a strong trend and a dominant December peak |
-| Split | `filter_index()` | Held out the last 24 months for an honest test |
-| Fit | `model()` | Trained SNAIVE, ETS, ARIMA, and a logged ETS at once |
-| Evaluate | `accuracy()` | Picked ETS by scaled error (RMSSE 0.748) |
-| Quantify | `hilo()` | Turned the forecast into low-high demand ranges |
-| Decide | `qnorm()`, `quantile()` | Converted the December distribution into a 95 percent stock level |
+| Business brief | Name the decision and the cost of a miss | A target: the order-book forecast |
+| Data audit | Check coverage, gaps, scale, outliers | Trustworthy data, a clean tsibble |
+| EDA | Measure trend, season, and the driver | The log scale and a season-first model |
+| Portfolio | Fit five different strategies | Candidate models to compare |
+| Tournament | Rolling-origin backtest + intervals | A defensible model choice |
+| Executive summary | Translate to dollars and a rule | An order rule operations can follow |
+| Production | Monitor, refit, reconcile | A forecast that stays honest |
 
-The headline lesson: a forecast only matters when it changes a decision. By carrying the demand distribution all the way to a service level, we turned a monthly sales prediction of 744 into a concrete instruction, hold 812 units of stock, that a business can act on with a known 95 percent chance of not stocking out.
+![A mindmap summarising the whole engagement: frame, audit, explore, portfolio, tournament, deploy](screenshots/Retail-Demand-Forecasting-in-R-overview-mindmap.webp)
+
+*Figure 8: The whole engagement at a glance.*
+
+The one idea to carry away: the model is the easy part. The value is in framing the decision, auditing the data, backtesting honestly across many origins, checking that the interval is trustworthy and not just the point, and translating all of it into an order rule someone can act on. Do those well and a plain seasonal ARIMA becomes a forecast a business can bet its inventory on.
 
 ## References
 
-1. Hyndman, R.J., & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd edition. [Link](https://otexts.com/fpp3/) - the free textbook behind every method on this page, from STL decomposition to ETS to honest backtesting.
-2. fable package documentation, tidyverts. [Link](https://fable.tidyverts.org/) - the reference for the `model()`, `forecast()`, and `accuracy()` verbs used throughout.
-3. feasts package documentation (decomposition and features). [Link](https://feasts.tidyverts.org/) - covers `STL()`, `feat_stl`, and the `guerrero` feature we used to explore the series.
-4. tsibble package documentation, tidyverts. [Link](https://tsibble.tidyverts.org/) - explains the time-aware table and the `filter_index()` date slicing behind the train/test split.
-5. O'Hara-Wild, M., Hyndman, R.J., & Wang, E. *tsibbledata: Diverse Datasets for tsibble*. [Link](https://tsibbledata.tidyverts.org/) - the package that ships the `aus_retail` series this case study is built on.
-6. Hyndman, R.J. Tidy forecasting in R. [Link](https://robjhyndman.com/hyndsight/fable/) - a short tour of the fable workflow from its author, good for seeing the big picture.
-7. Australian Bureau of Statistics, Retail Trade, Australia (source of `aus_retail`). [Link](https://www.abs.gov.au/statistics/industry/retail-and-wholesale-trade/retail-trade-australia) - the official source of the monthly turnover figures behind the dataset.
+1. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Chapter 5: The forecaster's toolbox. [Link](https://otexts.com/fpp3/toolbox.html)
+2. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Section 5.10: Time series cross-validation. [Link](https://otexts.com/fpp3/tscv.html)
+3. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Section 5.8: Evaluating point forecast and interval accuracy. [Link](https://otexts.com/fpp3/accuracy.html)
+4. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Section 13.4: Forecast combinations. [Link](https://otexts.com/fpp3/combinations.html)
+5. fable documentation - Forecasting models for tidy time series. [Link](https://fable.tidyverts.org/)
+6. feasts documentation - Feature extraction and statistics for time series. [Link](https://feasts.tidyverts.org/)
+7. tsibble documentation - Tidy temporal data frames and tools. [Link](https://tsibble.tidyverts.org/)
+8. Australian Bureau of Statistics - Retail Trade, Australia (series A3349641R, via the tsibbledata package). [Link](https://tsibbledata.tidyverts.org/reference/aus_retail.html)
 
 ## Continue Learning
 
-- [Forecast Hundreds of Series Automatically in R](Batch-Forecasting-in-R.html) - scale this single-series workflow to hundreds of products or stores at once.
-- [Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE](Forecast-Accuracy-in-R.html) - a deeper look at the error measures we used to pick the winning model.
-- [fable in R: Tidy Time Series Forecasting](fable-in-R.html) - the framework this case study is built on, explained from the single-series basics up.
+- [Time Series Cross-Validation in R](Time-Series-Cross-Validation-in-R.html) - a deeper look at rolling-origin backtesting, the technique that decided this tournament.
+- [Combining Forecasts in R](Combining-Forecasts-in-R.html) - how to build ensembles that improve on single models, and how to handle their prediction intervals properly.
+- [Forecast Monitoring in R](Forecast-Monitoring-in-R.html) - build the production dashboard that watches a deployed forecast for drift.
