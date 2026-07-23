@@ -1,0 +1,1080 @@
+---
+title: "Intermittent Demand Forecasting in R: Croston and Friends"
+description: "Learn intermittent demand forecasting in R. Build Croston's method, SBA, and TSB from scratch, classify demand with ADI and CV squared, and score forecasts."
+keywords: "intermittent demand forecasting, Croston method R, Croston's method, SBA forecasting, TSB method, spare parts forecasting, demand classification, ADI CV2, forecast package R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-11.3"
+post_type: "C"
+auto_link_terms: "intermittent demand forecasting|Croston's method|Croston method|intermittent demand|Syntetos-Boylan Approximation|SBA method|TSB method|Teunter-Syntetos-Babai|demand classification|spare parts forecasting|slow-moving items|croston()"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Intermittent Demand (Croston)"
+sidebar_order: "58"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Intermittent demand is demand that arrives in scattered bursts with many zero periods in between, the pattern you see with spare parts and slow-moving items. Croston's method forecasts it by smoothing two things separately, how big each demand is and how often it arrives, then dividing one by the other to get a steady demand rate. This tutorial builds Croston's method and its two best-known relatives, SBA and TSB, from scratch in R, then checks them against the forecast package.</p>
+
+<h2>What makes intermittent demand so hard to forecast?</h2>
+
+<p>Picture a warehouse that stocks a replacement gearbox for an old machine. Most months nobody orders one. Then a machine breaks, three orders land in a week, and it goes quiet again for half a year. The demand history is mostly zeros with occasional spikes. Ordinary forecasters were built for series that are always "on", like daily sales of a popular product, so they perform poorly here. Let's create such a series and look at it.</p>
+
+<p>We simulate 48 months of demand for a slow-moving part. Each month a demand either arrives or it does not, and when it does, a small number of units go out. We arrange the result as a 4-year by 12-month grid so the gaps are easy to see.</p>
+
+<div class="webr-container" data-block-title="Build a slow-moving demand series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a slow-moving demand series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Monthly demand for a spare part, 48 months
+set.seed(2011)
+n &lt;- 48
+occur  &lt;- rbinom(n, 1, 0.35)   # did a demand arrive this month?
+size   &lt;- rpois(n, 4) + 1      # units shipped, when it does arrive
+demand &lt;- occur * size
+matrix(demand, nrow = 4, byrow = TRUE,
+       dimnames = list(paste(&quot;Year&quot;, 1:4), month.abb))
+#&gt;        Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; Year 1   0   0   0   0   0   5   0   0   4   0   0   0
+#&gt; Year 2   0   0   0   0   0   5   0   8   0   0   5   5
+#&gt; Year 3   0   7   0   4   0   0   0   0   0   0   5   0
+#&gt; Year 4   7   6   4   0   0   4   0   6   5   0   0   0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one year. Most cells are zero, and the non-zero months carry a handful of units each. Demand clearly clusters: Year 4 is busy, Year 1 is nearly dead. This is the signature of intermittent demand, long stretches of nothing punctuated by bursts.</p>
+
+<p>Now let's put a number on how sparse it is. Two quick summaries tell the story: the share of months with no demand at all, and the average units shipped per month across the whole history.</p>
+
+<div class="webr-container" data-block-title="Measure how sparse the series is">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure how sparse the series is</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(demand == 0)   # share of zero months
+mean(demand)        # average units per month
+#&gt; [1] 0.6875
+#&gt; [1] 1.666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Almost 69% of the months are zero, yet on average the part still ships about 1.67 units a month. That average is the honest planning target. You cannot order 1.67 gearboxes in a given month, but over a year that rate tells you to keep roughly 20 in stock. A picture makes the burstiness obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the demand spikes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the demand spikes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(demand, type = &quot;h&quot;, lwd = 2, col = &quot;steelblue&quot;,
+     xlab = &quot;Month&quot;, ylab = &quot;Units sold&quot;,
+     main = &quot;Spare-part demand over 48 months&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vertical spikes stand alone with wide flat gaps between them. Nothing gradual is happening, so a method that expects a smooth trend has nothing to work with.</p>
+
+<p>Here is why the usual tool struggles. <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">Simple exponential smoothing</a>, or SES, forecasts the next value as a weighted average that leans on recent months. On an always-on series that is sensible. On this series the forecast slides toward zero during every dry spell, then jerks upward right after a sale. Let's watch the one-step-ahead SES forecast and see how far it swings.</p>
+
+<div class="webr-container" data-block-title="Watch the SES forecast swing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch the SES forecast swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ses_path &lt;- function(y, alpha = 0.2) {
+  f &lt;- numeric(length(y)); f[1] &lt;- y[1]
+  for (t in 2:length(y)) f[t] &lt;- alpha * y[t - 1] + (1 - alpha) * f[t - 1]
+  f
+}
+sp &lt;- ses_path(demand, alpha = 0.2)
+round(range(sp), 2)   # lowest and highest forecast it produces
+#&gt; [1] 0.00 3.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across the series the SES forecast ranges from 0 all the way to 3.31, depending only on how recently a demand happened to land. Read it just after a spike and it says 3; read it after a long gap and it says 0. Neither is the true rate of about 1.67. The number you get depends on timing luck, not on the underlying demand.</p>
+
+<p>Croston's insight is to stop <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> the raw series and instead forecast two calmer quantities: how big demands are, and how far apart they are. Both are far more stable than the jumpy raw series, and combining them recovers the rate we actually want.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The goal is the average demand per period, not a guess at which month a sale lands.</strong> No method can predict exactly when the next gearbox fails, so we aim for the steady demand rate that drives stock levels, and we get there by forecasting demand size and demand timing separately.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> When this part does sell, how many units typically go out? Compute the average of only the non-zero months of <code>demand</code>. It should come out to about 5.3.</p>
+<div class="webr-container" data-block-title="Your turn: the typical order size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the typical order size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blank: average of the months where demand is above zero
+# ex_size &lt;- mean(demand[____])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Average non-zero demand solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average non-zero demand solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_size &lt;- mean(demand[demand &gt; 0])
+ex_size
+#&gt; [1] 5.333333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>demand &gt; 0</code> is a TRUE/FALSE mask, and <code>demand[demand &gt; 0]</code> keeps only the months that actually shipped. Their average, about 5.33 units, is the "typical order size" that Croston's method will smooth.</p>
+
+</details>
+</section>
+
+<h2>How does Croston's method actually work?</h2>
+
+<p>Croston's method answers two separate questions and then multiplies them back together. The first question is "when it sells, how much does it sell?" The second is "how many months pass between sales?" Each answer is a slow, well-behaved series that exponential smoothing handles well. The diagram below shows the whole pipeline.</p>
+
+<p><img src="screenshots/Croston-Method-in-R-croston-decomposition.webp" alt="Croston splits a demand series into sizes and intervals, smooths each, then recombines" class="img-responsive img-zoomable" loading="lazy" width="1936" height="690" /></p>
+
+<p><em>Figure 1: Croston splits one demand series into demand sizes and inter-arrival intervals, smooths each with exponential smoothing, then recombines them into a rate.</em></p>
+
+<p>Let's do the split by hand. We find the months where demand is non-zero. The demand sizes are just those values. The intervals are the gaps between consecutive non-zero months, measured in months. The first interval is simply the position of the first sale.</p>
+
+<div class="webr-container" data-block-title="Split demand into sizes and intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split demand into sizes and intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nz &lt;- which(demand &gt; 0)     # positions of the non-zero months
+z  &lt;- demand[nz]            # demand sizes
+p  &lt;- c(nz[1], diff(nz))    # gaps between demands, in months
+z
+p
+#&gt;  [1] 5 4 5 8 5 5 7 4 5 7 6 4 4 6 5
+#&gt;  [1] 6 3 9 2 3 1 2 2 7 2 1 1 3 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first vector, <code>z</code>, is the size each time the part sold: 5 units, then 4, then 5, with the sizes staying in a narrow range. The second vector, <code>p</code>, is how many months apart those sales were: the first sale came in month 6, the next 3 months later, the next 9 months after that. These two streams are what Croston forecasts, one at a time.</p>
+
+<p>Now we apply exponential smoothing to each stream. Exponential smoothing keeps a running estimate and nudges it toward each new observation by a fraction $\alpha$ (alpha), a number between 0 and 1. After the $i$-th sale the size estimate updates as $\hat{z} \leftarrow \hat{z} + \alpha\,(z_i - \hat{z})$, and the interval estimate updates the same way. A small alpha means slow, steady learning; a large alpha means the estimate reacts fast to the latest sale. If you want the deeper mechanics of that update, see our guide to <a href="/Exponential-Smoothing-in-R.html">exponential smoothing in R</a>. The forecast rate is then the smoothed size divided by the smoothed interval:</p>
+
+<p>$$\hat{y} = \frac{\hat{z}}{\hat{p}}$$</p>
+
+<p>Here is the whole method in one function. We seed both estimates with their first observed value, then smooth through the rest.</p>
+
+<div class="webr-container" data-block-title="Hand-code Croston&#x27;s method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hand-code Croston&#x27;s method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">croston_fit &lt;- function(y, alpha = 0.1) {
+  nz &lt;- which(y &gt; 0)
+  z  &lt;- y[nz]
+  p  &lt;- c(nz[1], diff(nz))
+  z_hat &lt;- z[1]
+  p_hat &lt;- p[1]
+  if (length(z) &gt;= 2) {
+    for (i in 2:length(z)) {
+      z_hat &lt;- z_hat + alpha * (z[i] - z_hat)   # smooth the size
+      p_hat &lt;- p_hat + alpha * (p[i] - p_hat)   # smooth the interval
+    }
+  }
+  list(size = z_hat, interval = p_hat, forecast = z_hat / p_hat)
+}
+cr &lt;- croston_fit(demand, alpha = 0.1)
+round(unlist(cr), 3)
+#&gt;     size interval forecast 
+#&gt;    5.227    3.243    1.612 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returns three numbers. The smoothed size is 5.227 units, meaning a typical sale is a bit above five units. The smoothed interval is 3.243 months, meaning sales come roughly every three months. Divide the two and you get a forecast of 1.612 units per month, close to the honest average of 1.67 we computed earlier, but built from stable parts instead of the jumpy raw series.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Dividing smoothed size by smoothed interval turns two calm estimates into a demand rate.</strong> Five units every 3.24 months is the same as 1.61 units every month, and because size and interval each change slowly, this rate barely changes when a single month is quiet.</div></div>
+
+<p>You do not have to hand-roll this every time. The forecast package ships Croston's method as <code>croston()</code>. Let's confirm our from-scratch version agrees with it, which is the best way to know we understood the algorithm.</p>
+
+<div class="webr-container" data-block-title="Validate against the forecast package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Validate against the forecast package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+fit &lt;- croston(demand, h = 6, alpha = 0.1)
+round(fit$mean[1], 3)
+#&gt; [1] 1.612</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical to our hand-coded 1.612. The <code>h = 6</code> argument asks for a six-month-ahead forecast, but notice every month gets the same number: Croston produces one flat rate and repeats it. That is expected, since the method estimates a level, not a trend or a season.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Croston's method gives you a point forecast but no <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">prediction interval</a>.</strong> As the forecast package documentation notes, the method has no underlying probability model, so <code>croston()</code> returns a rate with no honest way to attach an "80% confidence" band. If you need uncertainty, you build it separately, for example by simulating demand from the fitted size and interval.</div></div>
+
+<p>The smoothing parameter alpha is the one knob you control, so it helps to feel what it does. Let's forecast the same series across a range of alpha values.</p>
+
+<div class="webr-container" data-block-title="See how alpha changes the forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See how alpha changes the forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (a in c(0.05, 0.1, 0.2, 0.3)) {
+  cat(&quot;alpha =&quot;, a, &quot;-&gt; forecast =&quot;, round(croston_fit(demand, a)$forecast, 3), &quot;\n&quot;)
+}
+#&gt; alpha = 0.05 -&gt; forecast = 1.214 
+#&gt; alpha = 0.1 -&gt; forecast = 1.612 
+#&gt; alpha = 0.2 -&gt; forecast = 2.281 
+#&gt; alpha = 0.3 -&gt; forecast = 2.709 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A larger alpha leans harder on recent sales, which here were on the busy side, so the forecast climbs from 1.21 at alpha 0.05 up to 2.71 at alpha 0.30. There is no universally correct value. A common default is a small alpha between 0.05 and 0.2, and later we will pick one by testing on held-out data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Two R packages carry a full toolkit of these methods for production use.</strong> The tsintermittent package (functions crost, tsb, idclass) and the smooth package implement Croston, its variants, and automatic parameter <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a>. We build the methods by hand here so the mechanics are transparent, then you can reach for those packages knowing exactly what they compute.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast <code>demand</code> with a more reactive alpha of 0.3 using our <code>croston_fit()</code> function, and read off the rate. It should match the 2.709 from the sweep above.</p>
+<div class="webr-container" data-block-title="Your turn: forecast with alpha 0.3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast with alpha 0.3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Call croston_fit() on demand with alpha = 0.3 and pull out $forecast
+# ex_c &lt;- croston_fit(demand, alpha = ____)$forecast</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Croston with alpha 0.3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Croston with alpha 0.3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_c &lt;- croston_fit(demand, alpha = 0.3)
+round(ex_c$forecast, 3)
+#&gt; [1] 2.709</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With alpha 0.3 the estimates track the recent busy months closely, pushing the rate up to 2.71. That is why a high alpha is risky on short intermittent histories: one lucky burst raises the forecast.</p>
+
+</details>
+</section>
+
+<h2>Why does Croston's forecast run high, and how does SBA fix it?</h2>
+
+<p>Croston's method has a subtle flaw that took the field 30 years to pin down. On average, across many series, it forecasts a little too high. The reason is mathematical: Croston forecasts a ratio, smoothed size over smoothed interval, and the average of a ratio is not the ratio of the averages. That gap tilts the estimate upward. In 2005 Syntetos and Boylan proved the size of the bias and gave a clean correction.</p>
+
+<p>Their fix, now called the Syntetos-Boylan Approximation or SBA, simply multiplies Croston's forecast by a shrinkage factor that depends on alpha:</p>
+
+<p>$$\hat{y}_{\text{SBA}} = \left(1 - \frac{\alpha}{2}\right)\frac{\hat{z}}{\hat{p}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat{z}/\hat{p}$ is the ordinary Croston rate</li>
+
+<li>$\alpha$ is the same smoothing parameter Croston uses</li>
+
+<li>$\left(1 - \frac{\alpha}{2}\right)$ is the correction factor, always a little below 1</li>
+
+</ul>
+
+<p>Because the factor is below 1, SBA always pulls the forecast down a touch. With alpha 0.1 the factor is 0.95, a 5% trim. Let's code it as a one-line wrapper around our Croston function and compare the two on our series.</p>
+
+<div class="webr-container" data-block-title="Hand-code SBA and compare">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hand-code SBA and compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sba_fit &lt;- function(y, alpha = 0.1) {
+  base   &lt;- croston_fit(y, alpha)
+  factor &lt;- 1 - alpha / 2
+  list(factor = factor, forecast = factor * base$forecast)
+}
+sb &lt;- sba_fit(demand, alpha = 0.1)
+c(croston = round(cr$forecast, 3),
+  sba     = round(sb$forecast, 3),
+  factor  = sb$factor)
+#&gt; croston     sba  factor 
+#&gt;   1.612   1.531   0.950 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>SBA nudges the forecast from 1.612 down to 1.531. On this single series that is just a small shift, and you might reasonably ask whether it is worth bothering with. The honest way to answer is not to stare at one series, where luck dominates, but to simulate many series from a known truth and check which method lands closer on average.</p>
+
+<p>Let's generate 3,000 intermittent series, each with a demand probability of 0.3 and an average size of 5, so the true rate is exactly $0.3 \times 5 = 1.5$ units per month. We forecast each series with both methods and average the results.</p>
+
+<div class="webr-container" data-block-title="Prove the bias with a simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prove the bias with a simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+truth &lt;- 0.3 * 5   # the real demand rate we are trying to recover
+reps  &lt;- 3000
+cro &lt;- sba &lt;- numeric(reps)
+for (r in 1:reps) {
+  y &lt;- rbinom(60, 1, 0.3) * (rpois(60, 4) + 1)
+  cro[r] &lt;- croston_fit(y, 0.1)$forecast
+  sba[r] &lt;- sba_fit(y, 0.1)$forecast
+}
+cat(&quot;true rate        :&quot;, truth, &quot;\n&quot;)
+cat(&quot;Croston average  :&quot;, round(mean(cro), 3), &quot; bias:&quot;, round(mean(cro) - truth, 3), &quot;\n&quot;)
+cat(&quot;SBA average      :&quot;, round(mean(sba), 3), &quot; bias:&quot;, round(mean(sba) - truth, 3), &quot;\n&quot;)
+#&gt; true rate        : 1.5 
+#&gt; Croston average  : 1.573  bias: 0.073 
+#&gt; SBA average      : 1.494  bias: -0.006 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is. Averaged over 3,000 series, Croston's forecast is 1.573 against a truth of 1.5, an upward bias of 0.073. SBA averages 1.494, a bias of just -0.006, more than ten times smaller. The tiny per-series trim adds up to a forecast that is essentially unbiased. If you hold a lot of slow-moving parts, that removed bias is fewer units of chronic over-stock across the whole catalog.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>SBA is just Croston multiplied by a factor a little below one.</strong> That single shrinkage, worth about 5% at alpha 0.1, cancels the built-in upward bias of the ratio, which is why SBA is the default choice in most intermittent-demand studies.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the SBA correction factor for a smoothing parameter of 0.2. Use the formula one minus alpha over two.</p>
+<div class="webr-container" data-block-title="Your turn: the SBA factor at alpha 0.2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the SBA factor at alpha 0.2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the arithmetic for 1 - alpha/2 when alpha is 0.2
+# ex_factor &lt;- 1 - ____ / 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="SBA factor at alpha 0.2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">SBA factor at alpha 0.2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_factor &lt;- 1 - 0.2 / 2
+ex_factor
+#&gt; [1] 0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At alpha 0.2 the factor is 0.9, a 10% trim. Larger alpha means a bigger correction, because a more reactive Croston estimate carries more of the ratio bias.</p>
+
+</details>
+</section>
+
+<h2>What happens when a product becomes obsolete? Meet TSB.</h2>
+
+<p>Croston and SBA share a blind spot. They only update their estimates when a demand arrives. During a long run of zeros, nothing changes, so the forecast just sits at its last value forever. That is fine for a part with steady demand, but it is dangerous for a part that is dying. If the last gearbox ever sold was two years ago, Croston still forecasts the old rate, and you keep stock you will never sell.</p>
+
+<p>Teunter, Syntetos and Babai fixed this in 2011 with a method usually called TSB. Instead of tracking the interval between demands, TSB tracks the probability that a demand happens in any given month, and it updates that probability every single period, including the zeros. When demands stop, the probability decays toward zero, and so does the forecast. Two update rules run each month, with their own smoothing parameters:</p>
+
+<p>$$\hat{p}_t = \hat{p}_{t-1} + \beta\,(d_t - \hat{p}_{t-1}) \qquad \hat{z}_t = \hat{z}_{t-1} + \alpha\,(z_t - \hat{z}_{t-1})$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$d_t$ is 1 if a demand occurred this month and 0 otherwise</li>
+
+<li>$\hat{p}_t$ is the smoothed probability of a demand, updated every month with rate $\beta$ (beta)</li>
+
+<li>$\hat{z}_t$ is the smoothed demand size, updated with rate $\alpha$ only in months that had a demand</li>
+
+<li>the forecast is $\hat{p}_t \times \hat{z}_t$, a probability times a size</li>
+
+</ul>
+
+<p>Let's code it. The probability updates on every iteration; the size updates only when the month was non-zero.</p>
+
+<div class="webr-container" data-block-title="Hand-code the TSB method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hand-code the TSB method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tsb_fit &lt;- function(y, alpha = 0.1, beta = 0.05) {
+  d     &lt;- as.numeric(y &gt; 0)     # 1 for a demand month, 0 otherwise
+  prob  &lt;- mean(d)               # start at the observed demand frequency
+  z_hat &lt;- y[which(y &gt; 0)[1]]    # start size at the first real demand
+  for (t in seq_along(y)) {
+    prob &lt;- prob + beta * (d[t] - prob)              # update every month
+    if (y[t] &gt; 0) z_hat &lt;- z_hat + alpha * (y[t] - z_hat)   # size only on sales
+  }
+  list(prob = prob, size = z_hat, forecast = prob * z_hat)
+}
+tb &lt;- tsb_fit(demand, alpha = 0.1, beta = 0.05)
+round(unlist(tb), 3)
+#&gt;     prob     size forecast 
+#&gt;    0.360    5.227    1.883 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>TSB reads our series as a 36% chance of a demand each month, at a typical size of 5.227 units, giving a forecast of 1.883 units per month. It is a bit higher than Croston here because our series stays active to the end. The real advantage shows up when demand dries up. Let's take the same series but zero out the last 18 months, as if the part went obsolete after month 30, and compare the two methods.</p>
+
+<div class="webr-container" data-block-title="Test both methods on a dying product">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test both methods on a dying product</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dead &lt;- demand
+dead[31:48] &lt;- 0             # no demand after month 30
+cat(&quot;Croston forecast:&quot;, round(croston_fit(dead, 0.1)$forecast, 3), &quot;\n&quot;)
+cat(&quot;TSB forecast    :&quot;, round(tsb_fit(dead, 0.1, 0.05)$forecast, 3), &quot;\n&quot;)
+#&gt; Croston forecast: 1.195 
+#&gt; TSB forecast    : 0.585 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After 18 dead months, Croston still forecasts 1.195 units a month, frozen at the value it held when the last sale happened. TSB has more than halved to 0.585 and keeps falling, because its demand probability shrank a little every one of those quiet months. TSB's forecast responded to the drop in demand; Croston's stayed frozen at its last value.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>TSB updates its demand probability every period, so it forgets demand that has stopped.</strong> That single change makes it the method of choice when products go end-of-life, exactly the situation where Croston and SBA over-forecast dead stock.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run TSB on the obsolete <code>dead</code> series but with a faster-forgetting beta of 0.2 instead of 0.05. A bigger beta should decay the forecast even lower than 0.585.</p>
+<div class="webr-container" data-block-title="Your turn: TSB with a faster beta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: TSB with a faster beta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Call tsb_fit() on dead with alpha = 0.1 and beta = 0.2
+# ex_tsb &lt;- tsb_fit(dead, alpha = 0.1, beta = ____)$forecast</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="TSB with a faster beta solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TSB with a faster beta solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tsb &lt;- tsb_fit(dead, alpha = 0.1, beta = 0.20)
+round(ex_tsb$forecast, 3)
+#&gt; [1] 0.032</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A beta of 0.2 lets the probability fall four times faster than 0.05, so after 18 dead months the forecast has collapsed to 0.032, almost zero. Bigger beta means quicker reaction to obsolescence, at the cost of more jitter while the part is still alive.</p>
+
+</details>
+</section>
+
+<h2>Which method should you use? Classify your demand first.</h2>
+
+<p>You now have three tools. Rather than guess, the field uses a simple two-number test to sort any demand series into a category, and each category points to a method. The first number is the average inter-demand interval, or ADI, which is how many months pass between demands on average. The second is the squared coefficient of variation of the non-zero sizes, written $CV^2$, which measures how wildly the order sizes swing:</p>
+
+<p>$$\text{ADI} = \frac{\text{number of months}}{\text{number of demands}} \qquad CV^2 = \left(\frac{\sigma_z}{\mu_z}\right)^2$$</p>
+
+<p>Here $\sigma_z$ and $\mu_z$ are the standard deviation and mean of the non-zero demand sizes. Syntetos, Boylan and Croston proposed cutoffs of 1.32 for ADI and 0.49 for $CV^2$, which split the world into four named quadrants.</p>
+
+<p><img src="screenshots/Croston-Method-in-R-demand-classes.webp" alt="Demand classification quadrant of ADI against squared coefficient of variation" class="img-responsive img-zoomable" loading="lazy" width="1080" height="1080" /></p>
+
+<p><em>Figure 2: ADI and the squared coefficient of variation sort demand into four classes, each with a recommended forecasting approach.</em></p>
+
+<p>Let's compute both numbers for our series and read off its class.</p>
+
+<div class="webr-container" data-block-title="Classify a demand series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify a demand series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">classify_demand &lt;- function(y) {
+  nzv &lt;- y[y &gt; 0]
+  adi &lt;- length(y) / length(nzv)
+  cv2 &lt;- (sd(nzv) / mean(nzv))^2
+  cls &lt;- if (adi &lt; 1.32 &amp;&amp; cv2 &lt; 0.49) &quot;smooth&quot;
+         else if (adi &gt;= 1.32 &amp;&amp; cv2 &lt; 0.49) &quot;intermittent&quot;
+         else if (adi &lt;  1.32 &amp;&amp; cv2 &gt;= 0.49) &quot;erratic&quot;
+         else &quot;lumpy&quot;
+  list(ADI = round(adi, 2), CV2 = round(cv2, 3), class = cls)
+}
+classify_demand(demand)
+#&gt; $ADI
+#&gt; [1] 3.2
+#&gt; 
+#&gt; $CV2
+#&gt; [1] 0.054
+#&gt; 
+#&gt; $class
+#&gt; [1] &quot;intermittent&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Our part has an ADI of 3.2, so demands are rare, roughly one every three months. Its $CV^2$ is only 0.054, so when it does sell the sizes are quite consistent, all in the four-to-eight range. Rare but steady-sized lands it in the intermittent quadrant, the classic home turf of Croston and SBA. This table sums up the four classes and what to reach for.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Class</th>
+<th>ADI</th>
+<th>CV²</th>
+<th>What it looks like</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Smooth</td>
+<td>Low</td>
+<td>Low</td>
+<td>Sells most periods, steady size</td>
+<td>Regular exponential smoothing</td>
+</tr>
+<tr>
+<td>Intermittent</td>
+<td>High</td>
+<td>Low</td>
+<td>Rare, but consistent size</td>
+<td>Croston or SBA</td>
+</tr>
+<tr>
+<td>Erratic</td>
+<td>Low</td>
+<td>High</td>
+<td>Frequent, wildly varying size</td>
+<td>SBA</td>
+</tr>
+<tr>
+<td>Lumpy</td>
+<td>High</td>
+<td>High</td>
+<td>Rare and wildly varying</td>
+<td>SBA, and expect low accuracy</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When in doubt on intermittent or lumpy demand, default to SBA.</strong> It matches Croston's structure but removes the upward bias, and across published benchmarks it wins or ties on the great majority of intermittent series. Switch to TSB only when obsolescence is a real risk.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Classify a series that sells every month with a steady size. Run <code>classify_demand()</code> on <code>ex_series</code> below and read the class label. It should come back as "smooth".</p>
+<div class="webr-container" data-block-title="Your turn: classify a steady series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify a steady series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_series &lt;- rpois(48, 6) + 1   # a demand every month, consistent size
+# Now call classify_demand() on ex_series and pull out $class</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Classify the steady series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify the steady series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">classify_demand(ex_series)$class
+#&gt; [1] &quot;smooth&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With a demand every month the ADI is 1, well below 1.32, and the Poisson sizes vary little, so $CV^2$ stays under 0.49. That is the smooth quadrant, where plain exponential smoothing beats Croston, no interval-splitting needed.</p>
+
+</details>
+</section>
+
+<h2>How do you measure accuracy when the data is full of zeros?</h2>
+
+<p>Scoring intermittent forecasts trips up newcomers, because the most popular error metric breaks down on this data. <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Mean absolute percentage error</a>, MAPE, divides the error by the actual value. When the actual is zero, and here two of every three months are zero, you are dividing by zero. Let's split our series into a 36-month <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> and a 12-month <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, fit Croston on the training months, then try to score the forecast with MAPE.</p>
+
+<div class="webr-container" data-block-title="Watch MAPE break on zeros">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch MAPE break on zeros</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- demand[1:36]
+test  &lt;- demand[37:48]
+f_cro &lt;- croston_fit(train, 0.1)$forecast
+mean(abs(f_cro - test) / test) * 100   # MAPE, in percent
+#&gt; [1] Inf</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>MAPE returns <code>Inf</code>, infinity, because of the division by zero in the test set. It is useless here, and so is any metric built on percentage errors. You need metrics that survive zeros. Two good ones are the root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>, RMSE, which just squares the raw errors, and the cumulative bias, the total forecast units minus the total actual units over the horizon. Cumulative bias is the one inventory planners care about most, since it is the over- or under-stock that piles up. For a fuller tour of scoring, see <a href="/Forecast-Accuracy-in-R.html">forecast accuracy in R</a>. Let's tabulate all four flat forecasts against the same test window.</p>
+
+<div class="webr-container" data-block-title="Score the methods on a hold-out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the methods on a hold-out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_sba &lt;- sba_fit(train, 0.1)$forecast
+f_tsb &lt;- tsb_fit(train, 0.1, 0.05)$forecast
+f_avg &lt;- mean(train)
+rmse    &lt;- function(f) sqrt(mean((f - test)^2))
+cumbias &lt;- function(f) sum(rep(f, length(test))) - sum(test)
+scores &lt;- rbind(
+  Croston   = c(forecast = f_cro, RMSE = rmse(f_cro), cum_bias = cumbias(f_cro)),
+  SBA       = c(f_sba, rmse(f_sba), cumbias(f_sba)),
+  TSB       = c(f_tsb, rmse(f_tsb), cumbias(f_tsb)),
+  TrainMean = c(f_avg, rmse(f_avg), cumbias(f_avg)))
+round(scores, 2)
+#&gt;           forecast RMSE cum_bias
+#&gt; Croston       1.12 3.18   -18.53
+#&gt; SBA           1.07 3.21   -19.21
+#&gt; TSB           1.39 3.06   -15.28
+#&gt; TrainMean     1.33 3.08   -16.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every method here under-forecasts, all four cumulative biases are negative, because this particular test window happened to be a busy stretch that the calmer first 36 months did not predict. On this one split TSB looks best and SBA looks worst, the reverse of what the theory promised. That is not a real result, it is the noise of judging a forecast on a single 12-month window. One draw of the dice tells you almost nothing.</p>
+
+<p>The fix is to average over many series, exactly as we did for the bias. Let's simulate 3,000 series from the same known truth of 1.5 and measure each method's <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a> against that truth.</p>
+
+<div class="webr-container" data-block-title="Score fairly over many series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score fairly over many series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">truth &lt;- 0.3 * 5
+reps  &lt;- 3000
+set.seed(99)
+cro2 &lt;- sba2 &lt;- tsb2 &lt;- numeric(reps)
+for (r in 1:reps) {
+  y &lt;- rbinom(60, 1, 0.3) * (rpois(60, 4) + 1)
+  cro2[r] &lt;- croston_fit(y, 0.1)$forecast
+  sba2[r] &lt;- sba_fit(y, 0.1)$forecast
+  tsb2[r] &lt;- tsb_fit(y, 0.1, 0.05)$forecast
+}
+c(Croston = round(mean(abs(cro2 - truth)), 3),
+  SBA     = round(mean(abs(sba2 - truth)), 3),
+  TSB     = round(mean(abs(tsb2 - truth)), 3))
+#&gt; Croston     SBA     TSB 
+#&gt;   0.315   0.295   0.331 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Over 3,000 series SBA has the lowest average error, 0.295, beating both Croston at 0.315 and TSB at 0.331. This is the same verdict the bias experiment gave, and it is the one to trust: SBA is the safe default for stable intermittent demand, with TSB reserved for products at risk of dying out.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Judge intermittent forecasts by bias and scaled error averaged over many series, never by MAPE on one.</strong> Percentage errors are undefined on zeros, and any single hold-out window is dominated by luck, so a fair comparison needs many series or a rolling evaluation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a tiny cumulative-bias helper that takes a flat forecast and the actual test vector, and returns total forecast minus total actual. Test it with a forecast of 1.5 against <code>test</code>. It should return -14.</p>
+<div class="webr-container" data-block-title="Your turn: a cumulative-bias helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a cumulative-bias helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Total predicted units minus total actual units over the horizon
+# ex_bias &lt;- function(f, actual) sum(f * length(actual)) - sum(____)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cumulative-bias helper solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cumulative-bias helper solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bias &lt;- function(f, actual) sum(f * length(actual)) - sum(actual)
+ex_bias(1.5, test)
+#&gt; [1] -14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A flat forecast of 1.5 over 12 months predicts 18 units, but the test window actually shipped 32, so the cumulative bias is 18 minus 32, a shortfall of 14 units. Negative means you would have under-stocked.</p>
+
+</details>
+</section>
+
+<h2>The complete workflow, end to end</h2>
+
+<p>Putting the pieces together, a sound intermittent-demand routine is: classify the series, let the class choose the method, forecast the rate, and sanity-check it against the plain average. All the functions we built earlier combine into one short block.</p>
+
+<div class="webr-container" data-block-title="The full intermittent-demand workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The full intermittent-demand workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">part   &lt;- demand
+cls    &lt;- classify_demand(part)$class
+method &lt;- ifelse(cls %in% c(&quot;intermittent&quot;, &quot;lumpy&quot;), &quot;SBA&quot;, &quot;Croston&quot;)
+rate   &lt;- sba_fit(part, 0.1)$forecast
+data.frame(class = cls, method = method,
+           sba_rate = round(rate, 3), sample_mean = round(mean(part), 3))
+#&gt;          class method sba_rate sample_mean
+#&gt; 1 intermittent    SBA    1.531       1.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The routine classifies the part as intermittent, which selects SBA, giving a forecast of 1.531 units per month. That the rate sits just below the raw sample mean of 1.667 is a good sign, it is the deliberate SBA bias correction at work, not a mistake. This four-line pattern scales to a whole catalog: loop it over every part number and you have a defensible, method-matched forecast for each.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. The functions <code>croston_fit()</code>, <code>sba_fit()</code>, <code>tsb_fit()</code>, and <code>classify_demand()</code> from above are available.</p>
+
+<h3>Exercise 1: A one-call multi-method forecaster</h3>
+
+<p>Write a function <code>forecast_all()</code> that takes a demand series and returns a named vector with the Croston, SBA, and TSB forecasts, so you can compare all three at a glance. Run it on <code>demand</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Return a named vector: croston, sba, tsb
+# Hint: call the three fitting functions and pull each $forecast
+
+my_forecasts &lt;- NULL   # replace this</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">forecast_all &lt;- function(y, alpha = 0.1, beta = 0.05) {
+  c(croston = croston_fit(y, alpha)$forecast,
+    sba     = sba_fit(y, alpha)$forecast,
+    tsb     = tsb_fit(y, alpha, beta)$forecast)
+}
+round(forecast_all(demand), 3)
+#&gt; croston     sba     tsb 
+#&gt;   1.612   1.531   1.883 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wrapping the three calls in one function gives a compact dashboard. SBA sits just under Croston, as its correction factor guarantees, while TSB reads higher here because the series stays active to the end.</p>
+
+</details>
+
+<h3>Exercise 2: Auto-select the method from the class</h3>
+
+<p>Write <code>recommend()</code> that classifies a series and returns both its class and the method you should use: SBA for intermittent or lumpy demand, Croston otherwise. Run it on <code>demand</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Classify, then map the class to a method with ifelse or %in%
+# Return both the class and the chosen method
+
+my_choice &lt;- NULL   # replace this</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recommend &lt;- function(y) {
+  cls    &lt;- classify_demand(y)$class
+  method &lt;- if (cls %in% c(&quot;intermittent&quot;, &quot;lumpy&quot;)) &quot;SBA&quot; else &quot;Croston&quot;
+  c(class = cls, method = method)
+}
+recommend(demand)
+#&gt;          class         method 
+#&gt; &quot;intermittent&quot;          &quot;SBA&quot; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The rule encodes the recommendation table: the two hardest quadrants, intermittent and lumpy, both route to SBA, while smoother patterns fall back to plain Croston. Drop this into a catalog loop for automatic method selection.</p>
+
+</details>
+
+<h3>Exercise 3: Tune alpha by rolling evaluation</h3>
+
+<p>Write <code>alpha_grid()</code> that searches a grid of alpha values for Croston, trains on the first 70% of a series, forecasts the last 30%, and returns the alpha with the smallest mean absolute error. Run it on <code>demand</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. split the series 70/30
+# 2. for each alpha in the grid, fit Croston on train and score MAE on test
+# 3. return the best alpha
+
+my_alpha &lt;- NULL   # replace this</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alpha_grid &lt;- function(y, grid = seq(0.05, 0.30, by = 0.05)) {
+  origin &lt;- floor(length(y) * 0.7)
+  train  &lt;- y[1:origin]
+  test   &lt;- y[(origin + 1):length(y)]
+  err &lt;- sapply(grid, function(a) {
+    f &lt;- croston_fit(train, a)$forecast
+    mean(abs(f - test))
+  })
+  grid[which.min(err)]
+}
+alpha_grid(demand)
+#&gt; [1] 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The search picks the smallest alpha, 0.05, because our test window is quieter than the busy training tail, so the most conservative, slowest-reacting forecast scores best. On a real catalog you would run this per part and cap the grid at a sensible maximum like 0.3.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Intermittent demand, all those zeros with occasional spikes, defeats ordinary forecasters, but a small family of purpose-built methods handles it cleanly. The trick they share is to stop forecasting the raw series and instead forecast demand size and demand timing separately.</p>
+
+<p><img src="screenshots/Croston-Method-in-R-overview-mindmap.webp" alt="The intermittent demand toolkit, from problem to methods to evaluation" class="img-responsive img-zoomable" loading="lazy" width="1886" height="952" /></p>
+
+<p><em>Figure 3: The intermittent-demand toolkit at a glance, from the problem to the three methods to how you evaluate them.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>What it smooths</th>
+<th>Best for</th>
+<th>One-line reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Croston</td>
+<td>Size and interval, on demand months</td>
+<td>Stable intermittent demand</td>
+<td>Splits size from timing, but runs slightly high</td>
+</tr>
+<tr>
+<td>SBA</td>
+<td>Croston, times (1 - alpha/2)</td>
+<td>Most intermittent and lumpy demand</td>
+<td>Removes Croston's upward bias, the safe default</td>
+</tr>
+<tr>
+<td>TSB</td>
+<td>Size, plus demand probability every month</td>
+<td>Products at risk of obsolescence</td>
+<td>Decays toward zero when demand stops</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>Forecast the <strong>demand rate</strong>, size divided by interval, not the jumpy raw series.</li>
+
+<li><strong>Croston</strong> splits the series into sizes and intervals and smooths each; the forecast package's <code>croston()</code> reproduces it exactly.</li>
+
+<li><strong>SBA</strong> trims Croston by a factor just below one and is nearly unbiased, making it the default for intermittent and lumpy parts.</li>
+
+<li><strong>TSB</strong> updates a demand probability every period, so it alone reacts when a product goes obsolete.</li>
+
+<li><strong>Classify first</strong> with ADI and $CV^2$, and <strong>never use MAPE</strong>, score with bias and scaled error over many series.</li>
+
+</ul>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Can I use Croston's method for demand that is not intermittent?</h3>
+
+<p>You can, but you usually should not. On smooth demand that sells most periods, plain exponential smoothing or an <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS model</a> is more accurate, because splitting the series into sizes and intervals only helps when there are real gaps to model. Run the ADI and CV² classification first: if the series lands in the smooth quadrant, forecast it the normal way.</p>
+
+<h3>How do I choose the smoothing parameter alpha?</h3>
+
+<p>Start with a small value between 0.05 and 0.2, which keeps the estimate stable on short, noisy histories. If you want to tune it, hold out the most recent months, forecast them across a grid of alpha values, and keep the one with the lowest mean absolute error, exactly what Exercise 3 above does. Avoid large alpha on short series, since one busy stretch can drag the forecast up.</p>
+
+<h3>What is the real difference between SBA and TSB?</h3>
+
+<p>SBA is Croston with a small downward correction that removes its upward bias; it still only updates when a demand arrives. TSB instead tracks the probability of a demand and updates it every month, so its forecast decays toward zero when demand stops. Use SBA as your default for active parts, and switch to TSB when a product might be going obsolete.</p>
+
+<h3>Why does Croston give the same forecast for every future month?</h3>
+
+<p>Croston estimates a level, the average demand rate, not a trend or a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a>. With nothing to trend toward, the best flat estimate of next month is also the best estimate of the month after, so <code>croston()</code> repeats one number across the whole horizon. That flat rate is what you feed into stock and reorder calculations.</p>
+
+<h3>Which R package should I use in production?</h3>
+
+<p>For a single Croston forecast, the forecast package's <code>croston()</code> is enough. For SBA, TSB, automatic parameter optimization, and demand classification in one place, use the tsintermittent package (crost, tsb, idclass) or the smooth package. The hand-coded versions in this tutorial match what those packages compute, so you can adopt them knowing what runs under the hood.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J., <em>forecast::croston() reference</em>, the canonical R implementation of Croston's method. <a href="https://search.r-project.org/CRAN/refmans/forecast/html/croston.html">Link</a></li>
+
+<li>Shenstone, L. and Hyndman, R. J., <em>Stochastic models underlying Croston's method for intermittent demand forecasting</em>. Journal of Forecasting (2005). <a href="https://robjhyndman.com/papers/croston.pdf">Link</a></li>
+
+<li>Syntetos, A. A. and Boylan, J. E., <em>The accuracy of intermittent demand estimates</em>. International Journal of Forecasting (2005), the paper that introduced SBA. <a href="https://doi.org/10.1016/j.ijforecast.2004.10.001">Link</a></li>
+
+<li>Teunter, R. H., Syntetos, A. A. and Babai, M. Z., <em>Intermittent demand: Linking forecasting to inventory obsolescence</em>. European Journal of Operational Research (2011), the TSB method. <a href="https://doi.org/10.1016/j.ejor.2011.05.018">Link</a></li>
+
+<li>Kourentzes, N., <em>tsintermittent::crost() reference</em>, a production R package implementing Croston, SBA and TSB. <a href="https://rdrr.io/cran/tsintermittent/man/crost.html">Link</a></li>
+
+<li><em>tsintermittent: Intermittent Time Series Forecasting</em>, CRAN package page. <a href="https://cran.r-project.org/package=tsintermittent">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G., <em>Forecasting: Principles and Practice</em>, section on count and intermittent time series. <a href="https://otexts.com/fpp2/counts.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="/Exponential-Smoothing-in-R.html">Exponential Smoothing in R</a>, the SES engine that sits inside every method in this tutorial, explained from first principles.</li>
+
+<li><a href="/Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a>, a deeper look at error metrics, including the scaled errors that replace MAPE on intermittent data.</li>
+
+<li><a href="/Backtesting-Forecasts-in-R.html">Backtesting Forecasts in R</a>, how to evaluate a forecast honestly with <a class="auto-link" href="Backtesting-Forecasts-in-R.html" title="Backtesting Forecast Models in R at Scale">rolling origins</a> instead of a single lucky hold-out.</li>
+
+</ul>
+
+{% endraw %}
