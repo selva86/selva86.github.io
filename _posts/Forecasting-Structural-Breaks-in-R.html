@@ -1,0 +1,805 @@
+---
+title: "Forecasting Through Structural Breaks in R"
+description: "Detect structural breaks in R with the changepoint and strucchange packages, then build forecasts that survive level shifts, trend changes, and regime shifts."
+keywords: "structural breaks in R, forecasting structural breaks, changepoint detection in R, strucchange breakpoints, Bai-Perron test, change point PELT, regime shift forecasting, level shift time series"
+mathjax: true
+webr: true
+curriculum_id: "TS2-11.6"
+post_type: "C"
+auto_link_terms: "structural break|structural breaks|structural break in R|change point detection|changepoint detection|regime shift|level shift|trend break|Bai-Perron test|breakpoints()|cpt.meanvar()|forecasting through structural breaks|structural change"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Structural Breaks"
+sidebar_order: "62"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A <a class="auto-link" href="Anomaly-Detection-in-Time-Series-in-R.html" title="Time Series Anomaly Detection in R: tsoutliers, anomalize">structural break</a> is a moment when the rule that generates your data changes: the average may jump to a new level or a steady trend may suddenly bend. A forecast trained on the old rule then drifts wrong. This tutorial shows you how to spot a break in R and forecast right through it.</p>
+
+<h2>What is a structural break, and why does it wreck a forecast?</h2>
+
+<p>Almost every forecasting method assumes the future behaves like the past. That assumption quietly breaks the moment something structural changes: a competitor exits, a pricing policy flips, a pandemic starts, a product goes viral. Analysts call that moment a structural break, and if you feed a model history from both sides of it, the model splits the difference between the two regimes and describes neither well. Let's build a series with a break so you can see the problem before we fix it.</p>
+
+<p>We simulate ten years of monthly sales. For the first 72 months the average sits near 100 units. Then, at month 73, it jumps permanently to 150, the kind of shift a new distribution deal would cause. We load the two packages, then build the series and plot it.</p>
+
+<div class="webr-container" data-block-title="Simulate monthly sales with a level shift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate monthly sales with a level shift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(changepoint)
+library(forecast)
+
+set.seed(2026)
+months  &lt;- 1:120
+regime  &lt;- ifelse(months &lt; 73, 100, 150)      # the average jumps at month 73
+sales   &lt;- regime + rnorm(120, mean = 0, sd = 6)
+sales_ts &lt;- ts(sales, frequency = 12, start = c(2016, 1))
+
+plot(sales_ts, main = &quot;Monthly sales with a structural break&quot;,
+     ylab = &quot;Units sold&quot;, col = &quot;steelblue&quot;, lwd = 2)
+abline(v = 2016 + 72/12, lty = 2, col = &quot;red&quot;)
+
+round(c(before = mean(sales[1:72]), after = mean(sales[73:120])), 1)
+#&gt; before  after
+#&gt;   99.2  149.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows a flat band near 100 that suddenly steps up to a flat band near 150 at the red dashed line. The two numbers confirm it: the average was 99.2 before the break and 149.7 after. Nothing gradual happened, the level simply shifted. That single jump is the whole problem, and it comes in three flavours you will meet again and again.</p>
+
+<p><img src="screenshots/Forecasting-Structural-Breaks-in-R-break-types.webp" alt="The three kinds of structural break a forecaster must handle." class="img-responsive img-zoomable" loading="lazy" width="1186" height="842" /></p>
+
+<p><em>Figure 1: The three kinds of structural break a forecaster must handle.</em></p>
+
+<p>A break can move the <strong>level</strong> (the average jumps, like our sales), bend the <strong>trend</strong> (steady growth suddenly plateaus), or widen the <strong>variance</strong> (the series becomes noisier without changing its average). Our example is a level shift, the most common and the easiest to see. Now watch what a standard forecast does with it. We hold out the last 12 months as a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, then forecast them using the simplest baseline there is: the average of all history.</p>
+
+<div class="webr-container" data-block-title="Forecast with a full-history average">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast with a full-history average</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- window(sales_ts, end = c(2024, 12))     # first 108 months
+test  &lt;- window(sales_ts, start = c(2025, 1))     # last 12 months, all post-break
+
+fc_naive &lt;- meanf(train, h = 12)                  # forecast = mean of every point
+
+plot(fc_naive, main = &quot;Full-history average forecast vs reality&quot;)
+lines(test, col = &quot;red&quot;, lwd = 2)
+
+round(accuracy(fc_naive, test)[, c(&quot;RMSE&quot;, &quot;MAE&quot;)], 2)
+#&gt;               RMSE   MAE
+#&gt; Training set 24.79 22.68
+#&gt; Test set     32.72 32.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the forecast line in the plot: it sits at roughly 116, floating in empty space between the old regime and the new one. The red line of reality is up near 150, far above it. On the test set the error is large, a <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a> (RMSE, the typical size of a forecast miss) of 32.72 units. The forecast is bad not because the method is broken, but because it averaged the 72 pre-break months near "100" with the 36 post-break months near "150" in the training window and landed at a number that describes neither.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A structural break splits your history into separate regimes, and old data can actively hurt.</strong> Once the rule changes, observations from before the break describe a world that no longer exists. Blindly averaging across the break pulls every forecast toward a level that no longer applies.</div></div>
+
+<p>That is the mistake this whole tutorial exists to prevent. But before you can forecast through a break, you have to know where it is. So the first job is detection.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the series with a bigger jump, from 100 up to 190, keep the same 108-month training window, and forecast it with <code>meanf()</code>. Read off the single point forecast and notice how it again lands between the two levels.</p>
+<div class="webr-container" data-block-title="Your turn: forecast a bigger level shift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast a bigger level shift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_regime &lt;- ifelse(1:120 &lt; 73, 100, 190)
+ex_sales  &lt;- ex_regime + rnorm(120, 0, 6)
+ex_ts     &lt;- ts(ex_sales, frequency = 12, start = c(2016, 1))
+ex_train  &lt;- window(ex_ts, end = c(2024, 12))
+# your code here: forecast ex_train with meanf(h = 12) and read the point forecast</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bigger level shift solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bigger level shift solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fc &lt;- meanf(ex_train, h = 12)
+round(ex_fc$mean[1], 1)
+#&gt; [1] 130.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The training window holds 72 months near 100 and 36 months near 190, so their average is about 130.8, a forecast stranded halfway between the two regimes. A larger break just makes the averaging error larger.</p>
+
+</details>
+</section>
+
+<h2>How do you find where the break happened?</h2>
+
+<p>To forecast through a break you first have to locate it. "Eyeballing the chart" does not scale to hundreds of series and misses breaks that are real but subtle. Instead we let an algorithm scan the series and find the split point that best explains the data. The <code>changepoint</code> package does exactly this, and it runs directly in your browser here.</p>
+
+<p>The core idea is simple. For every possible split point, the algorithm measures how much better the data is described by two segments (each with its own average and spread) instead of one. The split that gives the biggest improvement, after paying a penalty for added complexity, is the break. We use <code>cpt.meanvar()</code>, which allows both the mean and the variance to change across the break.</p>
+
+<div class="webr-container" data-block-title="Detect the break with changepoint">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect the break with changepoint</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cp &lt;- cpt.meanvar(as.numeric(sales), method = &quot;PELT&quot;)
+
+cat(&quot;Break detected at month:&quot;, cpts(cp), &quot;\n&quot;)
+#&gt; Break detected at month: 72
+round(param.est(cp)$mean, 1)
+#&gt; [1]  99.2 149.7
+round(param.est(cp)$variance, 1)
+#&gt; [1] 30.4 46.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function found the break at month 72, exactly where we planted it. The <code>cpts()</code> helper returns the break location, and <code>param.est()</code> reports what each segment looks like: the average is 99.2 before the break and 149.7 after, matching the true regimes. The <code>method = &quot;PELT&quot;</code> argument names the search algorithm (Pruned Exact Linear Time), which finds the optimal split points quickly even on long series. In one call, you have turned "something changed around here" into a precise month.</p>
+
+<p><img src="screenshots/Forecasting-Structural-Breaks-in-R-detector-choice.webp" alt="Match the detector to the kind of change you expect." class="img-responsive img-zoomable" loading="lazy" width="1604" height="710" /></p>
+
+<p><em>Figure 2: Match the detector to the kind of change you expect.</em></p>
+
+<p>There is one trap worth naming, because it bites almost everyone the first time. The sister function <code>cpt.mean()</code> searches for shifts in the average while assuming the noise level is fixed and equal to one. Real data rarely obeys that, so it tends to chop the series into dozens of tiny false segments. Using <code>cpt.meanvar()</code>, which estimates the noise as it goes, avoids the problem and finds the single true break.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A mean-only search assumes the noise has variance one and will over-segment real data.</strong> On this very series, cpt.mean() reports more than seventy spurious break points. Reach for <a class="auto-link" href="Changepoint-Detection-in-R.html" title="Changepoint Detection in R: the changepoint Package and PELT">cpt.meanvar()</a> instead, which estimates the spread in each segment and recovers the single genuine break.</div></div>
+
+<p>The same package detects breaks in variance, where the average holds steady but the series suddenly gets noisier. That matters for forecasting because it inflates your prediction intervals, not your point forecast. Here we build a series whose spread jumps at observation 80 and let <code>cpt.var()</code> find it.</p>
+
+<div class="webr-container" data-block-title="Detect a variance break">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect a variance break</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+vol &lt;- c(rnorm(80, mean = 20, sd = 2), rnorm(80, mean = 20, sd = 8))
+cpv &lt;- cpt.var(vol, method = &quot;PELT&quot;)
+
+cat(&quot;Variance break at:&quot;, cpts(cpv), &quot;\n&quot;)
+#&gt; Variance break at: 82
+round(param.est(cpv)$variance, 1)
+#&gt; [1]  3.3 66.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The detector placed the variance break at observation 82 (the truth was 80) and estimated the spread as 3.3 in the calm first half against 66.1 in the turbulent second half. The average never moved, but the spread around it jumped sharply. Which detector you reach for depends on what kind of change you expect, and Figure 2 above is your cheat sheet.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use method AMOC when you expect a single break and PELT when there could be several.</strong> AMOC (At Most One Change) is constrained to find the one most significant split, which is perfect for a known one-off event. PELT searches for any number of breaks, which suits long, messy histories.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The series below has two clear halves. Run <code>cpt.meanvar()</code> on it and read the break location with <code>cpts()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the break location">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the break location</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_series &lt;- c(rnorm(50, 5, 1), rnorm(50, 12, 1))
+# your code here: run cpt.meanvar(ex_series, method = &quot;AMOC&quot;) and read cpts()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find the break location solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the break location solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cp &lt;- cpt.meanvar(ex_series, method = &quot;AMOC&quot;)
+cpts(ex_cp)
+#&gt; [1] 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The series switches from an average of 5 to an average of 12 at observation 50, and <code>cpt.meanvar()</code> with <code>method = &quot;AMOC&quot;</code> returns that single split point.</p>
+
+</details>
+</section>
+
+<h2>How do the classic tests confirm a structural break?</h2>
+
+<p>The <code>changepoint</code> approach answers "where is the break?" A second family, from econometrics, answers a slightly different question: "is there a break at all, and can I put a confidence interval and a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> on it?" That family lives in the <code>strucchange</code> package. It is built on regression, so it also handles breaks in a trend, not just a level. These functions need a full <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a> rather than the in-browser engine, so the blocks below are marked to run locally, but every result is real.</p>
+
+<p>The workhorse is <code>breakpoints()</code>. We regress the series on a constant (<code>sales ~ 1</code>), which tells the function to look for shifts in the average, and it returns the split that minimises the total squared error, along with a confidence interval.</p>
+
+<pre><code class="language-r">library(strucchange)
+
+bp &lt;- breakpoints(sales ~ 1)
+bp$breakpoints
+#&gt; [1] 72
+confint(bp)
+#&gt;   2.5 % breakpoints 97.5 %
+#&gt; 1    71          72     73</code></pre>
+
+<p>The estimate agrees with <code>changepoint</code> to the month: the break is at observation 72, and the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> is a tight window of months 71 to 73. That interval is genuinely useful, it tells you how sure you can be about the timing, which a point estimate alone never does. Regressing on <code>sales ~ trend</code> instead would hunt for a change in slope, the tool for a trend break, and the Bayesian Information Criterion picks how many breaks the data actually supports.</p>
+
+<p>Sometimes you need a formal yes-or-no answer before you act. Two classic tests provide it. The supF test (also called the Quandt Likelihood Ratio) scans every candidate break date and reports the largest instability it finds, while the OLS-CUSUM test tracks the running sum of forecast errors and flags when it drifts too far from zero.</p>
+
+<pre><code class="language-r">qlr &lt;- Fstats(sales ~ 1)
+sctest(qlr)
+#&gt; 	supF test
+#&gt; data:  qlr
+#&gt; sup.F = 1962.8, p-value &lt; 2.2e-16
+
+ocus &lt;- efp(sales ~ 1, type = &quot;OLS-CUSUM&quot;)
+sctest(ocus)
+#&gt; 	OLS-based CUSUM test
+#&gt; data:  ocus
+#&gt; S0 = 5.1904, p-value &lt; 2.2e-16</code></pre>
+
+<p>Both tests return a p-value below 2.2e-16, far under any sensible threshold, so both reject the idea that the series is stable. The huge supF statistic of 1962.8 is the strength of the single most significant break; the CUSUM statistic of 5.19 confirms the running errors wander far from zero. In plain terms: yes, there is definitely a break, and you are safe to treat the series as two regimes.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use changepoint for fast in-browser detection, and strucchange when you need a confidence interval or a formal test for a trend break.</strong> They usually agree on the location, as they do here; strucchange simply adds the statistical paperwork that regression gives you for free.</div></div>
+
+<p><strong>Try it (run locally):</strong> The <code>bp</code> object above stores the break index in <code>bp$breakpoints</code>. Convert that index into a calendar year and month, remembering the series starts in January 2016.</p>
+
+<pre><code class="language-r"># your code here: read bp$breakpoints, then compute the year and month.
+# Hint: year = 2016 + (index - 1) %/% 12, month = (index - 1) %% 12 + 1</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">brk_index &lt;- bp$breakpoints
+c(index = brk_index,
+  year  = 2016 + (brk_index - 1) %/% 12,
+  month = (brk_index - 1) %% 12 + 1)
+#&gt; index  year month
+#&gt;    72  2021    12</code></pre>
+
+<p><strong>Explanation:</strong> Month 72 of a series that starts in January 2016 is December 2021, so the last stable month is December 2021 and the new regime begins in January 2022.</p>
+
+</details>
+
+<h2>How do you forecast through a structural break?</h2>
+
+<p>Now for the payoff. You have found the break; the question is how to forecast the future without letting the pre-break past pollute it. There are three practical strategies, and Figure 3 lays them out. Each one takes the detected break and turns it into a reliable forecast; they differ in how much data they keep and how much modelling they do.</p>
+
+<p><img src="screenshots/Forecasting-Structural-Breaks-in-R-forecast-strategy.webp" alt="Three routes from a detected break to a reliable forecast." class="img-responsive img-zoomable" loading="lazy" width="1226" height="986" /></p>
+
+<p><em>Figure 3: Three routes from a detected break to a reliable forecast.</em></p>
+
+<p><strong>Strategy 1: refit on the recent regime.</strong> The simplest fix is also the most effective: detect the break, throw away everything before it, and fit your model on the current regime only. We detect the break inside the training data, keep the post-break months, and forecast from there.</p>
+
+<div class="webr-container" data-block-title="Refit the model on the post-break regime">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit the model on the post-break regime</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cp_train &lt;- cpt.meanvar(as.numeric(train), method = &quot;AMOC&quot;)
+brk_tr   &lt;- cpts(cp_train)
+cat(&quot;Break in training data at month:&quot;, brk_tr, &quot;\n&quot;)
+#&gt; Break in training data at month: 72
+
+# Month 72 is December 2021, so the new regime starts in January 2022:
+post &lt;- window(train, start = c(2022, 1))
+fc_refit &lt;- meanf(post, h = 12)
+
+round(accuracy(fc_refit, test)[, c(&quot;RMSE&quot;, &quot;MAE&quot;)], 2)
+#&gt;              RMSE  MAE
+#&gt; Training set 6.87 5.97
+#&gt; Test set     6.72 5.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test-set RMSE drops from 32.72 with the full history to 6.72 on the recent regime, a nearly fivefold improvement, from the exact same forecasting method. All we changed was the data we fed it. By fitting only the post-break months, the average settles at the true new level of about 150 instead of being dragged down by ancient history.</p>
+
+<p><strong>Strategy 2: model the break with a step dummy.</strong> Refitting throws data away, which stings when the post-break regime is short. A thriftier option keeps every observation but tells the model exactly when the level shifted, using a step variable that is 0 before the break and 1 after. We add it as an external regressor to an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a>.</p>
+
+<div class="webr-container" data-block-title="Model the break with a step dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Model the break with a step dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step &lt;- as.numeric(seq_along(train) &gt; brk_tr)   # 0 before the break, 1 after
+fit_step &lt;- Arima(train, order = c(0, 0, 0), xreg = step)
+round(coef(fit_step), 1)
+#&gt; intercept      xreg
+#&gt;      99.2      51.0
+
+fc_step &lt;- forecast(fit_step, h = 12, xreg = rep(1, 12))
+round(accuracy(fc_step, test)[, c(&quot;RMSE&quot;, &quot;MAE&quot;)], 2)
+#&gt;              RMSE  MAE
+#&gt; Training set 6.00 4.87
+#&gt; Test set     6.72 5.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model reads the break perfectly. It estimates a baseline level of 99.2 and a step coefficient of 51.0, which recovers the true jump of about 50 units almost exactly. The test RMSE matches the refit approach at 6.72, but notice the training RMSE is lower (6.00 versus 6.87), because this model learned from all 108 months instead of just the recent 36. What that step regressor does is captured in one small equation.</p>
+
+<p>$$y_t = \beta_0 + \beta_1 D_t + \varepsilon_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the observed value at time $t$</li>
+
+<li>$\beta_0$ = the baseline level before the break</li>
+
+<li>$D_t$ = the step dummy, equal to 0 before the break and 1 after</li>
+
+<li>$\beta_1$ = the size of the level shift (here about 51)</li>
+
+<li>$\varepsilon_t$ = the remaining noise</li>
+
+</ul>
+
+<p>If you are not interested in the algebra, skip it: the code already showed that $\beta_1$ lands on the true shift. To forecast, you simply set the dummy to 1 for every future month, since the future lives in the post-break world.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Refitting buys a clean regime by discarding data; a step dummy keeps every point but must be told when the break happened.</strong> Choose refitting when you have plenty of recent data and want zero fuss, and choose the step dummy when the post-break regime is short and you cannot afford to throw history away.</div></div>
+
+<p><strong>Strategy 3: prefer break-robust models and watch your intervals.</strong> Some models absorb a level shift better than others. An adaptive model like <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> (ETS) keeps re-estimating the current level, so after a jump it quickly re-anchors and its point forecast survives. The hidden cost is the prediction interval: the break inflates the model's estimate of the noise, so its intervals balloon. Compare the same model fit on all history versus the recent regime.</p>
+
+<div class="webr-container" data-block-title="Compare robust models and interval widths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare robust models and interval widths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_ets      &lt;- forecast(ets(train), h = 12)   # adaptive model on ALL history
+fc_ets_post &lt;- forecast(ets(post),  h = 12)   # same model on the recent regime
+
+round(c(full_RMSE = accuracy(fc_ets, test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        post_RMSE = accuracy(fc_ets_post, test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 2)
+#&gt; full_RMSE post_RMSE
+#&gt;      7.79      6.72
+
+pi_full &lt;- as.numeric(fc_ets$upper[1, 2]      - fc_ets$lower[1, 2])
+pi_post &lt;- as.numeric(fc_ets_post$upper[1, 2] - fc_ets_post$lower[1, 2])
+round(c(full_PI_width = pi_full, post_PI_width = pi_post), 1)
+#&gt; full_PI_width post_PI_width
+#&gt;          36.2          27.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The point forecasts are close (RMSE 7.79 versus 6.72), confirming that ETS re-anchored to the new level on its own. But the <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">95% prediction interval</a> is 36.2 units wide on the full history and only 27.7 units wide on the clean regime. The break inflated the full-history model's estimate of the noise, so its intervals are wider than the recent regime warrants. For a trend break rather than a level shift, the robust choice is a <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">damped trend</a>, which stops the model extrapolating a slope that no longer holds.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit an ETS model on the post-break window <code>post</code> and read its test-set RMSE, confirming it matches the refit result.</p>
+<div class="webr-container" data-block-title="Your turn: forecast the recent regime with ETS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast the recent regime with ETS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: build forecast(ets(post), h = 12) and read its Test set RMSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ETS on the recent regime solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ETS on the recent regime solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ets &lt;- forecast(ets(post), h = 12)
+round(accuracy(ex_ets, test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+#&gt; [1] 6.72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fitting ETS on the clean post-break regime gives a test RMSE of 6.72, the same as the naive refit, because once the old regime is gone there is little left to model beyond the new level.</p>
+
+</details>
+</section>
+
+<h2>Which detector and forecasting strategy should you pick?</h2>
+
+<p>You now have a toolbox. The trick is matching the tool to the break. The table below is the decision guide: identify the kind of change, pick the detector, then pick the forecasting move.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Break is in the</th>
+<th>Looks like</th>
+<th>Detect with</th>
+<th>Forecast with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Level</td>
+<td>The average jumps to a new plateau</td>
+<td>cpt.meanvar() or breakpoints(y ~ 1)</td>
+<td>Refit on the regime, or a step dummy</td>
+</tr>
+<tr>
+<td>Trend</td>
+<td>Growth speeds up, slows, or reverses</td>
+<td>breakpoints(y ~ trend)</td>
+<td>Refit, or a damped trend</td>
+</tr>
+<tr>
+<td>Variance</td>
+<td>Same average, suddenly noisier</td>
+<td>cpt.var()</td>
+<td>Keep the model, widen the intervals</td>
+</tr>
+</tbody>
+</table>
+
+<p>To make this repeatable, wrap the common case in a tiny helper. It runs the single-break detector, returns the break month, and reports the average in each regime so you can see the size of the shift at a glance.</p>
+
+<div class="webr-container" data-block-title="A reusable break diagnostic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable break diagnostic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diagnose_break &lt;- function(y) {
+  cp &lt;- cpt.meanvar(as.numeric(y), method = &quot;AMOC&quot;)
+  b  &lt;- cpts(cp)
+  list(break_at = b, means = round(param.est(cp)$mean, 1))
+}
+
+diagnose_break(sales)
+#&gt; $break_at
+#&gt; [1] 72
+#&gt;
+#&gt; $means
+#&gt; [1]  99.2 149.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper reports the break at month 72 and the two regime averages, 99.2 and 149.7. With the shift size in hand (about 50 units on a base of 100, a big move), you would confidently refit on the recent regime. A tiny shift, by contrast, might not be worth acting on at all, which is the judgement the next callout is about.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not discard pre-break data when the break is small or the recent regime is tiny.</strong> If the shift is minor or you only have a handful of post-break points, refitting can leave you with too little data to estimate anything stable. Prefer a step dummy there, which keeps the full sample while still accounting for the change.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the <code>diagnose_break()</code> helper on the mystery series below, read the break location and the two regime averages, and decide which forecasting strategy fits.</p>
+<div class="webr-container" data-block-title="Your turn: diagnose a mystery series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: diagnose a mystery series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_mystery &lt;- ifelse(1:80 &lt; 41, 30, 55) + rnorm(80, 0, 3)
+# your code here: call diagnose_break(ex_mystery)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Diagnose a mystery series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Diagnose a mystery series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diagnose_break(ex_mystery)
+#&gt; $break_at
+#&gt; [1] 40
+#&gt;
+#&gt; $means
+#&gt; [1] 30.2 54.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The helper finds a break at observation 40 with the average moving from 30.2 to 54.8, a large level shift, so refitting on the post-break regime (or a step dummy) is the right call.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: forecasting website traffic after a launch</h2>
+
+<p>Let's put every piece together on a fresh, realistic problem. A website runs steady at about 1,200 daily sessions, then a marketing launch on day 60 lifts it permanently to around 1,750. We have 180 days of history and want to forecast the next three weeks. First we detect the break.</p>
+
+<div class="webr-container" data-block-title="Detect the launch effect in traffic data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect the launch effect in traffic data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+day     &lt;- 1:180
+launch  &lt;- 60
+base    &lt;- ifelse(day &lt; launch, 1200, 1750)
+traffic &lt;- round(base + rnorm(180, mean = 0, sd = 90))
+
+traffic_cp &lt;- cpt.meanvar(traffic, method = &quot;AMOC&quot;)
+cat(&quot;Detected launch effect at day:&quot;, cpts(traffic_cp), &quot;\n&quot;)
+#&gt; Detected launch effect at day: 59
+round(param.est(traffic_cp)$mean, 0)
+#&gt; [1] 1221 1758</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The detector pins the break to day 59, one day before the true launch, and estimates the two levels as 1,221 and 1,758 sessions, both spot on. Now we forecast the final 21 days three ways: with the full history, with a refit on the post-break regime, and with a step dummy, then compare their errors on the held-out test set.</p>
+
+<div class="webr-container" data-block-title="Compare three forecasts on a hold-out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare three forecasts on a hold-out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tr_train &lt;- traffic[1:159]
+tr_test  &lt;- traffic[160:180]
+
+b &lt;- cpts(cpt.meanvar(tr_train, method = &quot;AMOC&quot;))
+tr_post  &lt;- ts(tr_train[(b + 1):length(tr_train)], frequency = 7)
+fc_refit_tr &lt;- meanf(tr_post, h = 21)
+
+step_tr &lt;- as.numeric(seq_along(tr_train) &gt; b)
+fit_tr  &lt;- Arima(ts(tr_train, frequency = 7), order = c(0, 0, 0), xreg = step_tr)
+fc_step_tr &lt;- forecast(fit_tr, h = 21, xreg = rep(1, 21))
+
+full_fc &lt;- meanf(ts(tr_train, frequency = 7), h = 21)
+
+round(c(full_history = accuracy(full_fc, tr_test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        refit_regime = accuracy(fc_refit_tr, tr_test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        step_dummy   = accuracy(fc_step_tr, tr_test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 1)
+#&gt; full_history refit_regime   step_dummy
+#&gt;        215.3         83.2         83.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The verdict is stark. The full-history forecast misses by an RMSE of 215.3 sessions, because it averages the quiet pre-launch weeks with the busy post-launch ones. Both break-aware strategies cut that error to 83.2, more than a twofold improvement, by forecasting from the world that actually exists now. This is the entire workflow in miniature: detect the break, then either refit on the recent regime or model the break explicitly, and never let stale history set your baseline.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always validate a break-aware forecast on a hold-out sample.</strong> Comparing full-history, refit, and step-dummy forecasts on the same test set, as we did here, turns "I think dropping old data helps" into a measured RMSE improvement you can defend.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These two exercises combine detection and forecasting. Each uses its own variables so nothing clashes with the tutorial code above, and every expected number is shown so you can check your work.</p>
+
+<h3>Exercise 1: Detect a break and beat the full-history forecast</h3>
+
+<p>A series of 96 months holds at an average of 40 until month 60, then jumps to 65. Detect the break in the first 84 months, refit <code>meanf()</code> on the post-break regime, and compare its test-set RMSE (on the last 12 months) against a full-history forecast. You should find the refit forecast is dramatically better.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(321)
+my_sales &lt;- ifelse(1:96 &lt; 61, 40, 65) + rnorm(96, 0, 4)
+my_ts    &lt;- ts(my_sales, frequency = 12)
+my_train &lt;- ts(my_sales[1:84], frequency = 12)
+my_test  &lt;- my_sales[85:96]
+# your code here: detect the break with cpt.meanvar(method = &quot;AMOC&quot;),
+# refit meanf() on the post-break months, and compare Test RMSE to a full-history meanf()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_b    &lt;- cpts(cpt.meanvar(as.numeric(my_train), method = &quot;AMOC&quot;))
+my_post &lt;- ts(my_sales[(my_b + 1):84], frequency = 12)
+my_refit &lt;- meanf(my_post, h = 12)
+my_full  &lt;- meanf(my_train, h = 12)
+
+round(c(break_at   = my_b,
+        full_RMSE  = accuracy(my_full,  my_test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        refit_RMSE = accuracy(my_refit, my_test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 2)
+#&gt;   break_at  full_RMSE refit_RMSE
+#&gt;      60.00      17.21       4.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The detector finds the break at month 60. Refitting on the post-break regime cuts the test RMSE from 17.21 to 4.84, because the forecast now sits at the true new level of 65 instead of averaging in the old level of 40.</p>
+
+</details>
+
+<h3>Exercise 2: Recover the size of a level shift with a step dummy</h3>
+
+<p>A series of 100 observations shifts up by 15 units at observation 51. Without discarding any data, fit an ARIMA model with a step dummy, recover the estimated shift from the coefficients, and forecast 12 steps ahead. The step coefficient should land near 15 and the forecast near 35.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(654)
+my_y2   &lt;- ifelse(1:100 &lt; 51, 20, 35) + rnorm(100, 0, 3)
+my_step &lt;- as.numeric(1:100 &gt;= 51)
+# your code here: fit Arima(my_y2, order = c(0,0,0), xreg = my_step),
+# read coef(), then forecast 12 steps with xreg = rep(1, 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit &lt;- Arima(my_y2, order = c(0, 0, 0), xreg = my_step)
+round(coef(my_fit), 1)
+#&gt; intercept      xreg
+#&gt;      19.9      14.5
+
+my_fc  &lt;- forecast(my_fit, h = 12, xreg = rep(1, 12))
+round(my_fc$mean[1], 1)
+#&gt; [1] 34.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The model estimates a baseline of 19.9 and a step of 14.5, recovering the true shift of 15 without throwing away a single observation. Setting the dummy to 1 for the future gives a forecast of 34.4, right at the new regime level.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between a structural break and an outlier?</strong> An outlier is a single unusual point that the series returns from immediately. A structural break is a permanent change in the rule generating the data: after it, the new behaviour continues. <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Detect outliers</a> with spike-focused methods; treat breaks by re-scoping your training data or modelling the shift.</p>
+
+<p><strong>How much post-break data do I need before I can trust a refit?</strong> Enough to estimate your model. A plain level model needs only a handful of points, while a seasonal model needs at least a full cycle or two. If the post-break regime is too short, keep the full sample and use a step dummy instead of refitting.</p>
+
+<p><strong>Can I just forecast without detecting the break?</strong> Sometimes. Adaptive models such as ETS and differenced ARIMA partly absorb a level shift on their own, so the point forecast may survive. But they inflate their prediction intervals and mishandle trend breaks, so explicit detection plus a refit or step dummy is safer and more accurate.</p>
+
+<p><strong>Does <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a> or auto.arima fix structural breaks automatically?</strong> Only partly. Differencing turns a one-time level shift into a single spike in the differenced series, which localises the damage but does not remove it, and it does nothing for a trend or variance break. Detecting the break and acting on it is more reliable than hoping the model absorbs it on its own.</p>
+
+<p><strong>changepoint or strucchange, which should I use?</strong> Use <code>changepoint</code> for fast, general detection of shifts in mean or variance, especially across many series. Use <code>strucchange</code> when you want confidence intervals, a formal significance test, or detection of a break in a regression relationship such as a trend. They usually agree on the location.</p>
+
+<h2>Summary</h2>
+
+<p>Structural breaks are the reason a perfectly reasonable forecast can be badly wrong: the model is describing a past that no longer applies. The fix is a two-step discipline, detect the break, then forecast from the current regime.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Tool in R</th>
+<th>Takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>See the break</td>
+<td>plot() plus regime means</td>
+<td>A level shift, trend bend, or variance jump splits history into regimes</td>
+</tr>
+<tr>
+<td>Locate the break</td>
+<td>cpt.meanvar(), cpt.var()</td>
+<td>changepoint pins the break month in one call, in your browser</td>
+</tr>
+<tr>
+<td>Confirm the break</td>
+<td>breakpoints(), sctest()</td>
+<td>strucchange adds confidence intervals and a formal p-value</td>
+</tr>
+<tr>
+<td>Refit on the regime</td>
+<td>window() plus <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">meanf()</a>/ets()</td>
+<td>Dropping pre-break data cut our RMSE nearly fivefold</td>
+</tr>
+<tr>
+<td>Model the break</td>
+<td>Arima(<a class="auto-link" href="ARIMAX-in-R.html" title="ARIMAX in R: ARIMA with External Regressors (xreg)">xreg</a> = step)</td>
+<td>A step dummy keeps all data and recovers the shift size</td>
+</tr>
+<tr>
+<td>Robust forecasting</td>
+<td>ets(), damped trend</td>
+<td>Adaptive models survive the point forecast but widen their intervals</td>
+</tr>
+</tbody>
+</table>
+
+<p>The through-line: never let data from before a break set your baseline. Detect it, then either refit on the recent regime or tell the model exactly when the world changed.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Killick, R. & Eckley, I. A. - <em>changepoint: An R Package for Changepoint Analysis</em>. Journal of Statistical Software, 58(3), 2014. <a href="https://www.jstatsoft.org/article/view/v058i03">Link</a></li>
+
+<li>Zeileis, A., Leisch, F., Hornik, K. & Kleiber, C. - <em>strucchange: Testing for Structural Change in Linear Regression Models</em>. Journal of Statistical Software, 7(2), 2002. <a href="https://www.jstatsoft.org/article/view/v007i02">Link</a></li>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. OTexts, 2021. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+<li>changepoint package reference. Comprehensive R Archive Network. <a href="https://cran.r-project.org/web/packages/changepoint/index.html">Link</a></li>
+
+<li>strucchange package reference. Comprehensive R Archive Network. <a href="https://cran.r-project.org/web/packages/strucchange/index.html">Link</a></li>
+
+<li>strucchange reference manual (PDF). Comprehensive R Archive Network. <a href="https://cran.r-project.org/web/packages/strucchange/strucchange.pdf">Link</a></li>
+
+<li>Hyndman, R. J. - <em>forecast: Arima() function reference</em>. <a href="https://pkg.robjhyndman.com/forecast/reference/Arima.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Choosing-a-Forecasting-Model-in-R.html">Choosing a Forecasting Model in R</a> - how to compare competing forecasts on a hold-out set, the exact method used to grade our three strategies.</li>
+
+<li><a href="CausalImpact-in-R.html">Measuring an Intervention's Effect with CausalImpact in R</a> - when the break is a known event you caused, estimate how big its effect really was.</li>
+
+<li><a href="Forecasting-Short-Time-Series-in-R.html">Forecasting Very Short (and Very Long) Time Series in R</a> - the recent-window idea behind refitting on a regime, generalised to any long series.</li>
+
+</ul>
+
+{% endraw %}
