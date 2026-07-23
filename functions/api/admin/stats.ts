@@ -206,6 +206,101 @@ async function intentStats(DB: D1Database, now: number, range: RangeKey) {
   };
 }
 
+// ------------------------------------------------------- Search Console plane
+
+interface GscEnv {
+  GSC_CLIENT_ID?: string;
+  GSC_CLIENT_SECRET?: string;
+  GSC_REFRESH_TOKEN?: string;
+}
+
+// Which queries bring traffic to which pages, with average rank. Google's own
+// data (Search Analytics API, webmasters.readonly), last 28 complete days
+// (GSC data lags ~2-3 days). Heavily cached: one Google call per 12h.
+async function gscStats(env: Env & GscEnv) {
+  if (!env.GSC_CLIENT_ID || !env.GSC_CLIENT_SECRET || !env.GSC_REFRESH_TOKEN) {
+    return { configured: false as const };
+  }
+  const cached = await env.KV.get("admin:gsc:v1", "json");
+  if (cached) return cached as Record<string, unknown>;
+
+  // refresh-token -> access token (cached separately, ~50 min)
+  let at = await env.KV.get("admin:gsc:at");
+  if (!at) {
+    const resp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: env.GSC_CLIENT_ID,
+        client_secret: env.GSC_CLIENT_SECRET,
+        refresh_token: env.GSC_REFRESH_TOKEN,
+        grant_type: "refresh_token",
+      }),
+    });
+    const body = (await resp.json()) as { access_token?: string; error?: string };
+    if (!resp.ok || !body.access_token) {
+      return { configured: true as const, error: "token refresh failed: " + (body.error || resp.status) };
+    }
+    at = body.access_token;
+    await env.KV.put("admin:gsc:at", at, { expirationTtl: 3000 });
+  }
+
+  const end = new Date(Date.now() - 3 * 86400 * 1000).toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 31 * 86400 * 1000).toISOString().slice(0, 10);
+  const resp = await fetch(
+    "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Ar-statistics.co/searchAnalytics/query",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${at}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate: start, endDate: end, dimensions: ["query", "page"], rowLimit: 1000 }),
+    },
+  );
+  if (!resp.ok) {
+    return { configured: true as const, error: `GSC query HTTP ${resp.status}` };
+  }
+  const data = (await resp.json()) as {
+    rows?: Array<{ keys: [string, string]; clicks: number; impressions: number; position: number }>;
+  };
+  const rows = data.rows ?? [];
+  const short = (p: string) => p.replace(/^https?:\/\/(www\.)?r-statistics\.co/, "");
+
+  // top query+page pairs by clicks
+  const pairs = rows
+    .slice()
+    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+    .slice(0, 25)
+    .map((r) => ({
+      query: r.keys[0], page: short(r.keys[1]),
+      clicks: r.clicks, impressions: r.impressions, position: Math.round(r.position * 10) / 10,
+    }));
+
+  // top pages: aggregate over queries, keep the best query per page
+  const byPage = new Map<string, { clicks: number; impressions: number; wpos: number; top_query: string; tq_clicks: number }>();
+  for (const r of rows) {
+    const p = short(r.keys[1]);
+    const cur = byPage.get(p) || { clicks: 0, impressions: 0, wpos: 0, top_query: "", tq_clicks: -1 };
+    cur.clicks += r.clicks;
+    cur.impressions += r.impressions;
+    cur.wpos += r.position * r.impressions;
+    if (r.clicks > cur.tq_clicks) { cur.top_query = r.keys[0]; cur.tq_clicks = r.clicks; }
+    byPage.set(p, cur);
+  }
+  const pages = Array.from(byPage, ([page, v]) => ({
+    page, clicks: v.clicks, impressions: v.impressions,
+    position: v.impressions ? Math.round((v.wpos / v.impressions) * 10) / 10 : 0,
+    top_query: v.top_query,
+  })).sort((a, b) => b.clicks - a.clicks).slice(0, 15);
+
+  const out = {
+    configured: true as const,
+    window: `${start} to ${end}`,
+    note: "query-attributed traffic only; Google anonymizes most long-tail queries",
+    pairs, pages,
+  };
+  await env.KV.put("admin:gsc:v1", JSON.stringify(out), { expirationTtl: 43200 });
+  return out;
+}
+
 // ------------------------------------------------------------ leaderboards
 
 interface LbRow {
@@ -556,7 +651,7 @@ async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range:
 
 // ------------------------------------------------------------------ handler
 
-export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = async (context) => {
+export const onRequestGet: PagesFunction<Env & CfEnv & GscEnv, string, RequestData> = async (context) => {
   const u = context.data.user;
   if (!u) return err401();
   const admin = (context.env as { ADMIN_EMAIL?: string }).ADMIN_EMAIL || DEFAULT_ADMIN;
@@ -571,7 +666,7 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
   const now = Math.floor(Date.now() / 1000);
   try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
   try {
-    const [d1, cf, lb, intent] = await Promise.all([
+    const [d1, cf, lb, gsc, intent] = await Promise.all([
       d1Stats(context.env.DB, now, range),
       cfAnalytics(context.env, context.env.DB, now, range).catch((e: Error) => ({
         configured: true as const,
@@ -581,13 +676,16 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
         error: String(e?.message || e),
         xp: [], solvers: [], active: [], readers: [], streaks: [], hot_leads: [], at_risk: [],
       })),
+      gscStats(context.env).catch((e: Error) => ({
+        configured: true as const, error: String(e?.message || e),
+      })),
       intentStats(context.env.DB, now, range).catch((e: Error) => ({
         checkout_leads: [],
         error: String(e?.message || e),
         counts: [], actors: 0, series: { days: [], signals: [] }, recent: [],
       })),
     ]);
-    return json({ generated_at: now, range, d1, cf, leaderboards: lb, intent });
+    return json({ generated_at: now, range, d1, cf, gsc, leaderboards: lb, intent });
   } catch (e) {
     return err500(`admin stats failed: ${String((e as Error)?.message || e)}`);
   }

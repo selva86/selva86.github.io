@@ -81,6 +81,11 @@
       <div class="card"><h2>Recent signals</h2><table id="t-int-recent"></table></div>
       <div class="card"><h2>Checkout initiators <em style="color:var(--mut);font-style:normal;font-weight:400;font-size:12px">typed an email into checkout</em></h2><table id="t-int-leads"></table></div>
     </div>
+    <h2 style="font-size:16px;margin:22px 0 10px">Search performance <em id="h-gsc" style="color:var(--mut);font-style:normal;font-weight:400;font-size:12.5px"></em></h2>
+    <div class="cols">
+      <div class="card"><h2>Queries and the pages they land on <em>clicks, avg rank</em></h2><table id="t-gsc-pairs"></table></div>
+      <div class="card"><h2>Pages by search traffic <em>with their best query</em></h2><table id="t-gsc-pages"></table></div>
+    </div>
     <h2 style="font-size:16px;margin:22px 0 10px">Leaderboards <em id="h-lb" style="color:var(--mut);font-style:normal;font-weight:400;font-size:12.5px"></em></h2>
     <div class="cols">
       <div class="card"><h2>Most XP earned</h2><table id="lb-xp"></table></div>
@@ -147,25 +152,37 @@
       return '<tr>' + cols(it) + '</tr>';
     }).join('') : '<tr><td colspan="' + head.length + '" style="color:var(--mut)">nothing yet</td></tr>');
   }
-  function spark(id, vals){
+  function spark(id, vals, labels){
     var c = document.getElementById(id), ctx = c.getContext('2d');
-    var w = c.width = c.offsetWidth * 2, h = c.height = 128;
+    var w = c.width = c.offsetWidth * 2, h = c.height = 148;
     ctx.clearRect(0, 0, w, h);
     if (!vals || !vals.length) return;
     if (vals.length === 1) vals = [vals[0], vals[0]];
     var max = Math.max.apply(null, vals.concat([1]));
+    var mut = getComputedStyle(document.documentElement).getPropertyValue('--mut').trim() || '#6b7280';
+    var L = 52, R = 12, T = 10, B = 30;
+    var px = function(i){ return L + i * ((w - L - R) / (vals.length - 1)); };
+    var py = function(v){ return h - B - (v / max) * (h - T - B); };
     ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#2056d2';
     ctx.lineWidth = vals.length > 45 ? 2 : 3; ctx.beginPath();
-    vals.forEach(function(v, i){
-      var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    });
+    vals.forEach(function(v, i){ i ? ctx.lineTo(px(i), py(v)) : ctx.moveTo(px(i), py(v)); });
     ctx.stroke();
     if (vals.length <= 14){
       vals.forEach(function(v, i){
-        var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
-        ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+        ctx.beginPath(); ctx.arc(px(i), py(v), 4, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
       });
+    }
+    ctx.fillStyle = mut; ctx.font = '19px "IBM Plex Sans",sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(max.toLocaleString(), L - 8, T + 14);
+    ctx.fillText('0', L - 8, h - B + 4);
+    if (labels && labels.length === vals.length){
+      ctx.textAlign = 'left';  ctx.fillText(labels[0], L, h - 8);
+      ctx.textAlign = 'right'; ctx.fillText(labels[labels.length - 1], w - R, h - 8);
+      if (labels.length > 4){
+        ctx.textAlign = 'center';
+        ctx.fillText(labels[Math.floor(labels.length / 2)], L + (w - L - R) / 2, h - 8);
+      }
     }
   }
   function render(data){
@@ -191,11 +208,11 @@
     document.getElementById('h-signups').innerHTML = 'Signups' + em;
     document.getElementById('h-ex').innerHTML = 'Exercises passed' + em;
     document.getElementById('h-xp').innerHTML = 'XP awarded' + em;
-    spark('spark-visitors', cfOk && cf.trend ? cf.trend.visits : []);
-    spark('spark-signins', d.series.signins);
-    spark('spark-signups', d.series.signups);
-    spark('spark-ex', d.series.exercises_passed);
-    spark('spark-xp', d.series.xp);
+    spark('spark-visitors', cfOk && cf.trend ? cf.trend.visits : [], cfOk && cf.trend ? cf.trend.days : null);
+    spark('spark-signins', d.series.signins, d.series.days);
+    spark('spark-signups', d.series.signups, d.series.days);
+    spark('spark-ex', d.series.exercises_passed, d.series.days);
+    spark('spark-xp', d.series.xp, d.series.days);
     var cfn = document.getElementById('cfnote');
     if (!cf || !cf.configured){
       cfn.innerHTML = '<div class="note"><b>Traffic metrics need a one-time setup</b> (signed-in metrics above already work): ' +
@@ -225,6 +242,7 @@
       var when = new Date(s.at * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       return '<td class="path">' + esc(s.email) + (s.name ? ' (' + esc(s.name) + ')' : '') + '</td><td class="num">' + when + '</td>';
     });
+    renderGsc(data.gsc);
     renderIntent(data.intent, L);
     renderLeaderboards(data.leaderboards, L);
     document.getElementById('foot').textContent =
@@ -238,6 +256,22 @@
     var badge = r.pro ? ' <span style="background:var(--good);color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;vertical-align:1px">PRO</span>' : '';
     var link = r.handle ? '<a href="/u/' + encodeURIComponent(r.handle) + '" target="_blank" rel="noopener">' + esc(label) + '</a>' : esc(label);
     return '<span title="' + esc(r.email || '') + '">' + link + '</span>' + badge;
+  }
+  function renderGsc(g){
+    var h = document.getElementById('h-gsc');
+    if (!g || !g.configured){ h.textContent = 'needs Google Search Console credentials'; return; }
+    if (g.error){ h.textContent = 'error: ' + g.error; return; }
+    h.textContent = g.window + ' (complete days; Google anonymizes most long-tail queries)';
+    rows(document.getElementById('t-gsc-pairs'), ['Query', 'Page', 'Clicks', 'Impr.', 'Rank'], g.pairs || [], function(r){
+      return '<td style="max-width:0;width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.query) + '">' + esc(r.query) + '</td>' +
+             '<td class="path" title="' + esc(r.page) + '">' + esc(r.page) + '</td>' +
+             '<td class="num">' + n(r.clicks) + '</td><td class="num">' + n(r.impressions) + '</td><td class="num">' + r.position + '</td>';
+    });
+    rows(document.getElementById('t-gsc-pages'), ['Page', 'Clicks', 'Impr.', 'Rank', 'Best query'], g.pages || [], function(r){
+      return '<td class="path" title="' + esc(r.page) + '">' + esc(r.page) + '</td>' +
+             '<td class="num">' + n(r.clicks) + '</td><td class="num">' + n(r.impressions) + '</td><td class="num">' + r.position + '</td>' +
+             '<td style="max-width:0;width:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.top_query) + '">' + esc(r.top_query) + '</td>';
+    });
   }
   var SIGNAL_LABEL = {
     pricing_view: 'Pricing views', pricing_toggle: 'Billing toggles',
@@ -263,7 +297,7 @@
       tile('Lessons started', n(g('lesson_start')), n(g('lesson_complete')) + ' completed') +
       tile('People showing intent', n(it.actors), 'distinct visitors');
     document.getElementById('h-int-trend').innerHTML = 'Intent signals <em>' + esc(L) + ', per day</em>';
-    spark('spark-intent', it.series && it.series.signals);
+    spark('spark-intent', it.series && it.series.signals, it.series && it.series.days);
     rows(document.getElementById('t-int-counts'), ['Signal', 'Count', 'People'], it.counts || [], function(c){
       return '<td>' + esc(SIGNAL_LABEL[c.signal] || c.signal) + '</td><td class="num">' + n(c.n) + '</td><td class="num">' + n(c.actors) + '</td>';
     });
