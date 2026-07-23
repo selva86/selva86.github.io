@@ -27,6 +27,7 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, err500 } from "../../_lib/errors";
+import { ensureIntentTable } from "../signal";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const IST_OFFSET = 19800; // +5:30 in seconds
@@ -148,6 +149,49 @@ async function d1Stats(DB: D1Database, now: number, range: RangeKey) {
       exercises_passed: serPassed,
       xp: serXp,
     },
+  };
+}
+
+// ------------------------------------------------------------ intent plane
+
+async function intentStats(DB: D1Database, now: number, range: RangeKey) {
+  await ensureIntentTable(DB);
+  const rs = rangeStart(now, range);
+  const seriesN = SERIES_DAYS[range];
+  const seriesStart = istDayStart(now - (seriesN - 1) * 86400);
+
+  const [counts, series, recent, actors] = await Promise.all([
+    DB.prepare(
+      "SELECT signal, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, anon_id)) AS actors " +
+      "FROM intent_signals WHERE at >= ?1 GROUP BY signal ORDER BY n DESC"
+    ).bind(rs).all<{ signal: string; n: number; actors: number }>(),
+    DB.prepare(
+      "SELECT (at + ?2) / 86400 AS day, COUNT(*) AS n FROM intent_signals WHERE at >= ?1 GROUP BY day"
+    ).bind(seriesStart, IST_OFFSET).all<{ day: number; n: number }>(),
+    DB.prepare(
+      "SELECT i.at, i.signal, i.path, i.meta, u.email AS email, u.display_name AS name " +
+      "FROM intent_signals i LEFT JOIN users u ON u.id = i.user_id " +
+      "WHERE i.at >= ?1 ORDER BY i.at DESC LIMIT 12"
+    ).bind(rs).all<{ at: number; signal: string; path: string | null; meta: string | null; email: string | null; name: string | null }>(),
+    DB.prepare(
+      "SELECT COUNT(DISTINCT COALESCE(user_id, anon_id)) AS n FROM intent_signals WHERE at >= ?1"
+    ).bind(rs).first<{ n: number }>(),
+  ]);
+
+  const days: string[] = [];
+  const ser: number[] = [];
+  const rowsMap = new Map((series.results ?? []).map((r) => [Number(r.day), Number(r.n)]));
+  for (let i = seriesN - 1; i >= 0; i--) {
+    const dStart = istDayStart(now - i * 86400);
+    days.push(new Date((dStart + IST_OFFSET) * 1000).toISOString().slice(5, 10));
+    ser.push(rowsMap.get(Math.floor((dStart + IST_OFFSET) / 86400)) ?? 0);
+  }
+
+  return {
+    counts: counts.results ?? [],
+    actors: actors?.n ?? 0,
+    series: { days, signals: ser },
+    recent: recent.results ?? [],
   };
 }
 
@@ -475,7 +519,7 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
 
   const now = Math.floor(Date.now() / 1000);
   try {
-    const [d1, cf, lb] = await Promise.all([
+    const [d1, cf, lb, intent] = await Promise.all([
       d1Stats(context.env.DB, now, range),
       cfAnalytics(context.env, context.env.DB, now, range).catch((e: Error) => ({
         configured: true as const,
@@ -485,8 +529,12 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
         error: String(e?.message || e),
         xp: [], solvers: [], active: [], readers: [], streaks: [], hot_leads: [], at_risk: [],
       })),
+      intentStats(context.env.DB, now, range).catch((e: Error) => ({
+        error: String(e?.message || e),
+        counts: [], actors: 0, series: { days: [], signals: [] }, recent: [],
+      })),
     ]);
-    return json({ generated_at: now, range, d1, cf, leaderboards: lb });
+    return json({ generated_at: now, range, d1, cf, leaderboards: lb, intent });
   } catch (e) {
     return err500(`admin stats failed: ${String((e as Error)?.message || e)}`);
   }

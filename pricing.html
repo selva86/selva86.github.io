@@ -560,8 +560,26 @@ var PRICES = {
              aa:{amt:'$14', per:'/ mo',   bill:'billed monthly &middot; cancel anytime'},
              save:'Annual saves up to 41%' }
 };
+/* First-party intent beacon (see /api/signal). Deduped per session per signal. */
+function rsSignal(s, m){
+  try {
+    var k = 'rs-sig:' + s;
+    if (s !== 'checkout_start' && sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, '1');
+    var a = localStorage.getItem('rsc-aid');
+    if (!a) { a = Math.random().toString(36).slice(2, 12); localStorage.setItem('rsc-aid', a); }
+    var hdrs = { 'Content-Type': 'application/json' };
+    try { var tk = typeof readToken === 'function' && readToken(); if (tk) hdrs['Authorization'] = 'Bearer ' + tk; } catch (e) {}
+    fetch('/api/signal', { method: 'POST', keepalive: true, headers: hdrs,
+      body: JSON.stringify({ s: s, p: location.pathname, m: m || '', a: a }) }).catch(function(){});
+  } catch (e) {}
+}
+window.addEventListener('load', function(){ rsSignal('pricing_view', document.referrer.slice(0, 120)); });
 var mode='annual';
+var _modeReady=false;
 function setMode(m){
+  if (_modeReady && m !== mode) rsSignal('pricing_toggle', m);
+  _modeReady = true;
   mode=m;
   document.querySelectorAll('.toggle button').forEach(function(b){b.classList.toggle('on',b.dataset.mode===m)});
   positionPill();
@@ -694,6 +712,7 @@ gtag('config', 'G-D5XKCMN7FR');
               var d = ev.data || {};
               if (ev.name === "checkout.loaded") {
                 gtag("event", "begin_checkout", { currency: d.currency_code, value: d.totals && d.totals.total });
+                try { rsSignal("checkout_start", String((d.items && d.items[0] && (d.items[0].price_id || (d.items[0].price && d.items[0].price.id))) || "")); } catch (e3) {}
                 try {
                   var it = (d.items && d.items[0]) || {};
                   var hdrs = { "Content-Type": "application/json" };
@@ -705,8 +724,10 @@ gtag('config', 'G-D5XKCMN7FR');
                 } catch (e2) {}
               } else if (ev.name === "checkout.completed") {
                 gtag("event", "purchase", { transaction_id: d.transaction_id, currency: d.currency_code, value: d.totals && d.totals.total });
+                try { rsSignal("purchase_client", d.transaction_id || ""); } catch (e4) {}
               } else if (ev.name === "checkout.closed") {
                 gtag("event", "checkout_closed", {});
+                try { rsSignal("checkout_closed", ""); } catch (e5) {}
               } else if (ev.name === "checkout.payment.failed") {
                 gtag("event", "checkout_payment_failed", {});
               }

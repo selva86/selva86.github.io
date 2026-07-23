@@ -248,8 +248,28 @@
       return steps[idx].hasAttribute('data-gate') && !steps[idx].classList.contains('passed');
     }
 
+    /* First-party intent beacon (see /api/signal). Deduped per session per
+       signal+lesson so reloads and re-renders do not spam. */
+    function rsSignal(sig, meta) {
+      try {
+        var k = 'rs-sig:' + sig + ':' + location.pathname;
+        if (sessionStorage.getItem(k)) return;
+        sessionStorage.setItem(k, '1');
+        var a = localStorage.getItem('rsc-aid');
+        if (!a) { a = Math.random().toString(36).slice(2, 12); localStorage.setItem('rsc-aid', a); }
+        var hdrs = { 'Content-Type': 'application/json' };
+        try {
+          var tk = window.RSCExerciseAPI && window.RSCExerciseAPI.token && window.RSCExerciseAPI.token();
+          if (tk) hdrs['Authorization'] = 'Bearer ' + tk;
+        } catch (e) {}
+        fetch('/api/signal', { method: 'POST', keepalive: true, headers: hdrs,
+          body: JSON.stringify({ s: sig, p: location.pathname, m: meta || '', a: a }) }).catch(function () {});
+      } catch (e) {}
+    }
+
     function renderPaywall() {
       showingPaywall = true;
+      rsSignal('paywall_hit', courseId ? courseId + ':' + lessonOrder : '');
       steps.forEach(function (s) { s.classList.remove('on'); });
       var pw = stage.querySelector('.lm-paywall');
       if (!pw) {
@@ -346,6 +366,7 @@
     }
 
     function renderSignInWall() {
+      rsSignal('signin_wall_hit', courseId ? courseId + ':' + lessonOrder : '');
       steps.forEach(function (s) { s.classList.remove('on'); });
       var w = stage.querySelector('.lm-signin');
       if (!w) {
@@ -432,7 +453,7 @@
     function markCourseLessonDone(slug) {
       if (!slug) return;
       var s = courseState(); s.completed = s.completed || {};
-      if (!s.completed[slug]) { s.completed[slug] = true; s.last = slug; courseSave(s); renderRail(); }
+      if (!s.completed[slug]) { s.completed[slug] = true; s.last = slug; courseSave(s); renderRail(); rsSignal('lesson_complete', courseId ? courseId + ':' + lessonOrder : slug); }
     }
     /* ---- the drill-up rail: lessons -> section -> track, all from courses.json ----
        Default view is this course's lessons. The up-button climbs to the section

@@ -73,6 +73,13 @@
       <div class="card"><h2 id="h-hubs">Top exercise hubs</h2><table id="t-hubs"></table></div>
       <div class="card"><h2>Recent signups</h2><table id="t-signups"></table></div>
     </div>
+    <h2 style="font-size:16px;margin:22px 0 10px">Purchase intent <em id="h-intent" style="color:var(--mut);font-style:normal;font-weight:400;font-size:12.5px"></em></h2>
+    <div class="tiles" id="intent-tiles"></div>
+    <div class="cols" style="margin-top:12px">
+      <div class="card"><h2 id="h-int-trend">Intent signals</h2><canvas id="spark-intent" height="64"></canvas></div>
+      <div class="card"><h2>By signal</h2><table id="t-int-counts"></table></div>
+      <div class="card"><h2>Recent signals</h2><table id="t-int-recent"></table></div>
+    </div>
     <h2 style="font-size:16px;margin:22px 0 10px">Leaderboards <em id="h-lb" style="color:var(--mut);font-style:normal;font-weight:400;font-size:12.5px"></em></h2>
     <div class="cols">
       <div class="card"><h2>Most XP earned</h2><table id="lb-xp"></table></div>
@@ -111,7 +118,7 @@
     return;
   }
   var RANGE_LABEL = { today: 'today', '7d': 'last 7 days', '30d': 'last 30 days', '90d': 'last 90 days', all: 'all time' };
-  var range = 'today';
+  var range = '7d';
   try{ if (RANGE_LABEL[localStorage.getItem('rsc-adm-range')]) range = localStorage.getItem('rsc-adm-range'); }catch(e){}
   var pick = document.getElementById('rangepick');
   function paintPick(){
@@ -217,6 +224,7 @@
       var when = new Date(s.at * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       return '<td class="path">' + esc(s.email) + (s.name ? ' (' + esc(s.name) + ')' : '') + '</td><td class="num">' + when + '</td>';
     });
+    renderIntent(data.intent, L);
     renderLeaderboards(data.leaderboards, L);
     document.getElementById('foot').textContent =
       'Generated ' + new Date(data.generated_at * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) +
@@ -229,6 +237,40 @@
     var badge = r.pro ? ' <span style="background:var(--good);color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;vertical-align:1px">PRO</span>' : '';
     var link = r.handle ? '<a href="/u/' + encodeURIComponent(r.handle) + '" target="_blank" rel="noopener">' + esc(label) + '</a>' : esc(label);
     return '<span title="' + esc(r.email || '') + '">' + link + '</span>' + badge;
+  }
+  var SIGNAL_LABEL = {
+    pricing_view: 'Pricing views', pricing_toggle: 'Billing toggles',
+    checkout_start: 'Checkouts started', checkout_closed: 'Checkouts abandoned',
+    purchase_client: 'Purchases (client)', paywall_hit: 'Paywall hits',
+    signin_wall_hit: 'Sign-in wall hits', lesson_start: 'Lessons started',
+    lesson_complete: 'Lessons completed', cert_view: 'Certificate views', track_view: 'Track views'
+  };
+  function renderIntent(it, L){
+    document.getElementById('h-intent').textContent = L + ' · signals collected from the pricing page and the lesson player';
+    if (!it || it.error){
+      document.getElementById('intent-tiles').innerHTML = tile('Intent signals', 'n/a', it && it.error ? esc(it.error) : 'no data yet');
+      return;
+    }
+    var by = {};
+    (it.counts || []).forEach(function(c){ by[c.signal] = c; });
+    var g = function(s){ return by[s] ? by[s].n : 0; };
+    document.getElementById('intent-tiles').innerHTML =
+      tile('Pricing views', n(g('pricing_view')), (by.pricing_view ? n(by.pricing_view.actors) + ' people' : '')) +
+      tile('Checkouts started', n(g('checkout_start')), n(g('checkout_closed')) + ' abandoned') +
+      tile('Paywall hits', n(g('paywall_hit')), (by.paywall_hit ? n(by.paywall_hit.actors) + ' people' : '')) +
+      tile('Sign-in wall hits', n(g('signin_wall_hit')), '') +
+      tile('Lessons started', n(g('lesson_start')), n(g('lesson_complete')) + ' completed') +
+      tile('People showing intent', n(it.actors), 'distinct visitors');
+    document.getElementById('h-int-trend').innerHTML = 'Intent signals <em>' + esc(L) + ', per day</em>';
+    spark('spark-intent', it.series && it.series.signals);
+    rows(document.getElementById('t-int-counts'), ['Signal', 'Count', 'People'], it.counts || [], function(c){
+      return '<td>' + esc(SIGNAL_LABEL[c.signal] || c.signal) + '</td><td class="num">' + n(c.n) + '</td><td class="num">' + n(c.actors) + '</td>';
+    });
+    rows(document.getElementById('t-int-recent'), ['Who', 'Signal', 'Where', 'When'], it.recent || [], function(r){
+      var who2 = r.email ? esc(r.email) : '<span style="color:var(--mut)">anonymous</span>';
+      var when = new Date(r.at * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return '<td class="path">' + who2 + '</td><td>' + esc(SIGNAL_LABEL[r.signal] || r.signal) + '</td><td class="path" title="' + esc(r.path || '') + '">' + esc(r.path || '') + '</td><td class="num">' + when + '</td>';
+    });
   }
   function renderLeaderboards(lb, L){
     document.getElementById('h-lb').textContent = L;
