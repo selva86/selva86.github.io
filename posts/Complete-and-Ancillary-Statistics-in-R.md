@@ -1,7 +1,7 @@
 ---
 title: "Complete & Ancillary Statistics in R: Basu's Theorem Explained"
 slug: "Complete-and-Ancillary-Statistics-in-R"
-description: "Master complete and ancillary statistics in R with simulations. Learn completeness, ancillarity, and Basu's theorem with worked examples and runnable code."
+description: "Complete and ancillary statistics: why (xbar, s^2) is complete sufficient for the normal with unknown mean and variance, plus Basu's theorem in R."
 keywords: "complete statistic, ancillary statistic, Basu's theorem, complete sufficient statistic, completeness in statistics, mathematical statistics in R, UMVUE, exponential family completeness"
 auto_link_terms: "complete statistic|complete sufficient statistic|complete and sufficient|boundedly complete|completeness in statistics"
 auto_link_case_sensitive: false

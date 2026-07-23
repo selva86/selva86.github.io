@@ -1,7 +1,7 @@
 ---
 title: "geom_smooth in R: Add Trend Lines and Confidence Bands to Plots"
 slug: "geom_smooth-in-R"
-description: "Master geom_smooth() in ggplot2. Learn LOESS vs. linear vs. polynomial smooths, adjust span, control confidence bands, and add custom smooths with formula and method arguments."
+description: "geom_smooth() explained: method = 'lm' vs LOESS, se bands, span and formula, with runnable ggplot2 examples for every smoothing method."
 keywords: "geom_smooth R, ggplot2 trend line, loess R ggplot2, geom_smooth method lm, confidence band ggplot2, R smooth line scatter plot"
 auto_link_terms: "geom_smooth()|ggplot2 trend line|loess smooth R|regression line ggplot2"
 auto_link_case_sensitive: false

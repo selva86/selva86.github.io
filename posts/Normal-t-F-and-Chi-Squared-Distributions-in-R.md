@@ -1,7 +1,7 @@
 ---
 title: "Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises"
 slug: "Normal-t-F-and-Chi-Squared-Distributions-in-R"
-description: "Learn the Normal, t, F, and Chi-Squared distributions in R, their shapes, parameters, and the situations that generate them, plus R's d/p/q/r functions."
+description: "How t, F and chi-squared arise from the normal, plus the chi-square large deviations rate function (s - 1 - log s)/2 derived step by step."
 keywords: "normal distribution R, t distribution R, F distribution R, chi-squared distribution R, dnorm, dt, dchisq, df function R, pnorm qnorm, sampling distributions"
 mathjax: true
 webr: true

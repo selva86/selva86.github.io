@@ -1,7 +1,7 @@
 ---
 title: "Exponential Family Distributions in R: Sufficient Statistics & Canonical Form"
 slug: "Exponential-Family-Distributions-in-R"
-description: "Master exponential family distributions in R. Convert Normal, Bernoulli, and Poisson to canonical form and compute sufficient statistics with runnable code."
+description: "Exponential family distributions: canonical form and the canonical parameter, plus a worked completeness proof for the shifted exponential."
 keywords: "exponential family R, canonical form, sufficient statistics, natural parameter, log-partition function, exponential family MLE, exponential family GLM, Normal exponential family, Poisson exponential family, Bernoulli exponential family"
 auto_link_terms: "exponential family|exponential family distribution|canonical form|sufficient statistic|natural parameter|log-partition function|cumulant function"
 auto_link_case_sensitive: false

@@ -1,7 +1,7 @@
 ---
 title: "SEM Fit Indices in R: CFI, RMSEA, SRMR — What Counts as Good Fit?"
 slug: SEM-Fit-Indices-in-R
-description: "Read SEM fit indices in R with lavaan: CFI, RMSEA, SRMR cutoffs, what counts as good fit, and what to do when your model misfits. Runnable R code shown."
+description: "CFI, RMSEA, SRMR and TLI defined with Hu and Bentler cutoffs, a decision table for good fit, and lavaan output you can reproduce in R."
 keywords: "SEM fit indices in R, CFI, RMSEA, SRMR, lavaan fitMeasures, model fit SEM, Hu Bentler cutoffs, good fit thresholds, structural equation modeling fit, lavaan tutorial"
 auto_link_terms: "SEM fit indices|fitMeasures()|CFI cutoff|RMSEA cutoff|SRMR cutoff|Hu Bentler cutoffs|good model fit|model fit indices"
 auto_link_case_sensitive: false

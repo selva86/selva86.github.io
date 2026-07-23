@@ -1,7 +1,7 @@
 ---
 title: "dplyr rename() in R: Rename Columns Without Dropping"
 slug: "dplyr-rename-in-R"
-description: "Use dplyr rename() and rename_with() to rename columns in R without dropping any. Covers tidyselect, function-based bulk renaming, and 6 worked examples."
+description: "Rename columns in R with dplyr rename(new = old), bulk-rename with rename_with(), and avoid the classic order mistake: 6 runnable examples."
 keywords: "dplyr rename, rename columns R, dplyr rename_with, R rename column, rename pattern dplyr, rename multiple columns"
 mathjax: false
 webr: true

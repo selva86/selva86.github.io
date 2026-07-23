@@ -1,7 +1,7 @@
 ---
 title: "Neyman-Pearson Lemma in R: Most Powerful Tests & UMP Construction"
 slug: Neyman-Pearson-Lemma-in-R-2
-description: "Master the Neyman-Pearson Lemma in R: derive most powerful likelihood ratio tests, compute size and power, and construct UMP tests via Karlin-Rubin theorem."
+description: "The Neyman-Pearson lemma stated and proved in plain language: the likelihood ratio test is most powerful, with a worked normal example in R."
 keywords: "neyman-pearson lemma, most powerful test, likelihood ratio test, UMP test, Karlin-Rubin theorem, hypothesis testing R, statistical power, type I error, simple null hypothesis"
 auto_link_terms: "Neyman-Pearson lemma|most powerful test|likelihood ratio test|UMP test|Karlin-Rubin theorem"
 auto_link_case_sensitive: false

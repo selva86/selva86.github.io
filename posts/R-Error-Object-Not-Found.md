@@ -1,7 +1,7 @@
 ---
 title: "R Error: 'object not found', 7 Different Causes, 7 Different Fixes"
 slug: "R-Error-Object-Not-Found"
-description: "R can't find a variable you referenced. Learn 7 distinct causes, typos, unloaded packages, wrong scope, cleared environment, and the exact fix for each."
+description: "Fix R's 'object not found' error: all 7 causes with exact fixes, including dplyr mutate when a column is missing. Copy-paste solutions included."
 keywords: "R object not found, R error object not found, object 'x' not found R, R variable not found, R debugging, R scope error, R package not loaded, R session restart"
 auto_link_terms: "object not found|object 'x' not found|not found error"
 auto_link_case_sensitive: false

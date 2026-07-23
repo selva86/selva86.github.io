@@ -1,7 +1,7 @@
 ---
 title: "dplyr count() in R: Count Rows and Frequencies"
 slug: "dplyr-count-in-R"
-description: "Use dplyr count(), n(), tally(), and add_count() to count rows and frequencies in R. Covers grouped counts, sort flag, weighted, and 6 worked examples."
+description: "Count rows in R with dplyr count(): grouped counts, sort = TRUE, the name argument, weighted counts with wt, plus tally() and add_count()."
 keywords: "dplyr count, count rows in R, dplyr n(), dplyr tally, R frequency table, dplyr add_count, weighted count dplyr"
 mathjax: false
 webr: true

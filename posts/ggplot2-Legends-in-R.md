@@ -1,7 +1,7 @@
 ---
 title: "ggplot2 Legends in R: Position, Remove, Rename & Customize Completely"
 slug: "ggplot2-Legends-in-R"
-description: "Master ggplot2 legends in R: move with theme(legend.position), remove with guides(fill=\"none\"), rename with labs(), and customize keys with guide_legend()."
+description: "Remove a ggplot2 legend with theme(legend.position = 'none'), move it, rename titles, and reorder keys: every legend recipe with runnable R code."
 keywords: "ggplot2 legend, ggplot2 legend position, remove legend ggplot2, ggplot2 legend title, guide_legend, ggplot2 customize legend, R ggplot legend, legend.position"
 mathjax: false
 webr: true

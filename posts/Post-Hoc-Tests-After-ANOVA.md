@@ -1,7 +1,7 @@
 ---
 title: "ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé — Clear Decision Rules"
 slug: Post-Hoc-Tests-After-ANOVA
-description: "Run Tukey HSD, Bonferroni, and Scheffé post-hoc tests after ANOVA in R with working code, decision rules, and plain-English interpretation of every output."
+description: "Tukey HSD or Bonferroni after ANOVA: which post-hoc test to use and when, with runnable R code and plain readings of every output table."
 keywords: "ANOVA post-hoc tests in R, Tukey HSD, Bonferroni correction, Scheffé test, pairwise comparisons, TukeyHSD, pairwise.t.test, multiple comparisons"
 auto_link_terms: "post-hoc tests|Tukey HSD|Bonferroni correction|Scheffé test|pairwise comparisons|family-wise error|multiple comparisons correction"
 auto_link_case_sensitive: false

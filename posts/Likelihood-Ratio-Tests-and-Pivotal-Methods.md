@@ -1,7 +1,7 @@
 ---
 title: "Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory"
 slug: Likelihood-Ratio-Tests-and-Pivotal-Methods
-description: "Build likelihood ratio tests and pivotal-quantity confidence sets in R. Use Wilks' chi-square approximation, profile likelihood CIs, and test inversion."
+description: "Likelihood ratio tests worked in full: the Pareto shape test with unknown scale via Wilks' theorem, and confidence sets by inverting the LRT."
 keywords: "likelihood ratio test, pivotal quantity, confidence interval, Wilks' theorem, profile likelihood, test inversion, chi-square approximation, hypothesis testing R, asymptotic distribution, confidence set"
 auto_link_terms: "Wilks' theorem|pivotal quantity|pivotal method|profile likelihood|confidence set|test inversion|asymptotic chi-square|likelihood ratio statistic"
 auto_link_case_sensitive: false

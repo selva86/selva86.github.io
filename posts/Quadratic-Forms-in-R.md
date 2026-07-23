@@ -1,7 +1,7 @@
 ---
 title: "Quadratic Forms in R: Chi-Squared Connection & Distribution of X'AX"
 slug: Quadratic-Forms-in-R
-description: "Quadratic forms in R: compute X'AX, prove the chi-square distribution via simulation, connect idempotent matrices to RSS, ANOVA, and Cochran's theorem."
+description: "The distribution of X'AX for normal X: a weighted sum of chi-squares via the spectral theorem, Cochran's theorem, and the residual sum of squares."
 keywords: quadratic form, X'AX, chi-squared distribution, idempotent matrix, Cochran's theorem, residual sum of squares, ANOVA decomposition, generalized chi-squared, R linear algebra
 auto_link_terms: quadratic form|quadratic forms|X'AX|x prime A x|distribution of quadratic forms|Cochran's theorem|idempotent quadratic form
 auto_link_case_sensitive: false

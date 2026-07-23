@@ -1,7 +1,7 @@
 ---
 title: "UMVUE in R: Rao-Blackwell Theorem & Lehmann-Scheffé Theorem"
 slug: UMVUE-in-R-2
-description: "Find the UMVUE in R using the Rao-Blackwell and Lehmann-Scheffé theorems, with worked examples, Monte Carlo variance proofs, and reusable code recipes."
+description: "The UMVUE explained with worked solutions: the UMVUE of mu^2 for a normal mean is xbar^2 - s^2/n, via Rao-Blackwell and Lehmann-Scheffe, checked in R."
 keywords: "UMVUE in R, Rao-Blackwell theorem, Lehmann-Scheffé theorem, minimum variance unbiased estimator, complete sufficient statistic, Rao-Blackwellization, point estimation R, mathematical statistics R"
 auto_link_terms: "UMVUE|Rao-Blackwell theorem|Lehmann-Scheffé theorem|Lehmann-Scheffe theorem|minimum variance unbiased estimator|Rao-Blackwellization|complete sufficient statistic"
 auto_link_case_sensitive: false

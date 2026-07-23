@@ -1,7 +1,7 @@
 ---
 title: "Sufficiency in Statistics in R: Sufficient Statistics, Fisher-Neyman Factorization"
 slug: "Sufficiency-in-Statistics"
-description: "Learn sufficient statistics and the Fisher-Neyman factorization theorem with runnable R examples for Bernoulli, Poisson, Normal, and uniform distributions."
+description: "Sufficient statistics explained: the factorization theorem, why (xbar, s^2) is complete sufficient for the normal, and the multinomial counts vector."
 keywords: "sufficient statistics, Fisher-Neyman factorization theorem, sufficient statistic R, minimal sufficient statistic, factorization theorem example, exponential family sufficiency, sufficient statistic Bernoulli, sufficient statistic Poisson, sufficient statistic normal distribution, sufficient statistic uniform"
 auto_link_terms: "sufficient statistic|sufficient statistics|Fisher-Neyman factorization|factorization theorem|minimal sufficient statistic|jointly sufficient statistics|Fisher-Neyman factorization theorem"
 auto_link_case_sensitive: false

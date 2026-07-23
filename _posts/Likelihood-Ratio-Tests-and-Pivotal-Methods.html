@@ -1,6 +1,6 @@
 ---
 title: "Likelihood Ratio Tests and Pivotal Methods, Explained"
-description: "Build likelihood ratio tests and pivotal-quantity confidence sets in R. Use Wilks' chi-square approximation, profile likelihood CIs, and test inversion."
+description: "Likelihood ratio tests worked in full: the Pareto shape test with unknown scale via Wilks' theorem, and confidence sets by inverting the LRT."
 keywords: "likelihood ratio test, pivotal quantity, confidence interval, Wilks' theorem, profile likelihood, test inversion, chi-square approximation, hypothesis testing R, asymptotic distribution, confidence set"
 mathjax: true
 webr: true
@@ -19,6 +19,51 @@ sidebar_order: "112"
 <p class="lead">A <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">likelihood ratio test</a> compares the maximised likelihood under a null restriction against the maximised likelihood with no restriction, and rejects when the restriction costs too much fit. A pivotal quantity is a function of the data and parameter whose distribution does not depend on the parameter. Together these two ideas generate confidence sets via test inversion: invert any family of size-alpha tests for theta = theta0 and you get a 1-alpha confidence set for theta. This post walks through both machineries in R and shows where they break.</p>
 
 <div class="engagement-header" data-difficulty="Advanced" data-time="40" data-exercises="10" data-xp="150"></div>
+
+<div data-intent-block="1">
+<h2>Worked LRT: testing a Pareto shape when the scale is unknown</h2>
+
+<p>The Pareto density with scale $m$ and shape $\alpha$ is $f(x) = \alpha m^\alpha / x^{\alpha+1}$ for $x \ge m$. With both parameters unknown, the MLEs are</p>
+
+<p>$$\hat{m} = X_{(1)}, \qquad \hat{\alpha} = \frac{n}{\sum_{i=1}^n \log\!\left(X_i / X_{(1)}\right)} = \frac{n}{S}.$$</p>
+
+<p>To test $H_0\!: \alpha = \alpha_0$ with $m$ unknown, profile $m$ out of both numerator and denominator (it is $X_{(1)}$ under each), and the log profile likelihood in $\alpha$ is $n \log \alpha - \alpha S$ plus a constant. The likelihood ratio statistic becomes</p>
+
+<p>$$-2 \log \Lambda = 2\left[ \left( n \log \hat{\alpha} - \hat{\alpha} S \right) - \left( n \log \alpha_0 - \alpha_0 S \right) \right].$$</p>
+
+<p>Although the scale parameter is non-regular (the support depends on $m$), it is profiled out identically on both sides, and what remains is a regular one-parameter problem in $\alpha$. Wilks' theorem therefore applies with one degree of freedom: reject $H_0$ at the 5% level when $-2\log\Lambda > \chi^2_{1,0.95} = 3.84$.</p>
+
+<div class="webr-container" data-block-title="Pareto shape LRT with unknown scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pareto shape LRT with unknown scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 50; m &lt;- 1; alpha &lt;- 2.5
+x &lt;- m / runif(n)^(1/alpha)        # Pareto(m, alpha) draws
+
+S &lt;- sum(log(x / min(x)))
+alpha_hat &lt;- n / S
+round(alpha_hat, 3)
+#&gt; [1] 3.041
+
+lrt &lt;- 2 * ((n*log(alpha_hat) - alpha_hat*S) - (n*log(2.5) - 2.5*S))
+round(lrt, 3)                      # H0: alpha = 2.5 is true here
+#&gt; [1] 1.799
+round(qchisq(0.95, df = 1), 3)     # cutoff: do not reject
+#&gt; [1] 3.841</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h4>Confidence sets by inverting the LRT</h4>
+
+<p>Every level-$\alpha$ LRT you can compute is also a confidence set generator: collect the null values the test fails to reject. For the Pareto shape, $\{ \alpha_0 : -2\log\Lambda(\alpha_0) \le 3.84 \}$ is an asymptotic 95% confidence set for $\alpha$. The same inversion handles ratio-of-parameters problems, such as a confidence set for $\lambda = \theta_1/\theta_2$ from two exponential samples: invert the acceptance region of the LRT for $H_0\!: \theta_1 = \lambda \theta_2$ over a grid of $\lambda$, or equivalently use the exact F pivot $\left(\bar{X}/\theta_1\right)\big/\left(\bar{Y}/\theta_2\right) \sim F_{2n_1, 2n_2}$ and solve the inequality for $\lambda$.</p>
+</div>
+
 
 <h2>What is a likelihood ratio test?</h2>
 
@@ -1015,7 +1060,7 @@ list(
   <div class="webr-plot-output"></div>
 </div>
 
-<p>All three views agree: the slope is far from zero, with a 95% CI roughly $[1.2, 2.0]$ from either Wald or profile likelihood, and the LRT against the null model returns a chi-square statistic of 73.88 on 1 df, with a p-value below $10^{-17}$. Now plot the deviance curve so you can <em>see</em> the LRT confidence interval.</p>
+<p>All three views agree: the slope is far from zero, with a 95% CI roughly $[1.2, 2.0]$ from either Wald or profile likelihood, and the LRT against the <a class="auto-link" href="Batch-Forecasting-in-R.html" title="Forecast Hundreds of Series Automatically in R">null model</a> returns a chi-square statistic of 73.88 on 1 df, with a p-value below $10^{-17}$. Now plot the deviance curve so you can <em>see</em> the LRT confidence interval.</p>
 
 <div class="webr-container" data-block-title="Visualise the LRT CI for the slope">
   <div class="webr-code-block">
