@@ -1,789 +1,1089 @@
 ---
 title: "Energy Load Forecasting in R: an End-to-End Case Study"
 slug: "Energy-Load-Forecasting-in-R"
-description: "Energy load forecasting in R, end to end: explore real electricity demand data, build temperature and calendar features, then fit, backtest, and deploy."
-keywords: "energy load forecasting in R, electricity demand forecasting, load forecasting R, time series forecasting R, temperature demand model, forecast electricity demand, dynamic regression, tslm forecast"
-auto_link_terms: "energy load forecasting|electricity load forecasting|electricity demand forecasting|load forecasting|load forecasting in R|energy demand forecasting|forecasting electricity demand|demand forecasting case study|heating and cooling degrees|electricity demand data"
+description: "Energy load forecasting in R, end to end: audit hourly demand, model daily and weekly cycles with temperature, backtest five models, ship a day-ahead forecast."
+keywords: "energy load forecasting in R, electricity demand forecasting R, short-term load forecasting, fable multiple seasonality, dynamic harmonic regression, temperature load model, vic_elec, day-ahead load forecast"
+auto_link_terms: "energy load forecasting|electricity load forecasting|short-term load forecasting|electricity demand forecasting|load forecasting in R|energy demand forecasting|day-ahead load forecast|forecasting electricity demand|load forecasting case study"
 auto_link_case_sensitive: false
-mathjax: true
+mathjax: false
 webr: true
 date: "2026-07-23"
 curriculum_id: "TS2-13.5"
 post_type: "C"
 sidebar_section: "Time Series"
 sidebar_title: "Energy Load Forecasting"
-sidebar_order: 67
+sidebar_order: 65
 difficulty: "Advanced"
 ---
 
-<p class="lead">Energy load forecasting predicts how much electricity a region will use in the hours and days ahead, so grid operators can line up supply with demand. This case study walks the whole workflow in R on real demand data: you explore the patterns, engineer temperature and calendar features, fit and backtest models, and deploy a two-week forecast with honest uncertainty.</p>
+<p class="lead">Energy load forecasting in R turns a grid's demand history and a weather forecast into an hour-by-hour prediction of tomorrow's electricity load. This is a full short-term load forecasting case study, run the way a utility's analytics team would run it: audit sub-daily data, explore its daily and weekly cycles and the U-shaped temperature response, engineer degree-day and calendar features, fit and backtest five models, then hand the scheduling desk a defensible day-ahead forecast. Every step uses the tidyverts stack (tsibble, feasts, fable), and every block runs in your browser.</p>
 
-## What are we forecasting, and what does the data look like?
+## What decision does an energy load forecast feed, and what does getting it wrong cost?
 
-A grid operator lives with a hard constraint every single day. Generate too little electricity and the lights go out; generate too much and expensive fuel is burned for nothing. To stay in balance, they need a reliable number for tomorrow's demand, and for the days and weeks that follow it. That number is a load forecast, and this post builds one from the ground up.
+Picture yourself on the operations desk at AuroraGrid, a regional utility that keeps the lights on across the state of Victoria. Every afternoon you commit to tomorrow's generation and buy any shortfall on the day-ahead market. That commitment rests on one number for each hour: how many megawatts the state will draw. Get it right and the grid runs cheaply. Get it wrong and one of two bills lands on your desk.
 
-We will work with three years of real electricity demand from Victoria, Australia, recorded every half hour alongside the local temperature. Before modeling anything, the first job is to get a clean daily table we can reason about. We use `dplyr` and `lubridate` to reshape the data and the `forecast` package to model it later.
+The two bills are not the same size, and that asymmetry is the whole reason this job matters. Buy too much power and you sell the surplus back at a small loss, a few tens of dollars per megawatt-hour. Buy too little on a scorching afternoon and you cover the gap on the spot market, where the price spikes toward the market cap, which sat near A$13,000 per megawatt-hour in 2014, more than two hundred times a quiet off-peak price of about A$50. A shortfall at the peak can also mean shedding load, which is a polite phrase for switching off suburbs. So the cost of under-forecasting a hot day dwarfs the cost of over-forecasting a mild one.
 
-```r title="Load libraries and build the daily dataset"
-library(tsibbledata)
-library(dplyr)
-library(lubridate)
-library(forecast)
-library(ggplot2)
+That is why "how hot will it be tomorrow" is the most valuable question on the desk. Here is the payoff we are building toward, shown before we explain a single line: forecasting the load for a record-breaking 43-degree day, once with a plain "same as last week" rule and once with a model that reads the temperature forecast. We load three years of real half-hourly demand for Victoria, roll it up to hourly, and score both approaches on the day they mattered most.
 
-data("vic_elec")
+```r title="The forecast this case study earns"
+library(fable); library(feasts); library(tsibble); library(tsibbledata)
+library(dplyr); library(lubridate); library(tidyr); library(ggplot2)
 
-# Roll the half-hourly readings up to one row per day
+# Roll the raw half-hourly demand up to hourly load
 elec <- vic_elec |>
-  as.data.frame() |>
-  group_by(day = as_date(Date)) |>
-  summarise(
-    demand  = sum(Demand) / 1000,   # half-hourly MWh summed to GWh for the day
-    temp    = mean(Temperature),    # average temperature that day, in Celsius
-    holiday = as.integer(any(Holiday))
-  )
+  index_by(Hour = floor_date(Time, "hour")) |>
+  summarise(Demand = mean(Demand), Temperature = mean(Temperature),
+            Holiday = any(Holiday)) |>
+  ungroup() |>
+  mutate(workday = !(as.integer(wday(Hour, week_start = 1)) >= 6 | Holiday),
+         cool = pmax(Temperature - 18, 0),
+         heat = pmax(18 - Temperature, 0))
 
-head(elec)
-#> # A tibble: 6 × 4
-#>   day        demand  temp holiday
-#>   <date>      <dbl> <dbl>   <int>
-#> 1 2012-01-01   222.  25.3       1
-#> 2 2012-01-02   258.  30.7       1
-#> 3 2012-01-03   267.  26.5       0
-#> 4 2012-01-04   223.  21.0       0
-#> 5 2012-01-05   211.  17.5       0
-#> 6 2012-01-06   210.  18.7       0
+history  <- elec |> filter_index("2013-11-01" ~ "2014-01-15")
+tomorrow <- elec |> filter_index("2014-01-16")
+
+history |>
+  model(
+    same_as_last_week = SNAIVE(Demand ~ lag("week")),
+    temperature_model = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                             fourier(period = 168, K = 3) + cool + heat + workday)
+  ) |>
+  forecast(new_data = tomorrow) |>
+  accuracy(elec) |>
+  transmute(model = .model, RMSE = round(RMSE), MAPE = round(MAPE, 1))
+#> # A tibble: 2 × 3
+#>   model              RMSE  MAPE
+#>   <chr>             <dbl> <dbl>
+#> 1 same_as_last_week  2646  33.3
+#> 2 temperature_model  1261  13.2
 ```
 
-Each row is one day. The `demand` column is total electricity used, converted to gigawatt-hours (GWh) so the numbers are easy to read. The `temp` column is the average temperature, and `holiday` is 1 on public holidays and 0 otherwise. That is the raw material for the whole project.
+Read the two rows and the case study makes itself. On that 43-degree day, repeating last week's load was off by 2,646 megawatts on average, a 33% miss, because the previous week was mild. The temperature-aware model, reading the same weather forecast a meteorologist would hand the desk, cut that error to 1,261 megawatts, a 13% miss. Halving the error on the single hardest day of the year is worth millions when the shortfall settles at cap prices. Everything else in this tutorial exists to earn the right to trust that second number.
 
-Here is the road we are going to travel. We start with the daily data, understand what moves it, turn those forces into features, set up an honest test, fit and compare a few models, backtest the winner, and finally deploy a forecast. Each step feeds the next.
+The data is real. It is the `vic_elec` series that ships with the `tsibbledata` package: half-hourly electricity demand and temperature for the whole state of Victoria, 2012 through 2014. We treat AuroraGrid as the operator of that grid, so the megawatt figures are state-scale, but the workflow is identical whether you forecast a state, a substation, or a single large factory.
 
-![The seven stages of the forecasting case study, from raw demand to a deployed forecast](screenshots/Energy-Load-Forecasting-in-R-workflow.webp)
-*Figure 1: The seven stages of the forecasting case study, from raw demand to a deployed forecast.*
+[KEY INSIGHT]
+**A load forecast is a procurement decision waiting to happen.** Every choice a forecaster makes, from how you handle temperature to which model you deploy, exists to make one downstream decision less wrong, and because the cost of being short is far larger than the cost of being long, we judge every choice by how well it protects the peak.
 
-Let's look at the whole series at once. A picture of three years of demand tells us more than any summary statistic about what kind of forecasting problem this is.
+An engagement like this always moves through the same eight phases, and the rest of the tutorial walks them in order.
 
-```r title="Plot daily demand over three years"
-ggplot(elec, aes(day, demand)) +
-  geom_line(color = "#2c7fb8") +
-  labs(title = "Daily electricity demand in Victoria, 2012-2014",
-       x = NULL, y = "Demand (GWh per day)")
+![A flowchart of the eight phases: business brief, data audit, EDA, feature build, strategy portfolio, tournament, executive summary, production](screenshots/Energy-Load-Forecasting-in-R-engagement-flow.webp)
+
+*Figure 1: The eight phases of an end-to-end load-forecasting engagement.*
+
+**Try it:** The desk also wants the single peak hour, because that is when the market is tightest. Adapt the block to forecast tomorrow's load with the temperature model alone, then pull out the hour with the highest predicted demand.
+
+```r title="Your turn: find tomorrow's peak hour"
+history |>
+  model(temperature_model = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                                 fourier(period = 168, K = 3) + cool + heat + workday)) |>
+  forecast(new_data = tomorrow) |>
+  as_tibble() |>
+  # keep the single highest predicted hour, then report it
+  head()
 ```
 
-The line has a clear rhythm. Demand swells during the hot summers and again in the coldest part of winter, with calmer stretches in between. There is no strong long-term climb or fall, just a repeating seasonal wave with plenty of day-to-day jitter on top. A good forecast will need to capture that wave.
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Predicted peak hour solution"
+history |>
+  model(temperature_model = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                                 fourier(period = 168, K = 3) + cool + heat + workday)) |>
+  forecast(new_data = tomorrow) |>
+  as_tibble() |>
+  slice_max(.mean, n = 1) |>
+  transmute(peak_hour = Hour, predicted_MW = round(.mean))
+#> # A tibble: 1 × 2
+#>   peak_hour           predicted_MW
+#>   <dttm>                     <dbl>
+#> 1 2014-01-16 15:00:00         7574
+```
+
+**Explanation:** The model expects the peak near 3pm at about 7,574 megawatts, far above a mild day's 5,500. The actual peak that day reached 9,313 megawatts, so even the good model under-calls a record heat event, a limitation we diagnose later in the tournament.
+
+</details>
+
+## Is the hourly load data clean enough to model?
+
+A forecast is only as honest as the data beneath it, so the first real job is an audit. Sub-daily energy data has its own traps that monthly sales data never shows: clock changes, sensor dropouts, and demand spikes that are real events rather than errors. We check four things: how much history we hold, whether the calendar has holes, whether the numbers sit on a sensible scale, and whether anything looks like a data fault.
+
+We already built `elec` in the opening block by rolling the raw half-hourly readings up to hourly load with `index_by()` and `summarise()`. Modelling hourly instead of half-hourly halves the number of rows with no loss of the patterns that matter for day-ahead scheduling, which clears in hourly blocks anyway. Start by looking at the object itself.
+
+```r title="Glimpse the hourly load history"
+elec |> select(Hour, Demand, Temperature, Holiday)
+#> # A tsibble: 26,304 x 4 [1h] <Australia/Melbourne>
+#>    Hour                Demand Temperature Holiday
+#>    <dttm>               <dbl>       <dbl> <lgl>  
+#>  1 2012-01-01 00:00:00  4323.        21.2 TRUE   
+#>  2 2012-01-01 01:00:00  3963.        20.6 TRUE   
+#>  3 2012-01-01 02:00:00  3951.        20.3 TRUE   
+#>  4 2012-01-01 03:00:00  3628.        19.8 TRUE   
+#>  5 2012-01-01 04:00:00  3396.        19.0 TRUE   
+#>  6 2012-01-01 05:00:00  3318.        18.7 TRUE   
+#>  7 2012-01-01 06:00:00  3274.        18.7 TRUE   
+#>  8 2012-01-01 07:00:00  3432.        19.6 TRUE   
+#>  9 2012-01-01 08:00:00  3650.        21.8 TRUE   
+#> 10 2012-01-01 09:00:00  4001.        24.6 TRUE   
+#> # ℹ 26,294 more rows
+```
+
+The header carries the vital facts. This is a tsibble, a data frame that knows its `Hour` column is time. The `[1h]` is the interval, one hour between rows, and `<Australia/Melbourne>` is the timezone, which will matter in a moment. Demand is in megawatts, temperature in degrees Celsius. Twenty-six thousand hourly readings across three years is a generous amount of history.
+
+Now the checks that catch problems. A demand series can hide missing hours, a feed outage or a dead sensor, that quietly break a model. We count the rows, confirm the span, look for missing values, and ask `count_gaps()` whether any expected hour is absent.
+
+```r title="Check coverage and calendar gaps"
+c(rows    = nrow(elec),
+  first   = as.character(min(elec$Hour)),
+  last    = as.character(max(elec$Hour)),
+  missing = sum(is.na(elec$Demand)))
+#>                  rows                 first                  last 
+#>               "26304"          "2012-01-01" "2014-12-31 23:00:00" 
+#>               missing 
+#>                   "0" 
+
+count_gaps(elec)
+#> # A tibble: 0 × 3
+#> # ℹ 3 variables: .from <dttm>, .to <dttm>, .n <int>
+```
+
+Both checks come back clean: 26,304 hours from the start of 2012 to the end of 2014, no missing demand, and a zero-row gap table, which means every hour between the first and last is present. On a messier series you would repair it with `fill_gaps()` before modelling.
+
+There is one sub-daily gotcha that a naive gap check misses, and it hides in the timezone. Twice a year the clocks change for daylight saving. On the spring-forward day an hour vanishes, and on the fall-back day an hour repeats. Because our index is in local Melbourne time, some days do not have 24 hours. We can see it by counting hours per day.
+
+```r title="Find the daylight-saving days"
+elec |>
+  index_by(date = as_date(Hour)) |>
+  summarise(hours = n()) |>
+  filter(hours != 24)
+#> # A tsibble: 6 x 2 [1D]
+#>   date       hours
+#>   <date>     <int>
+#> 1 2012-04-01    25
+#> 2 2012-10-07    23
+#> 3 2013-04-07    25
+#> 4 2013-10-06    23
+#> 5 2014-04-06    25
+#> 6 2014-10-05    23
+```
+
+Six days over three years break the 24-hour rule: three April days with 25 hours (clocks fall back) and three October days with 23 hours (clocks spring forward). This is not a data error, it is the calendar, and it is exactly why a load model built on local time needs a season term that tolerates the odd short or long day rather than assuming a rigid 24-hour block.
 
 [NOTE]
-**This data is from Victoria, Australia, where the seasons are flipped.** Summer runs from December to February and winter from June to August, so the December peaks you see are hot-weather peaks, not holiday-season heating.
+**Sub-daily energy data lives in two clocks, and you must pick one on purpose.** Local time keeps demand aligned with human behaviour (people cook dinner at 7pm regardless of daylight saving), which is what a load model wants, at the price of these six irregular days. Modelling in UTC instead removes the irregular days but smears the evening peak across the clock change. We keep local time here.
 
-**Try it:** Before we go further, get a feel for the scale. Compute the average daily demand across the whole series and round it to one decimal place.
+Finally, scale and outliers. A quick five-number summary tells us whether the megawatt figures are plausible and flags any wild values.
 
-```r title="Your turn: average daily demand"
-# Compute the mean of elec$demand, then round the result to 1 decimal place.
-# Write your code below:
+```r title="Summarise the demand scale"
+summary(elec$Demand)
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#>    2864    3970    4635    4665    5244    9313 
+```
 
+Demand runs from about 2,860 megawatts in the small hours to 9,313 at the top. The maximum is more than three times the minimum, a huge swing, and that top value is the record heat afternoon from the opening block.
+
+[WARNING]
+**Do not clip the 9,313 megawatt peak as an outlier.** A demand spike that lines up with a 43-degree day is real load driven by air-conditioning, not a sensor fault, and deleting it would teach the model to under-forecast the exact hours that cost the most. Investigate spikes that have no physical explanation; keep the ones that match the weather.
+
+**Try it:** A load series should never be zero or negative. Confirm the minimum demand is comfortably positive and that no value is missing, in one summary.
+
+```r title="Your turn: sanity-check the values"
+elec |>
+  as_tibble() |>
+  # report the minimum demand and whether any value is missing
+  head()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Average daily demand"
-ex_avg <- mean(elec$demand)
-round(ex_avg, 1)
-#> [1] 223.9
+```r title="Value sanity-check solution"
+elec |>
+  as_tibble() |>
+  summarise(min_MW = min(Demand), any_na = anyNA(Demand))
+#> # A tibble: 1 × 2
+#>   min_MW any_na
+#>    <dbl> <lgl> 
+#> 1  2864. FALSE 
 ```
 
-**Explanation:** The typical day uses about 224 GWh. That single number is a useful anchor: any forecast that drifts far from it on an ordinary day is probably wrong.
+**Explanation:** The floor is 2,864 megawatts and nothing is missing, so the series is physically sensible: a grid always draws some power, even at 4am.
 
 </details>
 
-## What patterns actually drive demand?
+## What patterns hide in hourly electricity demand?
 
-A forecast is only as good as your understanding of what moves the series. Two forces jump out of the data, and one of them hides in a way that trips up beginners. Let's uncover both.
+The audit told us the data is trustworthy. Now we explore its structure, because the shape of a load series decides which models can fit it. Electricity demand is one of the most patterned series in all of forecasting, and we will pull out three layers: how much of it is season versus trend, what the daily and weekly shapes look like, and how the calendar bends them. Each view changes a modelling decision.
 
-The first force is the weekly calendar. Offices, factories, and shops run Monday to Friday, so we expect weekdays to pull more power than weekends. Grouping the days by weekday and averaging confirms it.
+Start with a single summary. The `feat_stl()` feature from feasts runs a decomposition under the hood and reports the strength of the trend and the strength of the daily season, each on a 0-to-1 scale where 1 means "dominates completely".
 
-```r title="Average demand by day of week"
+```r title="Measure trend and seasonal strength"
 elec |>
-  mutate(weekday = wday(day, label = TRUE)) |>
-  group_by(weekday) |>
-  summarise(mean_demand = round(mean(demand), 1))
-#> # A tibble: 7 × 2
-#>   weekday mean_demand
-#>   <ord>         <dbl>
-#> 1 Sun            197.
-#> 2 Mon            230.
-#> 3 Tue            234.
-#> 4 Wed            234.
-#> 5 Thu            236.
-#> 6 Fri            232.
-#> 7 Sat            204.
+  features(Demand, feat_stl) |>
+  transmute(trend_strength = round(trend_strength, 3),
+            seasonal_strength_day = round(seasonal_strength_day, 3))
+#> # A tibble: 1 × 2
+#>   trend_strength seasonal_strength_day
+#>            <dbl>                 <dbl>
+#> 1          0.851                 0.887
 ```
 
-The pattern is exactly what you would guess. Weekdays sit around 230 to 236 GWh, while Sunday drops to 197 and Saturday to 204. That is a swing of nearly 40 GWh just from the day of the week, so the calendar clearly matters.
+A daily seasonal strength of 0.887 is enormous. It says the within-day pattern, the rise and fall between 4am and 6pm, is the single biggest feature of the series, even ahead of the slow trend at 0.851. That one number rules out any model that cannot handle strong seasonality and tells us the daily cycle is the thing to nail.
 
-The second force is temperature, and here a single summary number misleads. The obvious first move is to ask how strongly demand and temperature move together, using a correlation. A correlation near 1 or -1 means a strong straight-line link, and near 0 means none.
+To see that daily cycle, look at a short slice of the raw series. A fortnight of hourly load shows both rhythms at once.
 
-```r title="Correlate demand with temperature"
-cor(elec$demand, elec$temp)
-#> [1] 0.02746165
+![Line chart of two weeks of hourly demand with a daily double-peak and lower weekend bands shaded](screenshots/Energy-Load-Forecasting-in-R-two-week-trace.webp)
+
+*Figure 2: Hourly load carries a daily double-peak inside a weekly rhythm.*
+
+Two patterns stack on top of each other. Within each day, demand traces a double hump: a morning shoulder as the state wakes and switches on, and a taller evening peak as people come home. Across each week, the five weekdays sit higher than the shaded weekends. That is two seasonal periods in one series, a daily cycle of 24 hours and a weekly cycle of 168 hours, which is what makes sub-daily load harder than the monthly sales you may have forecast before.
+
+To see the daily shape on its own, overlay one line per day. The `gg_season()` helper from feasts wraps every day onto a common 24-hour axis.
+
+```r title="Plot the daily shape across many days"
+elec |>
+  filter_index("2014-06-01" ~ "2014-07-13") |>
+  gg_season(Demand, period = "day")
 ```
 
-The correlation is 0.027, which is essentially zero. Taken at face value, this says temperature has nothing to do with demand. That conclusion would be badly wrong. The problem is that correlation only measures straight-line relationships, and the true link is not a straight line. Let's plot demand against temperature and see the real shape.
+![Seasonal plot with one line per day wrapped onto a 24-hour axis, all sharing a morning shoulder and an evening peak near 6pm](screenshots/Energy-Load-Forecasting-in-R-gg-season-daily.webp)
 
-```r title="Plot demand against temperature"
-ggplot(elec, aes(temp, demand)) +
-  geom_point(alpha = 0.4, color = "#2c7fb8") +
-  geom_smooth(method = "loess", se = FALSE, color = "#d95f0e") +
-  labs(title = "Demand versus temperature: a V-shape, not a line",
-       x = "Average temperature (Celsius)", y = "Demand (GWh per day)")
+*Figure 3: The daily load shape: a morning shoulder and an evening peak.*
+
+Every day traces the same path: a trough around 4am, a climb to a morning shoulder near 9am, a midday plateau, and the day's high near 6pm before the evening wind-down. The lines fan apart in the afternoon because that is when weather does its work, some days far hotter than others, but the skeleton is remarkably stable. A stable daily shape is exactly what you want, because it means the model can learn one profile and reuse it.
+
+Now the calendar. The audit already gave us a workday flag (a weekday that is not a public holiday). Averaging the demand within each day type shows how much the calendar moves the load.
+
+```r title="Compare workdays, weekends and holidays"
+elec |>
+  as_tibble() |>
+  mutate(day_type = case_when(Holiday ~ "holiday", !workday ~ "weekend",
+                              TRUE ~ "workday")) |>
+  group_by(day_type) |>
+  summarise(mean_MW = round(mean(Demand)), peak_MW = round(max(Demand)),
+            .groups = "drop")
+#> # A tibble: 3 × 3
+#>   day_type mean_MW peak_MW
+#>   <chr>      <dbl>   <dbl>
+#> 1 holiday     4061    7508
+#> 2 weekend     4173    7804
+#> 3 workday     4895    9313
 ```
 
-The cloud of points forms a V. Demand is lowest on mild days near 18 to 20 degrees, then rises as it gets hotter (air conditioning) and rises again as it gets colder (heating). A straight line through a V is flat, which is why the correlation was near zero. The relationship is strong; it just is not linear.
+A workday averages 4,895 megawatts, about 17% above a weekend and 20% above a public holiday. Offices, factories and schools switch on together on weekday mornings, and that block of business load is the difference. The three day types also draw slightly different shapes, which the picture makes clear.
 
-The most extreme days make the V impossible to miss. Let's pull out the two hottest and two coldest days and look at their demand.
+![Line chart of average demand by hour of day for workdays, weekends and holidays, with workdays adding a sharp business-hours block](screenshots/Energy-Load-Forecasting-in-R-calendar-profiles.webp)
 
-```r title="Compare the hottest and coldest days"
-bind_rows(
-  elec |> arrange(desc(temp)) |> head(2) |> mutate(kind = "hottest"),
-  elec |> arrange(temp)       |> head(2) |> mutate(kind = "coldest")
-)
-#> # A tibble: 4 × 5
-#>   day        demand  temp holiday kind   
-#>   <date>      <dbl> <dbl>   <int> <chr>  
-#> 1 2014-01-15   345. 33.9        0 hottest
-#> 2 2014-01-16   347. 33.9        0 hottest
-#> 3 2013-06-24   265.  7.29       0 coldest
-#> 4 2014-08-01   263.  7.35       0 coldest
-```
+*Figure 4: Workdays, weekends and holidays draw different load shapes.*
 
-Look at the demand column. The hottest days, near 34 degrees, hit 345 to 347 GWh, the highest in the whole dataset. The coldest days, near 7 degrees, still reach 263 to 265 GWh, far above a mild day's 200. Both temperature extremes drive demand up, from opposite directions. Figure 2 summarizes every force we now know pushes daily demand around.
-
-![The main forces that push daily electricity demand up or down](screenshots/Energy-Load-Forecasting-in-R-demand-drivers.webp)
-*Figure 2: The main forces that push daily electricity demand up or down.*
+The workday line sits above the other two through the whole business day and carries a sharper morning shoulder; weekends and holidays are lower and flatter, waking later. This tells us a good model needs more than a smooth weekly wave; it needs to know whether tomorrow is a working day.
 
 [KEY INSIGHT]
-**A near-zero correlation can hide a powerful relationship.** Correlation only sees straight lines, so a V-shaped effect like temperature-driven demand reads as "no relationship" even though it is one of the strongest drivers in the data. Always plot before you trust a single number.
+**Hourly load is driven by three clocks at once: the hour of the day, the day of the week, and the calendar.** A model that captures only the daily cycle will miss every weekend; one that adds the weekly cycle will still miss public holidays. We will feed all three into the model as separate features rather than hoping one seasonal term absorbs them all.
 
-**Try it:** Find the single day with the highest demand in the whole series. Sort the table by demand from high to low and take the top row.
+**Try it:** The feasts package can also wrap the data onto a weekly axis. Draw the weekly-scale seasonal plot to see the weekday-to-weekend drop directly.
 
-```r title="Your turn: the peak demand day"
-# Arrange elec by demand from high to low, then keep only the first row.
-# Write your code below:
-
+```r title="Your turn: plot the weekly shape"
+elec |>
+  filter_index("2014-06-01" ~ "2014-07-13") |>
+  # change the period to view the weekly cycle
+  gg_season(Demand, period = "day")
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="The peak demand day"
-elec |> arrange(desc(demand)) |> head(1)
-#> # A tibble: 1 × 4
-#>   day        demand  temp holiday
-#>   <date>      <dbl> <dbl>   <int>
-#> 1 2014-01-16   347.  33.9       0
+```r title="Weekly seasonal plot solution"
+elec |>
+  filter_index("2014-06-01" ~ "2014-07-13") |>
+  gg_season(Demand, period = "week")
 ```
 
-**Explanation:** The record day is 16 January 2014, a scorching 34-degree summer day when air conditioners across the state ran flat out. Peak demand and peak temperature line up exactly.
+**Explanation:** Switching `period = "week"` wraps the series onto a Monday-to-Sunday axis. Each line is one week, and you can read the weekday plateau falling away into the weekend, the same 17% drop the table quantified.
 
 </details>
 
-## How do we turn temperature and the calendar into features?
+## Why does temperature bend the load curve?
 
-A model cannot learn a V-shape from raw temperature alone, because a straight-line coefficient can only bend one way. The fix is a classic idea from energy forecasting: split temperature into two separate features, one for the hot side and one for the cold side. These are called cooling degrees and heating degrees.
+The seasonal shapes explain the calm days. The wild days, the ones that decide the year, are driven by weather. Electricity load and temperature have one of the most important nonlinear relationships in applied forecasting, and understanding its shape is what separates a load model from a generic time series model.
 
-The idea is simple. Pick a comfortable baseline temperature, 18 degrees, where almost no heating or cooling is needed. On a hot day, cooling degrees count how far above 18 you are; on a cold day, heating degrees count how far below. Each stays at zero when it does not apply.
+The cleanest way to see the relationship is to group demand into temperature bands and read the average load in each.
 
-$$\text{cooling}_t = \max(\text{temp}_t - 18,\ 0), \qquad \text{heating}_t = \max(18 - \text{temp}_t,\ 0)$$
-
-In words, cooling degrees are temperature minus 18 when that is positive, otherwise zero, and heating degrees are the mirror image. Figure 3 shows the split as a simple fork.
-
-![How one temperature reading becomes heating and cooling degree features at an 18C threshold](screenshots/Energy-Load-Forecasting-in-R-degree-features.webp)
-*Figure 3: How one temperature reading becomes heating and cooling degree features at an 18C threshold.*
-
-The `pmax()` function does the "or zero" part for us: it takes the larger of each value and zero. While we are at it, we add a `weekend` flag for Saturdays and Sundays.
-
-```r title="Build heating, cooling, and weekend features"
-elec <- elec |>
-  mutate(
-    cooling = pmax(temp - 18, 0),          # degrees above 18C, drives cooling
-    heating = pmax(18 - temp, 0),          # degrees below 18C, drives heating
-    weekend = as.integer(wday(day) %in% c(1, 7))
-  )
-
-head(elec, 4)
-#> # A tibble: 4 × 7
-#>   day        demand  temp holiday cooling heating weekend
-#>   <date>      <dbl> <dbl>   <int>   <dbl>   <dbl>   <int>
-#> 1 2012-01-01   222.  25.3       1    7.32       0       1
-#> 2 2012-01-02   258.  30.7       1   12.7        0       0
-#> 3 2012-01-03   267.  26.5       0    8.51       0       0
-#> 4 2012-01-04   223.  21.0       0    3.00       0       0
-```
-
-These early-January days are warm, so `cooling` is positive and `heating` is zero for all of them. To be sure the split behaves at both extremes, let's check one hot day and one cold day side by side.
-
-```r title="Sanity-check the degree features"
+```r title="Average demand by temperature band"
 elec |>
-  filter(day %in% as_date(c("2014-01-16", "2013-06-24"))) |>
-  select(day, temp, heating, cooling)
-#> # A tibble: 2 × 4
-#>   day         temp heating cooling
-#>   <date>     <dbl>   <dbl>   <dbl>
-#> 1 2013-06-24  7.29    10.7     0  
-#> 2 2014-01-16 33.9      0      15.9
+  as_tibble() |>
+  mutate(temp_band = cut(Temperature, breaks = c(0, 12, 18, 24, 30, 36, 45))) |>
+  group_by(temp_band) |>
+  summarise(mean_MW = round(mean(Demand)), hours = n(), .groups = "drop")
+#> # A tibble: 6 × 3
+#>   temp_band mean_MW hours
+#>   <fct>       <dbl> <int>
+#> 1 (0,12]       4645  5962
+#> 2 (12,18]      4525 11887
+#> 3 (18,24]      4597  6001
+#> 4 (24,30]      5177  1787
+#> 5 (30,36]      6357   565
+#> 6 (36,45]      7906   102
 ```
 
-This is exactly the behavior we wanted. The cold winter day (7.3 degrees) has 10.7 heating degrees and zero cooling degrees. The hot summer day (33.9 degrees) flips it: 15.9 cooling degrees and zero heating. Each feature switches on only when its side of the weather arrives.
+Read the mean-demand column and the shape jumps out. Demand bottoms out at about 4,525 megawatts in the mild 12-to-18 band, ticks up slightly in the cold, then explodes on the hot side: 5,177 at 24 to 30 degrees, 6,357 at 30 to 36, and 7,906 above 36. The last band is built from only 102 hours across three years, but those 102 hours are precisely the peaks that break the budget. Plotting every hour draws the same shape as a smooth curve.
+
+![Scatter of demand against temperature with a smooth curve forming a U: heating lifts the cold end, air-conditioning drives a steep hot end](screenshots/Energy-Load-Forecasting-in-R-load-temperature.webp)
+
+*Figure 5: Demand versus temperature is a U, not a line.*
+
+The relationship is a U, not a straight line. Demand is lowest in the mild middle, around 18 degrees, where nobody needs to heat or cool. As it gets colder, heaters switch on and demand climbs gently. As it gets hotter, air-conditioners switch on and demand climbs steeply, far more steeply than the heating side, until a 43-degree afternoon pushes the state past 9,000 megawatts. The two arms of the U are driven by different appliances, and the cooling arm is the dangerous one, because a hot-day forecast is exquisitely sensitive to the temperature it assumes.
+
+To confirm the season and the weather are separable, decompose a few weeks with STL, telling it to fit both a daily and a weekly season.
+
+```r title="Decompose load with two seasonal periods"
+elec |>
+  filter_index("2013-12-02" ~ "2013-12-22") |>
+  model(STL(Demand ~ season(period = 24) + season(period = 168), robust = TRUE)) |>
+  components() |>
+  autoplot()
+```
+
+![STL decomposition into five panels: the data, a gentle trend, a large daily season, a smaller weekly season, and a remainder that spikes on hot days](screenshots/Energy-Load-Forecasting-in-R-stl-decomposition.webp)
+
+*Figure 6: STL splits load into trend, a daily and a weekly season, and a remainder.*
+
+STL pulls the series apart into a gentle trend, a big daily season (the `season_24` panel, swinging plus or minus 1,000 megawatts), a smaller weekly season (`season_168`), and a remainder. Notice the remainder is small and flat most of the time but jumps on a couple of days. Those jumps are the weather, the part no fixed seasonal pattern can explain, and they are exactly what temperature features are for.
+
+[KEY INSIGHT]
+**Temperature drives the extremes, seasonality drives the routine.** The daily and weekly cycles explain the calm 90% of hours, but the peaks that decide the procurement bill are weather events, so a competitive load model must carry temperature as an explicit input, and it must carry it in a shape that bends, because the response is a U, not a line.
+
+**Try it:** A straight line through the U fits badly. Show that the demand correlates more strongly with distance from the 18-degree comfort point than with raw temperature.
+
+```r title="Your turn: measure the U with correlations"
+elec |>
+  as_tibble() |>
+  # correlate demand with raw temperature, and with |Temperature - 18|
+  summarise(straight_line = round(cor(Demand, Temperature), 3))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="U-shape correlation solution"
+elec |>
+  as_tibble() |>
+  summarise(straight_line = round(cor(Demand, Temperature), 3),
+            distance_from_18 = round(cor(Demand, abs(Temperature - 18)), 3))
+#> # A tibble: 1 × 2
+#>   straight_line distance_from_18
+#>           <dbl>            <dbl>
+#> 1          0.26             0.33
+```
+
+**Explanation:** Raw temperature correlates only 0.26 with demand, because the cold and hot arms of the U pull in opposite directions and cancel. Distance from 18 degrees correlates 0.33, higher, because it treats both arms as "further from comfort means more load". This is the numeric fingerprint of the U shape.
+
+</details>
+
+## How do you turn weather and the calendar into model features?
+
+The EDA handed us a shopping list: two seasonal cycles, a calendar effect, and a U-shaped temperature response. Now we turn each into a column the models can use. Good features are where a load forecast is won or lost, because they encode the physics the model cannot discover on its own.
+
+In the opening block we quietly used three engineered columns. Here is what they are, plus one more that captures a subtlety of heat.
+
+The temperature response is the star, and we encode its U shape with two degree-hour variables. Cooling degree-hours, `cool`, measure how far above 18 degrees it is (zero when it is cool), and drive the air-conditioning arm. Heating degree-hours, `heat`, measure how far below 18 it is, and drive the heating arm. Splitting the U at its base like this lets a straight-line regression bend, because each arm gets its own slope.
+
+Heat also lingers. On the third day of a heatwave, buildings have soaked up warmth and demand runs higher than the same temperature on day one. We capture that memory with `cool_lag`, yesterday's cooling degree-hours at the same hour.
+
+```r title="Engineer the temperature and calendar features"
+elec <- elec |> mutate(cool_lag = lag(cool, 24))
+
+elec |>
+  filter_index("2014-01-16 15" ~ "2014-01-16 18") |>
+  select(Hour, Demand, Temperature, cool, heat, cool_lag, workday)
+#> # A tsibble: 4 x 7 [1h] <Australia/Melbourne>
+#>   Hour                Demand Temperature  cool  heat cool_lag workday
+#>   <dttm>               <dbl>       <dbl> <dbl> <dbl>    <dbl> <lgl>  
+#> 1 2014-01-16 15:00:00  9214.        42.8  24.8     0     19.5 TRUE   
+#> 2 2014-01-16 16:00:00  9307.        39.9  21.9     0     19.3 TRUE   
+#> 3 2014-01-16 17:00:00  9313.        39.8  21.8     0     17.4 TRUE   
+#> 4 2014-01-16 18:00:00  9006.        40.8  22.8     0     14.8 TRUE   
+```
+
+Look at the record 3pm hour: 42.8 degrees gives 24.8 cooling degree-hours and zero heating degree-hours, and `cool_lag` of 19.5 says yesterday was hot too, so heat has been building. The `workday` flag confirms it was a Thursday. Those four columns, plus the seasonal terms below, are the model's entire view of the world.
+
+That leaves the two seasonal cycles. We could add a dummy variable for every hour of the day and every hour of the week, but that is 24 plus 168 columns of clutter. Instead we use Fourier terms, a handful of sine and cosine waves that trace a smooth repeating shape with far fewer parameters. In fable, `fourier(period = 24, K = 6)` draws the daily cycle with six wave pairs and `fourier(period = 168, K = 3)` draws the weekly cycle with three.
+
+[NOTE]
+**Fourier terms are the standard way to model multiple seasonality in a regression.** A period of 24 with K wave pairs captures the daily shape; a period of 168 captures the weekly shape. The number K controls how wiggly the fitted shape can be, and you raise it until the shape stops improving. Two Fourier blocks in one formula is how a single regression carries two seasons at once.
+
+**Try it:** We built cooling degree-hours; now build the heating side and confirm both make sense. Count how many hours the state spent heating versus cooling, and find the coldest reading.
+
+```r title="Your turn: summarise the degree-hour features"
+elec |>
+  as_tibble() |>
+  # report the largest heat value, and how many hours had heat > 0 vs cool > 0
+  head()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Degree-hour summary solution"
+elec |>
+  as_tibble() |>
+  summarise(coldest = round(max(heat), 1),
+            hours_heating = sum(heat > 0),
+            hours_cooling = sum(cool > 0))
+#> # A tibble: 1 × 3
+#>   coldest hours_heating hours_cooling
+#>     <dbl>         <int>         <int>
+#> 1    16.4         17778          8455
+```
+
+**Explanation:** The coldest hour was 16.4 degrees below the 18-degree base (about 1.6 degrees Celsius). Victoria spent far more hours heating (17,778) than cooling (8,455), which fits a temperate climate, but the cooling hours, though fewer, contain the extreme peaks.
+
+</details>
+
+## Which forecasting strategies suit sub-daily load?
+
+We now know the shape of the problem: two strong seasonal cycles, a workday effect, and a steep U-shaped temperature response. That points to a short list of strategies, and a good forecaster tries several rather than betting on one. We fit five genuinely different models, each a plausible answer to this specific problem, and at least two of them handle the multiple seasonality head-on.
+
+First split the history. We train on everything up to 12 January 2014 and hold out the week of 13 to 19 January, the heatwave week, as our first test. No model gets to see the days it will be judged on. The `filter_index()` helper selects rows by date: a two-sided `"2013-11-01" ~ "2014-01-19"` keeps every hour between those two dates, and a one-sided `~ "2014-01-12"` keeps everything up to and including that day.
+
+Each model earns its place for a reason:
+
+1. **Seasonal naive** repeats the load from the same hour one week ago. It is the honest benchmark: if a model cannot beat "same time last week", it is not worth deploying.
+2. **Harmonic regression** is a linear model with the two Fourier blocks, the degree-hour features, and the workday flag. It is transparent, so you can read the effect of every driver, and it handles both seasons through the Fourier terms.
+3. **Dynamic harmonic regression** takes that same regression and lets ARIMA errors model whatever autocorrelation is left over, so a miss in one hour informs the next. The `PDQ(0,0,0)` switches off ARIMA's own seasonal machinery, because the Fourier terms already carry the seasonality.
+4. **STL hybrid** decomposes the load into its two seasons and a seasonally adjusted remainder, forecasts that smooth remainder with exponential smoothing, then adds the seasons back. It handles multiple seasonality through the decomposition rather than through the regression.
+5. **Combination** averages the three model-based forecasts, because blending models that make different errors often beats any one of them.
+
+All five fit in one `model()` call, and the combination is built by averaging the three model columns.
+
+```r title="Fit the five-strategy portfolio"
+win   <- elec |> filter_index("2013-11-01" ~ "2014-01-19")
+train <- win |> filter_index(~ "2014-01-12")
+test  <- win |> filter_index("2014-01-13" ~ "2014-01-19")
+
+fits <- train |>
+  model(
+    seasonal_naive = SNAIVE(Demand ~ lag("week")),
+    harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                    fourier(period = 168, K = 3) + cool + heat + cool_lag + workday),
+    dynamic_hr = ARIMA(Demand ~ fourier(period = 24, K = 6) +
+                       fourier(period = 168, K = 3) + cool + heat + cool_lag + workday +
+                       pdq(2, 0, 1) + PDQ(0, 0, 0)),
+    stl_hybrid = decomposition_model(
+      STL(Demand ~ season(period = 24) + season(period = 168), robust = TRUE),
+      ETS(season_adjust ~ error("A") + trend("N") + season("N")))
+  ) |>
+  mutate(combo = (harmonic + dynamic_hr + stl_hybrid) / 3)
+fits
+#> # A mable: 1 x 5
+#>   seasonal_naive harmonic                  dynamic_hr                stl_hybrid         combo
+#>          <model>  <model>                     <model>                   <model>       <model>
+#> 1       <SNAIVE>   <TSLM> <LM w/ ARIMA(2,0,1) errors> <STL decomposition model> <COMBINATION>
+```
+
+The result is a mable, a table of fitted models, one per strategy. Each label tells a story. The harmonic model is a plain `TSLM`. The dynamic harmonic model came back as `LM w/ ARIMA(2,0,1) errors`, meaning the search found that a second-order autoregressive, first-order moving-average error process mops up the leftover hour-to-hour correlation. The STL hybrid is flagged as a decomposition model.
+
+The harmonic regression is the transparent one, so use it to read the drivers straight off the coefficients. Because the model is linear in the features, each coefficient is a megawatts-per-unit effect.
+
+```r title="Read the demand drivers from the regression"
+fits |>
+  select(harmonic) |>
+  tidy() |>
+  filter(term %in% c("cool", "heat", "cool_lag", "workdayTRUE")) |>
+  transmute(term, estimate = round(estimate, 1), p.value = signif(p.value, 2))
+#> # A tibble: 4 × 3
+#>   term        estimate   p.value
+#>   <chr>          <dbl>     <dbl>
+#> 1 cool            79.6 1.40e-125
+#> 2 heat            65.2 4.6 e- 34
+#> 3 cool_lag        34.4 4.50e- 31
+#> 4 workdayTRUE    711.  2.20e- 95
+```
+
+These four numbers are the physics of the grid in plain sight, and every one is significant beyond doubt. Each cooling degree-hour adds 79.6 megawatts of demand, so a jump from 18 to 40 degrees adds roughly 22 times 80, about 1,750 megawatts, from air-conditioning alone. Each heating degree-hour adds 65.2 megawatts. Yesterday's heat adds another 34.4 megawatts per lagged cooling degree-hour, confirming that heat carries over. And a working day adds a flat 711 megawatts of business load. A stakeholder needs no statistics to act on "every degree above 18 adds about 80 megawatts".
 
 [TIP]
-**Degree features make coefficients readable.** After fitting, the cooling coefficient reads directly as "extra GWh per degree of air conditioning" and the heating coefficient as "extra GWh per degree of heating." A raw squared-temperature term would fit the V too, but its coefficient means nothing you can explain to an operator.
+**Always keep the seasonal naive benchmark in the field, even when you expect it to lose.** It is the yardstick every other model is measured against, and a sophisticated model that cannot beat "same time last week" is quietly telling you its extra complexity is buying nothing.
 
-**Try it:** Compute heating and cooling degrees by hand for a 25-degree day and a 10-degree day. Use the same 18-degree baseline.
+**Try it:** How much is temperature actually worth? Fit the harmonic model with and without the temperature features on the training set, forecast the heatwave week, and compare their errors.
 
-```r title="Your turn: degrees for two temperatures"
-# For a 25C day and a 10C day, use pmax() and an 18-degree baseline to fill in
-# the heating and cooling columns of this data.frame. Write your code below:
-
+```r title="Your turn: price the temperature features"
+train |>
+  model(
+    with_temp = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                     fourier(period = 168, K = 3) + cool + heat + cool_lag + workday),
+    no_temp   = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                     fourier(period = 168, K = 3) + workday)
+  ) |>
+  forecast(new_data = test) |>
+  accuracy(win) |>
+  transmute(.model, RMSE = round(RMSE), MAPE = round(MAPE, 1)) |>
+  # sort so the better model is on top
+  head()
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Degrees for two temperatures"
-data.frame(
-  temp    = c(25, 10),
-  heating = pmax(18 - c(25, 10), 0),
-  cooling = pmax(c(25, 10) - 18, 0)
-)
-#>   temp heating cooling
-#> 1   25       0       7
-#> 2   10       8       0
+```r title="Temperature-value solution"
+train |>
+  model(
+    with_temp = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                     fourier(period = 168, K = 3) + cool + heat + cool_lag + workday),
+    no_temp   = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                     fourier(period = 168, K = 3) + workday)
+  ) |>
+  forecast(new_data = test) |>
+  accuracy(win) |>
+  transmute(.model, RMSE = round(RMSE), MAPE = round(MAPE, 1)) |>
+  arrange(RMSE)
+#> # A tibble: 2 × 3
+#>   .model     RMSE  MAPE
+#>   <chr>     <dbl> <dbl>
+#> 1 with_temp  1111  12.5
+#> 2 no_temp    2130  23.6
 ```
 
-**Explanation:** At 25 degrees you are 7 above the baseline, so cooling is 7 and heating is 0. At 10 degrees you are 8 below, so heating is 8 and cooling is 0. The two features never fire at the same time.
+**Explanation:** Dropping temperature nearly doubles the error over the heatwave week, from 1,111 to 2,130 megawatts. The Fourier seasons and the workday flag alone cannot see a heatwave coming; the degree-hour features are what make the model earn its keep.
 
 </details>
 
-## How do we set up an honest test with a baseline?
+## Which model actually wins on data it has not seen?
 
-Before building anything clever, we need two things: a fair way to test a model, and a simple model to beat. Skip either and you will fool yourself into thinking a bad forecast is good.
+Five models are fitted. Now comes the honest part: judging them on data they never saw. This is the step that decides whether a forecasting project succeeds, because a model that hugs the training data can still forecast the future terribly. We judge in three ways: a first look at the heatwave week, a proper rolling backtest across many days, and a check that the prediction intervals can be trusted.
 
-The fair test for a time series is a time-based split. We train on the earlier part of the series and hold out the most recent stretch to check against, exactly mimicking how forecasting works in real life, where you only ever have the past. Here we hold out the final 28 days.
+Start with the heatwave hold-out. We forecast the week of 13 to 19 January, feeding each model the actual temperatures for that week, and score them with `accuracy()`.
 
-```r title="Split into training and holdout by time"
-h <- 28
-n <- nrow(elec)
-train <- elec[1:(n - h), ]
-test  <- elec[(n - h + 1):n, ]
-
-c(train_days = nrow(train), test_days = nrow(test))
-range(test$day)
-#> train_days  test_days 
-#>       1068         28 
-#> [1] "2014-12-04" "2014-12-31"
+```r title="Score the models on the heatwave week"
+fc <- fits |> forecast(new_data = test)
+fc |>
+  accuracy(win) |>
+  select(.model, RMSE, MAE, MAPE, MASE) |>
+  mutate(across(RMSE:MASE, function(x) round(x, 1))) |>
+  arrange(RMSE)
+#> # A tibble: 5 × 5
+#>   .model          RMSE   MAE  MAPE  MASE
+#>   <chr>          <dbl> <dbl> <dbl> <dbl>
+#> 1 harmonic       1111.  859.  12.5   2.2
+#> 2 combo          1631  1240.  17.4   3.2
+#> 3 dynamic_hr     1646. 1256.  17.8   3.3
+#> 4 seasonal_naive 2094. 1598.  22.8   4.2
+#> 5 stl_hybrid     2170. 1646   23.1   4.3
 ```
 
-We train on 1068 days and test on the last 28, which run from 4 to 31 December 2014. The model never sees those 28 days while learning, so scoring against them is honest.
+The transparent harmonic regression wins outright at 1,111 megawatts, because it reads temperature and the heatwave was all about temperature. Seasonal naive and the STL hybrid, the two models with no view of the weather, land at the bottom near 2,100 megawatts, because "last week" and "the usual season" both said "mild". Interestingly the dynamic harmonic model, which fit the training data best, forecast worse than the plain harmonic here: over a seven-day horizon through a regime shift, its short-term error dynamics add little and can overshoot. A picture makes the gap vivid.
+
+![Line chart of the heatwave week with the actual load towering above a flat seasonal-naive forecast, while the temperature models track the peaks](screenshots/Energy-Load-Forecasting-in-R-heatwave-forecast.webp)
+
+*Figure 7: The heat-wave week: temperature models track, "same as last week" collapses.*
+
+The black actual line spikes above 9,000 megawatts on the hot days; the temperature models (blue and green) climb with it, while the seasonal naive line (red) stays flat near 6,000, repeating the mild prior week and missing the peak by roughly 3,000 megawatts. But look at the calm weekend on the right, where all the lines converge. A single week hides a more nuanced story, so break the error down day by day.
+
+```r title="Break the error down by day"
+fc |>
+  as_tibble() |>
+  mutate(day = as_date(Hour)) |>
+  left_join(as_tibble(test) |> select(Hour, actual = Demand), by = "Hour") |>
+  group_by(.model, day) |>
+  summarise(rmse = round(sqrt(mean((.mean - actual)^2))), .groups = "drop") |>
+  filter(.model %in% c("harmonic", "seasonal_naive")) |>
+  pivot_wider(names_from = .model, values_from = rmse)
+#> # A tibble: 7 × 3
+#>   day        harmonic seasonal_naive
+#>   <date>        <dbl>          <dbl>
+#> 1 2014-01-13      861           1487
+#> 2 2014-01-14     1377           2929
+#> 3 2014-01-15     1398           3090
+#> 4 2014-01-16     1486           2646
+#> 5 2014-01-17     1252           1778
+#> 6 2014-01-18      371            415
+#> 7 2014-01-19      376            114
+```
+
+Read the two columns against each other and the crossover jumps out. Through the hot days of 14 to 17 January the temperature model crushes seasonal naive, halving the error or better. But on the cool weekend of 18 and 19 January the gap closes, and on the 19th seasonal naive actually wins (114 versus 376), because that quiet Sunday really did look like the previous Sunday. The bar chart shows the whole week at a glance.
+
+![Grouped bar chart of daily RMSE for each model across the heatwave week, temperature models lowest on hot days, seasonal naive lowest on the cool weekend](screenshots/Energy-Load-Forecasting-in-R-per-day-rmse.webp)
+
+*Figure 8: Who wins the peak, who wins the shoulder.*
+
+That is the real lesson of a tournament: no model owns every day. Temperature models own the peaks; the naive rule is fine on quiet days. To choose one model to deploy, we cannot rely on a single week, so we run a rolling backtest. We step an origin forward through January, and at each origin we refit every model on the previous six weeks and forecast the next day, the day-ahead horizon the desk actually uses. This is the slowest block in the tutorial, because it refits every model at ten different origins.
+
+```r title="Backtest day-ahead across many origins"
+backtest_day <- function(origin) {
+  tr <- elec |> filter_index(as.character(origin - 42) ~ as.character(origin - 1))
+  te <- elec |> filter_index(as.character(origin))
+  tr |>
+    model(
+      seasonal_naive = SNAIVE(Demand ~ lag("week")),
+      harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                      fourier(period = 168, K = 3) + cool + heat + cool_lag + workday),
+      dynamic_hr = ARIMA(Demand ~ fourier(period = 24, K = 6) +
+                         fourier(period = 168, K = 3) + cool + heat + cool_lag + workday +
+                         pdq(2, 0, 1) + PDQ(0, 0, 0))
+    ) |>
+    forecast(new_data = te) |>
+    accuracy(elec) |>
+    mutate(origin = origin, hot = max(te$Temperature) >= 32)
+}
+origins <- seq(as_date("2014-01-06"), as_date("2014-01-24"), by = 2)
+cv <- purrr::map_dfr(origins, backtest_day)
+
+cv |>
+  group_by(.model) |>
+  summarise(RMSE = round(mean(RMSE)), MAE = round(mean(MAE)),
+            MAPE = round(mean(MAPE), 1), .groups = "drop") |>
+  arrange(RMSE)
+#> # A tibble: 3 × 4
+#>   .model          RMSE   MAE  MAPE
+#>   <chr>          <dbl> <dbl> <dbl>
+#> 1 harmonic         481   406   7.6
+#> 2 dynamic_hr       661   541   8.7
+#> 3 seasonal_naive  1533  1359  24.4
+```
+
+Across ten forecast days the picture holds: the temperature models average a day-ahead error near 500 megawatts (about 7.6% for harmonic), while seasonal naive is three times worse at 1,533. Day-ahead, you should always use a model. But averaging over hot and mild days together hides which model to reach for on which day, so split the backtest by conditions.
+
+```r title="Split the backtest by conditions"
+cv |>
+  group_by(.model, conditions = if_else(hot, "hot day", "mild day")) |>
+  summarise(RMSE = round(mean(RMSE)), .groups = "drop") |>
+  pivot_wider(names_from = conditions, values_from = RMSE)
+#> # A tibble: 3 × 3
+#>   .model         `hot day` `mild day`
+#>   <chr>              <dbl>      <dbl>
+#> 1 dynamic_hr          1548        281
+#> 2 harmonic             741        370
+#> 3 seasonal_naive      2410       1157
+```
+
+Now the two temperature models split the work. On mild days the dynamic harmonic model wins (281 versus 370), because when nothing dramatic is happening, its short-term error correction shaves the last bit off a routine forecast. On hot days the plain harmonic wins by a wide margin (741 versus 1,548), because during a fast temperature swing the ARIMA error dynamics chase the wrong signal, while the transparent regression just follows the thermometer. This is the kind of nuance that only a conditioned backtest reveals.
+
+Point accuracy is only half the job. The desk sizes its reserve from the prediction interval, so an interval that lies about its own uncertainty is dangerous even when the point forecast is good. Check how often the actual load fell inside each model's stated 80% and 95% bands over the heatwave week.
+
+```r title="Check whether the intervals can be trusted"
+fc |>
+  hilo(level = c(80, 95)) |>
+  as_tibble() |>
+  left_join(as_tibble(test) |> select(Hour, actual = Demand), by = "Hour") |>
+  mutate(in80 = actual >= `80%`$lower & actual <= `80%`$upper,
+         in95 = actual >= `95%`$lower & actual <= `95%`$upper) |>
+  group_by(.model) |>
+  summarise(covered_80 = round(100 * mean(in80)),
+            covered_95 = round(100 * mean(in95)), .groups = "drop") |>
+  arrange(desc(covered_95))
+#> # A tibble: 5 × 3
+#>   .model         covered_80 covered_95
+#>   <chr>               <dbl>      <dbl>
+#> 1 stl_hybrid             48         60
+#> 2 harmonic               41         57
+#> 3 dynamic_hr             38         51
+#> 4 combo                  38         48
+#> 5 seasonal_naive         42         48
+```
+
+Every model badly under-covers. Harmonic's 95% band, which should contain the truth 95% of the time, caught only 57% of the actual hours, and its 80% band only 41%. The reason is instructive: the intervals were estimated from ordinary weeks, and a record heatwave is far more variable than an ordinary week, so bands calibrated on calm data are far too narrow exactly when the risk is highest.
 
 [WARNING]
-**Never shuffle a time series before splitting.** Random train-test splits, standard in other machine learning, leak the future into the past here: the model would train on days that come after the ones it is tested on. Always split by time, with the test set at the end.
+**Prediction intervals fitted on calm data understate the risk during an extreme event.** The heatwave week blew straight through every model's 95% band, so treating a fitted interval as a hard reserve level would have left the grid dangerously short. During known extreme-weather events, widen the reserve by hand rather than trusting the model's interval.
 
-Now the model to beat. The simplest sensible forecast for a series with a weekly rhythm is the seasonal naive: predict that each day equals the same weekday one week earlier. It is simple but surprisingly hard to beat, and any real model must clear this bar to be worth the trouble. We build a weekly time series with `ts(..., frequency = 7)` and score the seasonal naive with `accuracy()`.
+There is one more honesty check. Even the winning harmonic model has a worst day, and it is worth diagnosing. Its largest daily error over the heatwave week was on 16 January, the day of the record 9,313-megawatt peak. The model under-called that peak because two forces compound at the extreme: the temperature response, though bent, still underestimates how fast demand accelerates past 40 degrees, and heat had been accumulating for days in a way a single lagged term only partly captures. The failure is not random; it is the model reaching the edge of what its features can express.
 
-```r title="Fit the seasonal-naive baseline"
-y <- ts(train$demand, frequency = 7)
+**Try it:** Different error measures can reorder a ranking. Rank the three backtested models by MAPE instead of RMSE and confirm the winner does not change.
 
-baseline <- snaive(y, h = h)
-accuracy(baseline, test$demand)["Test set", c("RMSE", "MAE", "MAPE")]
-#>     RMSE      MAE     MAPE 
-#> 24.58821 19.29050 10.00200 
-```
-
-Three error numbers summarize the baseline. RMSE and MAE are both in GWh, so the average miss is roughly 19 to 25 GWh per day. The one to watch is MAPE, the mean absolute percentage error: on average the seasonal naive is off by 10.0 percent. That is the number every model from here on must beat.
-
-**Try it:** Suppose you wanted a shorter, two-week holdout instead of four weeks. With `h` set to 14, how many training days would you have?
-
-```r title="Your turn: training days for a 14-day holdout"
-# With a 14-day holdout, work out how many training days are left.
-# Write your code below:
-
+```r title="Your turn: rank the backtest by MAPE"
+cv |>
+  group_by(.model) |>
+  summarise(RMSE = round(mean(RMSE)), .groups = "drop") |>
+  # summarise MAPE instead, and sort by it
+  arrange(RMSE)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Training days for a 14-day holdout"
-ex_h <- 14
-nrow(elec) - ex_h
-#> [1] 1082
+```r title="Backtest ranked by MAPE solution"
+cv |>
+  group_by(.model) |>
+  summarise(MAPE = round(mean(MAPE), 1), .groups = "drop") |>
+  arrange(MAPE)
+#> # A tibble: 3 × 2
+#>   .model          MAPE
+#>   <chr>          <dbl>
+#> 1 harmonic         7.6
+#> 2 dynamic_hr       8.7
+#> 3 seasonal_naive  24.4
 ```
 
-**Explanation:** With 1096 days in total, holding out 14 leaves 1082 for training. A shorter holdout gives more training data but a noisier accuracy estimate, because you are judging on fewer days.
+**Explanation:** The order is unchanged: harmonic on top, then dynamic harmonic, then seasonal naive far behind. When two different error measures agree on the ranking, you can trust it is not an artefact of one metric.
 
 </details>
 
-## How do we forecast from temperature and the calendar?
+## What do you tell the people who buy the power?
 
-Now we put the physics to work. We build a regression that explains demand with everything we learned drives it: a slow trend, the day-of-week effect, the two degree features, plus the holiday flag. The `tslm()` function fits a linear model to a time series, where `trend` and `season` are special terms it understands automatically.
+This section is for the people who never see a line of R: the traders and schedulers who turn the forecast into purchase orders. It should read on its own, so here is the whole engagement in plain language.
 
-```r title="Fit the temperature-and-calendar regression"
-heating  <- ts(train$heating,  frequency = 7)
-cooling  <- ts(train$cooling,  frequency = 7)
-holidayt <- ts(train$holiday,  frequency = 7)
+**The recommendation, in one sentence:** deploy the temperature-aware harmonic regression as the day-ahead workhorse, lean on the dynamic harmonic model on calm days, and keep "same as last week" only as a sanity check. The decision rule is small enough to pin above the desk.
 
-fit_reg <- tslm(y ~ trend + season + heating + cooling + holidayt)
-round(coef(fit_reg), 2)
-#> (Intercept)       trend     season2     season3     season4     season5     season6     season7 
-#>      178.13       -0.01       36.79       40.07       39.91       40.25       36.46        7.78 
-#>     heating     cooling    holidayt 
-#>        5.05        6.82      -40.02 
+![A decision tree: for a day-ahead forecast, if a heat or cold event is forecast use harmonic regression, otherwise use dynamic harmonic, and hedge with the combination](screenshots/Energy-Load-Forecasting-in-R-model-decision.webp)
+
+*Figure 9: Which model to run for tomorrow's load.*
+
+The quantified impact is the headline. Across the January backtest, the temperature model cut the day-ahead error from the naive rule's 1,533 megawatts to 481, a reduction of about 1,000 megawatts of average miss.
+
+```r title="State the impact in one table"
+tibble(rule = c("same as last week", "temperature model"),
+       day_ahead_RMSE_MW = c(1533, 481),
+       avg_error_pct = c(24.4, 7.6))
+#> # A tibble: 2 × 3
+#>   rule              day_ahead_RMSE_MW avg_error_pct
+#>   <chr>                         <dbl>         <dbl>
+#> 1 same as last week              1533          24.4
+#> 2 temperature model               481           7.6
 ```
 
-Every coefficient tells a story you can read out loud. Each cooling degree adds 6.82 GWh and each heating degree adds 5.05 GWh, so each degree of cooling adds a little more demand than each degree of heating here. A public holiday cuts 40 GWh, a huge drop, because factories and offices close. The `season` terms are the weekday bumps relative to Sunday, and the `trend` is a flat -0.01, confirming there is no meaningful long-term drift. The model is not a black box; it is a readable summary of how demand works.
+Here is what those numbers mean for the business, with no jargon:
 
-Underneath, this is one linear equation. If the formula helps you it is here, and if not, skip it: the coefficients above already tell you everything.
+| What the desk asks | What the forecast says |
+|---|---|
+| How good is the day-ahead number? | Off by about 7.6% on average, versus 24% for the old rule. |
+| Where does it help most? | On hot days, where it halves the peak miss that costs the most. |
+| What is the peak error worth? | Cutting a 3,000 megawatt peak miss to 1,500 avoids buying that gap at cap prices. |
+| Which model runs tomorrow? | Harmonic if heat or cold is forecast, dynamic harmonic on calm days. |
 
-$$\text{demand}_t = \beta_0 + \text{trend}_t + \text{weekday}_t + \beta_c\,\text{cooling}_t + \beta_h\,\text{heating}_t + \beta_H\,\text{holiday}_t + \varepsilon_t$$
+[TIP]
+**Order to the point forecast and size the reserve from the upper bound, then widen it by hand for forecast heat.** The point forecast sets the base schedule; the interval sets the reserve on a normal day; but because the bands understate extreme risk, a forecast heatwave is the cue to add reserve above what the model suggests.
 
-Where $\beta_c$ and $\beta_h$ are the cooling and heating effects, $\beta_H$ is the holiday effect, and $\varepsilon_t$ is the leftover error. Now the real test: forecast the 28 held-out days and score them. Because the model uses predictors, we hand it the test period's temperature and holiday values through `newdata`.
+**The top three caveats, stated up front.** The first is the one that keeps forecasters awake: **the model runs on a weather forecast, not the real weather.** In this case study we fed it the actual temperatures; in production tomorrow's temperature is itself a forecast, and its error flows straight into the load forecast. We can measure that sensitivity by shifting the temperatures the model sees.
 
-```r title="Forecast the holdout and measure accuracy"
-newdata <- data.frame(heating = test$heating,
-                      cooling = test$cooling,
-                      holidayt = test$holiday)
-fc_reg <- forecast(fit_reg, newdata = newdata)
-accuracy(fc_reg, test$demand)["Test set", c("RMSE", "MAE", "MAPE")]
-#>      RMSE       MAE      MAPE 
-#> 11.212838  8.817148  4.471255 
+```r title="Test the dependence on the weather forecast"
+score_temp <- function(shift) {
+  te <- test |> mutate(cool = pmax(Temperature + shift - 18, 0),
+                       heat = pmax(18 - (Temperature + shift), 0))
+  fits |> select(harmonic) |> forecast(new_data = te) |>
+    accuracy(win) |> pull(RMSE) |> round()
+}
+tibble(weather_forecast = c("2C too cool", "perfect", "2C too warm"),
+       RMSE = c(score_temp(-2), score_temp(0), score_temp(2)))
+#> # A tibble: 3 × 2
+#>   weather_forecast  RMSE
+#>   <chr>            <dbl>
+#> 1 2C too cool       1227
+#> 2 perfect           1111
+#> 3 2C too warm       1000
 ```
 
-The MAPE is 4.47 percent, less than half the baseline's 10.0 percent. Adding temperature and calendar knowledge cut the average error in half. A picture shows how tightly the forecast now tracks reality across the holdout.
+A weather forecast that is 2 degrees too cool lifts the load error from 1,111 to 1,227 megawatts, and worse than the size of the miss is its direction: under-calling the heat makes the load model under-forecast demand right before a peak, which is the expensive, lights-out direction. (The 2-degrees-too-warm row looks better here only because the model already under-shoots the record peak, so a warm bias accidentally compensates this one week; do not read it as "warm is safe".) The second caveat is the interval problem from the tournament: the bands are too narrow in extremes. The third is structural change, covered next.
 
-```r title="Plot the forecast against the actual demand"
-compare <- data.frame(
-  day      = test$day,
-  actual   = test$demand,
-  forecast = as.numeric(fc_reg$mean)
-)
+**Try it:** How bad is a really poor weather forecast? Reuse the `score_temp()` helper to see the error when the temperature forecast is 3 degrees too cool.
 
-ggplot(compare, aes(day)) +
-  geom_line(aes(y = actual,   color = "Actual")) +
-  geom_line(aes(y = forecast, color = "Forecast")) +
-  labs(title = "Temperature-and-calendar forecast vs actual (28-day holdout)",
-       x = NULL, y = "Demand (GWh per day)", color = NULL)
-```
-
-The two lines move together closely. The forecast catches the weekday-to-weekend dips and the temperature-driven swings, missing only the sharpest single-day spikes. For a model you can explain in one sentence, that is an excellent result.
-
-[KEY INSIGHT]
-**The interpretable model won, and that is common in load forecasting.** A regression built from the physics of the problem, temperature plus the calendar, beat the naive baseline by half. You do not need a black box when you understand what drives the series; you need the right features.
-
-**Try it:** Read the cooling effect straight from the fitted model. Pull out the `cooling` coefficient and round it to two decimals.
-
-```r title="Your turn: the cooling coefficient"
-# Pull the "cooling" coefficient out of fit_reg and round it to 2 decimals.
-# Write your code below:
-
+```r title="Your turn: a worse weather miss"
+# call the score_temp() helper with a 3-degree-too-cool shift
+score_temp(-2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="The cooling coefficient"
-round(coef(fit_reg)["cooling"], 2)
-#> cooling 
-#>    6.82 
+```r title="Bigger weather-miss solution"
+score_temp(-3)
+#> [1] 1285
 ```
 
-**Explanation:** Each degree above the 18-degree baseline adds 6.82 GWh of demand. On a 30-degree day, that is 12 cooling degrees times 6.82, about 82 extra GWh from air conditioning alone.
+**Explanation:** A 3-degree-too-cool forecast pushes the error to 1,285 megawatts, up from 1,111 with perfect weather. The load forecast inherits the weather forecast's error, which is why load forecasters watch the meteorology as closely as their own model.
 
 </details>
 
-## Can we trust the model's uncertainty?
+## What happens after the forecast goes live?
 
-Great point forecasts are only half the job. A real forecast also needs an honest range around it, the prediction interval, so an operator knows how much to hedge. Before trusting that range, we must check the model's residuals, the leftover errors after the fit.
+Shipping the model is the start of the job, not the end. A forecast that was sharp in January drifts as the grid changes, so you watch it and refit on a schedule. The core idea is simple: keep scoring the live model against what actually happened, and raise a flag when its error crosses a limit you set in advance. Here is that check, wrapped so we can point it at any week.
 
-A regression assumes its residuals are independent noise. If today's error tells you something about tomorrow's, that assumption is broken and the prediction intervals will be too narrow. The `checkresiduals()` function runs a Breusch-Godfrey test, where a p-value below 0.05 means the errors are autocorrelated.
+```r title="Monitor the live model against a limit"
+control_check <- function(train_set, test_set) {
+  train_set |>
+    model(harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                          fourier(period = 168, K = 3) + cool + heat + cool_lag + workday)) |>
+    forecast(new_data = test_set) |>
+    accuracy(elec) |>
+    transmute(MAPE = round(MAPE, 1),
+              status = if_else(MAPE < 8, "in control", "investigate"))
+}
 
-```r title="Check the regression residuals"
-checkresiduals(fit_reg, plot = FALSE)
-#> 
-#> 	Breusch-Godfrey test for serial correlation of order up to 14
-#> 
-#> data:  Residuals from Linear regression model
-#> LM test = 470.21, df = 14, p-value < 2.2e-16
+# a calm week
+control_check(elec |> filter_index("2013-12-01" ~ "2014-02-09"),
+              elec |> filter_index("2014-02-10" ~ "2014-02-16"))
+#> # A tibble: 1 × 2
+#>    MAPE status    
+#>   <dbl> <chr>     
+#> 1   7.1 in control
 ```
 
-The p-value is far below 0.05, so the residuals are strongly autocorrelated. In plain terms, the model's misses come in runs: several high days in a row, then several low. The point forecasts are still excellent, but the prediction intervals cannot be trusted, because the model assumes an independence that does not hold.
+On a normal February week the model runs at 7.1% error, under our 8% limit, so it is in control. Point the same check at the January heatwave and it behaves exactly as a monitor should.
 
-The fix is a dynamic regression, also called regression with ARIMA errors. It keeps temperature and calendar predictors (heating, cooling, a weekend flag, and holidays) but adds an ARIMA model on top to absorb the leftover time structure, which restores honest intervals. We pass the predictors to `auto.arima()` through `xreg`.
-
-```r title="Fit a dynamic regression with ARIMA errors"
-xreg_train <- cbind(heating = train$heating, cooling = train$cooling,
-                    weekend = train$weekend, holiday = train$holiday)
-
-fit_dyn <- auto.arima(y, xreg = xreg_train, d = 0)
-fit_dyn
-#> Series: y 
-#> Regression with ARIMA(1,0,1)(2,0,0)[7] errors 
-#> 
-#> Coefficients:
-#>          ar1      ma1    sar1    sar2  intercept  heating  cooling   weekend   holiday
-#>       0.8492  -0.2764  0.2263  0.2328   220.6661   2.5846   5.4591  -33.2401  -31.4355
-#> s.e.  0.0246   0.0480  0.0322  0.0307     1.8405   0.1416   0.1176    0.7603    1.0932
-#> 
-#> sigma^2 = 43.86:  log likelihood = -3531.19
-#> AIC=7082.39   AICc=7082.59   BIC=7132.12
+```r title="Confirm the monitor fires on an extreme"
+control_check(elec |> filter_index("2013-11-01" ~ "2014-01-12"),
+              elec |> filter_index("2014-01-13" ~ "2014-01-19"))
+#> # A tibble: 1 × 2
+#>    MAPE status     
+#>   <dbl> <chr>      
+#> 1  12.5 investigate
 ```
 
-The label reads "Regression with ARIMA(1,0,1)(2,0,0)[7] errors." The regression coefficients (heating, cooling, weekend, holiday) are still there and still sensible, and the `[7]` part is a seasonal piece that models the weekly autocorrelation. The real question is whether this fixed the residuals, so we run the check again, this time a Ljung-Box test where a p-value above 0.05 is a pass.
+The heatwave week comes back at 12.5% and flips to "investigate". That is the monitor earning its keep: it catches the exact conditions where the model is weakest, prompting a human to add reserve rather than trust the machine blindly. In production you would run this every day on the newest actuals.
 
-```r title="Recheck the residuals after adding ARIMA errors"
-checkresiduals(fit_dyn, plot = FALSE)
-#> 
-#> 	Ljung-Box test
-#> 
-#> data:  Residuals from Regression with ARIMA(1,0,1)(2,0,0)[7] errors
-#> Q* = 17.386, df = 10, p-value = 0.06625
-#> 
-#> Model df: 4.   Total lags used: 14
-```
+[NOTE]
+**Refit on a rolling window, and refit immediately after any known structural change.** For hourly load, re-estimating on the trailing several weeks each week keeps the model current with the season and recent weather sensitivity; a known change such as a large new industrial connection warrants an immediate refit rather than waiting for the schedule.
 
-The p-value is 0.066, above 0.05, so the residuals now pass as clean noise. The ARIMA part absorbed the autocorrelation the plain regression left behind, which means this model's prediction intervals can be trusted. Now let's put all three models on one scoreboard.
+What breaks a load model first? Three things, roughly in order. New load, such as the electric-vehicle chargers and data centres that did not exist when the model was trained, slowly lifts the whole curve. Rooftop solar is the sharpest structural break: as households generate their own midday power, the daytime demand the grid sees sags and can even invert the classic shape, so a model trained before mass solar adoption will over-forecast midday. And genuine one-off breaks, a new tariff, a major plant closure, shift the level in a way no smooth model absorbs.
 
-```r title="Compare all three models on the holdout"
-fc_dyn <- forecast(fit_dyn, xreg = cbind(heating = test$heating, cooling = test$cooling,
-                                         weekend = test$weekend, holiday = test$holiday))
+Two r-statistics.co chapters carry this forward: [Forecast Monitoring in R](Forecast-Monitoring-in-R.html) builds the full monitoring dashboard this check only hints at, and [Detecting Structural Breaks in R](Structural-Breaks-in-R.html) shows how to spot the solar-driven and tariff-driven shifts before they wreck your accuracy.
 
-rbind(
-  seasonal_naive = accuracy(baseline, test$demand)["Test set", c("RMSE", "MAE", "MAPE")],
-  temp_calendar  = accuracy(fc_reg,   test$demand)["Test set", c("RMSE", "MAE", "MAPE")],
-  dynamic_reg    = accuracy(fc_dyn,   test$demand)["Test set", c("RMSE", "MAE", "MAPE")]
-) |> round(2)
-#>                 RMSE   MAE  MAPE
-#> seasonal_naive 24.59 19.29 10.00
-#> temp_calendar  11.21  8.82  4.47
-#> dynamic_reg    17.88 13.66  7.06
-```
+**Try it:** A tighter operation might demand a stricter limit. Rerun the calm-week check with an 8% limit lowered to 6% and see whether the model still passes.
 
-Here is an honest surprise. The plain temperature-and-calendar regression has the best point accuracy (4.47 percent), better than the more complex dynamic regression (7.06 percent) on this particular holdout. The dynamic regression's value is not sharper points; it is trustworthy intervals, thanks to those clean residuals. Complexity did not win on accuracy, which is a lesson worth carrying into every project: always check, never assume.
-
-[WARNING]
-**Good point forecasts do not guarantee trustworthy intervals.** A model can nail the central prediction while its uncertainty band is far too narrow, because its residuals are autocorrelated. Diagnose the residuals before you quote a range, and reach for a dynamic regression when you need the band to hold up. See [Dynamic Regression in R](Dynamic-Regression-in-R.html) for the full treatment.
-
-**Try it:** The `ar1` coefficient measures how strongly one day's error carries into the next. Extract it from the dynamic model and round it to three decimals.
-
-```r title="Your turn: read the autocorrelation strength"
-# Extract the "ar1" coefficient from fit_dyn and round it to 3 decimals.
-# Write your code below:
-
+```r title="Your turn: tighten the control limit"
+elec |> filter_index("2013-12-01" ~ "2014-02-09") |>
+  model(harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                        fourier(period = 168, K = 3) + cool + heat + cool_lag + workday)) |>
+  forecast(new_data = elec |> filter_index("2014-02-10" ~ "2014-02-16")) |>
+  accuracy(elec) |>
+  transmute(MAPE = round(MAPE, 1), status = if_else(MAPE < 8, "in control", "investigate"))
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="The autocorrelation strength"
-round(coef(fit_dyn)["ar1"], 3)
-#>   ar1 
-#> 0.849 
+```r title="Stricter limit solution"
+elec |> filter_index("2013-12-01" ~ "2014-02-09") |>
+  model(harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                        fourier(period = 168, K = 3) + cool + heat + cool_lag + workday)) |>
+  forecast(new_data = elec |> filter_index("2014-02-10" ~ "2014-02-16")) |>
+  accuracy(elec) |>
+  transmute(MAPE = round(MAPE, 1), status = if_else(MAPE < 6, "in control", "investigate"))
+#> # A tibble: 1 × 2
+#>    MAPE status     
+#>   <dbl> <chr>      
+#> 1   7.1 investigate
 ```
 
-**Explanation:** An `ar1` of 0.849 means a day's error is strongly linked to the day before, which is precisely the structure the plain regression ignored. Modeling it is what makes the dynamic regression's intervals honest.
+**Explanation:** At a 6% limit the same 7.1% week now reads "investigate". Where you set the limit is a business call: a tighter limit catches drift sooner but raises more false alarms, so pick it from the cost of a missed forecast, not from a textbook.
 
 </details>
-
-## How do we know it will keep working?
-
-One holdout can flatter or fool a model. December might have been an easy month, or a hard one, and a single 28-day test cannot tell the difference. The professional answer is backtesting: replay history many times, forecasting from many different cut points, and average the results.
-
-The specific method is a rolling-origin backtest. We pick a cut point, train on everything before it, forecast the next two weeks, and score against what really happened. Then we slide the cut point forward and do it again, building up a distribution of errors instead of one lucky number. Figure 4 shows the loop.
-
-![Rolling-origin backtesting: slide the cut point forward and re-score, again and again](screenshots/Energy-Load-Forecasting-in-R-backtest.webp)
-*Figure 4: Rolling-origin backtesting: slide the cut point forward and re-score, again and again.*
-
-We run eight folds, each forecasting 14 days ahead, comparing the temperature-and-calendar regression against the seasonal-naive baseline at every origin.
-
-```r title="Backtest across eight rolling origins"
-H <- 14
-origins <- seq(n - 14 * 8, n - H, by = H)   # eight cut points, two weeks apart
-
-scores <- lapply(origins, function(s) {
-  tr <- elec[1:s, ]
-  va <- elec[(s + 1):(s + H), ]
-  yy <- ts(tr$demand, frequency = 7)
-  fit <- tslm(yy ~ trend + season + heating + cooling + holidayt,
-              data = data.frame(heating  = ts(tr$heating,  frequency = 7),
-                                cooling  = ts(tr$cooling,  frequency = 7),
-                                holidayt = ts(tr$holiday,  frequency = 7)))
-  fc <- forecast(fit, newdata = data.frame(heating = va$heating,
-                                           cooling = va$cooling,
-                                           holidayt = va$holiday))
-  sn <- snaive(yy, h = H)
-  data.frame(naive_mape = mean(abs((va$demand - sn$mean) / va$demand)) * 100,
-             model_mape = mean(abs((va$demand - fc$mean) / va$demand)) * 100)
-})
-
-backtest <- do.call(rbind, scores)
-round(backtest, 2)
-round(colMeans(backtest), 2)
-#>   naive_mape model_mape
-#> 1       2.39       2.68
-#> 2       6.00       4.42
-#> 3       3.53       3.51
-#> 4       4.55       3.50
-#> 5       5.40       3.28
-#> 6       5.96       3.42
-#> 7       6.06       2.82
-#> 8      12.97       6.19
-#> naive_mape model_mape 
-#>       5.86       3.73 
-```
-
-Averaged across all eight folds, the regression scores 3.73 percent against the baseline's 5.86 percent, and it wins in seven of the eight folds. The single December holdout was not a fluke: the temperature-and-calendar model beats the baseline reliably, across different seasons and cut points. That consistency is what earns a model the right to be deployed.
-
-[KEY INSIGHT]
-**Judge a model on many origins, not one lucky split.** A single holdout is one sample of the model's skill. Rolling-origin backtesting turns that one number into a distribution, so you learn not just how good the model is but how consistent it is.
-
-**Try it:** Count how many of the eight folds the model beat the baseline. Compare the two columns and sum the wins.
-
-```r title="Your turn: count the model's wins"
-# Count the folds where model_mape is below naive_mape in the backtest table.
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Count the model's wins"
-sum(backtest$model_mape < backtest$naive_mape)
-#> [1] 7
-```
-
-**Explanation:** The model has a lower error than the baseline in 7 of 8 folds. No model wins every single time (in fold 1 the baseline was slightly ahead), but a 7-out-of-8 record is strong evidence the improvement is real.
-
-</details>
-
-## Complete Example: forecast the next two weeks
-
-Everything so far was rehearsal on data we already had. Deployment is different: we forecast days that have not happened yet. This final section refits the winning model on all the data and produces a genuine two-week-ahead forecast, the artifact you would hand to an operator.
-
-First, refit the temperature-and-calendar regression on the full three years, throwing nothing away. More history means better-estimated coefficients.
-
-```r title="Refit the final model on all available data"
-y_all <- ts(elec$demand, frequency = 7)
-
-final_fit <- tslm(
-  y_all ~ trend + season + heating + cooling + holidayt,
-  data = data.frame(
-    heating  = ts(elec$heating, frequency = 7),
-    cooling  = ts(elec$cooling, frequency = 7),
-    holidayt = ts(elec$holiday, frequency = 7)
-  )
-)
-```
-
-Now the catch that defines real load forecasting: the model needs future temperature, which we do not know. In practice you would plug in a weather forecast. Here we use a sensible stand-in, the seasonal normal, meaning the average temperature for each calendar day across the three years of history. We build that scenario for the first two weeks of January 2015 and forecast.
-
-```r title="Build a temperature scenario and forecast ahead"
-future_days <- seq(as_date("2015-01-01"), by = "day", length.out = 14)
-
-# Seasonal-normal temperature: the historical average for each calendar day
-normals <- elec |>
-  mutate(md = format(day, "%m-%d")) |>
-  group_by(md) |>
-  summarise(temp_norm = mean(temp))
-
-future <- data.frame(day = future_days, md = format(future_days, "%m-%d")) |>
-  left_join(normals, by = "md") |>
-  mutate(heating  = pmax(18 - temp_norm, 0),
-         cooling  = pmax(temp_norm - 18, 0),
-         holidayt = as.integer(day == as_date("2015-01-01")))
-
-fc_future <- forecast(final_fit,
-                      newdata = data.frame(heating  = future$heating,
-                                           cooling  = future$cooling,
-                                           holidayt = future$holidayt))
-
-data.frame(day      = future$day,
-           forecast = round(as.numeric(fc_future$mean), 1),
-           lo80     = round(as.numeric(fc_future$lower[, 1]), 1),
-           hi80     = round(as.numeric(fc_future$upper[, 1]), 1))
-#>           day forecast  lo80  hi80
-#> 1  2015-01-01    194.2 181.7 206.7
-#> 2  2015-01-02    235.0 222.7 247.3
-#> 3  2015-01-03    212.4 200.1 224.7
-#> 4  2015-01-04    206.8 194.5 219.1
-#> 5  2015-01-05    215.3 203.0 227.6
-#> 6  2015-01-06    211.4 199.1 223.7
-#> 7  2015-01-07    225.9 213.6 238.2
-#> 8  2015-01-08    227.5 215.2 239.8
-#> 9  2015-01-09    216.2 203.9 228.5
-#> 10 2015-01-10    200.1 187.8 212.4
-#> 11 2015-01-11    181.1 168.8 193.4
-#> 12 2015-01-12    205.8 193.5 218.1
-#> 13 2015-01-13    213.8 201.5 226.1
-#> 14 2015-01-14    235.8 223.5 248.1
-```
-
-Read the first row: New Year's Day is forecast at 194 GWh, low because it is a holiday, with an 80 percent chance the true value lands between 182 and 207. The weekend of 10 to 11 January dips as expected, and warm weekdays climb back above 235. Each `lo80` and `hi80` pair is the range the operator would plan around. A plot makes the shape and the widening uncertainty clear.
-
-```r title="Plot the two-week-ahead forecast with intervals"
-autoplot(fc_future) +
-  labs(title = "Two-week-ahead demand forecast with 80 and 95% intervals",
-       x = "Week", y = "Demand (GWh per day)")
-```
-
-[WARNING]
-**A temperature-driven forecast is only as good as the temperature you feed it.** Our seasonal-normal scenario is a placeholder; a real deployment would use a live weather forecast, and its errors flow straight into the demand forecast. And because the plain regression's residuals were autocorrelated, treat these intervals as approximate. When the band must be defensible, forecast with the dynamic regression instead.
-
-## Frequently Asked Questions
-
-**What is electricity load forecasting?** It is predicting how much electrical power a region will consume over a future window, from the next hour to the next year. Short-term forecasts (hours to a couple of weeks) run the grid day to day; medium-term forecasts (weeks to months) guide fuel buying and maintenance; long-term forecasts (years) inform building new power stations. This case study is a short-term, day-ahead-style problem.
-
-**Why does temperature matter so much?** Because heating and cooling are electric. When it is hot, air conditioners draw power; when it is cold, electric heaters do. Mild days need neither, which is why demand is lowest in the middle and rises at both temperature extremes, the V-shape we saw.
-
-**Do I really need the future temperature to forecast demand?** For a temperature-driven model, yes. That is the trade-off: temperature makes the model far more accurate, but you must supply its future values, usually from a weather forecast. A pure time series model like ETS or ARIMA needs no external inputs but cannot see a heatwave coming.
-
-**Should I model daily or half-hourly data?** It depends on the decision. Daily totals, as here, suit fuel and capacity planning and are easier to learn from. Half-hourly forecasting matters for real-time grid balancing and adds a strong daily (within-day) cycle on top of everything here, usually handled with extra seasonal terms.
-
-**Which model should I actually ship?** Start with the interpretable temperature-and-calendar regression: it was the most accurate here and you can explain every coefficient. Add the dynamic-regression version when you need trustworthy prediction intervals. Always confirm the choice with a rolling-origin backtest rather than a single holdout.
 
 ## Practice Exercises
 
-These three exercises push on the case study's decisions. Each starter block runs as-is, so write your version and reveal ours to compare. They reuse the objects built above (`train`, `test`, `y`, `fc_reg`, `fc_dyn`), so run the tutorial code first.
+These capstone problems put the whole engagement to work. Each runs in the same session as the tutorial, so the objects above are available. Try each before opening the solution.
 
-### Exercise 1: How much does the calendar add?
+### Exercise 1: Does temperature still win in winter?
 
-The full model used temperature and the calendar. Isolate the calendar's contribution by fitting a temperature-only model (drop the `season` term) and comparing its holdout MAPE to the full model's 4.47 percent.
+The heatwave crowned the temperature model, but summer is its best case. Rerun the tournament on a **winter** week instead. Train on data up to 13 July 2013 and forecast the week of 14 to 20 July, comparing seasonal naive against the harmonic model. Does temperature still help when there is no heat spike?
 
-```r title="Your turn: temperature-only vs full model"
-# Fit tslm(y ~ trend + heating + cooling + holidayt), call it fit_temp.
-# Forecast it on newdata, then compare its Test-set MAPE to fc_reg's.
-
-# Write your code below:
+```r title="Your turn: a winter tournament"
+# Build a winter window (1 May to 20 July 2013), train through 13 July,
+# forecast 14-20 July, score seasonal_naive vs harmonic, rank by RMSE.
 
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Temperature-only vs full model"
-fit_temp <- tslm(y ~ trend + heating + cooling + holidayt)
-fc_temp  <- forecast(fit_temp, newdata = newdata)
-c(temp_only = accuracy(fc_temp, test$demand)["Test set", "MAPE"],
-  full      = accuracy(fc_reg,  test$demand)["Test set", "MAPE"]) |> round(2)
-#> temp_only      full 
-#>      7.55      4.47 
+```r title="Winter tournament solution"
+w_win   <- elec |> filter_index("2013-05-01" ~ "2013-07-20")
+w_train <- w_win |> filter_index(~ "2013-07-13")
+w_test  <- w_win |> filter_index("2013-07-14" ~ "2013-07-20")
+
+w_train |>
+  model(
+    seasonal_naive = SNAIVE(Demand ~ lag("week")),
+    harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                    fourier(period = 168, K = 3) + cool + heat + cool_lag + workday)
+  ) |>
+  forecast(new_data = w_test) |>
+  accuracy(w_win) |>
+  transmute(.model, RMSE = round(RMSE), MAPE = round(MAPE, 1)) |>
+  arrange(RMSE)
+#> # A tibble: 2 × 3
+#>   .model          RMSE  MAPE
+#>   <chr>          <dbl> <dbl>
+#> 1 harmonic         229   3.7
+#> 2 seasonal_naive   428   8  
 ```
 
-**Explanation:** Temperature alone scores 7.55 percent; adding the weekday calendar drops it to 4.47. The calendar is worth roughly three percentage points of accuracy on its own, because weekends and holidays move demand by tens of GWh that temperature cannot explain.
+**Explanation:** Temperature still wins (229 versus 428), but the whole contest plays out at a much lower error, under 4% for the winner, because a calm winter week is far more predictable than a heatwave. The model earns its biggest margins in the extremes, but it is never worse than the naive rule.
 
 </details>
 
-### Exercise 2: Is 18 degrees the right threshold?
+### Exercise 2: Degree-days or a quadratic curve?
 
-We split temperature at 18 degrees. Test whether 20 degrees would work better. Rebuild the heating and cooling features with a 20-degree baseline, refit the full model, and compare its holdout MAPE to the 18-degree version.
+We modelled the U-shaped temperature response with piecewise degree-hours. A common alternative is a quadratic: `Temperature + I(Temperature^2)`. Fit both versions of the harmonic model on the training set, forecast the heatwave week, and see which handles the extreme better. Which would you ship?
 
-```r title="Your turn: threshold 20 vs 18"
-# Rebuild cooling = pmax(temp - 20, 0) and heating = pmax(20 - temp, 0)
-# on train and test, refit the tslm, forecast, and compare MAPE to 4.47.
-
-# Write your code below:
+```r title="Your turn: two ways to bend the temperature curve"
+# Fit degree_days = ...cool + heat + cool_lag... and
+# quadratic = ...Temperature + I(Temperature^2)..., forecast test, rank by RMSE.
 
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Threshold 20 vs 18"
-train2 <- train |> mutate(cooling = pmax(temp - 20, 0), heating = pmax(20 - temp, 0))
-test2  <- test  |> mutate(cooling = pmax(temp - 20, 0), heating = pmax(20 - temp, 0))
-y2       <- ts(train2$demand,  frequency = 7)
-heating  <- ts(train2$heating, frequency = 7)
-cooling  <- ts(train2$cooling, frequency = 7)
-holidayt <- ts(train2$holiday, frequency = 7)
-fit20 <- tslm(y2 ~ trend + season + heating + cooling + holidayt)
-fc20  <- forecast(fit20, newdata = data.frame(heating = test2$heating,
-                                              cooling = test2$cooling,
-                                              holidayt = test2$holiday))
-c(threshold_18 = round(accuracy(fc_reg, test$demand)["Test set", "MAPE"], 2),
-  threshold_20 = round(accuracy(fc20,  test2$demand)["Test set", "MAPE"], 2))
-#> threshold_18 threshold_20 
-#>         4.47         4.99 
+```r title="Degree-days versus quadratic solution"
+train |>
+  model(
+    degree_days = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                       fourier(period = 168, K = 3) + cool + heat + cool_lag + workday),
+    quadratic   = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                       fourier(period = 168, K = 3) + Temperature + I(Temperature^2) + workday)
+  ) |>
+  forecast(new_data = test) |>
+  accuracy(win) |>
+  transmute(.model, RMSE = round(RMSE), MAPE = round(MAPE, 1)) |>
+  arrange(RMSE)
+#> # A tibble: 2 × 3
+#>   .model       RMSE  MAPE
+#>   <chr>       <dbl> <dbl>
+#> 1 quadratic     942  12.7
+#> 2 degree_days  1111  12.5
 ```
 
-**Explanation:** The 20-degree threshold scores 4.99 percent, slightly worse than 18's 4.47. The comfort point where neither heating nor cooling kicks in really is nearer 18 degrees for this region, which is why the original split fit better. Tuning the threshold is a legitimate way to squeeze out accuracy.
+**Explanation:** The two are close, and the quadratic actually edges out on RMSE here (942 versus 1,111), because its upward curvature extrapolates the record peak a little more aggressively. The degree-hours version is fractionally better on MAPE and, crucially, far more interpretable ("80 megawatts per cooling degree" versus two abstract quadratic coefficients). This is a real trade-off: pick the quadratic if you only care about the number, the degree-hours if a stakeholder must understand it.
 
 </details>
 
-### Exercise 3: Does averaging the two models help?
+### Exercise 3: Turn the forecast into a reserve level
 
-A common trick is to average forecasts from different models, hoping their errors cancel. Build a simple ensemble by averaging the temperature-and-calendar and dynamic-regression point forecasts, then compare its MAPE to both.
+Operations does not want a distribution, it wants a single number to plan the peak around. From the harmonic forecast of the heatwave week, find the hour with the highest 95% upper bound and report the expected load, the level to plan for, and the reserve margin between them.
 
-```r title="Your turn: average the two forecasts"
-# ens = average of fc_reg$mean and fc_dyn$mean.
-# Compute its MAPE against test$demand and compare to 4.47 and 7.06.
-
-# Write your code below:
+```r title="Your turn: size the peak reserve"
+# From fits |> select(harmonic) |> forecast(new_data = test) |> hilo(level = 95),
+# pick the hour with the largest 95% upper bound and report the reserve.
 
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Average the two forecasts"
-ens      <- (as.numeric(fc_reg$mean) + as.numeric(fc_dyn$mean)) / 2
-ens_mape <- mean(abs((test$demand - ens) / test$demand)) * 100
-c(temp_calendar = round(accuracy(fc_reg, test$demand)["Test set", "MAPE"], 2),
-  dynamic_reg   = round(accuracy(fc_dyn, test$demand)["Test set", "MAPE"], 2),
-  ensemble      = round(ens_mape, 2))
-#> temp_calendar   dynamic_reg      ensemble 
-#>          4.47          7.06          5.14 
+```r title="Peak reserve solution"
+fits |>
+  select(harmonic) |>
+  forecast(new_data = test) |>
+  hilo(level = 95) |>
+  as_tibble() |>
+  slice_max(`95%`$upper, n = 1) |>
+  transmute(peak_hour = Hour,
+            expected_MW = round(.mean),
+            plan_for_MW = round(`95%`$upper),
+            reserve_MW = round(`95%`$upper - .mean))
+#> # A tibble: 1 × 4
+#>   peak_hour           expected_MW plan_for_MW reserve_MW
+#>   <dttm>                    <dbl>       <dbl>      <dbl>
+#> 1 2014-01-17 16:00:00        7414        8159        745
 ```
 
-**Explanation:** The ensemble scores 5.14 percent, worse than the better model (4.47) and better than the worse one (7.06). Averaging landed in the middle, which is exactly what happens when one model is clearly stronger: blending pulls the good forecast toward the weaker one. Ensembles pay off when models are close in skill, not when one dominates.
+**Explanation:** The model expects a 7,414 megawatt peak near 4pm on 17 January and, at the 95% level, says to plan for 8,159, a reserve of 745 megawatts. Remember the tournament's warning: because the intervals under-cover in extremes, on a forecast heatwave you would treat even this as a floor and add more by hand.
 
 </details>
+
+## Complete Example
+
+Here is the entire engagement compressed into one runnable script: load the real demand history, roll it to hourly, build the features, fit the three headline strategies, forecast the heatwave week, and rank them. This is the skeleton you would adapt for any new load series.
+
+```r title="The whole engagement end to end"
+library(fable); library(feasts); library(tsibble); library(tsibbledata)
+library(dplyr); library(lubridate)
+
+# 1. Load and aggregate to hourly, with weather and calendar features
+elec <- vic_elec |>
+  index_by(Hour = floor_date(Time, "hour")) |>
+  summarise(Demand = mean(Demand), Temperature = mean(Temperature),
+            Holiday = any(Holiday)) |>
+  ungroup() |>
+  mutate(workday = !(as.integer(wday(Hour, week_start = 1)) >= 6 | Holiday),
+         cool = pmax(Temperature - 18, 0), heat = pmax(18 - Temperature, 0),
+         cool_lag = lag(cool, 24))
+
+# 2. Split off the heatwave test week
+ce_win <- elec |> filter_index("2013-11-01" ~ "2014-01-19")
+ce_tr  <- ce_win |> filter_index(~ "2014-01-12")
+ce_te  <- ce_win |> filter_index("2014-01-13" ~ "2014-01-19")
+
+# 3. Fit benchmark, harmonic regression, and dynamic harmonic regression
+# 4. Forecast the hold-out and rank
+ce_tr |>
+  model(
+    seasonal_naive = SNAIVE(Demand ~ lag("week")),
+    harmonic = TSLM(Demand ~ fourier(period = 24, K = 6) +
+                    fourier(period = 168, K = 3) + cool + heat + cool_lag + workday),
+    dynamic_hr = ARIMA(Demand ~ fourier(period = 24, K = 6) +
+                       fourier(period = 168, K = 3) + cool + heat + cool_lag + workday +
+                       pdq(2, 0, 1) + PDQ(0, 0, 0))
+  ) |>
+  forecast(new_data = ce_te) |>
+  accuracy(ce_win) |>
+  select(.model, RMSE, MAPE, MASE) |>
+  mutate(RMSE = round(RMSE), MAPE = round(MAPE, 1), MASE = round(MASE, 2)) |>
+  arrange(RMSE)
+#> # A tibble: 3 × 4
+#>   .model          RMSE  MAPE  MASE
+#>   <chr>          <dbl> <dbl> <dbl>
+#> 1 harmonic        1111  12.5  2.25
+#> 2 dynamic_hr      1646  17.8  3.28
+#> 3 seasonal_naive  2094  22.8  4.18
+```
+
+From four numbered steps you have a ranked, weather-aware set of day-ahead forecasts. Swapping in a different region, a longer horizon, or an extra model is a one-line change to this skeleton, which is the real payoff of doing energy load forecasting the tidyverts way.
+
+## Frequently asked questions
+
+**How much history do you need to forecast electricity load?**
+For an hourly series with daily and weekly cycles, a few months captures the seasonal shapes, but you want at least a full year so the model sees both summer cooling and winter heating. This case study trained on a rolling six-week window for day-ahead forecasts, which keeps the model current with the season, and used two to three years for the exploratory analysis. Too little history and the temperature response is estimated from too few hot days.
+
+**Which model is best for energy load forecasting?**
+There is no single winner. On this data the temperature-aware harmonic regression won overall, but the dynamic harmonic model was better on calm days and seasonal naive was competitive on quiet weekends. That is why the workflow runs a tournament and splits it by conditions rather than crowning one model. Fit several, backtest across many days, and let the numbers pick per situation.
+
+**Why aggregate to hourly instead of forecasting the raw half-hourly data?**
+Day-ahead scheduling and procurement clear in hourly blocks, so hourly is the decision-relevant resolution, and it halves the data with no loss of the daily and weekly patterns that matter. If your decision genuinely needs half-hourly granularity, keep it and raise the Fourier orders to `period = 48` and `period = 336`; the workflow is otherwise identical.
+
+**Should I use degree-days or a quadratic for temperature?**
+Both bend the load curve into its U shape and perform similarly, as Exercise 2 shows. Degree-hours (cooling and heating split at a comfort temperature) are more interpretable, because each coefficient is a clean megawatts-per-degree effect a stakeholder can act on. A quadratic can extrapolate extreme heat slightly more aggressively. Pick degree-hours when the model must be explained, the quadratic when only accuracy matters.
+
+**How much does the weather forecast affect the load forecast?**
+A lot, and it is the biggest risk in production. Feeding the model a temperature forecast that was 2 degrees too cool raised the load error from about 1,111 to 1,227 megawatts and, worse, biased the load estimate downward right before a peak. The load forecast can only be as good as the weather forecast it consumes, so a load-forecasting team watches the meteorology as closely as its own model.
+
+**What do MAPE and MASE mean for a load forecast?**
+MAPE is the average error as a percent of actual demand, so 7.6% means the forecast is off by about 7.6% on a typical hour, which is easy to explain to a stakeholder. MASE scales the error against the seasonal naive benchmark, so a MASE above 1 means a model did worse than "same time last week" on the metric's in-sample baseline. Report MAPE and megawatt RMSE to the business, and use MASE as a unit-free way to compare across series.
 
 ## Summary
 
-You built a complete energy load forecast, from a raw half-hourly feed to a deployable two-week outlook, and you did it with models you can fully explain. The spine of the project was a single realization: temperature is the master driver, but only once you split it into heating and cooling degrees so a model can see the V.
+An end-to-end energy load forecast is a sequence of decisions, not a single model call. The table maps each phase of the engagement to what it produces.
 
-| Stage | Tool | Takeaway |
+| Phase | What you do | What it produces |
 |---|---|---|
-| Explore | `ggplot2`, `cor()` | A near-zero correlation hid a strong V-shaped temperature effect |
-| Engineer | `pmax()` degree features | Heating and cooling degrees turn the V into readable coefficients |
-| Baseline | `snaive()` | The seasonal naive set a 10.0 percent MAPE bar to beat |
-| Model | `tslm()` | Temperature plus calendar halved the error to 4.47 percent |
-| Trust | `checkresiduals()`, `auto.arima()` | Good points need a residual check; dynamic regression restores honest intervals |
-| Backtest | rolling origins | The model beat the baseline in 7 of 8 folds, not by luck |
-| Deploy | `forecast()` | A future forecast needs a future temperature scenario |
+| Business brief | Name the decision and the asymmetric cost | A target: the day-ahead forecast |
+| Data audit | Check coverage, gaps, DST, scale | A trustworthy hourly tsibble |
+| EDA | Measure seasons, calendar, temperature | The features the model needs |
+| Feature build | Degree-hours, lag, workday, Fourier | Columns that encode the physics |
+| Portfolio | Fit five different strategies | Candidate models to compare |
+| Tournament | Rolling backtest by condition + intervals | A defensible, situational model choice |
+| Executive summary | Translate to megawatts and a rule | A forecast the desk can act on |
+| Production | Monitor, refit, watch for solar | A forecast that stays honest |
 
-Keep these lessons close for your next forecasting project:
+![A mindmap summarising the whole engagement: audit, explore, model, judge, ship](screenshots/Energy-Load-Forecasting-in-R-overview-mindmap.webp)
 
-- **Plot before you trust a statistic.** The correlation said temperature was irrelevant; the scatter plot said it was everything.
-- **Engineer features from the physics.** Heating and cooling degrees encode domain knowledge that a raw column cannot.
-- **Always beat a baseline.** If your clever model cannot clear the seasonal naive, it is not clever.
-- **Separate point accuracy from interval trust.** The simplest model had the best points; a dynamic regression was needed for honest ranges.
-- **Backtest before you believe.** One holdout is an anecdote; many rolling origins are evidence.
+*Figure 10: The whole engagement at a glance.*
+
+The one idea to carry away: the model is the easy part. The value is in framing the asymmetric cost, auditing sub-daily data for its own traps, encoding the U-shaped temperature response as features, backtesting honestly across hot and mild days, checking that the interval is trustworthy and not just the point, and being frank that the whole thing rides on a weather forecast. Do those well and a transparent harmonic regression becomes a forecast a grid can schedule against.
 
 ## References
 
-1. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd edition. Chapter 12.1: Complex seasonality (electricity demand). [Link](https://otexts.com/fpp3/complexseasonality.html)
-2. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd edition. Chapter 7: Time series regression models. [Link](https://otexts.com/fpp3/regression.html)
-3. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd edition. Chapter 10: Dynamic regression models. [Link](https://otexts.com/fpp3/dynamic.html)
-4. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd edition. Chapter 5.10: Time series cross-validation. [Link](https://otexts.com/fpp3/tscv.html)
-5. Hyndman, R.J., & Khandakar, Y. - "Automatic Time Series Forecasting: The forecast Package for R." *Journal of Statistical Software*, 27(3), 2008. [Link](https://www.jstatsoft.org/article/view/v027i03)
-6. O'Hara-Wild, M., Hyndman, R., & Wang, E. - `tsibbledata`: the `vic_elec` half-hourly electricity demand dataset. [Link](https://tsibbledata.tidyverts.org/reference/vic_elec.html)
-7. Hong, T., & Fan, S. - "Probabilistic electric load forecasting: A tutorial review." *International Journal of Forecasting*, 32(3), 2016. [Link](https://doi.org/10.1016/j.ijforecast.2015.11.011)
+1. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Section 12.1: Complex seasonality. [Link](https://otexts.com/fpp3/complexseasonality.html)
+2. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Chapter 10: Dynamic regression models. [Link](https://otexts.com/fpp3/dynamic.html)
+3. Hyndman, R.J., & Athanasopoulos, G. - *Forecasting: Principles and Practice*, 3rd ed. Section 5.10: Time series cross-validation. [Link](https://otexts.com/fpp3/tscv.html)
+4. fable documentation - Forecasting models for tidy time series. [Link](https://fable.tidyverts.org/)
+5. feasts documentation - Feature extraction and statistics for time series. [Link](https://feasts.tidyverts.org/)
+6. tsibbledata documentation - vic_elec: Half-hourly electricity demand for Victoria, Australia. [Link](https://tsibbledata.tidyverts.org/reference/vic_elec.html)
+7. Australian Energy Market Commission - how the National Electricity Market works, including the spot-market price cap that makes an under-forecast so costly. [Link](https://www.aemc.gov.au/energy-system/electricity/electricity-market)
 
-## Continue Learning
+**Continue learning on this site:**
 
-- [Dynamic Regression in R](Dynamic-Regression-in-R.html) - the full treatment of regression with ARIMA errors used here for honest intervals.
-- [ETS Models in R](ETS-Models-in-R.html) - exponential smoothing, the pure time series alternative that needs no external predictors.
-- [Feature Engineering for Forecasting in R](Feature-Engineering-for-Forecasting-in-R.html) - more ways to turn calendars and drivers into model-ready features.
-- [Forecast Accuracy in R](Forecast-Accuracy-in-R.html) - a deeper look at the error metrics RMSE, MAE and MAPE, and how to compare models fairly.
-- [Backtesting Forecasts in R](Backtesting-Forecasts-in-R.html) - rolling-origin evaluation in depth, the method that validated our model.
-- [EDA for Time Series in R](EDA-for-Time-Series-in-R.html) - the exploratory toolkit behind the pattern-hunting in this case study.
+- [Dynamic Regression in R](Dynamic-Regression-in-R.html) - a deeper look at ARIMA models with external covariates, the engine behind the dynamic harmonic model.
+- [Time Series Cross-Validation in R](Time-Series-Cross-Validation-in-R.html) - the rolling-origin backtesting that decided this tournament, in full.
+- [Forecast Monitoring in R](Forecast-Monitoring-in-R.html) - build the production dashboard that watches a deployed load forecast for drift.
