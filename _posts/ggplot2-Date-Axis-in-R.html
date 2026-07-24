@@ -1,0 +1,989 @@
+---
+title: "Date and Time Axes in ggplot2: Breaks, Labels, Spans"
+description: "Format date and time axes in ggplot2. Control tick breaks, strftime date labels, and the visible date span with scale_x_date and scale_x_datetime in R."
+keywords: "ggplot2 date axis, scale_x_date, scale_x_datetime, date_breaks, date_labels, R date axis format, ggplot2 time axis, strftime R"
+mathjax: false
+webr: true
+curriculum_id: "GG2-4.5"
+post_type: "C"
+auto_link_terms: "date axis in ggplot2|ggplot2 date axis|date and time axes|scale_x_datetime()|scale_x_time()|time axis in ggplot2|format date axis|date axis breaks|date axis labels|POSIXct axis"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Date & Time Axes"
+sidebar_order: "57"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Date and time axes in ggplot2 are handled by three scale functions: <code>scale_x_date()</code> for calendar dates, <code>scale_x_datetime()</code> for timestamps, and <code>scale_x_time()</code> for times of day. Each one lets you set three things independently: where the ticks fall (breaks), how each date reads (labels), and which slice of time is shown (the span).</p>
+
+<p>This tutorial uses the tidyverse (ggplot2 with a little dplyr and scales; lubridate shows up once as an optional helper). Every code block runs in your browser, so you can press Run and change anything you like as you read.</p>
+
+<h2>Why does my date axis look like a squished mess?</h2>
+
+<p>You plot a <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>, and the x-axis comes out wrong. The dates are crammed together, the labels overlap into an unreadable smear, or they are spaced like evenly numbered categories instead of real time. Nine times out of ten the cause is not ggplot at all. It is the type of your date column. Let's reproduce the bug on purpose, fix it in one line, and watch the whole date-axis toolkit fall out of that single fix.</p>
+
+<p>Here is a small table of daily revenue. Notice that the <code>day</code> column is written as plain text.</p>
+
+<div class="webr-container" data-block-title="Load libraries and build daily sales data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and build daily sales data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+library(scales)
+
+sales_chr &lt;- data.frame(
+  day = c(&quot;2024-01-05&quot;, &quot;2024-02-10&quot;, &quot;2024-03-15&quot;,
+          &quot;2024-04-20&quot;, &quot;2024-05-25&quot;, &quot;2024-06-30&quot;),
+  revenue = c(120, 180, 150, 240, 210, 300)
+)
+
+class(sales_chr$day)
+#&gt; [1] &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>class()</code> check confirms the problem: <code>day</code> is a <code>character</code> column, just text, not a date. R has no idea these strings represent points in time. Now watch what ggplot does with it.</p>
+
+<div class="webr-container" data-block-title="Plot with character dates (the bug)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot with character dates (the bug)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales_chr, aes(day, revenue)) +
+  geom_col()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that and look at the x-axis. Because <code>day</code> is text, ggplot builds a <strong>discrete</strong> axis: one evenly spaced slot per unique string, in alphabetical order, with no sense of the real gaps between dates. With six values it already looks cramped. With a few hundred it becomes a solid wall of <a class="auto-link" href="ggplot2-Text-Labels-in-R.html" title="Text Labels in ggplot2: geom_text, geom_label and ggrepel">overlapping labels</a>. This is the number one date-axis bug for beginners.</p>
+
+<p>The fix is to tell R that these strings are dates. The <code>as.Date()</code> function converts a character column into a proper <code>Date</code> column.</p>
+
+<div class="webr-container" data-block-title="Convert the column to Date">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert the column to Date</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- sales_chr
+sales$day &lt;- as.Date(sales$day)
+
+class(sales$day)
+#&gt; [1] &quot;Date&quot;
+
+head(sales, 3)
+#&gt;          day revenue
+#&gt; 1 2024-01-05     120
+#&gt; 2 2024-02-10     180
+#&gt; 3 2024-03-15     150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>class()</code> now reports <code>Date</code>. The values look the same when printed, but under the hood each date is now stored as a number of days, so R understands their order and spacing. Plot it again, this time as a line.</p>
+
+<div class="webr-container" data-block-title="Plot with a real Date column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot with a real Date column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the x-axis is a real <strong>continuous</strong> time axis. ggplot spaces the points by their true distance in time and picks sensible month breaks automatically. The only thing that changed between the broken plot and this one was the column type.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A real time axis only appears when the column is a date, not text.</strong> ggplot draws a proper continuous date axis for <code>Date</code> and <code>POSIXct</code> columns; a character or factor column always becomes a squished discrete axis, so your first move with any date problem is to check the class.</div></div>
+
+<p>Once your column is a genuine date, formatting the axis splits into three independent jobs, shown below.</p>
+
+<p><img src="screenshots/ggplot2-Date-Axis-in-R-three-knobs.webp" alt="A date axis is three independent knobs: breaks, labels, and span" class="img-responsive img-zoomable" loading="lazy" width="1638" height="986" /></p>
+
+<p><em>Figure 1: A date axis is three independent knobs. Breaks set where ticks fall, labels set how each date reads, and the span sets which range shows. The rest of this tutorial takes them one at a time.</em></p>
+
+<p>If your dates come in a non-standard order like <code>05/23/2024</code>, <code>as.Date()</code> needs a hint about the layout.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Tell <a class="auto-link" href="Date-Time-Manipulation-Exercises-in-R.html" title="Date-Time Manipulation Exercises in R: 18 Practice Problems">as.Date</a> the format when your dates are not ISO style.</strong> The <code>as.Date()</code> function assumes the ISO layout <code>%Y-%m-%d</code>, so a string like <code>05/23/2024</code> returns <code>NA</code> or a wrong date unless you pass <code>format = &quot;%m/%d/%Y&quot;</code>. The <code>lubridate::mdy()</code> and <code>lubridate::dmy()</code> helpers are a friendlier alternative that guess the order for you.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the character vector below into real dates, then confirm the class is <code>Date</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert text to Date">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert text to Date</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dates &lt;- c(&quot;2025-03-01&quot;, &quot;2025-06-01&quot;, &quot;2025-09-01&quot;)
+
+# Convert ex_dates to Date and check the class:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Convert text to Date solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert text to Date solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dates &lt;- as.Date(c(&quot;2025-03-01&quot;, &quot;2025-06-01&quot;, &quot;2025-09-01&quot;))
+class(ex_dates)
+#&gt; [1] &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>as.Date()</code> reads each ISO-formatted string into a <code>Date</code>. Because the strings already use <code>%Y-%m-%d</code>, no <code>format</code> argument is needed.</p>
+
+</details>
+</section>
+
+<h2>How do I set where the date ticks appear?</h2>
+
+<p>Breaks are the tick marks: the specific dates that get a line and a label on the axis. When you say nothing, ggplot chooses a reasonable set for you. To take control, the easiest tool is <code>date_breaks</code>, which takes a plain-English interval string.</p>
+
+<p>The grammar is a number plus a unit: <code>&quot;1 year&quot;</code>, <code>&quot;3 months&quot;</code>, <code>&quot;2 weeks&quot;</code>, <code>&quot;10 days&quot;</code>. The valid units are <code>sec</code>, <code>min</code>, <code>hour</code>, <code>day</code>, <code>week</code>, <code>month</code>, and <code>year</code>, with or without a trailing "s". Let's put a tick every three months on the sales plot.</p>
+
+<div class="webr-container" data-block-title="Set tick spacing with date_breaks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set tick spacing with date_breaks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;3 months&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the axis has one tick every three months, no matter how many data points sit between them. You can add fainter, unlabelled gridlines in between with <code>date_minor_breaks</code>, which uses the same interval grammar.</p>
+
+<p>Sometimes you do not want a regular rhythm. You want ticks on a few specific dates, maybe a launch date and two milestones. For that, skip <code>date_breaks</code> and pass an exact vector of dates to <code>breaks</code> instead.</p>
+
+<div class="webr-container" data-block-title="Place ticks on exact dates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Place ticks on exact dates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_breaks &lt;- as.Date(c(&quot;2024-01-01&quot;, &quot;2024-03-01&quot;, &quot;2024-06-01&quot;))
+my_breaks
+#&gt; [1] &quot;2024-01-01&quot; &quot;2024-03-01&quot; &quot;2024-06-01&quot;
+
+ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(breaks = my_breaks, date_labels = &quot;%b %d&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>my_breaks</code> vector holds exactly the three dates we care about, and the axis shows a tick at each one and nowhere else. Notice we also passed <code>date_labels</code> here to format them; that is the next knob.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <a class="auto-link" href="ggplot2-scale_x_date-in-R.html" title="ggplot2 scale_x_date() in R: Format Date Axis">date_breaks</a> first, and only drop to a manual vector when you need irregular ticks.</strong> The <code>date_breaks = &quot;3 months&quot;</code> style handles any regular interval in one short string, while a hand-built <code>breaks</code> vector is worth the extra typing only when the tick dates are irregular or hand-picked.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the sales plot so the axis shows a tick every two months.</p>
+<div class="webr-container" data-block-title="Your turn: set two-month breaks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: set two-month breaks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line()
+# Add a scale_x_date() layer with date_breaks set to &quot;2 months&quot;.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-month breaks solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-month breaks solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;2 months&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The interval string <code>&quot;2 months&quot;</code> tells ggplot to place a tick every second month across the data range.</p>
+
+</details>
+</section>
+
+<h2>How do I control how each date label reads?</h2>
+
+<p>Breaks decide where the ticks go. Labels decide how each tick is written. Do you want <code>2024</code>, or <code>Jan 2024</code>, or <code>01/Jan</code>? You choose the wording with <code>date_labels</code> and a format string built from <strong>strftime codes</strong>.</p>
+
+<p>A strftime code is a percent sign plus a letter that stands for one piece of a date. <code>%Y</code> means the four-digit year, <code>%b</code> means the short month name, and so on. The cleanest way to understand them is to see each one applied to a single date. Here is March 9, 2024, run through several codes at once.</p>
+
+<div class="webr-container" data-block-title="See strftime codes in action">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See strftime codes in action</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_date &lt;- as.Date(&quot;2024-03-09&quot;)
+codes &lt;- c(&quot;%Y&quot;, &quot;%B&quot;, &quot;%b&quot;, &quot;%m&quot;, &quot;%d&quot;, &quot;%A&quot;, &quot;%j&quot;)
+sapply(codes, function(f) format(show_date, f))
+#&gt;         %Y         %B         %b         %m         %d         %A         %j
+#&gt;     &quot;2024&quot;    &quot;March&quot;      &quot;Mar&quot;       &quot;03&quot;       &quot;09&quot; &quot;Saturday&quot;      &quot;069&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each code pulled out one part of the same date. This table lists the codes you will reach for most often, all shown for that same March 9, 2024.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Code</th>
+<th>Means</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%Y</code></td>
+<td>Four-digit year</td>
+<td>2024</td>
+</tr>
+<tr>
+<td><code>%y</code></td>
+<td>Two-digit year</td>
+<td>24</td>
+</tr>
+<tr>
+<td><code>%B</code></td>
+<td>Full month name</td>
+<td>March</td>
+</tr>
+<tr>
+<td><code>%b</code></td>
+<td>Short month name</td>
+<td>Mar</td>
+</tr>
+<tr>
+<td><code>%m</code></td>
+<td>Month number</td>
+<td>03</td>
+</tr>
+<tr>
+<td><code>%d</code></td>
+<td>Day of month</td>
+<td>09</td>
+</tr>
+<tr>
+<td><code>%A</code></td>
+<td>Weekday name</td>
+<td>Saturday</td>
+</tr>
+<tr>
+<td><code>%a</code></td>
+<td>Short weekday</td>
+<td>Sat</td>
+</tr>
+<tr>
+<td><code>%j</code></td>
+<td>Day of year</td>
+<td>069</td>
+</tr>
+</tbody>
+</table>
+
+<p>You combine codes with any punctuation or spaces you like. <code>&quot;%b %Y&quot;</code> produces <code>Jan 2024</code>, and <code>&quot;%d/%m&quot;</code> produces <code>09/03</code>. Let's label the sales axis as short month plus year.</p>
+
+<div class="webr-container" data-block-title="Format labels as month and year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format labels as month and year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;3 months&quot;, date_labels = &quot;%b %Y&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ticks now read <code>Jan 2024</code>, <code>Apr 2024</code>, and so on. <code>date_breaks</code> set the tick positions and <code>date_labels</code> set their wording, working together but doing different jobs. One thing to watch: case matters. <code>%m</code> is the month number, <code>%b</code> is the short name, and <code>%B</code> is the full name, while <code>%y</code> is a two-digit year and <code>%Y</code> is four digits. Mixing up the case is a common source of surprise labels.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Format the single date below so it prints as <code>Mar 2024</code>.</p>
+<div class="webr-container" data-block-title="Your turn: format as month and year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: format as month and year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_when &lt;- as.Date(&quot;2024-03-20&quot;)
+
+# Format ex_when as &quot;Mar 2024&quot;:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Format as month and year solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format as month and year solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_when &lt;- as.Date(&quot;2024-03-20&quot;)
+format(ex_when, &quot;%b %Y&quot;)
+#&gt; [1] &quot;Mar 2024&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>%b</code> gives the short month name and <code>%Y</code> the four-digit year, joined by the space you typed between them.</p>
+
+</details>
+</section>
+
+<h2>How do I zoom the axis to a date span without dropping data?</h2>
+
+<p>The span is the slice of time the axis shows. Often you want to zoom into one window, say two years out of a long history. There are two ways to do this in ggplot, and the difference between them causes real bugs, so it is worth getting right.</p>
+
+<p>To make the difference concrete, let's take the built-in <code>economics</code> data, keep everything from the year 2000 onward, and count the rows.</p>
+
+<div class="webr-container" data-block-title="Count rows in the full range and a window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count rows in the full range and a window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">econ &lt;- economics |&gt; filter(date &gt;= as.Date(&quot;2000-01-01&quot;))
+nrow(econ)
+#&gt; [1] 184
+
+econ_win &lt;- econ |&gt; filter(date &gt;= as.Date(&quot;2008-01-01&quot;),
+                           date &lt;= as.Date(&quot;2010-12-31&quot;))
+nrow(econ_win)
+#&gt; [1] 36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 184 months from 2000 onward, and 36 of them fall inside the 2008 to 2010 window. Keep those two numbers in mind. The safe way to zoom to that window is <code>coord_cartesian()</code>, which crops the view while keeping all 184 rows in the calculation.</p>
+
+<div class="webr-container" data-block-title="Zoom safely with coord_cartesian">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zoom safely with coord_cartesian</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(econ, aes(date, unemploy)) +
+  geom_line() +
+  coord_cartesian(xlim = as.Date(c(&quot;2008-01-01&quot;, &quot;2010-12-31&quot;)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows only 2008 to 2010, but every row is still there behind the scenes. Contrast that with setting <code>limits</code> inside <code>scale_x_date()</code>. That also crops the axis, but it does something extra and dangerous: it throws away every row outside the window before drawing anything.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Prefer coord_cartesian for zooming, because scale limits delete data.</strong> Setting <code>limits</code> inside a scale drops the 148 out-of-window rows entirely, so any trend line or summary is recomputed on just the 36 rows that remain, quietly changing the result; <code>coord_cartesian(xlim = ...)</code> keeps all the data and only crops the view.</div></div>
+
+<p>You can also leave one edge of the span open by passing <code>NA</code>. And you can trim or pad the gap ggplot leaves at the ends of the axis with <code>expand</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use NA for an open-ended span and expand to control end padding.</strong> Writing <code>limits = as.Date(c(&quot;2008-01-01&quot;, NA))</code> fixes the start and lets the end follow the data, while <code>expand = c(0, 0)</code> removes the small default gap ggplot adds beyond the first and last dates.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Zoom the <code>econ</code> plot to the years 2010 through 2013 without dropping any data.</p>
+<div class="webr-container" data-block-title="Your turn: zoom to a three-year window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: zoom to a three-year window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(econ, aes(date, unemploy)) +
+  geom_line() +
+  # zoom to 2010-01-01 through 2013-12-31 the safe way:
+  # your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Zoom to a three-year window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zoom to a three-year window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(econ, aes(date, unemploy)) +
+  geom_line() +
+  coord_cartesian(xlim = as.Date(c(&quot;2010-01-01&quot;, &quot;2013-12-31&quot;)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coord_cartesian()</code> crops the visible x-range to the window while keeping every row of <code>econ</code> in the underlying data.</p>
+
+</details>
+</section>
+
+<h2>How do I handle timestamps and time-of-day axes?</h2>
+
+<p>So far every example used calendar dates. Real data often carries the time of day too: a login at <code>14:30</code>, a sensor reading every few minutes. A value with both a date and a time is a <strong>timestamp</strong>, stored in R as the <code>POSIXct</code> class, and it gets its own scale function. The picture below shows which function matches which column type.</p>
+
+<p><img src="screenshots/ggplot2-Date-Axis-in-R-which-scale.webp" alt="Pick the scale function by the class of your x column" class="img-responsive img-zoomable" loading="lazy" width="1394" height="888" /></p>
+
+<p><em>Figure 2: Pick the scale function by the class of your x column. A Date column uses scale_x_date(), a POSIXct timestamp uses <a class="auto-link" href="ggplot2-scale_x_datetime-in-R.html" title="ggplot2 scale_x_datetime() in R: Format POSIXct Axis">scale_x_datetime()</a>, and a plain time of day uses scale_x_time().</em></p>
+
+<p>A timestamp carries a timezone, and this is where a subtle trap lives. The same instant prints as a different clock time depending on the timezone you display it in. Watch the hour change while the actual moment does not.</p>
+
+<div class="webr-container" data-block-title="Timestamps carry a timezone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Timestamps carry a timezone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ts &lt;- as.POSIXct(&quot;2024-06-01 14:30:00&quot;, tz = &quot;UTC&quot;)
+class(ts)
+#&gt; [1] &quot;POSIXct&quot; &quot;POSIXt&quot;
+
+format(ts, &quot;%H:%M&quot;, tz = &quot;UTC&quot;)
+#&gt; [1] &quot;14:30&quot;
+
+format(ts, &quot;%H:%M&quot;, tz = &quot;America/New_York&quot;)
+#&gt; [1] &quot;10:30&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same timestamp reads <code>14:30</code> in UTC and <code>10:30</code> in New York. This matters for your axis, because ggplot draws the ticks in whatever timezone the data carries unless you tell <code>scale_x_datetime()</code> otherwise through its <code>timezone</code> argument.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A timestamp axis is drawn in a timezone, so set it deliberately.</strong> Because <code>POSIXct</code> values carry a timezone, the same data can label ticks at different clock times depending on that zone; when the exact hour matters, build your timestamps with an explicit <code>tz =</code> and pass a matching <code>timezone</code> to the scale.</div></div>
+
+<p>Now let's actually plot timestamps. The break grammar is the same as before, but you now have finer units available, like <code>&quot;3 hours&quot;</code> or <code>&quot;30 min&quot;</code>. Here is a day of hourly site visits.</p>
+
+<div class="webr-container" data-block-title="Format a timestamp axis with scale_x_datetime">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format a timestamp axis with scale_x_datetime</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits &lt;- data.frame(
+  t = as.POSIXct(&quot;2024-06-01 08:00&quot;, tz = &quot;UTC&quot;) + 3600 * c(0, 3, 6, 9, 12),
+  n = c(5, 22, 40, 33, 12)
+)
+
+ggplot(visits, aes(t, n)) +
+  geom_line() +
+  scale_x_datetime(date_breaks = &quot;3 hours&quot;, date_labels = &quot;%H:%M&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The axis now ticks every three hours and labels each one as hours and minutes. The third case is a plain time of day with no date attached, like a daily opening hour. That uses <code>scale_x_time()</code>, and it measures the axis in <strong>seconds since midnight</strong>.</p>
+
+<div class="webr-container" data-block-title="Format a time-of-day axis with scale_x_time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format a time-of-day axis with scale_x_time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tod &lt;- data.frame(
+  secs = c(8, 11, 14, 17, 20) * 3600,
+  load = c(10, 45, 60, 50, 20)
+)
+head(tod$secs)
+#&gt; [1] 28800 39600 50400 61200 72000
+
+ggplot(tod, aes(secs, load)) +
+  geom_line() +
+  scale_x_time(breaks = c(8, 11, 14, 17, 20) * 3600,
+               labels = label_time(&quot;%H:%M&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We stored each hour as seconds (8 in the morning is <code>8 * 3600 = 28800</code> seconds), then used <code>scales::label_time()</code> to print those seconds back as clock times. The axis reads <code>08:00</code> through <code>20:00</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>scale_x_time counts in seconds, not hours.</strong> The time scale reads the raw numbers on your axis as seconds after midnight, so store times of day as seconds (hour times 3600); handing it the number 8 and expecting 8 o'clock gives you eight seconds past midnight instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the <code>visits</code> plot so the axis ticks every six hours, still labelled as <code>%H:%M</code>.</p>
+<div class="webr-container" data-block-title="Your turn: six-hour datetime breaks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: six-hour datetime breaks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(visits, aes(t, n)) +
+  geom_line()
+# Add scale_x_datetime() with date_breaks = &quot;6 hours&quot; and date_labels = &quot;%H:%M&quot;.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Six-hour datetime breaks solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Six-hour datetime breaks solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(visits, aes(t, n)) +
+  geom_line() +
+  scale_x_datetime(date_breaks = &quot;6 hours&quot;, date_labels = &quot;%H:%M&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The interval <code>&quot;6 hours&quot;</code> uses the same grammar as dates, just with a finer unit that <code>scale_x_datetime()</code> understands.</p>
+
+</details>
+</section>
+
+<h2>How do I fix crowded or overlapping date labels?</h2>
+
+<p>Even with a proper date axis, long labels on a wide date range can collide into an unreadable band. You have three levers to fix it, and they stack: use fewer breaks, write shorter labels, or rotate the text.</p>
+
+<p>Start by seeing how much room the wording itself costs. A full label is far longer than an abbreviated one.</p>
+
+<div class="webr-container" data-block-title="Compare long and short label wording">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare long and short label wording</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">label_dates &lt;- as.Date(c(&quot;2024-01-01&quot;, &quot;2024-02-01&quot;, &quot;2024-03-01&quot;))
+format(label_dates, &quot;%B %d, %Y&quot;)
+#&gt; [1] &quot;January 01, 2024&quot;  &quot;February 01, 2024&quot; &quot;March 01, 2024&quot;
+format(label_dates, &quot;%b %y&quot;)
+#&gt; [1] &quot;Jan 24&quot; &quot;Feb 24&quot; &quot;Mar 24&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>January 01, 2024</code> is sixteen characters, while <code>Jan 24</code> is six. Shorter wording alone often clears the crowding. When it does not, rotate the labels so they no longer sit shoulder to shoulder. Rotation lives in <code>theme()</code>, not in the scale.</p>
+
+<div class="webr-container" data-block-title="Rotate axis labels to prevent overlap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rotate axis labels to prevent overlap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;1 month&quot;, date_labels = &quot;%b %Y&quot;) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>angle = 45</code> tips each label onto a diagonal, and <code>hjust = 1</code> slides its right edge under the tick so it stays aligned. Now even a monthly label fits comfortably.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Break a label onto two lines instead of rotating it.</strong> Putting a newline inside the format string, as in <code>date_labels = &quot;%b\n%Y&quot;</code>, stacks the month over the year and often reads more cleanly than angled text while keeping the labels horizontal.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the monthly sales plot and rotate its labels by 45 degrees.</p>
+<div class="webr-container" data-block-title="Your turn: rotate the labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rotate the labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;1 month&quot;, date_labels = &quot;%b %Y&quot;) +
+  # rotate the x-axis text 45 degrees:
+  # your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rotate the labels solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rotate the labels solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(day, revenue)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;1 month&quot;, date_labels = &quot;%b %Y&quot;) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>element_text(angle = 45, hjust = 1)</code> inside <code>theme()</code> tilts the labels and re-aligns them under their ticks.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's put every knob together on one realistic figure. We will plot United States unemployment from 2000 onward, and shape the axis end to end: a tick every three years, faint yearly gridlines between them, four-digit year labels, a trimmed span with a touch of padding, and a clean look. The <code>economics$date</code> column is already a <code>Date</code>, so no conversion is needed.</p>
+
+<div class="webr-container" data-block-title="Full date axis on the economics data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full date axis on the economics data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">range(econ$date)
+#&gt; [1] &quot;2000-01-01&quot; &quot;2015-04-01&quot;
+
+ggplot(econ, aes(date, unemploy)) +
+  geom_line(color = &quot;#2c7fb8&quot;, linewidth = 0.6) +
+  scale_x_date(
+    date_breaks = &quot;3 years&quot;,
+    date_minor_breaks = &quot;1 year&quot;,
+    date_labels = &quot;%Y&quot;,
+    expand = c(0.01, 0)
+  ) +
+  coord_cartesian(xlim = as.Date(c(&quot;2000-01-01&quot;, &quot;2015-04-01&quot;))) +
+  labs(
+    title = &quot;US unemployment, 2000 to 2015&quot;,
+    x = &quot;Year&quot;,
+    y = &quot;Unemployed (thousands)&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the recipe top to bottom. <code>date_breaks = &quot;3 years&quot;</code> sets the labelled ticks, <code>date_minor_breaks = &quot;1 year&quot;</code> adds the quiet gridlines, <code>date_labels = &quot;%Y&quot;</code> keeps the wording to a clean year, <code>expand = c(0.01, 0)</code> leaves a sliver of padding at the ends, and <code>coord_cartesian()</code> fixes the visible window without dropping any months. That is breaks, labels, and span working together in a single scale.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>Time to combine what you have learned. Each exercise uses new variable names so it will not clash with the tutorial code above.</p>
+
+<h3>Exercise 1: From text to a formatted quarterly axis</h3>
+
+<p>You are handed quarterly sales as text dates. Convert them to real dates, then plot a line with a tick every three months labelled as short month and year (<code>Jan 2023</code> style).</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q_sales &lt;- data.frame(
+  d = c(&quot;2023-01-15&quot;, &quot;2023-04-15&quot;, &quot;2023-07-15&quot;, &quot;2023-10-15&quot;),
+  sales = c(50, 80, 65, 95)
+)
+
+# 1. Convert q_sales$d to Date.
+# 2. Plot sales over d with quarterly breaks and &quot;%b %Y&quot; labels.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q_sales$d &lt;- as.Date(q_sales$d)
+class(q_sales$d)
+#&gt; [1] &quot;Date&quot;
+
+ggplot(q_sales, aes(d, sales)) +
+  geom_line() +
+  geom_point() +
+  scale_x_date(date_breaks = &quot;3 months&quot;, date_labels = &quot;%b %Y&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>as.Date()</code> fixes the column type first, which is what lets <code>scale_x_date()</code> build a real time axis. Then <code>date_breaks</code> and <code>date_labels</code> set the tick spacing and wording.</p>
+
+</details>
+
+<h3>Exercise 2: Zoom and declutter a long series</h3>
+
+<p>Using the <code>econ</code> data from the tutorial, plot unemployment but zoom to 2008 through 2012 only, with a tick every year and the labels rotated 45 degrees so they do not overlap. Zoom the safe way that keeps all the data.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot econ (date vs unemploy):
+# - zoom to 2008-01-01 through 2012-12-31 without dropping data
+# - one tick per year, labelled as the 4-digit year
+# - rotate the labels 45 degrees
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(econ, aes(date, unemploy)) +
+  geom_line() +
+  scale_x_date(date_breaks = &quot;1 year&quot;, date_labels = &quot;%Y&quot;) +
+  coord_cartesian(xlim = as.Date(c(&quot;2008-01-01&quot;, &quot;2012-12-31&quot;))) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coord_cartesian()</code> zooms without deleting rows, <code>date_breaks = &quot;1 year&quot;</code> with <code>date_labels = &quot;%Y&quot;</code> sets yearly year-only ticks, and the <code>theme()</code> line rotates them clear of each other.</p>
+
+</details>
+
+<h3>Exercise 3: A timestamp axis for hourly traffic</h3>
+
+<p>Build a full day of hourly website traffic as timestamps, then plot it with a tick every two hours labelled as <code>%H:%M</code>. This combines timestamp handling with break and label control.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">traffic &lt;- data.frame(
+  t = as.POSIXct(&quot;2024-09-01 00:00&quot;, tz = &quot;UTC&quot;) + 3600 * (0:11),
+  hits = c(2, 1, 1, 3, 8, 20, 35, 40, 38, 30, 18, 9)
+)
+
+# Plot hits over t with a tick every 2 hours, labelled &quot;%H:%M&quot;.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(traffic, 2)
+#&gt;                     t hits
+#&gt; 1 2024-09-01 00:00:00    2
+#&gt; 2 2024-09-01 01:00:00    1
+
+ggplot(traffic, aes(t, hits)) +
+  geom_line() +
+  scale_x_datetime(date_breaks = &quot;2 hours&quot;, date_labels = &quot;%H:%M&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>t</code> column is already <code>POSIXct</code>, so <code>scale_x_datetime()</code> applies, and the <code>&quot;2 hours&quot;</code> interval with <code>&quot;%H:%M&quot;</code> labels gives a clean two-hourly clock axis.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Formatting a date or time axis in ggplot2 comes down to choosing the right scale function for your column type, then turning three independent knobs. The table below is your quick reference.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Knob</th>
+<th>Where it lives</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Column type</td>
+<td><code>as.Date()</code>, <code>as.POSIXct()</code></td>
+<td><code>as.Date(&quot;2024-01-05&quot;)</code></td>
+</tr>
+<tr>
+<td>Breaks (where ticks go)</td>
+<td><code>date_breaks</code>, <code>breaks</code></td>
+<td><code>date_breaks = &quot;3 months&quot;</code></td>
+</tr>
+<tr>
+<td>Labels (how dates read)</td>
+<td><code>date_labels</code> + strftime</td>
+<td><code>date_labels = &quot;%b %Y&quot;</code></td>
+</tr>
+<tr>
+<td>Span (which range shows)</td>
+<td><code>coord_cartesian(xlim = )</code></td>
+<td><code>xlim = as.Date(c(&quot;2008-01-01&quot;, &quot;2010-12-31&quot;))</code></td>
+</tr>
+<tr>
+<td>Crowding fix</td>
+<td><code>theme()</code>, shorter codes</td>
+<td><code>angle = 45, hjust = 1</code></td>
+</tr>
+<tr>
+<td>Scale function</td>
+<td>class of x column</td>
+<td><code>scale_x_date</code>, <code>scale_x_datetime</code>, <code>scale_x_time</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The mind map below gathers the whole toolkit in one view.</p>
+
+<p><img src="screenshots/ggplot2-Date-Axis-in-R-toolkit.webp" alt="The full date-axis toolkit at a glance" class="img-responsive img-zoomable" loading="lazy" width="1620" height="932" /></p>
+
+<p><em>Figure 3: The full date-axis toolkit at a glance, from getting the class right to fixing crowded labels.</em></p>
+
+<p>The habits that save the most time: always check the column class first, use <code>date_breaks</code> for regular ticks and a manual vector only for irregular ones, and zoom with <code>coord_cartesian()</code> rather than scale <code>limits</code> so you never silently drop data.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Why does my date axis show numbers instead of real dates?</h3>
+
+<p>If the axis shows large numbers like <code>19723</code> rather than dates, the x column is numeric, not a <code>Date</code>. R stores a <code>Date</code> as the number of days since 1970-01-01, and if that class gets lost somewhere upstream (for example after an arithmetic step or an <code>ifelse()</code> that returns numbers), ggplot builds a plain continuous number axis. Check with <code>class(df$x)</code>. If it is a day count, convert back with <code>as.Date(x, origin = &quot;1970-01-01&quot;)</code>; if it is the original text, use <code>as.Date()</code> on the strings as shown in the first section.</p>
+
+<h3>How do I show the month names in English (or another language)?</h3>
+
+<p>The <code>%b</code>, <code>%B</code>, and <code>%A</code> codes read your computer's <code>LC_TIME</code> locale, so the month and weekday names come out in the system language. To force English no matter which machine runs the code, call <code>Sys.setlocale(&quot;LC_TIME&quot;, &quot;C&quot;)</code> before you plot; to switch to another language, pass that locale name instead (for example <code>&quot;de_DE&quot;</code> for German). The numeric codes like <code>%m</code>, <code>%d</code>, and <code>%Y</code> are the same in every locale, so use those when you want language-neutral labels.</p>
+
+<h3>When should I use scale_x_continuous instead of scale_x_date?</h3>
+
+<p>Use <code>scale_x_date()</code> only when the column class is <code>Date</code>, and <code>scale_x_datetime()</code> only for <code>POSIXct</code>. If your x axis is a plain integer year like <code>2010, 2011, 2012</code>, that column is a number, not a date, so reach for <code>scale_x_continuous()</code> and set <code>breaks = 2010:2012</code>. Convert to a real <code>Date</code> only when you need finer resolution than whole years, such as months or days within a year.</p>
+
+<h3>How do I mark a specific date on the plot, like a launch day?</h3>
+
+<p>Add a vertical line with <code>geom_vline()</code> and an <code>as.Date()</code> value: <code>geom_vline(xintercept = as.Date(&quot;2024-03-15&quot;), linetype = &quot;dashed&quot;)</code>. Because the axis is a real date scale, the line lands at exactly the right spot. To label it, add <code>annotate(&quot;text&quot;, x = as.Date(&quot;2024-03-15&quot;), y = 250, label = &quot;Launch&quot;)</code>, adjusting the <code>y</code> value to sit where you want the text.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation. Position scales for date/time data (scale_date). <a href="https://ggplot2.tidyverse.org/reference/scale_date.html">Link</a></li>
+
+<li>Wickham, H., Navarro, D., and Pedersen, T. L. <em>ggplot2: Elegant Graphics for Data Analysis</em>, Date-time section. <a href="https://ggplot2-book.org/scales-position#sec-date-scales">Link</a></li>
+
+<li>scales package reference. Label and break helpers (label_date, label_time, breaks_width). <a href="https://scales.r-lib.org/reference/index.html">Link</a></li>
+
+<li>R Core Team. Date-time conversion and strftime format codes (strptime). <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/strptime.html">Link</a></li>
+
+<li>lubridate documentation. Parsing and manipulating dates. <a href="https://lubridate.tidyverse.org/">Link</a></li>
+
+<li>Wickham, H. and Grolemund, G. <em>R for Data Science</em>, Dates and times chapter. <a href="https://r4ds.hadley.nz/datetimes.html">Link</a></li>
+
+<li>The R Graph Gallery. Time series with ggplot2. <a href="https://r-graph-gallery.com/279-plotting-time-series-with-ggplot2.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-scale_x_date-in-R.html">ggplot2 scale_x_date() in R: Format Date Axis</a> A focused reference on the single most common date-axis function, with five copy-paste patterns.</li>
+
+<li><a href="ggplot2-Line-Charts.html">ggplot2 Line Charts</a> The geom you will pair a date axis with most often, covered from the basics up.</li>
+
+<li><a href="ggplot2-Secondary-Axis.html">ggplot2 Secondary Axis</a> Add a second, differently scaled axis once your primary date axis is dialled in.</li>
+
+</ul>
+
+{% endraw %}
