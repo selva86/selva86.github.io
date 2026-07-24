@@ -1,0 +1,668 @@
+---
+title: "The Best ggplot2 Extensions: ggrepel, ggtext, gghighlight"
+description: "Learn the three best ggplot2 extensions in R: ggrepel for non-overlapping labels, ggtext for rich styled text, and gghighlight to spotlight key data series."
+keywords: "ggplot2 extensions, ggrepel, geom_text_repel, ggtext, element_markdown, gghighlight, non-overlapping labels R, highlight ggplot2, R data visualization"
+mathjax: false
+webr: true
+curriculum_id: "GG2-12.1"
+post_type: "C"
+auto_link_terms: "ggplot2 extensions|ggplot2 extension packages|ggrepel|geom_text_repel()|geom_label_repel()|ggtext|element_markdown()|geom_richtext()|gghighlight|gghighlight()|non-overlapping labels"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "ggplot2 Extensions"
+sidebar_order: "45"
+---
+<!-- md2html:generated -->
+
+<p class="lead">ggplot2 extensions are small add-on packages that plug new layers and text options into the plots you already build. This guide covers the three highest-value ones: ggrepel untangles labels that overlap, ggtext styles text with markdown, and gghighlight spotlights the series that matter.</p>
+
+<h2>What are ggplot2 extensions and why do you need them?</h2>
+
+<p>You have probably built a ggplot2 chart that was almost right, then hit a wall. The labels piled on top of each other. The title could not show two colours. Fifty lines turned into an unreadable tangle. Base ggplot2 does not fix these problems on its own, and that is exactly the gap extensions fill. An extension is just another package you load, and it adds new pieces that snap into the same <code>ggplot() + layer</code> grammar you already know.</p>
+
+<p>Let's start with a concrete plot so the problem is visible. We will use <code>mtcars</code>, a small dataset that ships with R, and label every car by name. First we copy the car names out of the row names into a real column, because a label has to come from a column.</p>
+
+<div class="webr-container" data-block-title="Load ggplot2 and label data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load ggplot2 and label data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# mtcars ships with R. The car names live in the row names, so copy them into a
+# real column we can map to point labels.
+cars &lt;- mtcars
+cars$model &lt;- rownames(mtcars)
+
+head(cars[, c(&quot;model&quot;, &quot;wt&quot;, &quot;mpg&quot;, &quot;hp&quot;)])
+#&gt;                               model    wt  mpg  hp
+#&gt; Mazda RX4                 Mazda RX4 2.620 21.0 110
+#&gt; Mazda RX4 Wag         Mazda RX4 Wag 2.875 21.0 110
+#&gt; Datsun 710               Datsun 710 2.320 22.8  93
+#&gt; Hornet 4 Drive       Hornet 4 Drive 3.215 21.4 110
+#&gt; Hornet Sportabout Hornet Sportabout 3.440 18.7 175
+#&gt; Valiant                     Valiant 3.460 18.1 105</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table confirms our data is ready: each row is one car, with a <code>model</code> name, a weight (<code>wt</code>), a fuel economy figure (<code>mpg</code>), and horsepower (<code>hp</code>). Now we map <code>model</code> to the <code>label</code> aesthetic and draw the labels with plain <code>geom_text()</code>.</p>
+
+<div class="webr-container" data-block-title="Label every point with geom_text">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label every point with geom_text</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One point per car, labelled with the plain geom_text() from ggplot2.
+p_plain &lt;- ggplot(cars, aes(x = wt, y = mpg, label = model)) +
+  geom_point(colour = &quot;steelblue&quot;) +
+  geom_text(size = 3) +
+  labs(title = &quot;Fuel economy vs weight, labels overlapping&quot;,
+       x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;)
+
+p_plain</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that and you will see the trouble immediately. Where several cars sit close together, their names print on top of each other and become a smear. <code>geom_text()</code> places each label at its exact data point and never checks whether two labels collide. That single limitation is what the ggrepel extension was built to solve.</p>
+
+<p>Here is the mental model to hold onto. Each of the three extensions in this guide adds one kind of piece to a normal ggplot: ggrepel adds a smarter text layer, ggtext adds styled text elements, and gghighlight adds a focus layer. Nothing about your base plot changes.</p>
+
+<p><img src="screenshots/ggplot2-Extensions-in-R-plug-in-grammar.webp" alt="Every extension adds to the same ggplot() base, it does not replace it." class="img-responsive img-zoomable" loading="lazy" width="1036" height="986" /></p>
+
+<p><em>Figure 1: Every extension adds to the same <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot()</a> base, it does not replace it.</em></p>
+
+<p>This table sums up what each one is for and the key function you will reach for.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Extension</th>
+<th>Problem it solves</th>
+<th>Key function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ggrepel</td>
+<td>Labels overlapping each other</td>
+<td><code>geom_text_repel()</code></td>
+</tr>
+<tr>
+<td>ggtext</td>
+<td>Plain, single-style text</td>
+<td><code>element_markdown()</code></td>
+</tr>
+<tr>
+<td>gghighlight</td>
+<td>Too many series to read</td>
+<td><code>gghighlight()</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An extension is just more layers, not a new plotting system.</strong> Because every extension speaks the same grammar as ggplot2, everything you already know about aesthetics and geoms still applies. You only learn the one new piece the extension adds.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Relabel each point with its horsepower (<code>hp</code>) instead of the car name. You only need to change the <code>label</code> aesthetic.</p>
+<div class="webr-container" data-block-title="Your turn: relabel by horsepower">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: relabel by horsepower</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: label each point with its horsepower (hp) instead of the car name.
+# Fill in the label aesthetic, then run.
+ex_hp &lt;- ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey40&quot;)
+# Add a text layer, for example: + geom_text(aes(label = hp), size = 3)
+ex_hp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Relabel by horsepower solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Relabel by horsepower solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp &lt;- ggplot(cars, aes(x = wt, y = mpg, label = hp)) +
+  geom_point(colour = &quot;grey40&quot;) +
+  geom_text(size = 3)
+ex_hp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The label comes from whatever column you map to <code>label</code>. Swapping <code>model</code> for <code>hp</code> prints the horsepower number at each point.</p>
+
+</details>
+</section>
+
+<h2>How do you fix overlapping labels with ggrepel?</h2>
+
+<p>The ggrepel package adds two new label layers, <code>geom_text_repel()</code> and <code>geom_label_repel()</code>, that work like <code>geom_text()</code> and <code>geom_label()</code> but with one added behaviour: they push labels apart so none overlap, and they draw a thin line back to the point a label belongs to. You change one word, <code>geom_text()</code> becomes <code>geom_text_repel()</code>, and the smear from the last section is gone.</p>
+
+<p>One detail matters before we run it. ggrepel decides where to move each label starting from a random position, so the exact layout differs from run to run unless you fix the random seed. We call <code>set.seed()</code> first so the plot is reproducible.</p>
+
+<div class="webr-container" data-block-title="Repel labels with geom_text_repel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repel labels with geom_text_repel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggrepel)
+
+# ggrepel places labels by nudging them apart from a random start, so fix the
+# seed to get the same layout every run.
+set.seed(42)
+p_repel &lt;- ggplot(cars, aes(x = wt, y = mpg, label = model)) +
+  geom_point(colour = &quot;steelblue&quot;) +
+  geom_text_repel(size = 3, max.overlaps = Inf) +
+  labs(title = &quot;The same labels, repelled apart&quot;,
+       x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;)
+
+p_repel</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare this to the earlier chart. Same data, same points, but now every car name has its own clear space and a faint segment ties it to its dot. The only new code is the swap to <code>geom_text_repel()</code> and the <code>max.overlaps = Inf</code> argument, which we will explain in a moment.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set a seed before every ggrepel plot you want to reproduce.</strong> Without <code>set.seed()</code>, the label positions shift a little each time you run the code, so your saved figure will not match a later re-run. Pick any integer and keep it fixed.</div></div>
+
+<p>Labelling all 32 cars is still busy. Often you only want to call out a few points, for example the most fuel-efficient cars, and leave the rest as plain dots. The trick is to build a label column that is blank for the points you want to ignore. An empty string <code>&quot;&quot;</code> tells ggrepel there is nothing to place.</p>
+
+<div class="webr-container" data-block-title="Boxed labels for standout cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxed labels for standout cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Keep a label only for cars above 25 mpg; blank out the rest with &quot;&quot;.
+cars$hi_label &lt;- ifelse(cars$mpg &gt; 25, cars$model, &quot;&quot;)
+
+set.seed(7)
+p_label &lt;- ggplot(cars, aes(x = wt, y = mpg, label = hi_label)) +
+  geom_point(aes(colour = mpg &gt; 25), show.legend = FALSE) +
+  geom_label_repel(min.segment.length = 0, box.padding = 0.6, fill = &quot;white&quot;) +
+  scale_colour_manual(values = c(&quot;grey70&quot;, &quot;firebrick&quot;)) +
+  labs(title = &quot;Only the most efficient cars get a label&quot;,
+       x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;)
+
+p_label</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things changed here. We used <code>geom_label_repel()</code>, which draws each label inside a white box so it stays readable over the points, and we blanked out every car at or below 25 mpg with <code>ifelse()</code>. The <code>box.padding = 0.6</code> argument gives each box a little breathing room, and <code>min.segment.length = 0</code> forces a connector line even for labels that barely moved. The result is a clean chart that highlights the handful of cars you care about while the rest fade into grey context.</p>
+
+<p>That <code>max.overlaps</code> argument from the first ggrepel plot deserves a note, because it silently drops labels if you leave the default in place.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Raise max.overlaps when labels go missing.</strong> By default ggrepel gives up on a label after 10 overlaps and quietly removes it, so a crowded plot can lose names without warning. Setting <code>max.overlaps = Inf</code> forces ggrepel to place every label.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Label only the cars above 30 mpg using <code>geom_text_repel()</code>. Change the cutoff in the <code>ifelse()</code> line.</p>
+<div class="webr-container" data-block-title="Your turn: label efficient cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: label efficient cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: label only the cars above 30 mpg using geom_text_repel().
+# Change the cutoff in ifelse(), then uncomment the plot line and run.
+ex_cars &lt;- cars
+ex_cars$lbl &lt;- ifelse(ex_cars$mpg &gt; 20, ex_cars$model, &quot;&quot;)   # change 20 to 30
+# ggplot(ex_cars, aes(wt, mpg, label = lbl)) + geom_point() + geom_text_repel()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Label efficient cars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label efficient cars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_cars &lt;- cars
+ex_cars$lbl &lt;- ifelse(ex_cars$mpg &gt; 30, ex_cars$model, &quot;&quot;)
+
+ggplot(ex_cars, aes(wt, mpg, label = lbl)) +
+  geom_point(colour = &quot;grey50&quot;) +
+  geom_text_repel() +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>ifelse()</code> keeps a name only when <code>mpg</code> is above 30 and sets everything else to <code>&quot;&quot;</code>, so ggrepel labels just the four most efficient cars.</p>
+
+</details>
+</section>
+
+<h2>How do you style plot text with ggtext?</h2>
+
+<p>The ggtext package lets you write plot text in markdown and HTML. It gives you two kinds of tools: theme elements like <code>element_markdown()</code> that style built-in text such as titles and axis labels, and geoms like <code>geom_richtext()</code> that place styled text at data positions. With either one you can bold a word, recolour it, or break a line, all without leaving ggplot2.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The ggtext and gghighlight examples run locally in RStudio, not in the browser here.</strong> Those two packages are not available in the in-browser runner, so their code blocks are marked to run on your own machine. Install them once with <code>install.packages(c(&quot;ggtext&quot;, &quot;gghighlight&quot;))</code>. Every ggrepel block above runs right here in your browser.</div></div>
+
+<p>The signature ggtext move is to colour the words in your title to match the series, then delete the legend entirely. The title itself becomes the key. Here we colour the points by transmission type, colour the matching words in the title, and turn the legend off with <code>show.legend = FALSE</code>.</p>
+
+<pre><code class="language-r">library(ggplot2)
+library(ggtext)
+
+# Colour the two words in the title, drop the legend, and the title becomes the key.
+p_md &lt;- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(am))) +
+  geom_point(size = 2.5, show.legend = FALSE) +
+  scale_colour_manual(values = c(&quot;0&quot; = &quot;#D55E00&quot;, &quot;1&quot; = &quot;#0072B2&quot;)) +
+  labs(
+    title = &quot;Fuel economy for &lt;span style='color:#D55E00'&gt;**automatic**&lt;/span&gt; and &lt;span style='color:#0072B2'&gt;**manual**&lt;/span&gt; cars&quot;,
+    x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;
+  ) +
+  theme(plot.title = element_markdown(size = 13))
+
+p_md</code></pre>
+
+<p>Look at what each part does. The title string contains ordinary HTML: a <code>&lt;span style=&#x27;color:...&#x27;&gt;</code> sets a colour and the <code><strong>...</strong></code> markdown makes the word bold. On its own, ggplot2 would print that as literal angle brackets. The magic is the last line, <code>theme(plot.title = element_markdown())</code>, which tells ggplot2 to render the title as markdown instead of plain text. Because the coloured words already name the two groups, we do not need a legend, so the chart carries less clutter and reads faster.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A coloured title can replace a legend.</strong> When the category names appear in the title in the same colours as the data, the reader maps colour to meaning without a separate legend box. Less ink on the page, and the reader's eye never leaves the data.</div></div>
+
+<p>You are not limited to titles. <code>geom_richtext()</code> places a styled text box anywhere on the panel, using the same markdown and HTML. It is perfect for a one-line annotation that draws attention to a region of the plot.</p>
+
+<pre><code class="language-r"># geom_richtext() draws markdown or HTML straight onto the panel, like an annotation.
+note &lt;- data.frame(
+  wt = 4.1, mpg = 32,
+  text = &quot;Light **and** thrifty:&lt;br&gt;&lt;span style='color:#0072B2'&gt;manual&lt;/span&gt; cars sit up here&quot;
+)
+
+p_rich &lt;- ggplot(mtcars, aes(wt, mpg)) +
+  geom_point(colour = &quot;grey55&quot;) +
+  geom_richtext(data = note, aes(label = text),
+                fill = &quot;white&quot;, label.colour = &quot;grey70&quot;) +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;)
+
+p_rich</code></pre>
+
+<p>The <code>note</code> data frame holds a single row: a position on the plot and the styled text to draw there. Inside that text, <code><strong>and</strong></code> is bold, <code>&lt;br&gt;</code> starts a new line, and the <code>&lt;span&gt;</code> colours the word "manual". <code>geom_richtext()</code> draws it in a small white box at <code>(4.1, 32)</code>. This is the same idea as <code>geom_label()</code>, with markdown support added on top.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make the x-axis title read "Weight in 1000 lbs" with "1000 lbs" in bold. Wrap the words in <code><strong>...</strong></code> and render the axis title with <code>element_markdown()</code>.</p>
+<pre><code class="language-r"># Goal: make the x-axis title read &quot;Weight in 1000 lbs&quot; with &quot;1000 lbs&quot; in bold.
+# Wrap the words in **...** and render the axis title with element_markdown().
+ex_axis &lt;- ggplot(mtcars, aes(wt, mpg)) +
+  geom_point(colour = &quot;grey50&quot;) +
+  labs(x = &quot;Weight in 1000 lbs&quot;)
+# Add: + theme(axis.title.x = element_markdown())
+ex_axis</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_axis &lt;- ggplot(mtcars, aes(wt, mpg)) +
+  geom_point(colour = &quot;grey50&quot;) +
+  labs(x = &quot;Weight in **1000 lbs**&quot;, y = &quot;Miles per gallon&quot;) +
+  theme(axis.title.x = element_markdown())
+ex_axis</code></pre>
+
+<p><strong>Explanation:</strong> The <code><strong>1000 lbs</strong></code> markdown makes those words bold, and <code>element_markdown()</code> on <code>axis.title.x</code> renders the axis title as markdown rather than plain text.</p>
+
+</details>
+</section>
+
+<h2>How do you highlight key data with gghighlight?</h2>
+
+<p>When a chart has many series, the hard part is not drawing them, it is showing the reader which ones to look at. The gghighlight package solves this by keeping the series that match a rule in full colour and fading the rest to grey. The grey lines stay on the plot as context, so you see the standouts without losing the sense of the whole. Remember the note above: this section also runs on your own machine.</p>
+
+<p>First, the problem. We simulate twelve products, each with a twelve-month revenue path, and draw them all. This is a classic "spaghetti" chart.</p>
+
+<pre><code class="language-r">library(ggplot2)
+library(gghighlight)
+
+# Twelve made-up products, each a 12-month revenue path (a random walk).
+set.seed(2024)
+months &lt;- 1:12
+series &lt;- expand.grid(month = months, product = paste0(&quot;P&quot;, sprintf(&quot;%02d&quot;, 1:12)))
+series$revenue &lt;- ave(rnorm(nrow(series)), series$product, FUN = cumsum) + 10
+
+p_spaghetti &lt;- ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line(show.legend = FALSE) +
+  labs(title = &quot;Twelve products, impossible to tell apart&quot;,
+       x = &quot;Month&quot;, y = &quot;Revenue&quot;)
+
+p_spaghetti</code></pre>
+
+<p>Twelve lines in twelve colours tell you almost nothing. To pick the winners we need a rule, and a natural one is "which products reached a high peak". Let's compute each product's highest revenue so we can choose a sensible cutoff.</p>
+
+<pre><code class="language-r"># gghighlight needs a rule. Base it on each product's peak revenue.
+peaks &lt;- tapply(series$revenue, series$product, max)
+round(sort(peaks, decreasing = TRUE)[1:6], 1)
+#&gt;  P06  P01  P09  P05  P07  P08 
+#&gt; 14.8 14.1 12.7 12.6 12.4 11.4 </code></pre>
+
+<p>The four leaders (P06, P01, P09, P05) all top 12.5, while the next product sits at 12.4. So a cutoff of 12.5 cleanly separates the top four. Now we hand that rule to <code>gghighlight()</code>. Everything with a peak above 12.5 stays coloured, and the rest turn grey.</p>
+
+<pre><code class="language-r">p_high &lt;- ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line() +
+  gghighlight(max(revenue) &gt; 12.5, unhighlighted_params = list(colour = &quot;grey85&quot;)) +
+  labs(title = &quot;Only the standout products keep their colour&quot;,
+       x = &quot;Month&quot;, y = &quot;Revenue&quot;)
+
+p_high</code></pre>
+
+<p>One line of new code did all the work. <code>gghighlight(max(revenue) &gt; 12.5)</code> kept the four leaders in colour, greyed the other eight, and even labelled the highlighted lines for you. The <code>unhighlighted_params = list(colour = &quot;grey85&quot;)</code> argument controls how faint the background lines are.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>gghighlight tests its rule once per group, not once per row.</strong> The predicate <code>max(revenue) &gt; 12.5</code> is evaluated per product line: it asks "does this line's peak clear 12.5?". That is why you can write a whole-series test like a maximum or a mean and gghighlight applies it line by line.</div></div>
+
+<p>The feature that makes gghighlight worth learning is how it behaves with facets. Split the plot into one panel per product, and gghighlight repeats the grey context in every panel while colouring only that panel's own line. You get a small-multiples chart where each product is shown against the crowd.</p>
+
+<pre><code class="language-r">p_facets &lt;- ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line() +
+  gghighlight(max(revenue) &gt; 12.5) +
+  facet_wrap(~ product) +
+  labs(title = &quot;Each panel highlights one product against the rest&quot;,
+       x = &quot;Month&quot;, y = &quot;Revenue&quot;)
+
+p_facets</code></pre>
+
+<p>Each small panel keeps all twelve grey lines as a backdrop and lights up just one product on top. This is the clearest way to answer "how does each product compare to the others" without twelve separate charts or a legend nobody can follow.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune the faded look with unhighlighted_params.</strong> Pass a list of parameters like <code>list(colour = &quot;grey85&quot;, linewidth = 0.3)</code> to make the background lines lighter or thinner. It is the difference between context that supports the story and clutter that fights it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Highlight the products whose average revenue beats 11, rather than their peak. Swap <code>max()</code> for <code>mean()</code> in the rule.</p>
+<pre><code class="language-r"># Goal: highlight products whose AVERAGE revenue beats 11, not their peak.
+# Swap max() for mean() in a gghighlight() line, then run.
+ex_plot &lt;- ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line()
+# Add: + gghighlight(mean(revenue) &gt; 11)
+ex_plot</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_plot &lt;- ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line() +
+  gghighlight(mean(revenue) &gt; 11, unhighlighted_params = list(colour = &quot;grey85&quot;)) +
+  labs(x = &quot;Month&quot;, y = &quot;Revenue&quot;)
+ex_plot</code></pre>
+
+<p><strong>Explanation:</strong> <code>mean(revenue) &gt; 11</code> keeps only the products whose twelve-month average clears 11, which turns out to be the two strongest performers.</p>
+
+</details>
+</section>
+
+<h2>How do you combine ggrepel, ggtext, and gghighlight in one chart?</h2>
+
+<p>Each extension shines on its own, but the real payoff is stacking them. A publication-ready chart usually needs all three jobs at once: it must focus the eye on a few series, label them cleanly, then finish with a styled title. Before we build it, here is a quick way to decide which tool a given problem calls for.</p>
+
+<p><img src="screenshots/ggplot2-Extensions-in-R-decision-guide.webp" alt="Match the plot problem to the extension that fixes it." class="img-responsive img-zoomable" loading="lazy" width="1398" height="930" /></p>
+
+<p><em>Figure 2: Match the plot problem to the extension that fixes it.</em></p>
+
+<p>Now the combined chart, reusing the same <code>series</code> data from the last section. We highlight the leaders with gghighlight, label just their end points with ggrepel, and colour the title word with ggtext.</p>
+
+<pre><code class="language-r">library(ggrepel)
+library(ggtext)
+
+# Highlight the leaders, label their end points, and colour the title to match.
+# (ggplot2 and gghighlight were loaded in the sections above.)
+hi &lt;- names(which(tapply(series$revenue, series$product, max) &gt; 12.5))
+ends_hi &lt;- series[series$month == 12 &amp; series$product %in% hi, ]
+
+p_final &lt;- ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line(linewidth = 0.9) +
+  gghighlight(max(revenue) &gt; 12.5, unhighlighted_params = list(colour = &quot;grey88&quot;)) +
+  geom_text_repel(data = ends_hi, aes(label = product),
+                  nudge_x = 0.5, direction = &quot;y&quot;, hjust = 0, size = 3.2,
+                  segment.colour = &quot;grey70&quot;) +
+  labs(
+    title = &quot;The &lt;span style='color:#0072B2'&gt;**standout products**&lt;/span&gt; pull away late in the year&quot;,
+    x = &quot;Month&quot;, y = &quot;Revenue&quot;
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_markdown(), legend.position = &quot;none&quot;)
+
+p_final</code></pre>
+
+<p>Read the recipe layer by layer. <code>gghighlight()</code> fades the also-rans to grey. We then build a small <code>ends_hi</code> table with only the four leaders at month 12 and hand it to <code>geom_text_repel()</code>, so only those end points get a name and the names do not collide. Finally <code>element_markdown()</code> renders the coloured, bold phrase in the title. The chart now tells a single clear story: these four products broke away, and here they are by name.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Add the ggrepel layer after gghighlight, not before.</strong> gghighlight transforms the layers that already exist when it is called, so a label layer added afterward is drawn normally on top instead of being greyed out with the background. Order controls the result.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make the chart even more selective. Raise the peak cutoff to 13 so only the top two products stay coloured, and change the title colour to firebrick.</p>
+<pre><code class="language-r"># Goal: highlight only the very top products (peak above 13, not 12.5) and colour
+# the bold title word firebrick instead of blue.
+# In the p_final recipe above, change two things:
+#   1) both 12.5 values to 13
+#   2) the title colour #0072B2 to firebrick
+new_threshold &lt;- 13</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">hi &lt;- names(which(tapply(series$revenue, series$product, max) &gt; 13))
+ends_hi &lt;- series[series$month == 12 &amp; series$product %in% hi, ]
+
+ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line(linewidth = 0.9) +
+  gghighlight(max(revenue) &gt; 13, unhighlighted_params = list(colour = &quot;grey88&quot;)) +
+  geom_text_repel(data = ends_hi, aes(label = product),
+                  nudge_x = 0.5, direction = &quot;y&quot;, hjust = 0, size = 3.2) +
+  labs(title = &quot;Peak above 13: &lt;span style='color:firebrick'&gt;**standout products**&lt;/span&gt;&quot;,
+       x = &quot;Month&quot;, y = &quot;Revenue&quot;) +
+  theme_minimal() +
+  theme(plot.title = element_markdown(), legend.position = &quot;none&quot;)</code></pre>
+
+<p><strong>Explanation:</strong> Raising the cutoff to 13 leaves only P06 and P01 in colour, and <code>color:firebrick</code> in the title span recolours the bold phrase to match a red theme.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each one before opening the solution. The first exercise runs in your browser; the second uses gghighlight and ggtext, so run it locally.</p>
+
+<h3>Exercise 1: Label the eight-cylinder cars</h3>
+
+<p>Build a labelled scatter of horsepower (<code>hp</code>) versus <code>mpg</code> for the 8-cylinder cars only, and repel the labels so no name overlaps. Subset <code>cars</code> to <code>cyl == 8</code>, map <code>model</code> to the label, and use <code>geom_text_repel()</code>.</p>
+
+<div class="webr-container" data-block-title="Your turn: label the V8 cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: label the V8 cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Capstone 1: labelled scatter of hp vs mpg for the 8-cylinder cars only,
+# with repelled labels so no name overlaps.
+# Steps: subset to cyl == 8, map aes(label = model), add geom_text_repel().
+my_cars &lt;- subset(cars, cyl == 8)
+# Write your ggplot() code below, then run.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Label the V8 cars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label the V8 cars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+my_cars &lt;- subset(cars, cyl == 8)
+
+ggplot(my_cars, aes(x = hp, y = mpg, label = model)) +
+  geom_point(colour = &quot;firebrick&quot;) +
+  geom_text_repel(size = 3, max.overlaps = Inf) +
+  labs(title = &quot;8-cylinder cars: horsepower vs mpg&quot;,
+       x = &quot;Horsepower&quot;, y = &quot;Miles per gallon&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>subset(cars, cyl == 8)</code> keeps only the V8 models, then <code>geom_text_repel()</code> spreads their names apart. The <code>max.overlaps = Inf</code> makes sure every car gets a label even in the busy middle of the plot.</p>
+
+</details>
+
+<h3>Exercise 2: Build a focus chart</h3>
+
+<p>Make a "focus" chart from the <code>series</code> data. Highlight the products whose peak revenue tops 12.5, grey out the rest, and add a title where the word "focus" is bold and blue using <code>element_markdown()</code>.</p>
+
+<pre><code class="language-r"># Capstone 2: a &quot;focus&quot; chart. Highlight products whose peak revenue tops 12.5,
+# grey out the rest, and add an element_markdown() title where the word &quot;focus&quot;
+# is bold and blue.
+focus_data &lt;- series
+# Write your ggplot() code below, then run.</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ggplot(series, aes(month, revenue, colour = product)) +
+  geom_line(linewidth = 0.8) +
+  gghighlight(max(revenue) &gt; 12.5, unhighlighted_params = list(colour = &quot;grey85&quot;)) +
+  labs(title = &quot;A chart with &lt;span style='color:#0072B2'&gt;**focus**&lt;/span&gt;&quot;,
+       x = &quot;Month&quot;, y = &quot;Revenue&quot;) +
+  theme_minimal() +
+  theme(plot.title = element_markdown(), legend.position = &quot;none&quot;)</code></pre>
+
+<p><strong>Explanation:</strong> <code>gghighlight(max(revenue) &gt; 12.5)</code> keeps the four leaders in colour, and the <code>&lt;span&gt;</code> plus <code>element_markdown()</code> combination colours the bold word "focus" blue in the title.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between a ggplot2 extension and a theme?</h3>
+
+<p>A theme changes the look of existing plot elements such as fonts and grid lines. An extension adds new capability that base ggplot2 does not have at all, like a label layer that avoids overlaps or a title that renders markdown. You often use both together: an extension for the new feature and a theme like <code>theme_minimal()</code> for the overall style.</p>
+
+<h3>Why do ggtext and gghighlight run locally instead of in the browser?</h3>
+
+<p>The in-browser runner supports a fixed set of packages, and those two are not in it, while ggrepel is. The code is identical either way, so any ggtext or gghighlight block here will run without changes in RStudio once you install the package. Install both at once with <code>install.packages(c(&quot;ggtext&quot;, &quot;gghighlight&quot;))</code>.</p>
+
+<h3>Is ggrepel better than adjusting labels by hand?</h3>
+
+<p>For anything past a few points, yes. Hand-nudging labels is slow and breaks the moment your data changes, whereas <code>geom_text_repel()</code> re-solves the layout automatically every time you redraw. Fix the random seed with <code>set.seed()</code> and the automatic layout is also reproducible.</p>
+
+<h3>Does gghighlight remove the data it fades out?</h3>
+
+<p>No. gghighlight keeps every row and only changes how the non-matching series are drawn, turning them grey rather than deleting them. That is the whole point: the faded lines stay as context so the reader still sees the full picture. If you actually want to drop rows, use <code>dplyr::filter()</code> instead.</p>
+
+<h3>How do I install these extension packages?</h3>
+
+<p>Each one is on CRAN, so <code>install.packages(&quot;ggrepel&quot;)</code>, <code>install.packages(&quot;ggtext&quot;)</code>, and <code>install.packages(&quot;gghighlight&quot;)</code> all work. You only install once per machine, then load them with <code>library()</code> in each session, exactly like ggplot2 itself.</p>
+
+<h2>Summary</h2>
+
+<p>The three extensions in this guide each fix a common ggplot2 frustration by adding one new piece to the grammar you already use.</p>
+
+<p><img src="screenshots/ggplot2-Extensions-in-R-overview-mindmap.webp" alt="The three extensions and their headline functions." class="img-responsive img-zoomable" loading="lazy" width="1660" height="884" /></p>
+
+<p><em>Figure 3: The three extensions and their headline functions.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Extension</th>
+<th>Use it when</th>
+<th>Key function</th>
+<th>Runs in browser here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ggrepel</td>
+<td>Point or text labels overlap</td>
+<td><code>geom_text_repel()</code>, <code>geom_label_repel()</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>ggtext</td>
+<td>You need bold, colour, or markdown in text</td>
+<td><code>element_markdown()</code>, <code>geom_richtext()</code></td>
+<td>No, run locally</td>
+</tr>
+<tr>
+<td>gghighlight</td>
+<td>Too many series to read at once</td>
+<td><code>gghighlight()</code></td>
+<td>No, run locally</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways to remember:</p>
+
+<ul>
+
+<li>Extensions plug into the same <code>ggplot() + layer</code> grammar, so nothing about your base plot changes.</li>
+
+<li>Call <code>set.seed()</code> before any ggrepel plot you want to reproduce exactly.</li>
+
+<li>A coloured ggtext title can stand in for a legend and cut clutter.</li>
+
+<li>gghighlight tests its rule once per group and keeps the faded series as context, especially inside facets.</li>
+
+<li>The three combine cleanly: gghighlight to focus, ggrepel to label, ggtext to title.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggrepel documentation. Getting started with ggrepel (CRAN vignette). <a href="https://cran.r-project.org/web/packages/ggrepel/vignettes/ggrepel.html">Link</a></li>
+
+<li>ggrepel package website by Kamil Slowikowski. <a href="https://ggrepel.slowkow.com/">Link</a></li>
+
+<li>ggtext package website by Claus O. Wilke. <a href="https://wilkelab.org/ggtext/">Link</a></li>
+
+<li>gghighlight documentation. Introduction to gghighlight (CRAN vignette). <a href="https://cran.r-project.org/web/packages/gghighlight/vignettes/gghighlight.html">Link</a></li>
+
+<li>gghighlight package website by Hiroaki Yutani. <a href="https://yutannihilation.github.io/gghighlight/">Link</a></li>
+
+<li>ggplot2 extensions gallery. <a href="https://exts.ggplot2.tidyverse.org/">Link</a></li>
+
+<li>Wickham, H. et al. ggplot2: Elegant Graphics for Data Analysis (3rd edition). <a href="https://ggplot2-book.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Themes-in-R.html">ggplot2 Themes: Customize Fonts, Colors and Layout</a>: style the overall look of any plot, then layer these extensions on top.</li>
+
+<li><a href="25-Best-ggplot2-Extensions.html">25 Best ggplot2 Extensions in R</a>: a wider tour of the extension ecosystem beyond the three covered here.</li>
+
+<li><a href="ggplot2-Colours.html">ggplot2 Colours: Scales, Palettes and Manual Colors</a>: pick the colours you will reuse in ggtext titles and gghighlight highlights.</li>
+
+</ul>
+
