@@ -1,0 +1,991 @@
+---
+title: "2D Density and Hexbin Plots in ggplot2"
+description: "Learn 2D density and hexbin plots in ggplot2 to fix overplotting. Compare geom_bin2d, geom_hex, and geom_density_2d with runnable R code and clear intuition."
+keywords: "2D density plot ggplot2, hexbin plot R, geom_hex, geom_bin2d, geom_density_2d, ggplot2 overplotting, 2d density contour, kernel density plot R"
+mathjax: false
+webr: true
+curriculum_id: "GG2-2.7"
+post_type: "C"
+auto_link_terms: "2D density plot|2d density plots|hexbin plot|hexbin plots|hexagonal binning|geom_hex|geom_bin2d|2D density contour|2d density estimate|binned scatterplot|density heatmap|overplotting in ggplot2"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "2D Density & Hexbin"
+sidebar_order: "54"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">2D density and hexbin plots <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> where points pile up in a scatter plot by counting or smoothing them, so a dataset with tens of thousands of points reads as a clean map of density instead of an unreadable blob.</p>
+
+<h2>Why do scatter plots break down when you have too many points?</h2>
+
+<p>A scatter plot draws one dot per row. That works beautifully for a few hundred points. Once you have tens of thousands, the dots start landing on top of each other, and a solid mass of ink hides the very thing you wanted to see: where the data is dense and where it is sparse. This tutorial fixes that with 2D density plots, using ggplot2 throughout and building on the ordinary scatter plot you already know.</p>
+
+<p>Let's start by loading ggplot2 and looking at the data we will use for most of this tutorial. The built-in <code>diamonds</code> dataset records the price and carat weight of nearly 54,000 diamonds.</p>
+
+<div class="webr-container" data-block-title="Load ggplot2 and size up the diamonds data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load ggplot2 and size up the diamonds data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# How many rows are we dealing with?
+nrow(diamonds)
+#&gt; [1] 53940
+
+# A quick peek at the two columns we will plot
+head(diamonds[, c(&quot;carat&quot;, &quot;price&quot;)])
+#&gt; # A tibble: 6 × 2
+#&gt;   carat price
+#&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1  0.23   326
+#&gt; 2  0.21   326
+#&gt; 3  0.23   327
+#&gt; 4  0.29   334
+#&gt; 5  0.31   335
+#&gt; 6  0.24   336</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That <code>nrow()</code> call confirms the scale of the problem: 53,940 diamonds. The <code>head()</code> preview shows each diamond has a <code>carat</code> weight and a <code>price</code> in US dollars. Plotting all 53,940 as individual dots is exactly the situation where a scatter plot struggles.</p>
+
+<p>Now let's see the struggle for ourselves. We will plot <code>carat</code> on the x-axis and <code>price</code> on the y-axis with a plain <code>geom_point()</code>.</p>
+
+<div class="webr-container" data-block-title="An overplotted scatter of 54,000 diamonds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An overplotted scatter of 54,000 diamonds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lower-left corner is a black wall of ink. Points have stacked so thickly that you cannot tell whether a spot holds ten diamonds or ten thousand. This is called overplotting: so many marks overlap that density becomes invisible. The plot technically shows every diamond, yet it tells you almost nothing about where diamonds concentrate.</p>
+
+<p>A common first instinct is to make each point transparent so overlaps show through as darker patches. Let's try that with <code>alpha</code>, which sets opacity from 0 (invisible) to 1 (solid).</p>
+
+<div class="webr-container" data-block-title="Transparency helps a little, not enough">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transparency helps a little, not enough</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.05)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Transparency helps at the edges, but the dense core is still a saturated smear. With this many points, no single opacity works everywhere: light enough to reveal the core leaves the sparse tails invisible, and dark enough to show the tails re-saturates the core. We need a fundamentally different approach: instead of drawing every point, summarise how many points fall in each region.</p>
+
+<p>There are two families of tools for this, and the whole tutorial is organised around them. The first family, <strong>binning</strong>, chops the plane into small cells and counts the points in each. The second family, <strong>smoothing</strong>, treats the points as a cloud and estimates a continuous density surface. The figure below shows how the pieces fit together.</p>
+
+<p><img src="screenshots/ggplot2-2D-Density-and-Hexbin-in-R-two-families.webp" alt="Two families of 2D density plots: binning and smoothing" class="img-responsive img-zoomable" loading="lazy" width="1406" height="1282" /></p>
+
+<p><em>Figure 1: Two families of 2D density plots: binning counts points per cell, smoothing estimates a continuous density surface.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Overplotting hides density, so summarise instead of drawing every point.</strong> Once dots overlap, adding more ink cannot recover the information; the fix is to count points per region or to estimate a smooth density, then map that number to colour.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Push the transparency even lower to confirm that no single opacity rescues an overplotted scatter. Change <code>alpha</code> to <code>0.02</code> in the plot below and notice the dense core is still saturated while the tails fade to nothing.</p>
+<div class="webr-container" data-block-title="Your turn: try an even lower alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try an even lower alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Start from the transparent scatter, then lower alpha to 0.02
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.05)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lower alpha solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lower alpha solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.02)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>alpha = 0.02</code> the sparse tails almost disappear while the core is still a solid block. This is the trap of tuning transparency on big data: one value cannot serve both the dense and the sparse parts of the plot, which is why binning and smoothing exist.</p>
+
+</details>
+</section>
+
+<h2>How do you bin points into a 2D histogram with geom_bin2d()?</h2>
+
+<p>Binning is the simpler of the two families, so we start there. The idea is the same as a regular histogram, just in two dimensions. A 1D histogram slices the x-axis into bars and counts values in each bar. A 2D histogram slices <em>both</em> axes into a grid of rectangular cells and counts the points in each cell. Each cell then gets a colour based on its count.</p>
+
+<p>Before we let ggplot2 do it automatically, let's bin a tiny dataset by hand so the mechanic is completely clear. We will take eight points, cut each axis into three bands with <code>cut()</code>, and count how many points land in each cell with <code>table()</code>.</p>
+
+<div class="webr-container" data-block-title="Binning by hand: count points per cell">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Binning by hand: count points per cell</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Eight points that sit along a diagonal
+mini &lt;- data.frame(
+  x = c(1.1, 1.4, 1.6, 4.2, 4.8, 5.1, 5.3, 8.9),
+  y = c(2.0, 2.4, 1.7, 5.0, 5.5, 4.9, 5.2, 9.1)
+)
+
+# Cut each axis into 3 bands, then count points in each cell
+table(x_bin = cut(mini$x, breaks = 3), y_bin = cut(mini$y, breaks = 3))
+#&gt;             y_bin
+#&gt; x_bin        (1.69,4.17] (4.17,6.63] (6.63,9.11]
+#&gt;   (1.09,3.7]           3           0           0
+#&gt;   (3.7,6.3]            0           4           0
+#&gt;   (6.3,8.91]           0           0           1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that table as a 3-by-3 grid of cells. The three counts on the diagonal (3, 4, and 1) add up to all eight points, and every off-diagonal cell is empty because our points hug the diagonal. That is the entire idea of 2D binning: a count for every cell. <code>geom_bin2d()</code> does exactly this, but with a fine grid and colour standing in for the count.</p>
+
+<p>Let's apply it to the diamonds. The <code>bins</code> argument sets how many cells span each axis.</p>
+
+<div class="webr-container" data-block-title="A 2D histogram with geom_bin2d()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A 2D histogram with geom_bin2d()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the structure jumps out. The bright cells trace a clear curved band where most diamonds live, and the count scale on the right tells you roughly how many diamonds each colour represents. No ink is wasted on empty regions, and the dense core is a readable colour instead of a black hole.</p>
+
+<p>The default colour ramp (dark blue for low counts, light blue for high) is fine, but a perceptually uniform scale reads densities more honestly. <code>scale_fill_viridis_c()</code> maps the count to the <a class="auto-link" href="ggplot2-Colours.html" title="ggplot2 Colours: Choose Palettes That Are Beautiful, Accessible, and Honest">viridis palette</a>, where equal steps in count look like equal steps in colour. Let's add it and bump up the resolution with more bins.</p>
+
+<div class="webr-container" data-block-title="Finer bins with a viridis colour scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finer bins with a viridis colour scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d(bins = 40) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 40 bins per axis the band is sharper, and viridis makes the busiest cells (bright yellow) pop out from the quiet ones (deep purple). The <code>_c</code> in <code>scale_fill_viridis_c</code> stands for continuous, which matches a continuous count. You now have a plot that shows all 53,940 diamonds and is actually readable.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for viridis when colour encodes a number.</strong> The viridis palettes are designed so equal differences in the value look like equal differences in colour, and they stay readable for colour-blind viewers and in greyscale. See the <a href="ggplot2-Colours.html">ggplot2 colours guide</a> for the full family of scales.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>bins</code> argument is the main dial on a binned plot. Render the diamonds with a coarse grid of <code>bins = 15</code>, then imagine <code>bins = 60</code>, and notice how bin size trades detail for smoothness.</p>
+<div class="webr-container" data-block-title="Your turn: change the bin count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change the bin count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change bins to 15 for a coarse grid
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d(bins = 40) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Coarse bins solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coarse bins solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d(bins = 15) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>bins = 15</code> the cells are large, so the plot is blocky but robust: each cell holds many diamonds and the overall shape is stable. More bins reveal finer structure but make each cell noisier because it holds fewer diamonds. Choosing <code>bins</code> is a balance between detail and stability.</p>
+
+</details>
+</section>
+
+<h2>How does geom_hex() improve on square bins?</h2>
+
+<p>Square cells have a subtle problem. In a square grid, a cell's diagonal neighbours are farther away than its side neighbours, so density gradients can look slightly blocky and direction-dependent. Hexagons fix this. A hexagonal grid packs the plane so that every cell sits the same distance from all six of its neighbours, which makes smooth density gradients look smooth. <code>geom_hex()</code> bins into hexagons instead of squares.</p>
+
+<p>There is one setup step. The hexagon math lives in a separate package called <code>hexbin</code>, and ggplot2 uses it behind the scenes, so it must be available before <code>geom_hex()</code> will draw.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>geom_hex needs the hexbin package installed.</strong> If <code>hexbin</code> is missing, <code>geom_hex()</code> stops with an error instead of drawing. Install it once with <code>install.packages(&quot;hexbin&quot;)</code>, then load it alongside ggplot2 as shown below.</div></div>
+
+<p>Let's load <code>hexbin</code> and make our first <a class="auto-link" href="ggplot2-geom_hex-in-R.html" title="ggplot2 geom_hex() in R: 2D Hexagonal Density Bins">hexbin plot</a> of the diamonds.</p>
+
+<div class="webr-container" data-block-title="A hexbin plot with geom_hex()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A hexbin plot with geom_hex()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(hexbin)
+
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_hex()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same story as the square version, but the tiling is hexagonal. Each hexagon is coloured by how many diamonds fall inside it, and the dense curved band is even easier to read because the cells nest together without the blocky seams of a square grid.</p>
+
+<p>As before, more bins and a viridis scale sharpen the picture. The <code>bins</code> argument works the same way it did for <code>geom_bin2d()</code>.</p>
+
+<div class="webr-container" data-block-title="Finer hexagons with a viridis scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finer hexagons with a viridis scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_hex(bins = 40) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is often the single best chart for a huge scatter: it keeps the exact-count honesty of binning while looking as smooth as a heatmap. The bright yellow ridge shows precisely where diamond prices cluster for each carat weight.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hexagons tile the plane more evenly than squares.</strong> Because each hexagon is equidistant from all six neighbours, density gradients read smoothly in every direction, with none of the diagonal-versus-side distortion a square grid can introduce. That is why <code>geom_hex()</code> is usually the nicer-looking of the two binned options.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have a square-binned plot below. Swap <code>geom_bin2d()</code> for <code>geom_hex()</code> so the same data is shown with hexagons, keeping the viridis scale.</p>
+<div class="webr-container" data-block-title="Your turn: switch squares to hexagons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: switch squares to hexagons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change geom_bin2d() to geom_hex()
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d(bins = 40) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Hexbin swap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hexbin swap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_hex(bins = 40) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The only change is the geom. <code>geom_hex()</code> and <code>geom_bin2d()</code> share the same <code>bins</code> argument and the same count-based fill, so switching between them is a one-word edit whenever you want to compare square and hexagonal tiling.</p>
+
+</details>
+</section>
+
+<h2>How do you draw smooth density contours with geom_density_2d()?</h2>
+
+<p>Binning gives you honest counts, but the result is still a grid of cells. Sometimes you want the smooth <em>shape</em> of the cloud instead: a flowing outline of where the data is dense. That is the second family, smoothing.</p>
+
+<p>Here is the intuition. Imagine placing a small, soft hill over each data point, then adding all those hills together into one continuous landscape. Where points cluster, the hills stack into a tall peak; where points are sparse, the landscape stays flat. This estimated landscape is called a kernel density estimate, and its contour lines are exactly like the elevation lines on a hiking map: each line joins points of equal height, so tight rings mean a steep, dense peak.</p>
+
+<p>We will switch datasets to see this clearly. The base R <code>faithful</code> dataset records 272 eruptions of the Old Faithful geyser: how long each eruption lasted and how long you waited for it. It famously splits into two clusters, which makes it perfect for density contours.</p>
+
+<p>Smoothing in ggplot2 relies on a helper from the <code>MASS</code> package to compute the density surface, so we load <code>MASS</code> here alongside a first look at the data.</p>
+
+<div class="webr-container" data-block-title="Load faithful and draw density contours">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load faithful and draw density contours</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+# 272 geyser eruptions: waiting time and eruption length
+nrow(faithful)
+#&gt; [1] 272
+head(faithful)
+#&gt;   eruptions waiting
+#&gt; 1     3.600      79
+#&gt; 2     1.800      54
+#&gt; 3     3.333      74
+#&gt; 4     2.283      62
+#&gt; 5     4.533      85
+#&gt; 6     2.883      55
+
+ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The contour lines form two clear sets of rings, one lower-left and one upper-right. That is the two-cluster structure of Old Faithful made visible: short waits tend to go with short eruptions, and long waits with long eruptions. The tighter the rings, the denser that region.</p>
+
+<p>Contours are easier to trust when you can see the points they summarise. Let's draw the raw points first, then lay the contour lines on top so you can check that the rings really do hug the clusters.</p>
+
+<div class="webr-container" data-block-title="Contours on top of the raw points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contours on top of the raw points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_point() +
+  geom_density_2d(colour = &quot;darkblue&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now you can check it directly: the two clumps of dots sit exactly inside the two nests of contour rings. The lines are a smoothed summary of the very points beneath them, which is a good habit to build when you first meet a smoothing method.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use after_stat() to access computed values, not the old dot notation.</strong> Older tutorials colour contours with <code>..level..</code>. Modern ggplot2 replaces that with <code>after_stat(level)</code>, which means the same thing (the density level each line represents) but is the current, supported spelling. If you see <code>..level..</code> or <code>..density..</code> in old code, translate them to <code>after_stat(level)</code> and <code>after_stat(density)</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Colour the contour lines by their density level so the tall peaks stand out from the shallow outer rings. Map <code>colour</code> to <code>after_stat(level)</code> inside <code>aes()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: colour contours by level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: colour contours by level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add aes(colour = after_stat(level)) to the geom
+ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Colour by level solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Colour by level solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d(aes(colour = after_stat(level)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>after_stat(level)</code> exposes the density height that each contour line represents, so mapping it to <code>colour</code> shades the inner (high-density) rings differently from the outer (low-density) ones. This makes the two peaks read at a glance.</p>
+
+</details>
+</section>
+
+<h2>How do you fill the density with colour for heatmaps and filled contours?</h2>
+
+<p>Contour lines show the shape, but empty space between the lines can feel bare. Filling the density with colour turns the outline into a solid map, which many people find easier to read. ggplot2 gives you two filled styles.</p>
+
+<p>The first is filled contour bands. <code>geom_density_2d_filled()</code> colours the space <em>between</em> contour lines, like a topographic map with shaded elevation bands.</p>
+
+<div class="webr-container" data-block-title="Filled contour bands with geom_density_2d_filled()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filled contour bands with geom_density_2d_filled()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d_filled()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each band is one slice of density, from the dark low-density outskirts to the bright high-density cores. The two peaks now stand out clearly, each shown as its own set of bands. Notice the legend labels ranges of the density level, because the fill encodes which band you are in.</p>
+
+<p>The second style is a smooth heatmap with no bands at all. We build it with <code>stat_density_2d()</code>, ask it to fill by the raw density value with <code>after_stat(density)</code>, and draw it as a continuous raster (a grid of coloured pixels) by setting <code>geom = &quot;raster&quot;</code> and turning contouring off.</p>
+
+<div class="webr-container" data-block-title="A smooth density heatmap with raster fill">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A smooth density heatmap with raster fill</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  stat_density_2d(aes(fill = after_stat(density)), geom = &quot;raster&quot;, contour = FALSE) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the smoothest possible view: colour flows continuously from low density to high with no banding. Two things are worth pulling apart here. <code>after_stat(density)</code> fills by the raw height of the density surface, giving a true heatmap, whereas <code>after_stat(level)</code> (used by the filled contours above) fills by discrete probability bands. And <code>geom = &quot;raster&quot;</code> paints continuous pixels, while the default polygon geom would paint stepped bands. Pick raster plus <code>density</code> when you want a smooth heatmap, and filled contours when you want labelled bands.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use raster fill for a continuous heatmap and filled contours for labelled bands.</strong> <code>stat_density_2d(..., geom = &quot;raster&quot;, contour = FALSE)</code> gives a smooth gradient with no steps, which is ideal for a clean density backdrop. <code>geom_density_2d_filled()</code> gives discrete bands with a legend, which is better when readers need to name density levels.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Overlay the raw points on the smooth heatmap so readers can see the data behind the colour. Add a faint <code>geom_point()</code> after the <code>stat_density_2d()</code> layer.</p>
+<div class="webr-container" data-block-title="Your turn: add points over the heatmap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add points over the heatmap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add geom_point(alpha = 0.2, colour = &quot;white&quot;) as a new layer
+ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  stat_density_2d(aes(fill = after_stat(density)), geom = &quot;raster&quot;, contour = FALSE) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Heatmap with points solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heatmap with points solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  stat_density_2d(aes(fill = after_stat(density)), geom = &quot;raster&quot;, contour = FALSE) +
+  geom_point(alpha = 0.2, colour = &quot;white&quot;) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Layers stack in the order you add them, so the white, semi-transparent points land on top of the heatmap. This lets readers verify that the bright regions really do sit where the points cluster, without the dots overwhelming the colour.</p>
+
+</details>
+</section>
+
+<h2>How much detail should you show when tuning bins and bandwidth?</h2>
+
+<p>Every 2D density plot has one main dial that controls how much detail you see. Turn it one way and the plot is coarse and stable; turn it the other and the plot is fine but noisy. The dial has a different name in each family, so let's meet both.</p>
+
+<p>For binned plots, the dial is <code>bins</code>. Fewer bins mean bigger cells: the plot is blocky but each cell rests on many points, so it is stable. Here is the diamonds hexbin turned down to a coarse grid.</p>
+
+<div class="webr-container" data-block-title="Few bins give a coarse, stable view">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Few bins give a coarse, stable view</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_hex(bins = 10) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>bins = 10</code> you see only the broad shape. Compare that to the <code>bins = 40</code> version from earlier: more bins reveal finer structure but each cell holds fewer diamonds, so the colour gets noisier. Push bins high enough and every point sits in its own cell, which just recreates the overplotted scatter you started with.</p>
+
+<p>For smoothed plots, the dial is the bandwidth, which sets how wide each little hill is before they are added up. ggplot2 exposes it through <code>adjust</code>, a simple multiplier on the automatic bandwidth: <code>adjust = 0.5</code> halves the width (spikier), and <code>adjust = 2</code> doubles it (blurrier). This matters a lot on <code>faithful</code>, where the wrong setting can hide the two clusters.</p>
+
+<div class="webr-container" data-block-title="A small bandwidth: spiky and overfit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A small bandwidth: spiky and overfit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d(adjust = 0.5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>adjust = 0.5</code> the contours break into jagged little islands that form around individual points. Some of those bumps are noise, not real structure.</p>
+
+<div class="webr-container" data-block-title="A large bandwidth: smooth but washed out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A large bandwidth: smooth but washed out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d(adjust = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>adjust = 2</code> the surface is so smooth that the two clusters start to blur into one broad blob, hiding the very split that makes Old Faithful interesting. The default (<code>adjust = 1</code>) sits between these extremes and shows the two clean peaks.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A bandwidth that is too large can erase real clusters, and one too small can invent bumps.</strong> Kernel density smoothing always makes a choice about how much to blur. Before you trust a smooth density, nudge <code>adjust</code> up and down and check that the structure you see is stable, not an artefact of one setting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> See how aggressive a small bandwidth gets. Set <code>adjust = 0.3</code> and watch the contours fracture into many tiny islands.</p>
+<div class="webr-container" data-block-title="Your turn: try a very small bandwidth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a very small bandwidth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change adjust to 0.3
+ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d(adjust = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tiny bandwidth solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tiny bandwidth solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_density_2d(adjust = 0.3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>adjust = 0.3</code> the hills are so narrow that the estimate tracks almost every point, producing a rash of tiny rings. This is overfitting the density: it describes these 272 points but would not generalise to a fresh sample. It is the smoothing-world version of using too many bins.</p>
+
+</details>
+</section>
+
+<h2>Which 2D density geom should you use?</h2>
+
+<p>You now have four main tools. The decision comes down to two questions: do you need honest counts or a smooth shape, and do you want lines or filled colour? The flowchart below walks through it.</p>
+
+<p><img src="screenshots/ggplot2-2D-Density-and-Hexbin-in-R-decision.webp" alt="A decision guide for picking a 2D density geom" class="img-responsive img-zoomable" loading="lazy" width="1192" height="1618" /></p>
+
+<p><em>Figure 2: A quick decision guide for picking a 2D density geom.</em></p>
+
+<p>Here is the same guidance as a table you can scan.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geom</th>
+<th>Family</th>
+<th>Fill encodes</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_bin2d()</code></td>
+<td>Binning</td>
+<td>Count per square</td>
+<td>Fast, exact counts; a true 2D histogram</td>
+</tr>
+<tr>
+<td><code>geom_hex()</code></td>
+<td>Binning</td>
+<td>Count per hexagon</td>
+<td>Large scatters that should look smooth</td>
+</tr>
+<tr>
+<td><code>geom_density_2d()</code></td>
+<td>Smoothing</td>
+<td>Nothing (lines)</td>
+<td>Showing the shape of the cloud as outlines</td>
+</tr>
+<tr>
+<td><code>geom_density_2d_filled()</code></td>
+<td>Smoothing</td>
+<td>Density band</td>
+<td>A filled, topographic view with a legend</td>
+</tr>
+</tbody>
+</table>
+
+<p>Seeing all four on the same data makes the differences click. The <code>patchwork</code> package lets you place plots side by side with <code>+</code> and <code>/</code>, so we can build a 2-by-2 panel. We reuse <code>faithful</code> because its two clusters show up in every style.</p>
+
+<div class="webr-container" data-block-title="Compare all four on one dataset with patchwork">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all four on one dataset with patchwork</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(patchwork)
+
+p1 &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_bin2d(bins = 20) + labs(title = &quot;geom_bin2d&quot;)
+p2 &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_hex(bins = 20) + labs(title = &quot;geom_hex&quot;)
+p3 &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_density_2d() + labs(title = &quot;geom_density_2d&quot;)
+p4 &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_density_2d_filled() + labs(title = &quot;filled&quot;)
+
+(p1 + p2) / (p3 + p4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The top row (binning) shows blocky counts you can trust cell by cell. The bottom row (smoothing) shows a flowing shape that reads the two clusters more elegantly but hides the exact numbers. Neither is "correct"; they answer different questions.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Binning answers how many, smoothing answers what shape.</strong> Use <code>geom_bin2d()</code> or <code>geom_hex()</code> when a reader might ask "how many points are in this region?", and use <code>geom_density_2d()</code> or its filled cousin when the question is "what does the cloud look like?" Many good figures show the smooth density with the points or counts layered underneath.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build your own side-by-side comparison. Make a hexbin and a filled-density plot of <code>faithful</code>, then place them next to each other with <a class="auto-link" href="patchwork-Package.html" title="patchwork in R: Combine Multiple ggplot2 Plots With Aligned Axes and Shared Legends">patchwork</a>'s <code>+</code>.</p>
+<div class="webr-container" data-block-title="Your turn: hexbin beside filled density">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hexbin beside filled density</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in two plots and combine them with p_a + p_b
+p_a &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_hex(bins = 20)
+# p_b &lt;- ...
+p_a</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Side-by-side solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Side-by-side solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_a &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_hex(bins = 20)
+p_b &lt;- ggplot(faithful, aes(waiting, eruptions)) + geom_density_2d_filled()
+p_a + p_b</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Assigning each plot to a variable lets you combine them with patchwork's <code>+</code> operator, which lays them out in a row. Swap <code>+</code> for <code>/</code> to stack them vertically instead.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's put the whole workflow together on the diamonds. We begin where every real analysis begins, with the overplotted scatter that fails, then produce a polished hexbin as the finished figure: 40 bins, a viridis fill with a named legend, and clean labelled axes under a minimal theme.</p>
+
+<div class="webr-container" data-block-title="From overplotted scatter to a finished hexbin">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">From overplotted scatter to a finished hexbin</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The problem: an unreadable scatter
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point()
+
+# The fix: a polished, publication-ready hexbin
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_hex(bins = 40) +
+  scale_fill_viridis_c(name = &quot;Count&quot;) +
+  labs(
+    title = &quot;Diamond price rises with carat, and most diamonds are small&quot;,
+    x = &quot;Carat&quot;,
+    y = &quot;Price (USD)&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first plot is the black blob we opened with. The second tells the actual story: a bright ridge of many small, inexpensive diamonds in the lower left, thinning out to a sparse scatter of large, expensive ones toward the upper right. Same data, same two columns, but the hexbin turns 53,940 overlapping dots into a clear map of where diamonds concentrate. That is the payoff of 2D density plots.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine what you have learned. Each has a runnable starter and a full solution. Use fresh variable names so your practice code does not clash with the tutorial.</p>
+
+<h3>Exercise 1: A labelled hexbin of Old Faithful</h3>
+
+<p>Make a hexbin of <code>faithful</code> with <code>waiting</code> on the x-axis and <code>eruptions</code> on the y-axis. Use 25 bins and a viridis fill, then add axis labels and a title. This practises the binned family plus labelling.</p>
+
+<div class="webr-container" data-block-title="Your turn: labelled hexbin">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: labelled hexbin</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a hexbin of faithful (waiting vs eruptions),
+# 25 bins, viridis fill, axis labels, and a title.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Labelled hexbin solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Labelled hexbin solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  geom_hex(bins = 25) +
+  scale_fill_viridis_c(name = &quot;Count&quot;) +
+  labs(
+    title = &quot;Old Faithful splits into two clusters&quot;,
+    x = &quot;Waiting time (minutes)&quot;,
+    y = &quot;Eruption length (minutes)&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_hex(bins = 25)</code> bins the 272 eruptions into hexagons, <code>scale_fill_viridis_c()</code> colours them by count, and <code>labs()</code> supplies the title and axis labels. Even with only a few hundred points, the two clusters are unmistakable.</p>
+
+</details>
+
+<h3>Exercise 2: A layered density map</h3>
+
+<p>Build a single figure that layers three things on <code>faithful</code>: a smooth density heatmap as the background, white contour lines on top, and faint white points on top of that. This combines <code>stat_density_2d()</code>, <code>geom_density_2d()</code>, and <code>geom_point()</code> in one plot.</p>
+
+<div class="webr-container" data-block-title="Your turn: layered density map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: layered density map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Layer, in order: a raster density heatmap (fill by after_stat(density)),
+# then white contour lines, then faint white points. Add a viridis fill.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Layered density map solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Layered density map solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(faithful, aes(x = waiting, y = eruptions)) +
+  stat_density_2d(aes(fill = after_stat(density)), geom = &quot;raster&quot;, contour = FALSE) +
+  geom_density_2d(colour = &quot;white&quot;, linewidth = 0.3) +
+  geom_point(alpha = 0.2, colour = &quot;white&quot;) +
+  scale_fill_viridis_c(name = &quot;Density&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The layers draw bottom to top: the raster heatmap paints the density surface, the white contour lines trace equal-density rings, and the faint white points show the raw data behind it all. Because each layer is semi-transparent or thin, none hides the others.</p>
+
+</details>
+
+<h3>Exercise 3: A bandwidth investigation</h3>
+
+<p>Smoothing can mislead if the bandwidth is wrong. Draw two contour plots of <code>faithful</code> side by side with patchwork, one at <code>adjust = 0.4</code> and one at <code>adjust = 1.6</code>, and decide which one tells the honest two-cluster story.</p>
+
+<div class="webr-container" data-block-title="Your turn: compare two bandwidths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare two bandwidths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Make two geom_density_2d plots of faithful,
+# one with adjust = 0.4 and one with adjust = 1.6,
+# then place them side by side with patchwork.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bandwidth comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bandwidth comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">small_bw &lt;- ggplot(faithful, aes(waiting, eruptions)) +
+  geom_density_2d(adjust = 0.4) +
+  labs(title = &quot;adjust = 0.4 (too spiky)&quot;)
+
+large_bw &lt;- ggplot(faithful, aes(waiting, eruptions)) +
+  geom_density_2d(adjust = 1.6) +
+  labs(title = &quot;adjust = 1.6 (over-smoothed)&quot;)
+
+small_bw + large_bw</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>adjust = 0.4</code> the contours fracture into noisy islands, and at <code>adjust = 1.6</code> the two clusters blur toward a single blob. Neither extreme is honest: the default near <code>adjust = 1</code> shows the two clean peaks best. The lesson is to always check that a smooth density is stable across a range of bandwidths.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>2D density plots replace an overplotted scatter with a readable map of where points concentrate. They fall into two families, and knowing which one you need is most of the battle.</p>
+
+<p><img src="screenshots/ggplot2-2D-Density-and-Hexbin-in-R-overview-mindmap.webp" alt="The 2D density toolkit in ggplot2 at a glance" class="img-responsive img-zoomable" loading="lazy" width="1520" height="984" /></p>
+
+<p><em>Figure 3: The 2D density toolkit in ggplot2 at a glance.</em></p>
+
+<p>The key takeaways:</p>
+
+<ul>
+
+<li><strong>Overplotting is the problem.</strong> Once tens of thousands of points overlap, transparency cannot save the plot; you must count or smooth.</li>
+
+<li><strong>Binning counts points per cell.</strong> <code>geom_bin2d()</code> uses squares and <code>geom_hex()</code> uses hexagons; both colour each cell by its count, and hexagons tile more evenly.</li>
+
+<li><strong>Smoothing estimates a continuous surface.</strong> <code>geom_density_2d()</code> draws contour lines, <code>geom_density_2d_filled()</code> fills the bands, and <code>stat_density_2d(geom = &quot;raster&quot;)</code> makes a smooth heatmap.</li>
+
+<li><strong>Use after_stat() for computed values.</strong> <code>after_stat(level)</code> gives probability bands and <code>after_stat(density)</code> gives raw height; the old <code>..level..</code> notation is deprecated.</li>
+
+<li><strong>Tune one dial carefully.</strong> <code>bins</code> controls binned resolution and <code>adjust</code> controls smoothing bandwidth; check that structure is stable rather than an artefact of one setting.</li>
+
+<li><strong>Colour by viridis.</strong> A perceptually uniform scale makes density comparisons honest and colour-blind friendly.</li>
+
+</ul>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Do I need the hexbin package for geom_bin2d() too?</h3>
+
+<p>No. Only <code>geom_hex()</code> needs the <code>hexbin</code> package, because hexagonal tiling uses its math. <code>geom_bin2d()</code> bins into squares and works with base ggplot2 alone, so it is a handy fallback if you cannot install <code>hexbin</code>.</p>
+
+<h3>What is the difference between geom_density_2d() and geom_density2d()?</h3>
+
+<p>They are the same function. <code>geom_density2d()</code> is an older alias kept for backward compatibility, and <code>geom_density_2d()</code> is the current, preferred spelling. Use the underscore version in new code.</p>
+
+<h3>Why do my density contours fail or look wrong?</h3>
+
+<p><code>geom_density_2d()</code> estimates the surface with <code>MASS::kde2d()</code>, so <code>MASS</code> must be available. The estimate can also misbehave when your data has very few points or almost no spread on one axis. Make sure <code>MASS</code> is installed and that both variables genuinely vary.</p>
+
+<h3>How many bins should I use for geom_hex() or geom_bin2d()?</h3>
+
+<p>Start around 30 to 50 for a large dataset, then adjust by eye. Too few bins hide structure, and too many turn the plot back into a noisy scatter. There is no single correct number; the goal is a setting where the pattern stays stable as you nudge <code>bins</code>.</p>
+
+<h3>Are these plots worth it for small datasets?</h3>
+
+<p>They shine most on large data. For a few dozen points a plain scatter is clearer and honest. Reach for binning or smoothing once overlap starts hiding density, which usually happens somewhere in the thousands of points.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 reference: Contours of a 2D density estimate (geom_density_2d). <a href="https://ggplot2.tidyverse.org/reference/geom_density_2d.html">Link</a></li>
+
+<li>ggplot2 reference: Heatmap of 2D bin counts (geom_bin_2d). <a href="https://ggplot2.tidyverse.org/reference/geom_bin_2d.html">Link</a></li>
+
+<li>ggplot2 reference: Hexagonal heatmap of 2D bin counts (geom_hex). <a href="https://ggplot2.tidyverse.org/reference/geom_hex.html">Link</a></li>
+
+<li>Wickham, H. et al. - ggplot2: Elegant Graphics for Data Analysis, chapter on statistical summaries. <a href="https://ggplot2-book.org/statistical-summaries.html">Link</a></li>
+
+<li>hexbin package on CRAN (Dan Carr et al.). <a href="https://cran.r-project.org/package=hexbin">Link</a></li>
+
+<li>Venables, W. N. & Ripley, B. D. - MASS::kde2d, two-dimensional kernel density estimation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/kde2d.html">Link</a></li>
+
+<li>The R Graph Gallery - 2d density plot with ggplot2. <a href="https://r-graph-gallery.com/2d-density-plot-with-ggplot2.html">Link</a></li>
+
+<li>Healy, K. - Data Visualization: A Practical Introduction, on overplotting. <a href="https://socviz.co/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Scatter-Plots.html">ggplot2 Scatter Plots</a> - the starting point these plots improve on, covering colour, point size and trend lines.</li>
+
+<li><a href="Heatmap-in-R.html">Heatmap in R</a> - the close cousin of a binned density plot, for showing values on a grid.</li>
+
+<li><a href="ggplot2-Colours.html">ggplot2 Colours</a> - the full set of colour scales, including the viridis family used throughout this tutorial.</li>
+
+</ul>
+
+{% endraw %}
