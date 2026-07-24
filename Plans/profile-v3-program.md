@@ -122,3 +122,86 @@ PASS 2:
 [ ] Recap email: sends once per user-week to opted-in actives only;
     opt-out honored immediately; flag off = zero sends
 PASS 3: per-feature checklists written when scheduled.
+
+---
+
+# PASS 2 implementation design (2026-07-24, pre-build)
+
+Reconnaissance: streak logic lives in functions/_lib/db.ts touchStreak()
+(four transitions, UTC days, idempotent per day, called only on passes).
+XP claims are race-free via the partial unique index. This is the surface
+pass 2 hooks into; every hook is additive and flag-gated.
+
+## 2.2 Freezes (into touchStreak, minimal diff)
+- users.streak_freezes INTEGER DEFAULT 0 (lazy ALTER via ensureProfileColumns).
+- New transition between "yesterday" and "reset": gap of EXACTLY one missed
+  day AND freezes > 0 -> atomic consume:
+  UPDATE users SET streak_freezes = streak_freezes - 1 WHERE id=? AND streak_freezes > 0
+  meta.changes==1 -> streak continues (+1) and last_active backfills the
+  bridge day; changes==0 (race/none) -> normal reset. Gaps > 2 days always
+  reset: freezes bridge single days only (v1 simplicity, documented).
+- Earn: when the new current hits a multiple of 7:
+  UPDATE users SET streak_freezes = MIN(2, streak_freezes + 1) - runs at
+  most once per day thanks to the last==today guard.
+- AttemptResult gains streak_freezes and freeze_used_today for the UI.
+- True active days remain derived from ledgers; freezes never fabricate rows.
+
+## 2.1 Daily set (read API first, bonus second)
+- GET /api/me/daily -> { date, tasks: [{hub, exercise_id, track, reason,
+  difficulty, done}], all_done, bonus_awarded }.
+- Deterministic pick: seed = SHA-like hash of (userId + UTC date);
+  task 1 from the dominant-track hubs of the last 30d, task 2 from the
+  weakest track with history (fallback: any unmapped hub), task 3 a review
+  (solved > 30 days ago). Unsolved filtering against the manifest.
+- done = a passing attempt today for that exercise id (any pass counts;
+  review tasks are re-passes, first-pass uniqueness untouched).
+- Bonus (flag:daily-set): on the pass that completes the set, attempt flow
+  waitUntil()s checkDailyBonus: SELECT xp_ledger action='daily.bonus'
+  ref=date first, then insert 15 XP + total_xp bump. Worst-case race =
+  one duplicate 15 XP, logged, accepted (risk table #5).
+- Surfaces: dashboard card + profile own-view via the API (client fetch).
+
+## 2.3 + 2.5 Nudges and award moments (server first, client in two steps)
+- attempt.ts response gains: nudge (nearest counter line, computed from
+  stats already in AttemptResult + one COUNT on passes only) and
+  new_badges (award sweep runs ONLY when a pass crosses a threshold
+  boundary - solved in {1,100,200,300}, streak in {7,30,100} - so the
+  12-query ctx build never runs on ordinary passes).
+- Client step 1 (ships with pass 2): lesson-mode.js consumes both (its
+  pages re-hash automatically on deploy).
+- Client step 2 (rides the planned site-wide rebuild with the dwell work):
+  exercise-hub.js consumption + ?v bump. Not blocked on it.
+- badge-card.svg (/u/<handle>/badge-card.svg?id=...) joins cert-card.svg,
+  same public-only + escaped contract, for the share modal.
+
+## 2.4 Recap email
+- functions/_lib/recap.ts: weekly KV-throttled sweep piggybacked on
+  /api/me traffic; cohort = newsletter_opt_in=1 AND recap_opt_out IS NULL
+  AND active in 14d; per-(user, ISO week) KV dedupe marker; flag:recap-email
+  kill switch; ZeptoMail via existing sendMail.
+- Unsubscribe without auth: random token minted at send time, stored
+  KV recap-unsub:<token> -> user_id (TTL 90d); GET /api/recap/unsub?t=...
+  sets users.recap_opt_out=1. No new secrets.
+- Content: XP + solves for the week, rank move, nearest badge line, one CTA.
+
+## 2.6 Free Foundations certificate (investigation-first)
+- Investigate functions/_lib/tracks.ts + cert/mint.ts gating; if the
+  foundations track cert is config-level, ship free-tier minting behind
+  flag:free-foundations-cert; else scope a follow-up. The award-moment
+  modal + LinkedIn add make this the fast-fill + conversion rung.
+
+## Pass 2 verification checklist (preview + seeded dev D1)
+[ ] Freeze transitions: yesterday->+1 unchanged; same-day no-op unchanged;
+    2-day gap with freeze -> streak continues, freezes-1; 2-day gap without
+    freeze -> reset; 3-day gap with 2 freezes -> reset (single-day rule);
+    freeze floor 0 / cap 2 enforced under concurrent attempts
+[ ] Earn: streak 7 -> +1 freeze (cap 2); no double-earn same day
+[ ] Daily set: deterministic for fixed (user,date); changes at UTC midnight;
+    tasks unsolved-only; review task older than 30d; done-detection flips on
+    pass; bonus exactly once; flag off = no bonus, API still renders set
+[ ] attempt.ts: grading result identical with flags off (regression: XP,
+    first_pass, streak fields byte-equal on old paths); nudge line present
+    on passes; new_badges only at boundary crossings
+[ ] Recap: flag off = zero sends; one send per user-week; opt-out link works
+    unauthenticated; cohort filter excludes non-opted users
+[ ] badge-card.svg: public-only, escaped, 404 on foreign/unknown badge
