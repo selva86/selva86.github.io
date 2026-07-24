@@ -29,6 +29,7 @@ export interface TrackHub {
 }
 
 export interface Track {
+  free?: boolean;          // mintable without Pro (flag:free-foundations-cert)
   id: string;
   name: string;
   tagline: string;

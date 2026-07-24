@@ -64,7 +64,12 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   // an individual plan, lifetime, OR an active team seat.
   const isPro = (await resolvePro(context.env.DB, u)).pro;
   if (!isPro) {
-    const freeAllowed = await isCertFreeFlag(context.env.KV);
+    // Free-track escape (profile v3 pass 2): the Foundations credential is
+    // mintable without Pro when its track is marked free AND the launch flag
+    // is on. The work requirement (eligibility below) is identical either way.
+    const freeTrack = track.free === true
+      && (await context.env.KV.get("flag:free-foundations-cert")) === "on";
+    const freeAllowed = freeTrack || await isCertFreeFlag(context.env.KV);
     if (!freeAllowed) {
       return jsonError(
         403, "pro_required",
