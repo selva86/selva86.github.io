@@ -496,7 +496,6 @@ function onePiece(it: { title: string; code: string; note?: string }): string {
       </div>
       <div class="webr-plot-output"></div>
     </div>
-    </div>
     <div class="report"><a href="mailto:selva86@gmail.com?subject=Report%20profile%20snippet" style="color:inherit">Report this piece</a></div>
   </div>`;
 }
