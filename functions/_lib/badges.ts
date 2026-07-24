@@ -16,6 +16,8 @@ export interface BadgeCtx {
   quizBestScore: number;      // best passed quiz score, 0-100
   createdAt: number;          // unix seconds
   tierIndex: number;          // 0..5 from computeTier
+  activeDays: number;         // any-activity days, all loaded history
+  profileReady: boolean;      // bio + at least one link set
 }
 
 export interface BadgeDef {
@@ -31,6 +33,21 @@ export interface BadgeDef {
 const EARLY_MEMBER_CUTOFF = 1782585600; // 2026-06-28: the first year of accounts
 
 export const BADGE_DEFS: BadgeDef[] = [
+  {
+    id: "first-solve", name: "First solve", blurb: "the first graded win",
+    shape: "circle", color: "#2056d2", glyph: "1",
+    test: (c) => ({ earned: c.solved >= 1, progress: Math.min(1, c.solved), note: "solve any exercise" }),
+  },
+  {
+    id: "first-day", name: "First day", blurb: "showed up and did the work",
+    shape: "circle", color: "#0f7a52", glyph: "GO",
+    test: (c) => ({ earned: c.activeDays >= 1, progress: Math.min(1, c.activeDays), note: "any graded activity" }),
+  },
+  {
+    id: "profile-ready", name: "Profile ready", blurb: "bio and a link in place",
+    shape: "square", color: "#2056d2", glyph: "ID",
+    test: (c) => ({ earned: c.profileReady, progress: c.profileReady ? 1 : 0, note: "add a bio and one link" }),
+  },
   {
     id: "streak-7", name: "7-day streak", blurb: "a full week, every day",
     shape: "circle", color: "#2056d2", glyph: "7",

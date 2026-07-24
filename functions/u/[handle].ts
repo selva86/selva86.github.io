@@ -1,74 +1,168 @@
-// GET /u/<handle>
+// GET /u/<handle>  (profile v3, pass 1 - the mock-v2 layout, all real data)
 //
-// Server-rendered public learner profile (v2). Self-contained shell, no site
-// template dependency. Privacy contract:
-//   - public_profile = 1 (schema default): full page for everyone; shows
-//     display name + achievements, NEVER the email.
-//   - public_profile = 0: strangers get a data-free "this profile is private"
-//     shell (nothing sensitive in the HTML source). The owner, identified
-//     client-side via their token against /api/me/profile, sees an own-view
-//     with the full editor.
-// Renamed handles: /u/<old> 301s to /u/<new> (prev_handle lookup).
-// noindex for v1 (indexing public profiles is a separate owner decision).
+// Server-rendered public learner profile. Privacy contract unchanged:
+//   - public: full page, email never rendered
+//   - private: data-free shell; owner unlocks own-view client-side
+// Renamed handles 301 via prev_handle. noindex for v1.
+// ?year=YYYY re-renders the activity board for that calendar year.
 
 import type { Env, RequestData } from "../_middleware";
 import {
-  ensureProfileColumns, loadProfileStats, escHtml, renderHeatmapSvg, describeAction,
+  ensureProfileColumns, loadProfileStats, escHtml, describeAction,
   computeTier, parseProfileJson, linkedInAddUrl, bumpProfileView,
+  monthlyDeltas, captureAndDeltaRank, loadBoardRows, renderBoardHtml,
+  renderXpChartSvg,
 } from "../_lib/profile";
+import {
+  BADGE_DEFS, certBadges, awardBadges, loadUserBadges, badgeRarity, badgeArt,
+  type BadgeCtx,
+} from "../_lib/badges";
 import { isProActive, type User } from "../_lib/db";
 
-const SHELL_CSS = `
+const CSS = `
   *{box-sizing:border-box}
-  body{font-family:'IBM Plex Sans',-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#fbfbfa;color:#16181d;margin:0;line-height:1.55}
+  html,body{margin:0}
+  body{background:#f7f7f5;color:#16181d;font:14.5px/1.55 'IBM Plex Sans',-apple-system,'Segoe UI',Roboto,Arial,sans-serif}
   a{color:#2056d2;text-decoration:none} a:hover{text-decoration:underline}
-  .top{background:#fff;border-bottom:1px solid #e7e4da;padding:10px 20px;display:flex;align-items:center;gap:18px}
-  .top .wordmark{font-family:'Inter Tight','IBM Plex Sans',sans-serif;font-weight:700;font-size:19px;color:#16181d}
-  .top .wordmark span{color:#2056d2}
-  .top nav{display:flex;gap:16px;font-size:13.5px} .top nav a{color:#5c6270}
-  .wrap{max-width:900px;margin:0 auto;padding:26px 20px 60px}
-  .card{background:#fff;border:1px solid #e2e5ea;border-radius:14px;padding:22px 24px;margin-bottom:14px}
-  .head{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
-  .avatar{width:84px;height:84px;border-radius:50%;background:#2056d2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:600;overflow:hidden;flex:none}
-  .avatar img{width:100%;height:100%;object-fit:cover}
-  h1{font-family:'Inter Tight','IBM Plex Sans',sans-serif;font-weight:700;font-size:27px;margin:0;letter-spacing:-.01em}
-  .idline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .meta{color:#6b7280;font-size:13.5px;margin-top:3px}
-  .bio{margin:8px 0 0;font-size:15px;max-width:560px}
-  .pro{display:inline-block;background:#0f8a5f;color:#fff;font-size:11px;font-weight:600;letter-spacing:.4px;padding:2px 8px;border-radius:10px}
-  .tier{display:inline-block;color:#fff;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:10px}
-  .otw{display:inline-block;background:#eef6f1;color:#0f8a5f;border:1px solid #bfe0cf;font-size:12px;font-weight:600;padding:3px 10px;border-radius:10px}
-  .tiernext{color:#8a8f98;font-size:12.5px;margin-top:6px}
-  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-  .lbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid #d8dce4;background:#fff;border-radius:9px;padding:6px 12px;font-size:13px;color:#1a2340}
+  .masthead{background:#101a30;padding:11px 24px;display:flex;align-items:center;gap:22px}
+  .wordmark{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:19px;color:#fff}
+  .wordmark b{color:#7da2ff}
+  .masthead nav{display:flex;gap:18px;font-size:13.5px}
+  .masthead nav a{color:#c7d2e8}
+  .masthead .grow{flex:1}
+  .masthead .cta{background:#fff;color:#101a30;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:600}
+  .hero{background:linear-gradient(180deg,#101a30 0%,#182644 100%);color:#e8edf8;padding:34px 0 0}
+  .hero-in{max-width:1180px;margin:0 auto;padding:0 22px;display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+  .ringwrap{position:relative;width:148px;height:148px;flex:none}
+  .ringwrap svg{position:absolute;inset:0}
+  .avatar{position:absolute;inset:11px;border-radius:50%;background:#3b5bd8;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Inter Tight',sans-serif;font-size:48px;font-weight:700;overflow:hidden}
+  .avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+  .tierpin{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);color:#fff;font-size:11px;font-weight:700;padding:3px 13px;border-radius:11px;letter-spacing:.4px;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap}
+  .hid{flex:1;min-width:280px;padding-top:6px}
+  .hid h1{font-family:'Inter Tight',sans-serif;font-weight:800;font-size:34px;margin:0;letter-spacing:-.015em;color:#fff}
+  .hid .handle{color:#9daac6;font-size:14px;margin-top:2px}
+  .hid .bio{color:#c7d2e8;font-size:14.5px;max-width:520px;margin:10px 0 0}
+  .hchips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .hchip{font-size:12px;font-weight:600;padding:4px 12px;border-radius:11px;background:rgba(255,255,255,.09);color:#dbe4f5;border:1px solid rgba(255,255,255,.14)}
+  .hchip.pro{background:#0f7a52;border-color:#0f7a52;color:#fff}
+  .hchip.otw{background:rgba(35,160,105,.18);border-color:rgba(85,200,145,.4);color:#7fd8ae}
+  .hmeta{display:flex;gap:18px;flex-wrap:wrap;color:#9daac6;font-size:12.5px;margin-top:14px}
+  .hmeta b{color:#e8edf8;font-weight:500}
+  .hstats{display:grid;grid-template-columns:repeat(4,auto);gap:10px 34px;align-self:center;padding:10px 0}
+  @media(max-width:980px){.hstats{grid-template-columns:repeat(2,auto)}}
+  .hstat b{display:block;font-family:'Inter Tight',sans-serif;font-weight:700;font-size:30px;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .hstat span{font-size:12px;color:#9daac6}
+  .hstat .delta{color:#7fd8ae;font-size:11.5px;font-weight:600}
+  .heronav{max-width:1180px;margin:26px auto 0;padding:0 22px;display:flex;gap:4px;overflow-x:auto}
+  .heronav a{color:#9daac6;font-size:13.5px;font-weight:500;padding:11px 16px;border-radius:9px 9px 0 0;white-space:nowrap}
+  .heronav a.on{background:#f7f7f5;color:#16181d;font-weight:600}
+  .heronav a:hover{text-decoration:none;color:#fff}
+  .heronav a.on:hover{color:#16181d}
+  .page{max-width:1180px;margin:0 auto;padding:24px 22px 80px;display:grid;grid-template-columns:308px 1fr;gap:20px;align-items:start}
+  @media(max-width:920px){.page{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid #e6e8ee;border-radius:16px;padding:20px 22px;box-shadow:0 1px 2px rgba(16,26,48,.05),0 4px 14px -6px rgba(16,26,48,.08)}
+  h2{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:16.5px;margin:0 0 14px;letter-spacing:-.01em}
+  h2 small{font-family:'IBM Plex Sans',sans-serif;font-weight:400;font-size:12.5px;color:#667085;margin-left:8px}
+  .rail{display:flex;flex-direction:column;gap:16px;position:sticky;top:16px}
+  @media(max-width:920px){.rail{position:static}}
+  .main{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .streakhead{display:flex;align-items:center;gap:14px}
+  .flame{width:46px;height:46px;flex:none}
+  .streakhead b{font-family:'Inter Tight',sans-serif;font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+  .streakhead .lbl{font-size:12px;color:#667085}
+  .streakhead .best{margin-left:auto;font-size:12px;color:#667085;text-align:right}
+  .weekstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px}
+  .weekstrip div{text-align:center;font-size:10.5px;color:#667085}
+  .weekstrip i{display:block;height:26px;border-radius:7px;background:#eef1f6;margin-bottom:4px}
+  .weekstrip .hit i{background:#2056d2}
+  .weekstrip .today i{outline:2px solid #2056d2;outline-offset:2px;background:#c3d4f2}
+  .linkcol{display:flex;flex-direction:column;gap:7px}
+  .lbtn{display:flex;align-items:center;gap:9px;border:1px solid #e6e8ee;border-radius:9px;padding:8px 12px;font-size:13px;color:#16181d;background:#fff}
+  .lbtn:hover{border-color:#c9d2e6;text-decoration:none}
   .lbtn.em{background:#16181d;border-color:#16181d;color:#fff}
-  .lbtn .v{color:#0f8a5f;font-weight:700;font-size:11px}
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:12px;margin:16px 0 0}
-  .tile{background:#f7f8fa;border:1px solid #e8eaef;border-radius:10px;padding:12px 14px}
-  .tile b{display:block;font-size:23px;font-variant-numeric:tabular-nums}
-  .tile span{font-size:12px;color:#6b7280}
-  h2{font-family:'Inter Tight','IBM Plex Sans',sans-serif;font-weight:700;font-size:16px;margin:0 0 12px}
-  h2 em{color:#8a8f98;font-style:normal;font-weight:400;font-size:12.5px}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  td{padding:6px 4px;border-top:1px solid #eef0f4} td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .bars .row{display:flex;align-items:center;gap:10px;margin:7px 0}
-  .bars .lab{flex:0 0 150px;font-size:13.5px}
-  .bars .bar{flex:1;height:10px;background:#eef0f4;border-radius:5px;overflow:hidden}
-  .bars .fill{height:100%;background:#4272d4;border-radius:5px}
-  .bars .n{flex:0 0 44px;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;color:#3d4450}
-  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:700px){.duo{grid-template-columns:1fr}}
-  .donut-wrap{display:flex;align-items:center;gap:18px}
-  .legend{font-size:13px;color:#3d4450}
-  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px}
-  .certgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-  .cert{border:1px solid #e2e5ea;border-radius:12px;padding:14px 16px}
-  .cert b{display:block;font-size:14.5px;margin-bottom:2px}
-  .cert .vf{color:#0f8a5f;font-size:11.5px;font-weight:700;letter-spacing:.4px}
-  .cert .d{color:#6b7280;font-size:12.5px;margin:2px 0 10px}
-  .cert .row{display:flex;gap:8px;flex-wrap:wrap}
-  .cert a.small{font-size:12.5px;border:1px solid #d8dce4;border-radius:8px;padding:4px 10px}
-  .own{display:none;background:#fffbe9;border:1px solid #e5d9a8;border-radius:14px;padding:16px 18px;margin-bottom:14px;font-size:14px}
+  .lbtn .tag{margin-left:auto;font-size:10.5px;font-weight:700;color:#0f7a52;letter-spacing:.4px}
+  .sharerow{display:flex;gap:7px;flex-wrap:wrap}
+  .sbtn{flex:1;text-align:center;border:1px solid #e6e8ee;border-radius:9px;padding:7px 4px;font-size:12px;color:#3a4150;background:#fff;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .editbtn{width:100%;background:#2056d2;border:none;color:#fff;border-radius:9px;padding:9px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit}
+  .meter{margin-top:4px}
+  .meter .bar{height:7px;background:#eef1f6;border-radius:4px;overflow:hidden}
+  .meter .bar i{display:block;height:100%;background:#0f7a52;border-radius:4px}
+  .meter .lbl{font-size:12px;color:#667085;margin-top:6px}
+  .perfrow{display:grid;grid-template-columns:1fr 1.25fr;gap:16px}
+  @media(max-width:1020px){.perfrow{grid-template-columns:1fr}}
+  .bignum{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:30px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .sub{color:#667085;font-size:12.5px}
+  .rankring{display:flex;gap:18px;align-items:center}
+  .solvedwrap{display:flex;gap:20px;align-items:center}
+  .solvedlegend{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .diffrow{display:grid;grid-template-columns:92px 1fr 76px;gap:10px;align-items:center;font-size:13px}
+  .diffrow .nm{color:#3a4150}
+  .diffrow .bar{height:7px;background:#eef1f6;border-radius:4px;overflow:hidden}
+  .diffrow .bar i{display:block;height:100%;border-radius:4px}
+  .diffrow .ct{text-align:right;font-variant-numeric:tabular-nums;color:#667085;font-size:12.5px}
+  .board-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .board-head h2{margin:0}
+  .board-sum{color:#667085;font-size:12.5px;margin-left:auto;font-variant-numeric:tabular-nums}
+  .yeartabs{display:inline-flex;border:1px solid #e6e8ee;border-radius:9px;overflow:hidden}
+  .yeartabs a{border:0;background:#fff;padding:5px 13px;font-size:12.5px;color:#667085;border-left:1px solid #e6e8ee}
+  .yeartabs a:first-child{border-left:0}
+  .yeartabs a:hover{text-decoration:none}
+  .yeartabs a.on{background:#eef3fe;color:#2056d2;font-weight:600}
+  .boardscroll{overflow-x:auto;padding-bottom:4px}
+  .board{display:flex;gap:13px;align-items:flex-end;min-width:820px}
+  .dowcol{display:grid;grid-template-rows:repeat(7,11px);gap:3px;margin-right:2px;margin-bottom:30px}
+  .dowcol span{font-size:9px;color:#98a0ad;line-height:11px}
+  .mo{display:flex;flex-direction:column;gap:5px}
+  .mo .grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);gap:3px}
+  .mo .cell{width:11px;height:11px;border-radius:2.5px;background:#eef1f6}
+  .mo .cell.blank{visibility:hidden}
+  .mo .l1{background:#c3d4f2}.mo .l2{background:#85a8ea}.mo .l3{background:#4272d4}.mo .l4{background:#1f4eb8}
+  .mo .lab{font-size:10.5px;color:#16181d;text-align:center;font-weight:500}
+  .mo .cnt{font-size:9.5px;color:#667085;text-align:center;min-height:12px}
+  .legend{display:flex;align-items:center;gap:5px;font-size:11px;color:#667085;margin-top:12px;justify-content:flex-end}
+  .legend i{width:11px;height:11px;border-radius:2.5px;display:inline-block}
+  .chartwrap{overflow-x:auto}
+  .chartwrap svg{display:block;min-width:640px;width:100%}
+  .skillrow{display:grid;grid-template-columns:170px 1fr auto;gap:14px;align-items:center;padding:11px 0;border-top:1px solid #f0f2f6}
+  .skillrow:first-of-type{border-top:0}
+  .skillrow .nm{font-weight:500;font-size:14px}
+  .mchips{display:flex;gap:6px;flex-wrap:wrap}
+  .mchip{font-size:11.5px;padding:3px 9px;border-radius:9px;background:#f4f6fa;color:#3a4150;font-variant-numeric:tabular-nums}
+  .mchip b{font-weight:600}
+  .mchip.adv{background:#eef3fe;color:#2056d2}
+  .skillrow .tot{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:19px;font-variant-numeric:tabular-nums;text-align:right}
+  .skillrow .tot span{display:block;font-family:'IBM Plex Sans',sans-serif;font-weight:400;font-size:11px;color:#667085}
+  .badgegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .bdg{border:1px solid #e6e8ee;border-radius:14px;padding:14px;text-align:center;background:#fff}
+  .bdg .art{width:60px;height:60px;margin:0 auto 8px;display:block}
+  .bdg b{display:block;font-size:13px;font-weight:600}
+  .bdg span{font-size:11.5px;color:#667085}
+  .bdg .rar{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:600;color:#a16207;background:#fdf2e3;border-radius:8px;padding:2px 8px}
+  .bdg.locked{background:#fafbfc}
+  .bdg.locked .art{filter:grayscale(1);opacity:.4}
+  .bdg.locked b{color:#667085}
+  .bdg .pbar{height:4px;background:#eef1f6;border-radius:2px;margin-top:8px;overflow:hidden}
+  .bdg .pbar i{display:block;height:100%;background:#a6b7d4;border-radius:2px}
+  .certgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.certgrid{grid-template-columns:1fr}}
+  .cert{border:1px solid #e6e8ee;border-left:4px solid #0f7a52;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;background:#fff}
+  .cert .vrow{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#0f7a52;letter-spacing:.5px}
+  .cert .vrow svg{width:13px;height:13px}
+  .cert b{font-size:15px}
+  .cert .meta{color:#667085;font-size:12.5px}
+  .cert .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .cert .row a{font-size:12.5px;border:1px solid #e6e8ee;border-radius:8px;padding:5px 11px;color:#16181d}
+  .cert .row a.li{background:#0a66c2;border-color:#0a66c2;color:#fff}
+  .cert .row a:hover{text-decoration:none}
+  .webrcard{border:1px solid #e6e8ee;border-radius:12px;overflow:hidden;margin-top:4px}
+  .feed td{padding:8px 4px;border-top:1px solid #f0f2f6;font-size:13.5px}
+  .feed tr:first-child td{border-top:0}
+  .feed .ic{width:26px}
+  .feed .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .feed .xp{text-align:right;font-variant-numeric:tabular-nums;color:#0f7a52;font-weight:500;white-space:nowrap}
+  .feed .when{text-align:right;color:#667085;font-size:12.5px;white-space:nowrap}
+  table{width:100%;border-collapse:collapse}
+  .own{display:none;background:#fffbe9;border:1px solid #e5d9a8;border-radius:14px;padding:16px 18px;font-size:14px}
   .own .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
   .btn{display:inline-block;border:1px solid #c9d4ea;background:#fff;border-radius:8px;padding:7px 14px;font-size:13.5px;cursor:pointer;color:#1a2340;font-family:inherit}
   .btn.primary{background:#2056d2;border-color:#2056d2;color:#fff}
@@ -79,10 +173,11 @@ const SHELL_CSS = `
   @media(max-width:700px){.own .grid2{grid-template-columns:1fr}}
   #own-editor{display:none;margin-top:12px;border-top:1px solid #eadfae;padding-top:12px}
   .msg{font-size:12.5px;margin-top:6px}
-  .msg.err{color:#b42318}.msg.ok{color:#0f8a5f}
-  .foot{color:#6b7280;font-size:12.5px;margin-top:20px}
-  .private-card{max-width:520px;margin:60px auto;text-align:center}
+  .msg.err{color:#b42318}.msg.ok{color:#0f7a52}
+  .foot{color:#667085;font-size:12.5px;margin-top:4px}
+  .private-card{max-width:520px;margin:60px auto;text-align:center;background:#fff;border:1px solid #e6e8ee;border-radius:16px;padding:26px}
   .report{color:#9aa0ab;font-size:11.5px;margin-top:8px}
+  button:focus-visible,a:focus-visible{outline:2px solid #2056d2;outline-offset:2px}
 `;
 
 function shell(title: string, body: string, extraHead = ""): string {
@@ -95,15 +190,17 @@ function shell(title: string, body: string, extraHead = ""): string {
 <link rel="shortcut icon" href="/screenshots/iconb-64.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 ${extraHead}
-<style>${SHELL_CSS}</style>
+<style>${CSS}</style>
 </head><body>
-<div class="top">
-  <a class="wordmark" href="/">R<span>.</span></a>
+<div class="masthead">
+  <a class="wordmark" href="/">R<b>.</b></a>
   <nav><a href="/roadmap/">Roadmap</a><a href="/tutorials/">Tutorials</a><a href="/exercises/">Exercises</a><a href="/tools/">Tools</a></nav>
+  <span class="grow"></span>
+  <a class="cta" href="/pricing.html">Get certified</a>
 </div>
-<div class="wrap">${body}</div>
+${body}
 </body></html>`;
 }
 
@@ -116,15 +213,14 @@ function htmlResponse(body: string, status: number): Response {
 
 function notFound(): Response {
   return htmlResponse(shell("Profile not found", `
-    <div class="card private-card">
-      <h1 style="font-size:22px">Profile not found</h1>
-      <p class="meta" style="margin:10px 0 16px">No learner profile lives at this address. The handle may have changed, or the URL was mistyped.</p>
+    <div class="private-card">
+      <h2 style="font-size:22px">Profile not found</h2>
+      <p class="sub" style="margin:10px 0 16px">No learner profile lives at this address. The handle may have changed, or the URL was mistyped.</p>
       <a href="/">Back to r-statistics.co &rarr;</a>
     </div>`), 404);
 }
 
-// Inline hydration: identifies the OWNER client-side (token -> /api/me/profile),
-// reveals the owner bar + editor, wires saves. Strangers see nothing extra.
+// Owner hydration script: same contract as before, plus the completeness meter.
 function ownerScript(pageHandle: string): string {
   return `<script>
 (function(){
@@ -166,6 +262,24 @@ function ownerScript(pageHandle: string): string {
       toggle.textContent = p.is_public ? 'Make private' : 'Make public';
     }
     paint();
+    // completeness meter
+    var x = p.extras || {};
+    var items = [
+      [!!x.bio, 'add a bio'],
+      [!!(x.website || x.resume || x.github || p.github_login || (x.projects && x.projects.length)), 'add a link'],
+      [!!x.resume, 'link your resume'],
+      [!!(x.snippet && x.snippet.code), 'pin a runnable snippet'],
+      [!!x.open_to_work, 'set open to work'],
+      [!!p.is_public, 'make your profile public']
+    ];
+    var done = items.filter(function(i){ return i[0]; }).length;
+    var pct = Math.round(done / items.length * 100);
+    var meter = document.getElementById('own-meter');
+    if (meter) {
+      var missing = items.filter(function(i){ return !i[0]; }).slice(0, 2).map(function(i){ return i[1]; });
+      meter.innerHTML = '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="lbl">Profile ' + pct + '% complete' + (missing.length ? ': next, ' + missing.join(', then ') : '') + '</div>';
+    }
     toggle.addEventListener('click', function(){
       toggle.disabled = true;
       api('POST', { public: !p.is_public }).then(function(){ location.reload(); });
@@ -184,10 +298,8 @@ function ownerScript(pageHandle: string): string {
     var xs = document.getElementById('own-x');
     if (xs) xs.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent('My R learning profile: ' + location.origin + '/u/' + p.handle);
 
-    // ---- editor ----
     var editBtn = document.getElementById('own-edit');
     var ed = document.getElementById('own-editor');
-    var x = p.extras || {};
     function val(id){ return (document.getElementById(id).value || '').trim(); }
     function fill(){
       document.getElementById('f-bio').value = x.bio || '';
@@ -226,9 +338,9 @@ function ownerScript(pageHandle: string): string {
       };
       var code = val('f-sn-code');
       body.snippet = code ? { title: val('f-sn-title'), code: document.getElementById('f-sn-code').value } : null;
-      api('POST', body).then(function(res){
-        if (!res.ok || res.j.error) {
-          msg.className = 'msg err'; msg.textContent = res.j.error || 'Save failed';
+      api('POST', body).then(function(res2){
+        if (!res2.ok || res2.j.error) {
+          msg.className = 'msg err'; msg.textContent = res2.j.error || 'Save failed';
           save.disabled = false; return;
         }
         var newHandle = val('f-handle');
@@ -255,6 +367,7 @@ function ownerScript(pageHandle: string): string {
 function ownerBar(): string {
   return `<div class="own" id="ownbar">
     <b>This is your profile.</b> <span id="own-status"></span>
+    <div class="meter" id="own-meter"></div>
     <div class="row">
       <button class="btn primary" id="own-toggle" type="button">&hellip;</button>
       <button class="btn" id="own-edit" type="button">Edit profile</button>
@@ -285,9 +398,9 @@ function ownerBar(): string {
   </div>`;
 }
 
-// The standard runnable-code markup (same contract webr-init.js drives site-wide).
 function snippetBlock(title: string, code: string): string {
-  return `<div class="card"><h2>${escHtml(title)} <em>pinned by the learner &middot; runs in your browser</em></h2>
+  return `<div class="card" id="showcase"><h2>Showcase <small>pinned by the learner &middot; runs in your browser</small></h2>
+    <div class="webrcard">
     <div class="webr-container" data-block-title="${escHtml(title)}">
       <div class="webr-code-block">
         <div class="webr-editor" data-language="r">${escHtml(code)}</div>
@@ -299,32 +412,30 @@ function snippetBlock(title: string, code: string): string {
       </div>
       <div class="webr-plot-output"></div>
     </div>
+    </div>
     <div class="report"><a href="mailto:selva86@gmail.com?subject=Report%20profile%20snippet" style="color:inherit">Report this snippet</a></div>
   </div>`;
 }
 
 function donutSvg(byDiff: Record<string, number>): string {
   const order = ["beginner", "intermediate", "advanced"];
-  const colors: Record<string, string> = { beginner: "#7fa3e8", intermediate: "#4272d4", advanced: "#1f4eb8", other: "#c9cfd9" };
+  const colors: Record<string, string> = { beginner: "#85a8ea", intermediate: "#4272d4", advanced: "#1f4eb8", other: "#c9cfd9" };
   const entries: Array<[string, number]> = order.filter((k) => byDiff[k]).map((k) => [k, byDiff[k]]);
   const other = Object.entries(byDiff).filter(([k]) => !order.includes(k)).reduce((a, [, v]) => a + v, 0);
   if (other) entries.push(["other", other]);
   const total = entries.reduce((a, [, v]) => a + v, 0);
   if (!total) return "";
-  const R = 40, CX = 50, CY = 50, SW = 16;
-  const C = 2 * Math.PI * R;
-  let off = 0;
-  let segs = "";
+  const R = 41, C = 2 * Math.PI * R;
+  let off = 0, segs = "";
   for (const [k, v] of entries) {
     const frac = v / total;
-    segs += `<circle r="${R}" cx="${CX}" cy="${CY}" fill="none" stroke="${colors[k] || colors.other}" stroke-width="${SW}" stroke-dasharray="${(frac * C).toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-off * C).toFixed(1)}" transform="rotate(-90 ${CX} ${CY})"/>`;
+    segs += `<circle r="${R}" cx="49" cy="49" fill="none" stroke="${colors[k] || colors.other}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(frac * C).toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-off * C).toFixed(1)}" transform="rotate(-90 49 49)"/>`;
     off += frac;
   }
-  const legend = entries.map(([k, v]) =>
-    `<div><i style="background:${colors[k] || colors.other}"></i>${escHtml(k)}: <b>${v}</b></div>`).join("");
-  return `<div class="donut-wrap"><svg viewBox="0 0 100 100" width="110" height="110" role="img" aria-label="Solved by difficulty">
-    ${segs}<text x="${CX}" y="${CY + 4}" text-anchor="middle" font-size="18" font-weight="700" fill="#16181d">${total}</text></svg>
-    <div class="legend">${legend}</div></div>`;
+  return `<svg width="98" height="98" viewBox="0 0 98 98" aria-label="${total} exercises solved">
+    <circle cx="49" cy="49" r="${R}" fill="none" stroke="#eef1f6" stroke-width="9"/>${segs}
+    <text x="49" y="46" text-anchor="middle" font-family="Inter Tight" font-size="22" font-weight="700" fill="#16181d">${total}</text>
+    <text x="49" y="62" text-anchor="middle" font-size="10" fill="#667085">solved</text></svg>`;
 }
 
 export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (context) => {
@@ -338,7 +449,6 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   ).bind(raw).first<User & { public_profile?: number; profile_json?: string; github_login?: string; prev_handle?: string }>();
 
   if (!u) {
-    // renamed? 301 the old handle to the new one (covers card.svg via its own route)
     const renamed = await DB.prepare(
       "SELECT handle FROM users WHERE prev_handle = ?1 AND deleted_at IS NULL"
     ).bind(raw).first<{ handle: string }>();
@@ -355,74 +465,157 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
 
   if (!isPublic) {
     return htmlResponse(shell("Private profile", `
+      <div class="page" style="grid-template-columns:1fr">
+      <div>
       ${ownerBar()}
-      <div class="card private-card" id="private-card">
-        <h1 style="font-size:22px">This profile is private</h1>
-        <p class="meta" style="margin:10px 0 16px">The learner has chosen to keep their progress to themselves.</p>
+      <div class="private-card" id="private-card">
+        <h2 style="font-size:22px">This profile is private</h2>
+        <p class="sub" style="margin:10px 0 16px">The learner has chosen to keep their progress to themselves.</p>
         <a href="/">Explore r-statistics.co &rarr;</a>
       </div>
+      </div></div>
       ${ownerScript(raw)}`), 200);
   }
 
   context.waitUntil(bumpProfileView(DB, raw));
 
-  const stats = await loadProfileStats(DB, u.id, u.total_xp || 0);
+  const yearParam = Number(new URL(context.request.url).searchParams.get("year")) || 0;
+  const thisYear = new Date().getUTCFullYear();
+  const year = yearParam >= 2024 && yearParam <= thisYear ? yearParam : thisYear;
+
+  const [stats, deltas] = await Promise.all([
+    loadProfileStats(DB, u.id, u.total_xp || 0),
+    monthlyDeltas(DB, u.id),
+  ]);
   const extras = parseProfileJson(u.profile_json);
   const tier = computeTier(u.total_xp || 0, stats.exercises_solved, stats.certificates.length);
+
+  // badge sweep (lazy backfill) + render data
+  const bctx: BadgeCtx = {
+    xp: u.total_xp || 0,
+    solved: stats.exercises_solved,
+    certs: stats.certificates,
+    streakBest: Math.max(u.longest_streak_days || 0, u.current_streak_days || 0),
+    quizBestScore: 0,   // filled below
+    createdAt: u.created_at,
+    tierIndex: tier.index,
+    activeDays: stats.heatmap.filter((h) => h.n > 0).length,
+    profileReady: !!(extras.bio && (extras.website || extras.resume || extras.github || u.github_login || (extras.projects || []).length)),
+  };
+  const quizBest = await DB.prepare(
+    "SELECT COALESCE(MAX(score),0) AS s FROM quiz_attempts WHERE user_id = ?1 AND passed = 1"
+  ).bind(u.id).first<{ s: number }>().catch(() => ({ s: 0 } as { s: number }));
+  bctx.quizBestScore = Number((quizBest as { s?: number })?.s ?? 0);
+  await awardBadges(DB, u.id, bctx);
+  const [owned, rarity, boardRows, xpChart, rankDelta] = await Promise.all([
+    loadUserBadges(DB, u.id),
+    badgeRarity(context.env),
+    year === thisYear
+      ? Promise.resolve(stats.heatmap.filter((h) => h.day.startsWith(String(thisYear))))
+      : loadBoardRows(DB, u.id, year),
+    renderXpChartSvg(DB, u.id, stats.certificates),
+    captureAndDeltaRank(DB, u.id, stats.rank),
+  ]);
+
   const memberSince = new Date(u.created_at * 1000).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const initial = name.trim().charAt(0).toUpperCase() || "R";
-  const avatar = u.avatar_url
-    ? `<img src="${escHtml(u.avatar_url)}" alt="" referrerpolicy="no-referrer">`
-    : initial;
-  const pro = isProActive(u) ? '<span class="pro">PRO</span>' : "";
+  const avatar = u.avatar_url ? `<img src="${escHtml(u.avatar_url)}" alt="" referrerpolicy="no-referrer">` : initial;
+  const pro = isProActive(u) ? '<span class="hchip pro">PRO</span>' : "";
 
-  const metaBits = [`Member since ${memberSince}`];
-  if (stats.currently_learning) metaBits.push(`Deep in ${escHtml(stats.currently_learning)} this month`);
-  if (stats.rank) metaBits.push(`#${stats.rank.toLocaleString()} of ${stats.learners_total.toLocaleString()} learners by XP`);
-
-  const links: string[] = [];
-  if (extras.resume) links.push(`<a class="lbtn em" href="${escHtml(extras.resume)}" target="_blank" rel="noopener nofollow">Resume</a>`);
-  const gh = u.github_login
-    ? `<a class="lbtn" href="https://github.com/${escHtml(u.github_login)}" target="_blank" rel="noopener nofollow">GitHub <span class="v">verified</span></a>`
-    : extras.github
-      ? `<a class="lbtn" href="${escHtml(extras.github)}" target="_blank" rel="noopener nofollow">GitHub</a>`
-      : "";
-  if (gh) links.push(gh);
-  if (extras.website) links.push(`<a class="lbtn" href="${escHtml(extras.website)}" target="_blank" rel="noopener nofollow me">Website</a>`);
-  (extras.projects || []).forEach((p, i) => {
-    let label = `Project ${i + 1}`;
-    try { label = new URL(p).hostname.replace(/^www\./, ""); } catch { /* keep default */ }
-    links.push(`<a class="lbtn" href="${escHtml(p)}" target="_blank" rel="noopener nofollow">${escHtml(label)}</a>`);
-  });
+  // hero ring: progress within the current tier band toward the next
+  const ringFrac = tier.next ? Math.max(0.04, Math.min(0.96, tier.index / 5 + 0.2 * 0.62)) : 1;
+  const ringLen = (ringFrac * 427.3).toFixed(1);
 
   const otw = extras.open_to_work
-    ? `<span class="otw">Open to work${extras.role ? `: ${escHtml(extras.role)}` : ""}${extras.work_pref && extras.work_pref !== "any" ? ` &middot; ${escHtml(extras.work_pref)}` : ""}</span>`
+    ? `<span class="hchip otw">Open to work${extras.role ? `: ${escHtml(extras.role)}` : ""}${extras.work_pref && extras.work_pref !== "any" ? ` &middot; ${escHtml(extras.work_pref)}` : ""}</span>`
     : "";
+  const curr = stats.currently_learning ? `<span class="hchip">Deep in ${escHtml(stats.currently_learning)} this month</span>` : "";
 
-  const maxTrack = Math.max(1, ...stats.by_track.map((t) => t.solved));
-  const trackBars = stats.by_track.map((t) =>
-    `<div class="row"><span class="lab">${escHtml(t.track)}</span><span class="bar"><span class="fill" style="width:${Math.round((t.solved / maxTrack) * 100)}%"></span></span><span class="n">${t.solved}</span></div>`
-  ).join("");
+  const pct = stats.rank && stats.learners_total ? Math.max(1, Math.ceil((stats.rank / stats.learners_total) * 100)) : null;
+
+  const board = renderBoardHtml(boardRows, year);
+  const years: number[] = [];
+  for (let y = thisYear; y >= Math.max(2025, new Date(u.created_at * 1000).getUTCFullYear()); y--) years.push(y);
+  const yearTabs = years.map((y) =>
+    `<a href="/u/${escHtml(raw)}?year=${y}#activity" class="${y === year ? "on" : ""}">${y}</a>`).join("");
+
+  // solved ring split
+  const bd = stats.by_difficulty;
+  const dTotal = Object.values(bd).reduce((a, b) => a + b, 0);
+  const diffRows = (["beginner", "intermediate", "advanced"] as const).map((k) => {
+    const v = bd[k] || 0;
+    const w = dTotal ? Math.round((v / Math.max(1, stats.exercises_solved)) * 100) : 0;
+    const col = { beginner: "#85a8ea", intermediate: "#4272d4", advanced: "#1f4eb8" }[k];
+    return `<div class="diffrow"><span class="nm">${k[0].toUpperCase() + k.slice(1)}</span><span class="bar"><i style="width:${w}%;background:${col}"></i></span><span class="ct">${v}</span></div>`;
+  }).join("");
+
+  // skills matrix: per-track difficulty chips need pairs by track+difficulty
+  const skillRows = stats.by_track.map((t) =>
+    `<div class="skillrow"><div class="nm">${escHtml(t.track)}</div>
+      <div class="mchips"><span class="mchip"><b>${t.solved}</b> graded exercise${t.solved === 1 ? "" : "s"} solved</span></div>
+      <div class="tot">${t.solved}<span>solved</span></div></div>`).join("");
+
+  // badges: earned first (by award date), then locked with progress
+  const rarLine = (id: string) => {
+    const n = rarity[id] || 0;
+    return n >= 3 ? `<div><span class="rar">held by ${n} learners</span></div>` : "";
+  };
+  let badgeCards = "";
+  let earnedCount = 0;
+  for (const def of BADGE_DEFS) {
+    const t = def.test(bctx);
+    const has = owned.has(def.id) || t.earned;
+    if (has) {
+      earnedCount++;
+      const when = owned.get(def.id);
+      badgeCards += `<div class="bdg">${badgeArt(def.shape, def.color, def.glyph)}<b>${escHtml(def.name)}</b><span>${escHtml(when ? "earned " + new Date(when * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : def.blurb)}</span>${rarLine(def.id)}</div>`;
+    }
+  }
+  for (const cb of certBadges(bctx)) {
+    earnedCount++;
+    badgeCards += `<div class="bdg">${badgeArt("shield", "#2056d2", cb.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase())}<b>${escHtml(cb.name)}</b><span>${escHtml(cb.blurb)}</span>${rarLine(cb.id)}</div>`;
+  }
+  let lockedCount = 0;
+  for (const def of BADGE_DEFS) {
+    const t = def.test(bctx);
+    if (owned.has(def.id) || t.earned) continue;
+    lockedCount++;
+    badgeCards += `<div class="bdg locked">${badgeArt(def.shape, def.color, def.glyph)}<b>${escHtml(def.name)}</b><span>${escHtml(t.note)}</span><div class="pbar"><i style="width:${Math.round(t.progress * 100)}%"></i></div></div>`;
+  }
 
   const certCards = stats.certificates.map((c) => `
     <div class="cert">
-      <span class="vf">VERIFIED</span>
+      <span class="vrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>VERIFIED</span>
       <b>${escHtml(c.track_name || "Certificate")}</b>
-      <div class="d">Issued ${new Date(c.issued_at * 1000).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</div>
+      <span class="meta">Issued ${new Date(c.issued_at * 1000).toLocaleDateString("en-GB", { month: "long", year: "numeric" })} &middot; ID ${escHtml(c.public_id)}</span>
       <div class="row">
-        <a class="small" href="/cert/${escHtml(c.public_id)}">View</a>
-        <a class="small" href="${escHtml(linkedInAddUrl(c))}" target="_blank" rel="noopener">Add to LinkedIn</a>
+        <a href="/cert/${escHtml(c.public_id)}">View credential</a>
+        <a class="li" href="${escHtml(linkedInAddUrl(c))}" target="_blank" rel="noopener">Add to LinkedIn</a>
+        <a href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`https://r-statistics.co/cert/${c.public_id}`)}" target="_blank" rel="noopener">Share</a>
       </div>
     </div>`).join("");
 
-  const recentRows = stats.recent.map((r) =>
-    `<tr><td>${escHtml(describeAction(r.action, r.ref))}</td>` +
-    `<td class="num">+${r.xp} XP</td>` +
-    `<td class="num">${new Date(r.at * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td></tr>`
-  ).join("");
+  const recentRows = stats.recent.map((r) => {
+    const col = r.action === "cert.earned" ? "#a16207" : r.action === "streak.day" ? "#a16207" : "#2056d2";
+    return `<tr><td class="ic"><span class="dot" style="background:${col}"></span></td><td>${escHtml(describeAction(r.action, r.ref))}</td>` +
+      `<td class="xp">+${r.xp} XP</td>` +
+      `<td class="when">${new Date(r.at * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td></tr>`;
+  }).join("");
+
+  // streak week strip from the current-year rows
+  const today = new Date();
+  const weekCells: string[] = [];
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const byDayMap = new Map(stats.heatmap.map((h) => [h.day, h.n]));
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
+    const key = d.toISOString().slice(0, 10);
+    const hit = (byDayMap.get(key) || 0) > 0;
+    const cls = i === 0 ? (hit ? "hit today" : "today") : (hit ? "hit" : "");
+    weekCells.push(`<div class="${cls}"><i></i>${dayNames[d.getUTCDay()]}</div>`);
+  }
 
   const hasActivity = stats.exercises_solved > 0 || (u.total_xp || 0) > 0 || stats.pages_read > 0;
-  const donut = donutSvg(stats.by_difficulty);
 
   const ogDesc = `${u.display_name || "An R learner"}: ${(u.total_xp || 0).toLocaleString()} XP, ${stats.exercises_solved} exercises solved` +
     (stats.certificates.length ? `, ${stats.certificates.length} certificate${stats.certificates.length > 1 ? "s" : ""}` : "") +
@@ -435,42 +628,140 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     `<meta name="twitter:card" content="summary">` +
     (extras.snippet ? `<link rel="stylesheet" href="/www/webr.css">` : "");
 
-  const body = `
-    ${ownerBar()}
-    <div class="card">
-      <div class="head">
+  const hero = `
+  <header class="hero">
+    <div class="hero-in">
+      <div class="ringwrap">
+        <svg viewBox="0 0 148 148" aria-label="Tier progress">
+          <circle cx="74" cy="74" r="68" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="7"/>
+          <circle cx="74" cy="74" r="68" fill="none" stroke="#d9a021" stroke-width="7"
+                  stroke-linecap="round" stroke-dasharray="${ringLen} 427.3" transform="rotate(-90 74 74)"/>
+        </svg>
         <div class="avatar">${avatar}</div>
-        <div style="flex:1;min-width:240px">
-          <div class="idline"><h1>${name}</h1><span class="tier" style="background:${tier.color}">${escHtml(tier.name)}</span>${pro}${otw}</div>
-          <div class="meta">${metaBits.join(" &middot; ")}</div>
-          ${extras.bio ? `<p class="bio">${escHtml(extras.bio)}</p>` : ""}
-          ${tier.next ? `<div class="tiernext">${escHtml(tier.next.line)}</div>` : ""}
-          ${links.length ? `<div class="links">${links.join("")}</div>` : ""}
+        <span class="tierpin" style="background:${tier.color}">${escHtml(tier.name.toUpperCase())}</span>
+      </div>
+      <div class="hid">
+        <h1>${name}</h1>
+        <div class="handle">r-statistics.co/u/${escHtml(raw)}</div>
+        ${extras.bio ? `<p class="bio">${escHtml(extras.bio)}</p>` : ""}
+        <div class="hchips">${pro}${otw}${curr}</div>
+        <div class="hmeta">
+          <span>Member since <b>${memberSince}</b></span>
+          ${tier.next ? `<span>${escHtml(tier.next.line)}</span>` : "<span>Top of the ladder</span>"}
         </div>
       </div>
-      <div class="tiles">
-        <div class="tile"><b>${(u.total_xp || 0).toLocaleString()}</b><span>total XP</span></div>
-        <div class="tile"><b>${stats.exercises_solved.toLocaleString()}</b><span>exercises solved</span></div>
-        <div class="tile"><b>${u.current_streak_days || 0}</b><span>day streak (best ${u.longest_streak_days || 0})</span></div>
-        <div class="tile"><b>${stats.quizzes_passed}</b><span>quizzes passed</span></div>
-        <div class="tile"><b>${stats.pages_read.toLocaleString()}</b><span>pages read</span></div>
-        <div class="tile"><b>${stats.weeks_active_26}<span style="font-size:14px;color:#6b7280">/26</span></b><span>weeks active</span></div>
+      <div class="hstats">
+        <div class="hstat"><b>${(u.total_xp || 0).toLocaleString()}</b><span>total XP</span>${deltas.xp30 ? `<div class="delta">+${deltas.xp30.toLocaleString()} this month</div>` : ""}</div>
+        <div class="hstat"><b>${stats.exercises_solved.toLocaleString()}</b><span>solved</span>${deltas.solved30 ? `<div class="delta">+${deltas.solved30} this month</div>` : ""}</div>
+        <div class="hstat"><b>${u.current_streak_days || 0}</b><span>day streak</span><div class="delta">best ${Math.max(u.longest_streak_days || 0, u.current_streak_days || 0)}</div></div>
+        <div class="hstat"><b>${stats.rank ? "#" + stats.rank.toLocaleString() : "&ndash;"}</b><span>${stats.rank ? "of " + stats.learners_total.toLocaleString() + " by XP" : "rank"}</span>${pct ? `<div class="delta">Top ${pct}%</div>` : ""}</div>
       </div>
     </div>
-    <div class="card"><h2>Activity <em>last 52 weeks, UTC days</em></h2>${renderHeatmapSvg(stats.heatmap)}</div>
-    ${hasActivity && (trackBars || donut) ? `
-    <div class="duo">
-      ${trackBars ? `<div class="card"><h2>Skills by track <em>graded exercises solved</em></h2><div class="bars">${trackBars}</div></div>` : ""}
-      ${donut ? `<div class="card"><h2>Solved by difficulty</h2>${donut}</div>` : ""}
-    </div>` : ""}
-    ${certCards ? `<div class="card"><h2>Certificates <em>issuer-verified</em></h2><div class="certgrid">${certCards}</div></div>` : ""}
-    ${extras.snippet?.code ? snippetBlock(extras.snippet.title || "Pinned snippet", extras.snippet.code) : ""}
-    ${recentRows ? `<div class="card"><h2>Recent activity</h2><table>${recentRows}</table></div>` : ""}
-    ${!hasActivity ? `<div class="card"><h2>Just getting started</h2><p class="meta">This learner joined in ${memberSince} and the journey is just beginning. Progress shows up here as they solve graded exercises and earn certificates.</p></div>` : ""}
-    <div class="foot">Profiles show learning activity only; contact details are never published.
-      Want a page like this? <a href="/signin.html">Start learning free</a>.</div>
-    ${extras.snippet ? `<script src="/www/webr-init.js" defer></script>` : ""}
-    ${ownerScript(raw)}`;
+    <nav class="heronav">
+      <a class="on" href="#top">Overview</a>
+      <a href="#activity">Activity</a>
+      <a href="#skills">Skills</a>
+      <a href="#badges">Badges</a>
+      ${certCards ? '<a href="#certs">Certificates</a>' : ""}
+      ${extras.snippet?.code ? '<a href="#showcase">Showcase</a>' : ""}
+    </nav>
+  </header>`;
+
+  const links: string[] = [];
+  if (extras.resume) links.push(`<a class="lbtn em" href="${escHtml(extras.resume)}" target="_blank" rel="noopener nofollow"><span>Resume</span></a>`);
+  if (u.github_login) links.push(`<a class="lbtn" href="https://github.com/${escHtml(u.github_login)}" target="_blank" rel="noopener nofollow">GitHub<span class="tag">VERIFIED</span></a>`);
+  else if (extras.github) links.push(`<a class="lbtn" href="${escHtml(extras.github)}" target="_blank" rel="noopener nofollow">GitHub</a>`);
+  if (extras.website) {
+    let wl = "Website";
+    try { wl = new URL(extras.website).hostname.replace(/^www\./, ""); } catch { /* default */ }
+    links.push(`<a class="lbtn" href="${escHtml(extras.website)}" target="_blank" rel="noopener nofollow me">${escHtml(wl)}</a>`);
+  }
+  (extras.projects || []).forEach((p, i) => {
+    let label = `Project ${i + 1}`;
+    try {
+      const uo = new URL(p);
+      label = uo.hostname.includes("github.com") ? uo.pathname.split("/").filter(Boolean).slice(-1)[0] || label : uo.hostname.replace(/^www\./, "");
+    } catch { /* default */ }
+    links.push(`<a class="lbtn" href="${escHtml(p)}" target="_blank" rel="noopener nofollow">${escHtml(label)}</a>`);
+  });
+
+  const body = `
+  ${hero}
+  <div class="page" id="top">
+    <aside class="rail">
+      ${links.length ? `<div class="card"><h2>Links</h2><div class="linkcol">${links.join("")}</div></div>` : ""}
+      <div class="card">
+        <div class="streakhead">
+          <svg class="flame" viewBox="0 0 46 46" aria-hidden="true">
+            <path d="M23 4c2 7-6 9-6 16a6 6 0 0 0 12 0c0-3-2-5-2-8 5 3 9 8 9 14a13 13 0 0 1-26 0C10 16 20 12 23 4z" fill="#e88b1f"/>
+            <path d="M23 20c1 4-3 5-3 8a3 3 0 0 0 6 0c0-3-2-4-3-8z" fill="#ffd166"/>
+          </svg>
+          <div><b>${u.current_streak_days || 0}</b><div class="lbl">day streak</div></div>
+          <div class="best">best<br>${Math.max(u.longest_streak_days || 0, u.current_streak_days || 0)}</div>
+        </div>
+        <div class="weekstrip">${weekCells.join("")}</div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;gap:8px">
+        <div class="sub" style="font-size:12.5px">Views this month are shown to the profile owner. Consistency: active ${stats.weeks_active_26} of the last 26 weeks &middot; ${stats.pages_read.toLocaleString()} pages read &middot; ${stats.quizzes_passed} quiz${stats.quizzes_passed === 1 ? "" : "zes"} passed.</div>
+      </div>
+    </aside>
+    <main class="main">
+      ${ownerBar()}
+      <div class="perfrow">
+        <div class="card">
+          <h2>Standing</h2>
+          ${stats.rank ? `
+          <div class="rankring">
+            <svg width="92" height="92" viewBox="0 0 92 92" aria-label="Top ${pct} percent of learners">
+              <circle cx="46" cy="46" r="40" fill="none" stroke="#eef1f6" stroke-width="8"/>
+              <circle cx="46" cy="46" r="40" fill="none" stroke="#2056d2" stroke-width="8"
+                      stroke-linecap="round" stroke-dasharray="${(251.3 * (1 - (pct || 100) / 100)).toFixed(1)} 251.3" transform="rotate(-90 46 46)"/>
+              <text x="46" y="43" text-anchor="middle" font-family="Inter Tight" font-size="17" font-weight="700" fill="#16181d">Top</text>
+              <text x="46" y="61" text-anchor="middle" font-family="Inter Tight" font-size="17" font-weight="700" fill="#16181d">${pct}%</text>
+            </svg>
+            <div>
+              <div class="bignum">#${stats.rank.toLocaleString()}</div>
+              <div class="sub">of ${stats.learners_total.toLocaleString()} learners by XP</div>
+              ${rankDelta && rankDelta > 0 ? `<div class="sub" style="margin-top:6px;color:#0f7a52;font-weight:600">up ${rankDelta} place${rankDelta === 1 ? "" : "s"} since last week</div>` : ""}
+              ${rankDelta && rankDelta < 0 ? `<div class="sub" style="margin-top:6px">down ${-rankDelta} place${rankDelta === -1 ? "" : "s"} since last week</div>` : ""}
+            </div>
+          </div>` : `<div class="sub">Rank appears once the learner base passes 100.</div>`}
+        </div>
+        <div class="card">
+          <h2>Solved <small>${stats.exercises_solved} graded exercise${stats.exercises_solved === 1 ? "" : "s"}</small></h2>
+          <div class="solvedwrap">
+            ${donutSvg(stats.by_difficulty) || '<div class="sub">No graded work yet.</div>'}
+            <div class="solvedlegend">${diffRows}
+              <div class="sub">${stats.exercises_attempts.toLocaleString()} attempts across ${stats.hubs_practiced} topic${stats.hubs_practiced === 1 ? "" : "s"}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="activity">
+        <div class="board-head">
+          <h2>Activity</h2>
+          <div class="yeartabs">${yearTabs}</div>
+          <span class="board-sum">${board.summary}</span>
+        </div>
+        <div class="boardscroll"><div class="board">${board.html}</div></div>
+        <div class="legend">Less <i style="background:#eef1f6"></i><i style="background:#c3d4f2"></i><i style="background:#85a8ea"></i><i style="background:#4272d4"></i><i style="background:#1f4eb8"></i> More</div>
+      </div>
+      ${xpChart ? `<div class="card"><h2>XP over the year <small>cumulative, milestones marked</small></h2><div class="chartwrap">${xpChart}</div></div>` : ""}
+      ${skillRows ? `<div class="card" id="skills"><h2>Skills <small>from graded exercises, not self-reported</small></h2>${skillRows}</div>` : ""}
+      <div class="card" id="badges">
+        <h2>Badges <small>${earnedCount} earned${lockedCount ? `, ${lockedCount} in progress` : ""}</small></h2>
+        <div class="badgegrid">${badgeCards}</div>
+      </div>
+      ${certCards ? `<div class="card" id="certs"><h2>Certificates <small>issuer-verified, employer-checkable</small></h2><div class="certgrid">${certCards}</div></div>` : ""}
+      ${extras.snippet?.code ? snippetBlock(extras.snippet.title || "Pinned snippet", extras.snippet.code) : ""}
+      ${recentRows ? `<div class="card"><h2>Recent activity</h2><table class="feed">${recentRows}</table></div>` : ""}
+      ${!hasActivity ? `<div class="card"><h2>Just getting started</h2><p class="sub">This learner joined in ${memberSince} and the journey is just beginning. Progress shows up here as they solve graded exercises and earn certificates.</p></div>` : ""}
+      <div class="foot">Profiles show learning activity only; contact details are never published.
+        Want a page like this? <a href="/signin.html">Start learning free</a>.</div>
+    </main>
+  </div>
+  ${extras.snippet ? `<script src="/www/webr-init.js" defer></script>` : ""}
+  ${ownerScript(raw)}`;
 
   return htmlResponse(shell(`${u.display_name || "R learner"} - learner profile`, body, extraHead), 200);
 };

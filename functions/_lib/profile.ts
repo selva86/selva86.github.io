@@ -575,3 +575,194 @@ export function renderCardSvg(args: {
   <text x="${W - 24}" y="164" font-size="12" font-weight="700" text-anchor="end" fill="#2056d2" font-family="Georgia,serif">R.</text>
 </svg>`;
 }
+
+
+// ================= pass 1 additions =================
+
+// Monthly deltas for the hero stat strip.
+export async function monthlyDeltas(DB: D1Database, userId: string): Promise<{ xp30: number; solved30: number }> {
+  const cutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
+  try {
+    const [xp, sv] = await Promise.all([
+      DB.prepare("SELECT COALESCE(SUM(xp),0) AS n FROM xp_ledger WHERE user_id = ?1 AND at >= ?2")
+        .bind(userId, cutoff).first<{ n: number }>(),
+      DB.prepare(
+        "SELECT COUNT(DISTINCT hub_slug || '|' || exercise_id) AS n FROM exercise_attempts " +
+        "WHERE user_id = ?1 AND passed = 1 AND submitted_at >= ?2"
+      ).bind(userId, cutoff).first<{ n: number }>(),
+    ]);
+    return { xp30: Number(xp?.n ?? 0), solved30: Number(sv?.n ?? 0) };
+  } catch { return { xp30: 0, solved30: 0 }; }
+}
+
+// Weekly rank history: captured lazily on renders (first render each ISO
+// week stores that week's rank); the delta compares the latest two weeks.
+let rankTableReady = false;
+async function ensureRankTable(DB: D1Database): Promise<void> {
+  if (rankTableReady) return;
+  await DB.prepare(
+    "CREATE TABLE IF NOT EXISTS rank_history (" +
+    "user_id TEXT NOT NULL, week TEXT NOT NULL, rank INTEGER NOT NULL, " +
+    "PRIMARY KEY (user_id, week))"
+  ).run();
+  rankTableReady = true;
+}
+
+function isoWeek(d = new Date()): string {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y = t.getUTCFullYear();
+  const week = Math.ceil((((t.getTime() - Date.UTC(y, 0, 1)) / 86400000) + 1) / 7);
+  return `${y}-W${String(week).padStart(2, "0")}`;
+}
+
+export async function captureAndDeltaRank(DB: D1Database, userId: string, rank: number | null): Promise<number | null> {
+  if (!rank) return null;
+  try {
+    await ensureRankTable(DB);
+    await DB.prepare(
+      "INSERT OR IGNORE INTO rank_history (user_id, week, rank) VALUES (?1, ?2, ?3)"
+    ).bind(userId, isoWeek(), rank).run();
+    const rows = await DB.prepare(
+      "SELECT week, rank FROM rank_history WHERE user_id = ?1 ORDER BY week DESC LIMIT 2"
+    ).bind(userId).all<{ week: string; rank: number }>();
+    const r = rows.results ?? [];
+    if (r.length < 2) return null;
+    return r[1].rank - r[0].rank;   // positive = climbed
+  } catch { return null; }
+}
+
+// Activity rows for an arbitrary calendar year (the board's year selector).
+export async function loadBoardRows(
+  DB: D1Database, userId: string, year: number,
+): Promise<Array<{ day: string; n: number; xp: number }>> {
+  const start = Math.floor(Date.UTC(year, 0, 1) / 1000);
+  const end = Math.floor(Date.UTC(year + 1, 0, 1) / 1000);
+  try {
+    const [xp, rd] = await Promise.all([
+      DB.prepare(
+        "SELECT strftime('%Y-%m-%d', at, 'unixepoch') AS day, SUM(xp) AS xp, COUNT(*) AS n " +
+        "FROM xp_ledger WHERE user_id = ?1 AND at >= ?2 AND at < ?3 GROUP BY day"
+      ).bind(userId, start, end).all<{ day: string; xp: number; n: number }>(),
+      DB.prepare(
+        "SELECT strftime('%Y-%m-%d', read_at, 'unixepoch') AS day, COUNT(*) AS n " +
+        "FROM reading_progress WHERE user_id = ?1 AND read_at >= ?2 AND read_at < ?3 GROUP BY day"
+      ).bind(userId, start, end).all<{ day: string; n: number }>()
+        .catch(() => ({ results: [] as Array<{ day: string; n: number }> })),
+    ]);
+    const byDay = new Map<string, { n: number; xp: number }>();
+    for (const r of xp.results ?? []) byDay.set(r.day, { n: Number(r.n) || 0, xp: Number(r.xp) || 0 });
+    for (const r of rd.results ?? []) {
+      const cur = byDay.get(r.day) || { n: 0, xp: 0 };
+      cur.n += Number(r.n) || 0;
+      byDay.set(r.day, cur);
+    }
+    return Array.from(byDay, ([day, v]) => ({ day, n: v.n, xp: v.xp }));
+  } catch { return []; }
+}
+
+// Month-segmented board (the mock's board, server-rendered). Summary is
+// computed from the same rows that paint the cells, so they can never drift.
+export function renderBoardHtml(
+  rows: Array<{ day: string; n: number; xp: number }>, year: number,
+): { html: string; summary: string } {
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const DAYS = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const lvl = (n: number, xp: number) => {
+    const score = xp > 0 ? xp : n * 8;
+    return score <= 0 ? 0 : score < 15 ? 1 : score < 40 ? 2 : score < 90 ? 3 : 4;
+  };
+  let offset = new Date(Date.UTC(year, 0, 1)).getUTCDay();
+  let total = 0, activeDays = 0, streak = 0, maxStreak = 0;
+  let html = '<div class="dowcol"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div>';
+  for (let m = 0; m < 12; m++) {
+    let cells = "";
+    let moActs = 0;
+    for (let b = 0; b < offset; b++) cells += '<span class="cell blank"></span>';
+    for (let d = 1; d <= DAYS[m]; d++) {
+      const t = Date.UTC(year, m, d);
+      if (t > todayUtc) { cells += '<span class="cell"></span>'; continue; }
+      const day = `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const rec = byDay.get(day);
+      const n = rec?.n || 0;
+      const L = lvl(n, rec?.xp || 0);
+      const tip = n > 0 ? `${n} activit${n === 1 ? "y" : "ies"} on ${d} ${MONTHS[m]} ${year}` : `No activity on ${d} ${MONTHS[m]} ${year}`;
+      cells += `<span class="cell${L ? " l" + L : ""}" title="${tip}"></span>`;
+      moActs += n;
+      total += n;
+      if (n > 0) { activeDays++; streak++; if (streak > maxStreak) maxStreak = streak; }
+      else streak = 0;
+    }
+    offset = (offset + DAYS[m]) % 7;
+    html += `<div class="mo"><div class="grid">${cells}</div><span class="lab">${MONTHS[m]}</span><span class="cnt">${moActs || ""}</span></div>`;
+  }
+  const summary = `${total.toLocaleString()} activities &middot; ${activeDays} active days &middot; max streak ${maxStreak}`;
+  return { html, summary };
+}
+
+// Cumulative-XP chart over the trailing 12 months with cert milestones.
+export async function renderXpChartSvg(
+  DB: D1Database, userId: string,
+  certs: Array<{ track_name: string; issued_at: number }>,
+): Promise<string> {
+  try {
+    const rows = await DB.prepare(
+      "SELECT strftime('%Y-%m', at, 'unixepoch') AS mo, SUM(xp) AS xp FROM xp_ledger " +
+      "WHERE user_id = ?1 GROUP BY mo ORDER BY mo"
+    ).bind(userId).all<{ mo: string; xp: number }>();
+    const monthly = new Map((rows.results ?? []).map((r) => [r.mo, Number(r.xp) || 0]));
+    if (!monthly.size) return "";
+    // trailing 12 calendar months ending now
+    const labels: string[] = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      labels.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+    }
+    // cumulative XP up to and including each label month
+    let before = 0;
+    for (const [mo, xp] of monthly) if (mo < labels[0]) before += xp;
+    const cum: number[] = [];
+    let run = before;
+    for (const mo of labels) { run += monthly.get(mo) || 0; cum.push(run); }
+    const max = Math.max(...cum, 1);
+    const W = 720, H = 190, L = 46, R = 20, T = 20, B = 40;
+    const px = (i: number) => L + i * ((W - L - R) / 11);
+    const py = (v: number) => H - B - (v / max) * (H - T - B);
+    const pts = cum.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
+    const MABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const lab = (mo: string) => MABBR[Number(mo.slice(5)) - 1];
+    let marks = "";
+    for (const c of certs) {
+      const mo = new Date(c.issued_at * 1000).toISOString().slice(0, 7);
+      const i = labels.indexOf(mo);
+      if (i < 0) continue;
+      marks += `<circle cx="${px(i).toFixed(1)}" cy="${py(cum[i]).toFixed(1)}" r="5" fill="#0f7a52"/>` +
+        `<text x="${px(i).toFixed(1)}" y="${(py(cum[i]) - 12).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="#0f7a52" font-weight="600">${escHtml((c.track_name || "Certificate").slice(0, 26))}</text>`;
+    }
+    const gridY = [1 / 3, 2 / 3].map((f) => {
+      const y = (T + (H - T - B) * f).toFixed(1);
+      return `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="#f0f2f6"/>`;
+    }).join("");
+    const kfmt = (v: number) => v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "k" : String(v);
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative XP over the last twelve months">
+      <line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#e6e8ee"/>
+      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="#e6e8ee"/>
+      ${gridY}
+      <text x="${L - 8}" y="${H - B + 3}" text-anchor="end" font-size="10" fill="#98a0ad">0</text>
+      <text x="${L - 8}" y="${T + 4}" text-anchor="end" font-size="10" fill="#98a0ad">${kfmt(max)}</text>
+      <polygon fill="#eef3fe" points="${px(0).toFixed(1)},${H - B} ${pts} ${px(11).toFixed(1)},${H - B}"/>
+      <polyline fill="none" stroke="#2056d2" stroke-width="2.5" stroke-linejoin="round" points="${pts}"/>
+      <circle cx="${px(11).toFixed(1)}" cy="${py(cum[11]).toFixed(1)}" r="5" fill="#2056d2"/>
+      ${marks}
+      <text x="${px(0).toFixed(1)}" y="${H - B + 17}" font-size="10" fill="#98a0ad">${lab(labels[0])}</text>
+      <text x="${px(5).toFixed(1)}" y="${H - B + 17}" font-size="10" fill="#98a0ad" text-anchor="middle">${lab(labels[5])}</text>
+      <text x="${px(11).toFixed(1)}" y="${H - B + 17}" font-size="10" fill="#98a0ad" text-anchor="end">${lab(labels[11])}</text>
+    </svg>`;
+  } catch { return ""; }
+}
