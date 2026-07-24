@@ -10,7 +10,7 @@ import type { Env, RequestData } from "../_middleware";
 import {
   ensureProfileColumns, loadProfileStats, escHtml, describeAction,
   computeTier, parseProfileJson, linkedInAddUrl, bumpProfileView,
-  monthlyDeltas, captureAndDeltaRank, loadBoardRows, renderBoardHtml,
+  monthlyDeltas, captureAndDeltaRank, loadBoardRows, renderBoardHtml, xpPercentiles,
   renderXpChartSvg,
 } from "../_lib/profile";
 import {
@@ -492,6 +492,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   ]);
   const extras = parseProfileJson(u.profile_json);
   const tier = computeTier(u.total_xp || 0, stats.exercises_solved, stats.certificates.length);
+  const xpPct = await xpPercentiles(DB, context.env.KV, u.total_xp || 0, deltas.xp30).catch(() => ({ alltime: null, month: null }));
 
   // badge sweep (lazy backfill) + render data
   const bctx: BadgeCtx = {
@@ -533,6 +534,9 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     ? `<span class="hchip otw">Open to work${extras.role ? `: ${escHtml(extras.role)}` : ""}${extras.work_pref && extras.work_pref !== "any" ? ` &middot; ${escHtml(extras.work_pref)}` : ""}</span>`
     : "";
   const curr = stats.currently_learning ? `<span class="hchip">Deep in ${escHtml(stats.currently_learning)} this month</span>` : "";
+  const pctChips =
+    (xpPct.alltime ? `<span class="hchip">Top ${xpPct.alltime}% by XP</span>` : "") +
+    (xpPct.month ? `<span class="hchip">Top ${xpPct.month}% this month</span>` : "");
 
   const pct = stats.rank && stats.learners_total ? Math.max(1, Math.ceil((stats.rank / stats.learners_total) * 100)) : null;
 
@@ -648,7 +652,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
         <h1>${name}</h1>
         <div class="handle">r-statistics.co/u/${escHtml(raw)}</div>
         ${extras.bio ? `<p class="bio">${escHtml(extras.bio)}</p>` : ""}
-        <div class="hchips">${pro}${otw}${curr}</div>
+        <div class="hchips">${pro}${pctChips}${otw}${curr}</div>
         <div class="hmeta">
           <span>Member since <b>${memberSince}</b></span>
           ${tier.next ? `<span>${escHtml(tier.next.line)}</span>` : "<span>Top of the ladder</span>"}

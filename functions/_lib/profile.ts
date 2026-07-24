@@ -585,6 +585,49 @@ export function renderCardSvg(args: {
 }
 
 
+// ================= pass M additions =================
+
+// "Top N%" percentile chips. Population = users who have earned any XP (the
+// honest denominator; parked accounts are not competition). Cached in KV an
+// hour as two sorted arrays; ~300 users today, revisit the storage shape well
+// before 50k. Returns null per metric when the chip should not render:
+// population under 30, or the viewer sits in the bottom half (a "Top 92%"
+// chip helps nobody).
+export async function xpPercentiles(
+  DB: D1Database, KV: KVNamespace, totalXp: number, xp30: number,
+): Promise<{ alltime: number | null; month: number | null }> {
+  const out: { alltime: number | null; month: number | null } = { alltime: null, month: null };
+  try {
+    const KEY = "pct:hist:v1";
+    let hist = await KV.get<{ all: number[]; m30: number[] }>(KEY, "json");
+    if (!hist) {
+      const cutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
+      const [allRows, m30Rows] = await Promise.all([
+        DB.prepare("SELECT total_xp AS v FROM users WHERE deleted_at IS NULL AND total_xp > 0 LIMIT 20000")
+          .all<{ v: number }>(),
+        DB.prepare("SELECT SUM(xp) AS v FROM xp_ledger WHERE at >= ?1 GROUP BY user_id LIMIT 20000")
+          .bind(cutoff).all<{ v: number }>(),
+      ]);
+      hist = {
+        all: (allRows.results ?? []).map((r) => Number(r.v)).sort((a, b) => a - b),
+        m30: (m30Rows.results ?? []).map((r) => Number(r.v)).filter((v) => v > 0).sort((a, b) => a - b),
+      };
+      await KV.put(KEY, JSON.stringify(hist), { expirationTtl: 3600 });
+    }
+    const top = (sorted: number[], mine: number): number | null => {
+      if (sorted.length < 30 || mine <= 0) return null;
+      let above = 0;
+      for (let i = sorted.length - 1; i >= 0 && sorted[i] > mine; i--) above++;
+      const pct = Math.max(1, Math.ceil(((above + 1) / sorted.length) * 100));
+      return pct <= 50 ? pct : null;
+    };
+    out.alltime = top(hist.all, totalXp);
+    out.month = top(hist.m30, xp30);
+  } catch { /* chips are decoration; never break the page */ }
+  return out;
+}
+
+
 // ================= pass 1 additions =================
 
 // Monthly deltas for the hero stat strip.
