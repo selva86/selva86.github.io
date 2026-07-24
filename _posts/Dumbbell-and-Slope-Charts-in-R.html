@@ -1,0 +1,920 @@
+---
+title: "Dumbbell and Slope Charts in R for Before-After Stories"
+description: "Build dumbbell and slope charts in R with ggplot2 to show before-after change. Includes runnable code, when to use each, and labeling and color design tips."
+keywords: "dumbbell chart in R, slope chart in R, slope graph ggplot2, dumbbell plot ggplot2, before after chart R, geom_segment dumbbell, ggplot2 comparison chart, change over time chart R"
+mathjax: false
+webr: true
+curriculum_id: "GG2-9.7"
+post_type: "C"
+auto_link_terms: "dumbbell chart|dumbbell plot|dumbbell chart in R|slope chart|slope graph|slopegraph|slope chart in R|before-after chart|before and after chart|connected dot plot|dumbbell chart ggplot2|slope chart ggplot2"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Dumbbell & Slope Charts"
+sidebar_order: "64"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A dumbbell chart and a slope chart are two ggplot2 chart types for showing how a value moved between two points, like before and after. A dumbbell draws each group as two dots joined by a bar, so you see the size of every gap at a glance. A slope chart draws each group as a line linking its two values, so a rise or fall becomes the tilt of a line and a change in rank becomes a crossing.</p>
+
+<p>This tutorial builds both charts from scratch with the tidyverse: <code>ggplot2</code> for the graphics, <code>dplyr</code> for shaping the numbers, and <code>tidyr</code> for one reshape step. You will not need any special "dumbbell" or "slopegraph" add-on package. Both charts are just a few core layers stacked together, and building them by hand teaches you exactly how they work so you can restyle them any way you like.</p>
+
+<h2>What story do dumbbell and slope charts tell?</h2>
+
+<p>Before-and-after numbers show up everywhere: satisfaction before and after a redesign, revenue in two quarters, a metric in 2019 versus 2024. The trouble is that a <a class="auto-link" href="ggplot2-Position-Adjustments-in-R.html" title="Position Adjustments in ggplot2: Stack, Dodge, Jitter, Fill">grouped bar chart</a> hides the one thing you care about. The reader has to mentally subtract one bar from its neighbor for every category. A dumbbell chart and a slope chart put that difference in the foreground instead of making the reader compute it.</p>
+
+<p>We will tell one story throughout: a product team measured customer satisfaction (0 to 100) for six features before and after a redesign. Let's create that data and look at it.</p>
+
+<div class="webr-container" data-block-title="Load libraries and build the before-after data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and build the before-after data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+scores &lt;- tibble(
+  feature = c(&quot;Checkout&quot;, &quot;Search&quot;, &quot;Mobile App&quot;, &quot;Dashboard&quot;, &quot;Billing&quot;, &quot;Onboarding&quot;),
+  before  = c(62, 71, 58, 65, 74, 60),
+  after   = c(78, 69, 72, 80, 71, 79)
+)
+
+scores
+#&gt; # A tibble: 6 × 3
+#&gt;   feature    before after
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Checkout       62    78
+#&gt; 2 Search         71    69
+#&gt; 3 Mobile App     58    72
+#&gt; 4 Dashboard      65    80
+#&gt; 5 Billing        74    71
+#&gt; 6 Onboarding     60    79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We built the table with <code>tibble()</code>, the tidyverse's version of a <code>data.frame</code> (it prints with the compact <code># A tibble</code> header you see above and otherwise behaves the same). Each row is one feature with two measurements. <code>before</code> is the score from before the redesign, <code>after</code> is the score from after. This "wide" shape, one row per group with a column per time point, is the natural starting point for a dumbbell chart.</p>
+
+<p>The number that carries the whole story is the change, so let's compute it directly and keep it in the table.</p>
+
+<div class="webr-container" data-block-title="Add a change column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a change column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- scores |&gt;
+  mutate(change = after - before)
+
+scores
+#&gt; # A tibble: 6 × 4
+#&gt;   feature    before after change
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 Checkout       62    78     16
+#&gt; 2 Search         71    69     -2
+#&gt; 3 Mobile App     58    72     14
+#&gt; 4 Dashboard      65    80     15
+#&gt; 5 Billing        74    71     -3
+#&gt; 6 Onboarding     60    79     19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>|&gt;</code> symbol is R's pipe: it takes the value on its left and passes it as the first argument to the function on its right, so <code>scores |&gt; mutate(...)</code> is just a readable way to write <code>mutate(scores, ...)</code>. It lets you read a chain of steps from top to bottom. The <code>mutate()</code> function adds a new column without dropping the old ones. Here <code>change = after - before</code> gives a positive number when a feature improved and a negative number when it slipped. Four features went up (Checkout, Mobile App, Dashboard, Onboarding) and two went down (Search and Billing). That mix of winners and losers is exactly what these charts are built to show.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The change column is the story; both charts are just two ways to draw it.</strong> A dumbbell chart draws the change as the length of a bar, and a slope chart draws the change as the tilt of a line. Once you have a clean before, after, and change, choosing a chart is a design decision, not a data problem.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the <code>scores</code> table to count how many features improved (where <code>change</code> is greater than 0). The answer should be 4.</p>
+<div class="webr-container" data-block-title="Your turn: count the improved features">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the improved features</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: filter scores to rows where change &gt; 0, then count them with nrow()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count improved features solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count improved features solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_improved &lt;- scores |&gt;
+  filter(change &gt; 0) |&gt;
+  nrow()
+
+ex_improved
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>filter()</code> keeps only the rows where the condition is true, and <code>nrow()</code> counts the rows that survive. Four features had a positive change.</p>
+
+</details>
+</section>
+
+<h2>How do you build a dumbbell chart in ggplot2?</h2>
+
+<p>A dumbbell chart looks like a hand weight: two round dots joined by a short bar. In ggplot2 you build it from three ordinary layers. One <code>geom_segment()</code> draws the connecting bar from the before value to the after value, and two <code>geom_point()</code> layers drop a dot at each end. That is the whole trick.</p>
+
+<p><img src="screenshots/Dumbbell-and-Slope-Charts-in-R-layers.webp" alt="A dumbbell chart is one geom_segment bar with two geom_point dots stacked on top." class="img-responsive img-zoomable" loading="lazy" width="2248" height="388" /></p>
+
+<p><em>Figure 1: A dumbbell chart is one geom_segment bar with two geom_point dots stacked on top.</em></p>
+
+<p>Let's map the pieces. We put <code>feature</code> on the y-axis so each feature gets its own row. The bar runs horizontally from <code>before</code> (its <code>x</code>) to <code>after</code> (its <code>xend</code>). Then one dot marks where the feature started and another marks where it ended.</p>
+
+<div class="webr-container" data-block-title="Build a basic dumbbell chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a basic dumbbell chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_basic &lt;- ggplot(scores, aes(y = feature)) +
+  geom_segment(aes(x = before, xend = after, yend = feature)) +
+  geom_point(aes(x = before), color = &quot;grey60&quot;, size = 4) +
+  geom_point(aes(x = after), color = &quot;steelblue&quot;, size = 4)
+
+p_basic</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the layers from the bottom up. The <code>geom_segment()</code> call needs four positions: <code>x</code> and <code>y</code> for where the bar starts, <code>xend</code> and <code>yend</code> for where it ends. Because both dots sit on the same feature row, <code>yend</code> is just <code>feature</code> again. The first <code>geom_point()</code> draws the grey "before" dot at the <code>before</code> value, and the second draws the blue "after" dot at the <code>after</code> value.</p>
+
+<p>When you run this, each feature becomes a horizontal dumbbell. The gap between the grey and blue dots is the change, and long bars jump out immediately. Checkout and Onboarding show wide gaps, while Search and Billing barely move.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You do not need a special dumbbell package.</strong> Many tutorials reach for <code>ggalt::geom_dumbbell()</code>, but that add-on is not always available and it hides what is really happening. Building the chart from <code>geom_segment()</code> and <code>geom_point()</code> always works and shows you every moving part, so you can restyle it freely.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Copy the basic chart, but make the "after" dots bigger (try <code>size = 6</code>) and change their color to <code>&quot;darkorange&quot;</code>. Only the second <code>geom_point()</code> needs to change.</p>
+<div class="webr-container" data-block-title="Your turn: restyle the after dots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: restyle the after dots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: rebuild p_basic but set size = 6 and color = &quot;darkorange&quot;
+# on the second geom_point() (the one that uses x = after)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Restyle the after dots solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restyle the after dots solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ex2 &lt;- ggplot(scores, aes(y = feature)) +
+  geom_segment(aes(x = before, xend = after, yend = feature)) +
+  geom_point(aes(x = before), color = &quot;grey60&quot;, size = 4) +
+  geom_point(aes(x = after), color = &quot;darkorange&quot;, size = 6)
+
+p_ex2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The dots are independent layers, so styling one never touches the other. Bigger, brighter "after" dots pull the eye toward where each feature ended up.</p>
+
+</details>
+</section>
+
+<h2>How do you make a dumbbell chart easy to read?</h2>
+
+<p>The basic chart works, but three small moves turn it from readable into clear. We sort the rows, color by direction, then label the values, adding them one at a time.</p>
+
+<p>First, sorting. Right now the features sit in the order we typed them, which means nothing. If we sort by the after value, the chart becomes a ranked list and the eye can scan it top to bottom. The <code>reorder()</code> function reorders a category by a number, so <code>reorder(feature, after)</code> arranges features from lowest to highest ending score.</p>
+
+<div class="webr-container" data-block-title="Sort the dumbbells by ending score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort the dumbbells by ending score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_sorted &lt;- ggplot(scores, aes(y = reorder(feature, after))) +
+  geom_segment(aes(x = before, xend = after, yend = reorder(feature, after)),
+               color = &quot;grey80&quot;, linewidth = 1.5) +
+  geom_point(aes(x = before), color = &quot;grey60&quot;, size = 4) +
+  geom_point(aes(x = after), color = &quot;steelblue&quot;, size = 4) +
+  labs(x = &quot;Satisfaction score&quot;, y = NULL)
+
+p_sorted</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We wrapped <code>feature</code> in <code>reorder(feature, after)</code> in both the <code>aes(y = ...)</code> and the segment's <code>yend</code>, so the bar and its row stay lined up. We also thickened the bar with <code>linewidth = 1.5</code> and lightened it to <code>grey80</code> so the dots read as the main event. The <code>labs()</code> call gives the x-axis a real name and drops the redundant y-axis title with <code>y = NULL</code>. Now the highest-scoring features sit at the top.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sort so the reader's eye lands on the story first.</strong> A dumbbell chart in typed order forces a scan of every row. Sorted by the ending value, or by the size of the change, the ranking does the explaining for you before anyone reads a single number.</div></div>
+
+<p>Next, color. Right now every bar looks the same, so a feature that dropped looks just like one that rose. Let's tag each feature as "Improved" or "Declined" and color by that tag. We build the label with <code>if_else()</code>, which returns the first value when the test is true and the second when it is false.</p>
+
+<div class="webr-container" data-block-title="Add an Improved or Declined label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add an Improved or Declined label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- scores |&gt;
+  mutate(direction = if_else(change &gt;= 0, &quot;Improved&quot;, &quot;Declined&quot;))
+
+scores
+#&gt; # A tibble: 6 × 5
+#&gt;   feature    before after change direction
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Checkout       62    78     16 Improved
+#&gt; 2 Search         71    69     -2 Declined
+#&gt; 3 Mobile App     58    72     14 Improved
+#&gt; 4 Dashboard      65    80     15 Improved
+#&gt; 5 Billing        74    71     -3 Declined
+#&gt; 6 Onboarding     60    79     19 Improved</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now every row knows whether it went up or down. We can map that new <code>direction</code> column to color and let ggplot2 pick a color per group. We also add <code>geom_text()</code> to print the ending value just above each blue dot, so the reader gets exact numbers without hunting along the axis.</p>
+
+<div class="webr-container" data-block-title="Color by direction and label the values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Color by direction and label the values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_dir &lt;- ggplot(scores, aes(y = reorder(feature, after))) +
+  geom_segment(aes(x = before, xend = after, yend = reorder(feature, after),
+                   color = direction), linewidth = 1.5) +
+  geom_point(aes(x = before), color = &quot;grey55&quot;, size = 4) +
+  geom_point(aes(x = after, color = direction), size = 4) +
+  geom_text(aes(x = after, label = after), vjust = -1.2, size = 3.5) +
+  scale_color_manual(values = c(&quot;Improved&quot; = &quot;#2c7fb8&quot;, &quot;Declined&quot; = &quot;#d95f0e&quot;)) +
+  labs(x = &quot;Satisfaction score&quot;, y = NULL, color = NULL)
+
+p_dir</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things changed. We moved <code>color = direction</code> inside <code>aes()</code> for the segment and the after dot, which tells ggplot2 to split those layers by the direction group. Then <code>scale_color_manual()</code> sets the exact colors: a calm blue for improvements and a warm orange for declines. The <code>geom_text()</code> layer places each after value slightly above its dot, nudged up by <code>vjust = -1.2</code>. The grey "before" dot stays a fixed grey so it always reads as the starting point. Now a glance separates the two declining features from the four that improved.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Sort the dumbbells by the size of the change instead of the ending score. The hint is to reorder by <code>change</code> rather than <code>after</code>.</p>
+<div class="webr-container" data-block-title="Your turn: sort by size of change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sort by size of change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: rebuild the sorted chart but use reorder(feature, change)
+# in both the aes(y = ...) and the segment's yend</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sort by size of change solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort by size of change solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ex3 &lt;- ggplot(scores, aes(y = reorder(feature, change))) +
+  geom_segment(aes(x = before, xend = after, yend = reorder(feature, change)),
+               color = &quot;grey80&quot;, linewidth = 1.5) +
+  geom_point(aes(x = before), color = &quot;grey60&quot;, size = 4) +
+  geom_point(aes(x = after), color = &quot;steelblue&quot;, size = 4) +
+  labs(x = &quot;Satisfaction score&quot;, y = NULL)
+
+p_ex3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sorting by <code>change</code> puts the biggest drop at the bottom and the biggest gain at the top, so the chart ranks features by how much they moved rather than where they landed.</p>
+
+</details>
+</section>
+
+<h2>How do you build a slope chart in ggplot2?</h2>
+
+<p>A slope chart tells the same before-after story with lines instead of bars. Each feature is a single line running from its before value on the left to its after value on the right. A line that tilts up means the feature improved, a line that tilts down means it declined, and lines that cross show a change in ranking.</p>
+
+<p>There is one setup step. A dumbbell reads straight from the wide table, but a slope chart draws a line through points, so it needs one row per point. We reshape the two columns <code>before</code> and <code>after</code> into two rows using <code>pivot_longer()</code>.</p>
+
+<p><img src="screenshots/Dumbbell-and-Slope-Charts-in-R-reshape.webp" alt="pivot_longer() turns one wide row into two long rows, one per time point." class="img-responsive img-zoomable" loading="lazy" width="1682" height="394" /></p>
+
+<p><em>Figure 2: <a class="auto-link" href="pivot_longer-pivot_wider-Reshape-Data-in-R.html" title="pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind">pivot_longer()</a> turns one wide row into two long rows, one per time point.</em></p>
+
+<p>Let's reshape the data and look at the result.</p>
+
+<div class="webr-container" data-block-title="Reshape the data from wide to long">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reshape the data from wide to long</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores_long &lt;- scores |&gt;
+  select(feature, before, after) |&gt;
+  pivot_longer(cols = c(before, after),
+               names_to = &quot;time&quot;, values_to = &quot;score&quot;)
+
+scores_long
+#&gt; # A tibble: 12 × 3
+#&gt;    feature    time   score
+#&gt;    &lt;chr&gt;      &lt;chr&gt;  &lt;dbl&gt;
+#&gt;  1 Checkout   before    62
+#&gt;  2 Checkout   after     78
+#&gt;  3 Search     before    71
+#&gt;  4 Search     after     69
+#&gt;  5 Mobile App before    58
+#&gt;  6 Mobile App after     72
+#&gt;  7 Dashboard  before    65
+#&gt;  8 Dashboard  after     80
+#&gt;  9 Billing    before    74
+#&gt; 10 Billing    after     71
+#&gt; 11 Onboarding before    60
+#&gt; 12 Onboarding after     79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We started with 6 rows and now have 12, two per feature. The <code>cols = c(before, after)</code> argument tells <code>pivot_longer()</code> which columns to fold down. The old column names ("before", "after") land in a new <code>time</code> column, and the numbers land in a new <code>score</code> column. This long shape is what <code>geom_line()</code> needs to connect the two points of each feature.</p>
+
+<p>There is one catch. R stores the <code>time</code> values as plain text, and text sorts alphabetically, which would put "after" before "before" on the axis. We fix that by turning <code>time</code> into a factor with the levels in the order we want.</p>
+
+<div class="webr-container" data-block-title="Set the time order with a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set the time order with a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores_long &lt;- scores_long |&gt;
+  mutate(time = factor(time, levels = c(&quot;before&quot;, &quot;after&quot;)))
+
+levels(scores_long$time)
+#&gt; [1] &quot;before&quot; &quot;after&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A factor is R's type for a category with a fixed set of possible values, and those values have an order. By listing <code>levels = c(&quot;before&quot;, &quot;after&quot;)</code> we tell R that before comes first. The <code>levels()</code> function confirms the order stuck.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set the time order yourself, or the axis sorts alphabetically.</strong> Left as plain text, "after" comes before "before" in the alphabet, so the chart would draw every slope backwards. Converting to a factor with explicit levels is the fix, and it is easy to forget until a chart looks wrong.</div></div>
+
+<p>Now the data is ready. We draw one line per feature with <code>geom_line()</code>, using <code>group = feature</code> so ggplot2 knows which points belong to the same line, and add dots at each end with <code>geom_point()</code>.</p>
+
+<div class="webr-container" data-block-title="Build a basic slope chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a basic slope chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_slope &lt;- ggplot(scores_long, aes(x = time, y = score, group = feature)) +
+  geom_line(color = &quot;grey70&quot;, linewidth = 1) +
+  geom_point(size = 3)
+
+p_slope</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>group = feature</code> mapping is the piece that makes a slope chart work. Without it, ggplot2 would try to connect all the points into one tangled line. With it, each feature gets its own line from its before point to its after point. Running this shows a fan of grey lines, most tilting up, a couple tilting down.</p>
+
+<p>The plain version has no labels, so you cannot tell which line is which. Let's color each line by feature and print the feature name at the right end, where the reader's eye finishes.</p>
+
+<div class="webr-container" data-block-title="Label the slope chart at the right end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label the slope chart at the right end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_slope2 &lt;- ggplot(scores_long, aes(x = time, y = score, group = feature)) +
+  geom_line(aes(color = feature), linewidth = 1) +
+  geom_point(aes(color = feature), size = 3) +
+  geom_text(
+    data = subset(scores_long, time == &quot;after&quot;),
+    aes(label = feature, color = feature),
+    hjust = 0, nudge_x = 0.05, size = 3.5
+  ) +
+  scale_x_discrete(expand = expansion(mult = c(0.1, 0.35))) +
+  guides(color = &quot;none&quot;) +
+  labs(x = NULL, y = &quot;Satisfaction score&quot;)
+
+p_slope2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>geom_text()</code> layer only draws labels for the "after" rows, which we pick with <code>subset(scores_long, time == &quot;after&quot;)</code>, so each name appears once at the right end of its line. The <code>nudge_x = 0.05</code> pushes the text just past the last dot, and <code>expand = expansion(mult = c(0.1, 0.35))</code> adds room on the right so long names do not run off the panel. Because the color already identifies each line, <code>guides(color = &quot;none&quot;)</code> hides the now-redundant legend.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The long table has more rows than the original. Use <code>nrow()</code> to confirm how many rows <code>scores_long</code> has, and think about why the reshape doubled them.</p>
+<div class="webr-container" data-block-title="Your turn: count the long-table rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the long-table rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: call nrow() on scores_long</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count the long-table rows solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the long-table rows solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(scores_long)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six features times two time points gives 12 rows. <code>pivot_longer()</code> traded width (two value columns) for length (two rows per feature), which is the shape a line chart needs.</p>
+
+</details>
+</section>
+
+<h2>When should you use a dumbbell vs a slope chart?</h2>
+
+<p>Both charts show before-after change, so which one should you reach for? The short answer: use a dumbbell when the size of each gap is the point, and a slope chart when direction and ranking are the point.</p>
+
+<p><img src="screenshots/Dumbbell-and-Slope-Charts-in-R-decision.webp" alt="Pick a dumbbell for gap size, a slope chart for direction and rank changes." class="img-responsive img-zoomable" loading="lazy" width="1104" height="1218" /></p>
+
+<p><em>Figure 3: Pick a dumbbell for gap size, a slope chart for direction and rank changes.</em></p>
+
+<p>Here is a side-by-side comparison to guide the choice.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Dumbbell chart</th>
+<th>Slope chart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does it emphasize?</td>
+<td>The size of each gap</td>
+<td>The direction and steepness of each change</td>
+</tr>
+<tr>
+<td>Easy to sort and rank?</td>
+<td>Yes, <a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">sort rows</a> by value or change</td>
+<td>Harder, lines are fixed by their values</td>
+</tr>
+<tr>
+<td>Shows rank changes (crossings)?</td>
+<td>No</td>
+<td>Yes, crossing lines reveal them</td>
+</tr>
+<tr>
+<td>Best group count</td>
+<td>Works well with many groups</td>
+<td>Best with a handful before lines tangle</td>
+</tr>
+<tr>
+<td>Reads best when</td>
+<td>You want a ranked "gap list"</td>
+<td>You want to see who overtook whom</td>
+</tr>
+</tbody>
+</table>
+
+<p>A slope chart has one extra power a dumbbell cannot match: when two lines cross, you instantly see that one group overtook another. Let's color the slope lines by direction so the two declines stand out. First we attach the <code>direction</code> label to the long table with a join.</p>
+
+<div class="webr-container" data-block-title="Join the direction label onto the long data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Join the direction label onto the long data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slope_dir &lt;- scores_long |&gt;
+  left_join(select(scores, feature, direction), by = &quot;feature&quot;)
+
+head(slope_dir, 4)
+#&gt; # A tibble: 4 × 4
+#&gt;   feature  time   score direction
+#&gt;   &lt;chr&gt;    &lt;fct&gt;  &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Checkout before    62 Improved
+#&gt; 2 Checkout after     78 Improved
+#&gt; 3 Search   before    71 Declined
+#&gt; 4 Search   after     69 Declined</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>left_join()</code> matches rows by <code>feature</code> and copies the <code>direction</code> column from <code>scores</code> onto every row of the long table. We only pulled in the columns we need with <code>select(scores, feature, direction)</code>. Now each of the 12 long rows carries its direction, so we can color by it.</p>
+
+<div class="webr-container" data-block-title="Color the slope lines by direction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Color the slope lines by direction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_slope3 &lt;- ggplot(slope_dir, aes(x = time, y = score, group = feature)) +
+  geom_line(aes(color = direction), linewidth = 1) +
+  geom_point(aes(color = direction), size = 3) +
+  scale_color_manual(values = c(&quot;Improved&quot; = &quot;#2c7fb8&quot;, &quot;Declined&quot; = &quot;#d95f0e&quot;)) +
+  labs(x = NULL, y = &quot;Satisfaction score&quot;, color = NULL)
+
+p_slope3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Mapping <code>color = direction</code> splits the lines into two colored groups, and <code>scale_color_manual()</code> reuses the same blue-for-up, orange-for-down scheme from the dumbbell chart. Keeping colors consistent across both charts helps a reader who sees them together. The two orange lines tilt down while the four blue lines tilt up.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A dumbbell answers "how big is each gap"; a slope chart answers "who rose, who fell, and did any ranks cross".</strong> They share the same data and often the same colors. Pick the one whose question matches what you want your reader to walk away knowing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the colored slope chart yourself using the <code>slope_dir</code> data, mapping <code>color = direction</code> on both the line and point layers.</p>
+<div class="webr-container" data-block-title="Your turn: color the slope by direction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: color the slope by direction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: use slope_dir, map color = direction on geom_line and geom_point,
+# then add scale_color_manual() with your two colors</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Color the slope by direction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Color the slope by direction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ex5 &lt;- ggplot(slope_dir, aes(x = time, y = score, group = feature)) +
+  geom_line(aes(color = direction), linewidth = 1) +
+  geom_point(aes(color = direction), size = 3) +
+  scale_color_manual(values = c(&quot;Improved&quot; = &quot;forestgreen&quot;, &quot;Declined&quot; = &quot;firebrick&quot;)) +
+  labs(x = NULL, y = &quot;Satisfaction score&quot;, color = NULL)
+
+p_ex5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Any two contrasting colors work. The point is that mapping <code>color = direction</code> turns the chart into a two-group story: one color for the risers, one for the fallers.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's pull the best moves into one polished dumbbell chart you could drop into a report. It sorts by ending score, colors by direction, labels both the before and after values, and adds a clear title. Every piece here appeared earlier in the tutorial.</p>
+
+<div class="webr-container" data-block-title="Build a polished, report-ready dumbbell chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a polished, report-ready dumbbell chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores_final &lt;- scores |&gt;
+  mutate(feature = reorder(feature, after))
+
+p_final &lt;- ggplot(scores_final, aes(y = feature)) +
+  geom_segment(aes(x = before, xend = after, yend = feature,
+                   color = direction), linewidth = 1.6) +
+  geom_point(aes(x = before), color = &quot;grey55&quot;, size = 4.5) +
+  geom_point(aes(x = after, color = direction), size = 4.5) +
+  geom_text(aes(x = before, label = before), hjust = 1.6, size = 3.2, color = &quot;grey40&quot;) +
+  geom_text(aes(x = after, label = after), hjust = -0.7, size = 3.2, color = &quot;grey25&quot;) +
+  scale_color_manual(values = c(&quot;Improved&quot; = &quot;#2c7fb8&quot;, &quot;Declined&quot; = &quot;#d95f0e&quot;)) +
+  scale_x_continuous(limits = c(50, 88)) +
+  labs(
+    title = &quot;Feature satisfaction before and after the redesign&quot;,
+    subtitle = &quot;Grey dot = before, colored dot = after&quot;,
+    x = &quot;Satisfaction score (0-100)&quot;, y = NULL, color = NULL
+  ) +
+  theme_minimal()
+
+p_final</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We sorted once up front by setting <code>feature = reorder(feature, after)</code>, so every layer inherits the ranked order. The two <code>geom_text()</code> layers print the starting value to the left of the grey dot and the ending value to the right of the colored dot, using <code>hjust</code> to push each label clear of its point. We fixed the x-axis to a sensible window with <code>scale_x_continuous(limits = c(50, 88))</code> so the labels have breathing room, and <code>theme_minimal()</code> strips the chart down to the data. The result is a single figure that ranks the features, shows each starting and ending score, and separates the winners from the losers by color.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each uses distinct variable names so it will not overwrite the objects we built above. Try each one before opening the solution.</p>
+
+<h3>Exercise 1: Find the biggest mover</h3>
+
+<p>Using the <code>scores</code> table, find the single feature that moved the most in either direction (the largest absolute change). Save it to <code>biggest</code> and print it. The expected answer is Onboarding, with a change of 19.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: find the biggest mover">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: find the biggest mover</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here
+# Hint: add a column with abs(change), arrange() by it in descending order,
+# then keep the top row with slice(1)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Biggest mover solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Biggest mover solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">biggest &lt;- scores |&gt;
+  mutate(abs_change = abs(change)) |&gt;
+  arrange(desc(abs_change)) |&gt;
+  slice(1)
+
+biggest
+#&gt; # A tibble: 1 × 6
+#&gt;   feature    before after change direction abs_change
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 Onboarding     60    79     19 Improved          19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>abs(change)</code> ignores the sign so a big drop competes with a big gain, <code>arrange(desc(...))</code> puts the largest on top, and <code>slice(1)</code> keeps that one row. Onboarding rose 19 points, the biggest move on the board.</p>
+
+</details>
+
+<h3>Exercise 2: A dumbbell of only the declines</h3>
+
+<p>Build a dumbbell chart showing only the features that declined. First filter <code>scores</code> to the declining rows and print them, then draw the dumbbell for just those features. There should be two: Search and Billing.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: dumbbell of only the declines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: dumbbell of only the declines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here
+# Hint: filter(direction == &quot;Declined&quot;) to make a smaller table, print it,
+# then feed that table into the same geom_segment + geom_point recipe
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Declines-only dumbbell solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Declines-only dumbbell solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">declined &lt;- scores |&gt;
+  filter(direction == &quot;Declined&quot;)
+
+declined
+#&gt; # A tibble: 2 × 5
+#&gt;   feature before after change direction
+#&gt;   &lt;chr&gt;    &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Search      71    69     -2 Declined
+#&gt; 2 Billing     74    71     -3 Declined
+
+p_cap2 &lt;- ggplot(declined, aes(y = feature)) +
+  geom_segment(aes(x = before, xend = after, yend = feature),
+               color = &quot;grey80&quot;, linewidth = 1.5) +
+  geom_point(aes(x = before), color = &quot;grey60&quot;, size = 4) +
+  geom_point(aes(x = after), color = &quot;#d95f0e&quot;, size = 4) +
+  labs(x = &quot;Satisfaction score&quot;, y = NULL)
+
+p_cap2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Filtering first shrinks the data to the two declining features, and the same three-layer recipe draws a focused chart. Zooming in on just the problem cases is a common reporting move.</p>
+
+</details>
+
+<h3>Exercise 3: A titled slope chart by direction</h3>
+
+<p>Recreate the direction-colored slope chart from the <code>slope_dir</code> data, but add a title and subtitle so it stands on its own in a report. Save it to <code>p_cap3</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: a titled slope chart by direction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: a titled slope chart by direction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here
+# Hint: start from the p_slope3 recipe, then add labs(title = ..., subtitle = ...)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Titled slope chart solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Titled slope chart solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_cap3 &lt;- ggplot(slope_dir, aes(x = time, y = score, group = feature)) +
+  geom_line(aes(color = direction), linewidth = 1) +
+  geom_point(aes(color = direction), size = 3) +
+  scale_color_manual(values = c(&quot;Improved&quot; = &quot;#2c7fb8&quot;, &quot;Declined&quot; = &quot;#d95f0e&quot;)) +
+  labs(
+    title = &quot;Which features rose and which fell after the redesign&quot;,
+    subtitle = &quot;Each line is one feature, before to after&quot;,
+    x = NULL, y = &quot;Satisfaction score&quot;, color = NULL
+  ) +
+  theme_minimal()
+
+p_cap3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The chart body is the same as before; the <code>labs()</code> title and subtitle plus <code>theme_minimal()</code> turn a working plot into a finished figure a reader can understand without extra context.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Do I need the ggalt or CGPfunctions package for these charts?</strong> No. Those packages offer shortcuts like <code>geom_dumbbell()</code> and <code>newggslopegraph()</code>, but you can build both charts with core <a class="auto-link" href="ggplot2-Cheat-Sheet.html" title="ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More">ggplot2 geoms</a>, as this tutorial does. Building them by hand keeps your code portable and lets you restyle every layer.</p>
+
+<p><strong>When should I use a bar chart instead?</strong> Use a bar chart when you care about the absolute levels and there is no natural "before and after" pairing. The moment your story is about how a paired value changed, a dumbbell or slope chart shows the change far more directly than two bars side by side.</p>
+
+<p><strong>What if I have more than two time points?</strong> A dumbbell chart is built for exactly two points, so it does not extend cleanly. A slope chart can add more columns on the x-axis and becomes a small multi-point line chart, though with many points a standard line chart is usually clearer.</p>
+
+<p><strong>My metric is better when it is lower, like wait time. Does that break the charts?</strong> No, the charts still work, but flip your color logic. Define the direction so that a decrease counts as an improvement, then map your colors to that. The geometry does not change; only the label of what "good" means does.</p>
+
+<p><strong>How do I label the size of each change on a dumbbell?</strong> Add a <code>geom_text()</code> layer positioned at the midpoint of each bar with the change value as its label, for example <code>label = change</code>. Placing the number on the bar itself saves the reader from subtracting the two dot positions.</p>
+
+<h2>Summary</h2>
+
+<p>Dumbbell and slope charts both turn a before-after table into a clear picture of change. A dumbbell draws each gap as a bar with two dots and is easy to sort and rank. A slope chart draws each change as a tilting line and is the better choice when direction and crossings matter.</p>
+
+<p><img src="screenshots/Dumbbell-and-Slope-Charts-in-R-overview.webp" alt="The full before-after charting workflow at a glance." class="img-responsive img-zoomable" loading="lazy" width="1610" height="944" /></p>
+
+<p><em>Figure 4: The full before-after charting workflow at a glance.</em></p>
+
+<p>The workflow in one place:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Dumbbell chart</th>
+<th>Slope chart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data shape</td>
+<td>Wide: one row per group</td>
+<td>Long: one row per point (<code>pivot_longer()</code>)</td>
+</tr>
+<tr>
+<td>Core geoms</td>
+<td><code>geom_segment()</code> plus two <code>geom_point()</code></td>
+<td><code>geom_line()</code> plus <code>geom_point()</code></td>
+</tr>
+<tr>
+<td>Ordering</td>
+<td>Sort with <code>reorder()</code></td>
+<td>Set time order with a factor</td>
+</tr>
+<tr>
+<td>Direction</td>
+<td>Color by an Improved/Declined label</td>
+<td>Color lines by the same label</td>
+</tr>
+<tr>
+<td>Labels</td>
+<td>Value labels at each dot</td>
+<td>Feature names at the right end</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for a dumbbell when the size of each gap is the message. Reach for a slope chart when the reader needs to see which groups rose or fell and whether any ranks crossed.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation. geom_segment() reference. <a href="https://ggplot2.tidyverse.org/reference/geom_segment.html">Link</a></li>
+
+<li>ggplot2 documentation. geom_point() reference. <a href="https://ggplot2.tidyverse.org/reference/geom_point.html">Link</a></li>
+
+<li>tidyr documentation. pivot_longer() reference. <a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">Link</a></li>
+
+<li>forcats documentation. fct_reorder() and factor ordering. <a href="https://forcats.tidyverse.org/reference/fct_reorder.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. R for Data Science, 2nd Edition, Data Visualization. <a href="https://r4ds.hadley.nz/data-visualize">Link</a></li>
+
+<li>The R Graph Gallery. Dumbbell chart with a gap column. <a href="https://r-graph-gallery.com/web-dumbbell-chart-with-a-gap-column.html">Link</a></li>
+
+<li>R CHARTS. Slopegraph in ggplot2. <a href="https://r-charts.com/evolution/newggslopegraph/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Line-Charts.html">ggplot2 Line Charts</a>: the foundation for slope charts, covering <code>geom_line()</code>, grouping, and styling in depth.</li>
+
+<li><a href="ggplot2-Text-Labels-in-R.html">Text Labels in ggplot2</a>: everything about <code>geom_text()</code> and direct labeling, including how to keep labels from overlapping.</li>
+
+<li><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html">Reshape Data with pivot_longer and pivot_wider</a>: the wide-to-long reshape that every slope chart depends on, explained from scratch.</li>
+
+</ul>
+
+{% endraw %}
