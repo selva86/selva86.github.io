@@ -1,0 +1,1031 @@
+---
+title: "Position Adjustments in ggplot2: Stack, Dodge, Jitter, Fill"
+description: "Learn position adjustments in ggplot2: stack, fill, dodge, and jitter. See how each fixes overlapping bars and points, with runnable R code and a decision map."
+keywords: "position adjustments ggplot2, position_stack, position_dodge, position_fill, position_jitter, position_jitterdodge, stacked bar chart in R, grouped bar chart ggplot2, jitter overplotting"
+mathjax: false
+webr: true
+curriculum_id: "GG2-3.4"
+post_type: "C"
+auto_link_terms: "position adjustments in ggplot2|position adjustments|position adjustment|position_dodge|position_stack|position_fill|position_jitter|stacked bar chart|grouped bar chart|percent stacked bar chart|dodge bars|jitter points"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Position Adjustments"
+sidebar_order: "57"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Position adjustments are the ggplot2 setting that decides what happens when two geoms land on the same spot: whether bars stack up, sit side by side, or turn into proportions, and whether crowded points spread out so you can see them. This tutorial uses the tidyverse (ggplot2 with a little dplyr) and the built-in <code>mpg</code> dataset, so you can run every chart in the box as you read.</p>
+
+<h2>What are position adjustments in ggplot2?</h2>
+
+<p>Every mark ggplot2 draws needs a coordinate. A bar needs an x position and a height, a point needs an x and a y. Those coordinates come from your <code>aes()</code> mapping. The trouble starts when several marks want the <em>same</em> coordinate: two bars that both belong above <code>&quot;compact&quot;</code>, or twenty points that all sit at <code>(20, 30)</code>. Something has to give. The <code>position</code> argument is the rule that decides what gives.</p>
+
+<p>Let's start with the raw material. The <code>mpg</code> dataset ships with ggplot2 and records fuel economy for 234 car models. We will group cars by body <code>class</code> and by drivetrain <code>drv</code> (four-wheel, front and rear). Here is the count of cars in each combination, which is exactly what a bar chart will draw.</p>
+
+<div class="webr-container" data-block-title="Load libraries and count the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and count the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+library(scales)
+# How many cars of each drivetrain (drv) sit inside each body class?
+mpg |&gt; count(class, drv)
+#&gt; # A tibble: 12 × 3
+#&gt;    class      drv       n
+#&gt;    &lt;chr&gt;      &lt;chr&gt; &lt;int&gt;
+#&gt;  1 2seater    r         5
+#&gt;  2 compact    4        12
+#&gt;  3 compact    f        35
+#&gt;  4 midsize    4         3
+#&gt;  5 midsize    f        38
+#&gt;  6 minivan    f        11
+#&gt;  7 pickup     4        33
+#&gt;  8 subcompact 4         4
+#&gt;  9 subcompact f        22
+#&gt; 10 subcompact r         9
+#&gt; 11 suv        4        51
+#&gt; 12 suv        r        11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read one row: there are 12 compact cars with four-wheel drive and 35 with front-wheel drive. Notice that both compact rows share the same x position on a chart (the <code>&quot;compact&quot;</code> tick). That shared position is the collision <code>position</code> has to resolve.</p>
+
+<p>Now map <code>class</code> to the x-axis and <code>drv</code> to <code>fill</code>, then let <code>geom_bar()</code> count the rows for you. Because two <code>drv</code> values share each <code>class</code>, ggplot2 must decide how to place them. Watch what it does by default.</p>
+
+<div class="webr-container" data-block-title="A default bar chart stacks the groups">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A default bar chart stacks the groups</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You get one bar per class, and inside each bar the drivetrains are stacked into colored segments. You never asked for stacking. It happened because <code>geom_bar()</code> carries a default position, and that default is <code>&quot;stack&quot;</code>. That single hidden setting is the whole topic of this tutorial.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Position is a real layer of the grammar, not a cosmetic afterthought.</strong> The same data and the same mapping can become a stacked bar, a grouped bar, or a percentage bar purely by changing <code>position</code>. Learning the four main choices lets you reshape a chart without touching your data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the chart with the mapping flipped, so drivetrain sits on the x-axis and each bar is filled by body class. Change the <code>aes()</code> below and run it.</p>
+<div class="webr-container" data-block-title="Your turn: flip the mapping">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the mapping</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: put drv on the x-axis and fill by class.
+# Edit the aes() so x = drv and fill = class, then run.
+ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Flip the mapping solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the mapping solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = drv, fill = class)) +
+  geom_bar()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the <code>aes()</code> mapping changed. The <code>position = &quot;stack&quot;</code> default is still doing the stacking, now with drivetrains on the x-axis and body classes as the colored segments.</p>
+
+</details>
+</section>
+
+<h2>How does position = "stack" stack bars?</h2>
+
+<p>Stacking is the default for bars, histograms, and areas, so it is the behavior you will see unless you say otherwise. Stack takes the groups that share an x position and piles them on top of one another. The height of the whole bar equals the group total, and each colored segment is one subgroup's count.</p>
+
+<p>Because stack is already the default, writing it out changes nothing. It is worth doing once so you can see the setting clearly.</p>
+
+<div class="webr-container" data-block-title="Stack is the default for bars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stack is the default for bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;stack&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This looks identical to the plain <code>geom_bar()</code> from the last section, which is the point: the default <em>is</em> stack. The full height of the <code>suv</code> bar reaches 62, because 51 four-wheel-drive SUVs plus 11 rear-wheel-drive SUVs stack to 62.</p>
+
+<p>There is one habit worth forming early. ggplot2 stacks from the top down in the order the legend lists, which often feels upside down: the first legend item ends up at the top of the bar rather than the bottom. You can flip the stacking order with <code>reverse = TRUE</code> inside <code>position_stack()</code>.</p>
+
+<div class="webr-container" data-block-title="Reverse the stacking order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reverse the stacking order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = position_stack(reverse = TRUE))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Writing <code>position_stack(reverse = TRUE)</code> instead of the plain string <code>&quot;stack&quot;</code> is how you reach a position's options. Every position has a string shortcut and a matching function. The string is fine when defaults are fine; the function is how you pass arguments.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Stack order and legend order can disagree, and it confuses readers.</strong> By default the segment that sits at the top of the bar is the first one named in the legend, which is the opposite of what most people expect. If your bars and legend feel mismatched, add <code>position_stack(reverse = TRUE)</code> so the bottom-to-top segment order matches the legend top-to-bottom.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the class-by-drivetrain bar and reverse its stack so the segment order matches the legend.</p>
+<div class="webr-container" data-block-title="Your turn: reverse the stack">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reverse the stack</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: reverse the stacking order to match the legend.
+# Add position = position_stack(reverse = TRUE) to geom_bar().
+ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reverse the stack solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reverse the stack solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = position_stack(reverse = TRUE))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>position_stack(reverse = TRUE)</code> keeps the totals identical but flips which subgroup sits at the bottom, so the visual order lines up with the legend.</p>
+
+</details>
+</section>
+
+<h2>How does position = "fill" show proportions?</h2>
+
+<p>Stacking shows totals, but sometimes the total is a distraction. If you want to compare <em>composition</em>, the question is "what share of each class is front-wheel drive?", not "how many cars are there?". That is what <code>position = &quot;fill&quot;</code> answers. Fill stacks the bars exactly like stack, then rescales every bar to the same full height, so each bar reads as 100 percent and the segments read as shares.</p>
+
+<p>It helps to see the numbers fill is drawing. The share of each drivetrain within a class is its count divided by the class total. Here is that calculation done by hand with dplyr.</p>
+
+<div class="webr-container" data-block-title="What fill computes under the hood">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What fill computes under the hood</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg |&gt;
+  count(class, drv) |&gt;
+  group_by(class) |&gt;
+  mutate(share = round(n / sum(n), 2)) |&gt;
+  ungroup()
+#&gt; # A tibble: 12 × 4
+#&gt;    class      drv       n share
+#&gt;    &lt;chr&gt;      &lt;chr&gt; &lt;int&gt; &lt;dbl&gt;
+#&gt;  1 2seater    r         5  1   
+#&gt;  2 compact    4        12  0.26
+#&gt;  3 compact    f        35  0.74
+#&gt;  4 midsize    4         3  0.07
+#&gt;  5 midsize    f        38  0.93
+#&gt;  6 minivan    f        11  1   
+#&gt;  7 pickup     4        33  1   
+#&gt;  8 subcompact 4         4  0.11
+#&gt;  9 subcompact f        22  0.63
+#&gt; 10 subcompact r         9  0.26
+#&gt; 11 suv        4        51  0.82
+#&gt; 12 suv        r        11  0.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compact cars are 26 percent four-wheel drive and 74 percent front-wheel drive, and those two shares add to 1. <code>position = &quot;fill&quot;</code> does this division for you and turns each share into a segment height. You do not need the dplyr step to draw the chart; it is here so you can see that fill is just stack plus a rescale.</p>
+
+<div class="webr-container" data-block-title="Fill scales every bar to 100 percent">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill scales every bar to 100 percent</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;fill&quot;) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(y = &quot;Proportion&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every bar now reaches the top, and the y-axis reads as percentages thanks to <code>scale_y_continuous(labels = scales::percent)</code>. This chart makes composition easy to compare across classes, even when the classes have wildly different totals.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Fill hides the totals, which is a strength and a trap.</strong> A class with 5 cars and a class with 62 cars both become full-height bars, so a rare category can look as important as a common one. Use fill when share is the story, and keep a stacked or dodged view nearby when absolute counts matter.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Turn the stacked class-by-drivetrain bar into a proportional bar where every bar fills to 100 percent.</p>
+<div class="webr-container" data-block-title="Your turn: percent bars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: percent bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: make each bar a full-height composition (shares, not counts).
+# Set position = &quot;fill&quot; in geom_bar().
+ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Percent bars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Percent bars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;fill&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>position = &quot;fill&quot;</code> rescales each stacked bar to height 1, so the chart shows the share of each drivetrain within a class rather than raw counts.</p>
+
+</details>
+</section>
+
+<h2>How does position = "dodge" place bars side by side?</h2>
+
+<p>Stacked bars are hard to compare below the bottom segment, because the middle and top segments do not start from a common baseline. When you want a clean magnitude comparison between subgroups, unstack them. <code>position = &quot;dodge&quot;</code> takes the bars that share an x position and sets them next to each other, each starting from zero.</p>
+
+<div class="webr-container" data-block-title="Dodge places bars side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dodge places bars side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;dodge&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now each class shows separate bars, one per drivetrain, all rising from the same baseline. Comparing the height of front-wheel drive across classes is now a straight eye-line along the bottom axis.</p>
+
+<p>Dodge has one quirk worth knowing. When a class is missing a drivetrain, the remaining bars widen to fill the gap, so bars in different classes can end up different widths. That uneven look is usually not what you want. The fix is <code>preserve = &quot;single&quot;</code>, which keeps every bar the width of a single dodged bar.</p>
+
+<div class="webr-container" data-block-title="Keep bar widths equal with preserve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep bar widths equal with preserve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = position_dodge(preserve = &quot;single&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>preserve = &quot;single&quot;</code>, a class with one drivetrain draws one normal-width bar instead of one fat bar, so widths stay consistent across the whole chart.</p>
+
+<p>There is also a close cousin, <code>position_dodge2()</code>. It works out spacing from the data rather than from a grouping you supply, which makes it the better tool for boxplots and any geom whose elements can have different widths. For plain bars the two look similar; for boxplots, <code>dodge2</code> is the reliable choice.</p>
+
+<div class="webr-container" data-block-title="position_dodge2 for varying widths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">position_dodge2 for varying widths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = position_dodge2(preserve = &quot;single&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The figure below sums up the three bar positions you have now seen. It is the same <code>class</code> and <code>drv</code> mapping every time; only the position changes.</p>
+
+<p><img src="screenshots/ggplot2-Position-Adjustments-in-R-bar-positions.webp" alt="The same mapping under stack, fill, and dodge positions" class="img-responsive img-zoomable" loading="lazy" width="952" height="986" /></p>
+
+<p><em>Figure 1: The same class-by-drv mapping under three positions. Stack piles the segments; fill rescales each bar to 100 percent; dodge splits them side by side.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for dodge2 when widths vary, and dodge when they do not.</strong> Use <code>position_dodge()</code> for simple bars where every element is the same width. Use <code>position_dodge2()</code> for boxplots, violins, or any layer whose elements can differ in width, because it computes the side-by-side spacing straight from the data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Un-stack the class-by-drivetrain bar so the drivetrains sit side by side within each class.</p>
+<div class="webr-container" data-block-title="Your turn: dodge the bars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: dodge the bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: place the drv bars next to each other inside each class.
+# Set position = &quot;dodge&quot;.
+ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Dodge the bars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dodge the bars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;dodge&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>position = &quot;dodge&quot;</code> moves the overlapping bars sideways so each drivetrain gets its own bar from a shared baseline, which makes direct height comparisons easy.</p>
+
+</details>
+</section>
+
+<h2>How does position = "jitter" fix overplotting?</h2>
+
+<p>Bars are not the only marks that collide. Points do too, and the collision is sneakier because it hides how much data is there. When values are rounded or discrete, many points land on the exact same coordinate and pile into a single dot. Two hundred points can look like twenty. This is called overplotting.</p>
+
+<p>The <code>mpg</code> dataset stores city and highway mileage as whole numbers, so a scatter of the two rounds many cars onto the same grid spot. Draw it plainly first.</p>
+
+<div class="webr-container" data-block-title="Overplotted points hide density">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overplotted points hide density</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot looks sparse, but it undercounts the data. Several cars share <code>cty = 20, hwy = 28</code>, yet you see one dot. <code>position = &quot;jitter&quot;</code> fixes this by adding a small random nudge to every point, so overlapping points fan out into a visible cluster. The convenience geom <code>geom_jitter()</code> is just <code>geom_point(position = &quot;jitter&quot;)</code>.</p>
+
+<div class="webr-container" data-block-title="geom_jitter spreads the points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">geom_jitter spreads the points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_jitter()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the dense spots show as clumps of points instead of a single dot, and the real shape of the data appears. Jitter adds random noise, so the picture shifts a little every time you run it unless you fix the randomness. Set a seed first, and control how far points move with <code>width</code> and <code>height</code>.</p>
+
+<div class="webr-container" data-block-title="Control the noise and set a seed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Control the noise and set a seed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point(position = position_jitter(width = 0.3, height = 0.3))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>width = 0.3</code> and <code>height = 0.3</code> keep the noise small, so points move just enough to separate without drifting far from their true values. <code>set.seed(3)</code> makes the exact scatter reproducible, so your chart looks the same each time and matches what a colleague sees.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Jitter moves your data, so use it with a light touch.</strong> The points no longer sit at their true coordinates, which is fine for showing density but wrong for reading exact values. Keep <code>width</code> and <code>height</code> small, always call <code>set.seed()</code> before jittering so the result is reproducible, and never jitter a chart where precise position is the message.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Spread the overplotted city-versus-highway scatter so the crowded spots become visible.</p>
+<div class="webr-container" data-block-title="Your turn: jitter the points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: jitter the points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: separate the overlapping points so density shows.
+# Swap geom_point() for geom_jitter().
+ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Jitter the points solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Jitter the points solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_jitter(width = 0.3, height = 0.3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_jitter()</code> adds small random offsets so stacked points separate. Setting a seed and small width and height keeps the result reproducible and close to the true values.</p>
+
+</details>
+</section>
+
+<h2>How do you jitter and dodge points together?</h2>
+
+<p>The most useful position is often a combination. A common request is to draw grouped boxplots and then scatter the raw points on top, so readers see the summary and the underlying data at once. That needs two things to happen together: the points must dodge into the right box, and they must jitter so they do not stack into a line. <code>position_jitterdodge()</code> does both.</p>
+
+<p>Here we compare highway mileage across drivetrains, split by model year. The boxplots dodge by year, and the points dodge with them.</p>
+
+<div class="webr-container" data-block-title="Jitter and dodge points at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Jitter and dodge points at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ggplot(mpg, aes(x = drv, y = hwy, colour = factor(year))) +
+  geom_boxplot(aes(fill = factor(year)), alpha = 0.4) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.15),
+             size = 0.9) +
+  labs(colour = &quot;Year&quot;, fill = &quot;Year&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each drivetrain shows two boxes, one per year, and the raw points sit inside their own box with a little horizontal jitter so they do not overlap. Wrapping <code>year</code> in <code>factor()</code> is what creates those two boxes: <code>year</code> is stored as the numbers 1999 and 2008, so <code>factor()</code> turns them into two distinct groups to dodge instead of a <a class="auto-link" href="ggplot2-scale_x_continuous-in-R.html" title="ggplot2 scale_x_continuous() in R: Customize the X Axis">continuous scale</a>. <code>jitter.width = 0.15</code> keeps that spread narrow enough to stay inside the box.</p>
+
+<p>There is one more small position that solves a different problem: nudging labels. When you add text to a chart, the label usually lands right on the mark and covers it. <code>position_nudge()</code> shifts the label by a fixed amount, which is perfect for floating a count just above each bar.</p>
+
+<div class="webr-container" data-block-title="Nudge labels above bars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Nudge labels above bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nudge_df &lt;- count(mpg, drv)
+
+ggplot(nudge_df, aes(x = drv, y = n)) +
+  geom_col() +
+  geom_text(aes(label = n), position = position_nudge(y = 4))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>position_nudge(y = 4)</code> lifts each count label four units up the y-axis, so the numbers float clear above the bars instead of sitting on the top edge.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A position object is a reusable recipe you can hand to any layer.</strong> Because <code>position_jitterdodge()</code> returns an object, the boxplots and the points can share the same dodging logic, which is why the points line up exactly over their boxes. Positions are not tied to one geom; they are portable rules you attach wherever a layer needs them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Put raw points onto grouped boxplots of highway mileage by drivetrain, split by year.</p>
+<div class="webr-container" data-block-title="Your turn: points on grouped boxplots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: points on grouped boxplots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: scatter the raw points onto the dodged boxplots.
+# Add a geom_point layer that uses position_jitterdodge().
+ggplot(mpg, aes(x = drv, y = hwy, fill = factor(year))) +
+  geom_boxplot(alpha = 0.4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Points on grouped boxplots solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Points on grouped boxplots solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ggplot(mpg, aes(x = drv, y = hwy, fill = factor(year))) +
+  geom_boxplot(alpha = 0.4) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.15), size = 0.8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>position_jitterdodge()</code> dodges each point into its year group and jitters it sideways, so the raw values land neatly inside their matching box.</p>
+
+</details>
+</section>
+
+<h2>Which position adjustment should you use?</h2>
+
+<p>You now have every position in your toolkit. The choice always starts from one question: what is overlapping, and what do you want the reader to see? The table below turns that into a quick lookup.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your data</th>
+<th>The question</th>
+<th>Position</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bars sharing an x</td>
+<td>What is each group's total?</td>
+<td>stack (the default)</td>
+</tr>
+<tr>
+<td>Bars sharing an x</td>
+<td>What share does each part hold?</td>
+<td>fill</td>
+</tr>
+<tr>
+<td>Bars sharing an x</td>
+<td>How do the subgroups compare?</td>
+<td>dodge</td>
+</tr>
+<tr>
+<td>Points piling up</td>
+<td>Where is the data dense?</td>
+<td>jitter</td>
+</tr>
+<tr>
+<td>Points on grouped boxes</td>
+<td>Show raw points per group?</td>
+<td>jitterdodge</td>
+</tr>
+<tr>
+<td>Text labels</td>
+<td>Shift a label off its anchor?</td>
+<td>nudge</td>
+</tr>
+</tbody>
+</table>
+
+<p>It also helps to know each geom's starting point, because the default is what you get before you type a single position.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geom</th>
+<th>Default position</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a class="auto-link" href="ggplot2-Recreation-Challenge.html" title="ggplot2 Recreation Challenge: 12 Plots to Rebuild from Scratch">geom_bar</a> and <a class="auto-link" href="https://r-statistics.co/ggplot2-geom_histogram-in-R.html" title="geom_histogram() in R: Histograms with ggplot2 (With Examples)">geom_histogram</a></td>
+<td>stack</td>
+</tr>
+<tr>
+<td>geom_col and <a class="auto-link" href="https://r-statistics.co/ggplot2-geom_area-in-R.html" title="geom_area() in R: Area Charts with ggplot2 (With Examples)">geom_area</a></td>
+<td>stack</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="https://r-statistics.co/ggplot2-geom_point-in-R.html" title="geom_point() in R: Create Scatter Plots with ggplot2 (With Examples)">geom_point</a></td>
+<td>identity</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="https://r-statistics.co/ggplot2-geom_boxplot-in-R.html" title="geom_boxplot() in R: Box Plots with ggplot2 (With Examples)">geom_boxplot</a></td>
+<td>dodge2</td>
+</tr>
+<tr>
+<td>geom_jitter</td>
+<td>jitter</td>
+</tr>
+</tbody>
+</table>
+
+<p>The same logic reads well as a flow: name what overlaps, then pick from the branch that fits.</p>
+
+<p><img src="screenshots/ggplot2-Position-Adjustments-in-R-decision-flow.webp" alt="Decision flow from overlap type to the right position adjustment" class="img-responsive img-zoomable" loading="lazy" width="1200" height="690" /></p>
+
+<p><em>Figure 2: Start from what overlaps. Stacked bars pick stack, fill, or dodge; piled points pick jitter or jitterdodge.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When nothing should move, name the do-nothing position explicitly.</strong> <code>position = &quot;identity&quot;</code> leaves every mark exactly where its data puts it. It is the default for points and the right choice when you deliberately want overlapping bars to sit on top of one another, for example two semi-transparent distributions on one axis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You want to compare the <em>share</em> of each drivetrain within each class, with every bar a full-height composition. Pick the right position.</p>
+<div class="webr-container" data-block-title="Your turn: choose a position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: choose a position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: each bar should be a 100% composition of drivetrain share.
+# Change &quot;stack&quot; to the position that rescales bars to full height.
+ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;stack&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Choose a position solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choose a position solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;fill&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Share within a group means proportions, and <code>position = &quot;fill&quot;</code> rescales each stacked bar to height 1, so every bar reads as 100 percent.</p>
+
+</details>
+</section>
+
+<h2>A complete example: drivetrain mix by class</h2>
+
+<p>Let's put the pieces together into a chart you might actually ship: a labelled percentage bar showing the drivetrain mix inside each class. We will prepare the shares with dplyr, draw them with <code>position = &quot;fill&quot;</code>, and place a percentage label in the middle of each segment with <code>position_fill(vjust = 0.5)</code>.</p>
+
+<p>First, compute the counts and the share of each drivetrain within each class.</p>
+
+<div class="webr-container" data-block-title="Prepare the share of each drivetrain per class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prepare the share of each drivetrain per class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">drv_share &lt;- mpg |&gt;
+  count(class, drv) |&gt;
+  group_by(class) |&gt;
+  mutate(pct = n / sum(n)) |&gt;
+  ungroup()
+
+head(drv_share)
+#&gt; # A tibble: 6 × 4
+#&gt;   class   drv       n    pct
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;int&gt;  &lt;dbl&gt;
+#&gt; 1 2seater r         5 1     
+#&gt; 2 compact 4        12 0.255 
+#&gt; 3 compact f        35 0.745 
+#&gt; 4 midsize 4         3 0.0732
+#&gt; 5 midsize f        38 0.927 
+#&gt; 6 minivan f        11 1     </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>pct</code> column holds each share as a decimal. Now draw the chart with <code>geom_col()</code>, which uses the <code>n</code> we already counted, and let <code>position = &quot;fill&quot;</code> turn those counts into a full-height composition. The trick for centered labels is to give <code>geom_text()</code> the same <code>position_fill()</code>, with <code>vjust = 0.5</code> so each label lands in the middle of its segment.</p>
+
+<div class="webr-container" data-block-title="Labelled percent-stacked bar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Labelled percent-stacked bar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(drv_share, aes(x = class, y = n, fill = drv)) +
+  geom_col(position = &quot;fill&quot;) +
+  geom_text(aes(label = scales::percent(pct, accuracy = 1)),
+            position = position_fill(vjust = 0.5), size = 3) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(y = &quot;Share within class&quot;, x = &quot;Class&quot;, fill = &quot;Drive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a clean composition chart: every class fills to 100 percent, the segments show drivetrain share, and each segment carries its own percentage label centered inside it. The same <code>position_fill()</code> recipe drives both the bars and the labels, which is why the numbers sit exactly where the segments do.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution, and use the distinct variable names given so your code does not clash with the examples above.</p>
+
+<h3>Exercise 1: Percent bars with a percentage axis</h3>
+
+<p>Build a percent-stacked bar of drivetrain within each class, and format the y-axis as percentages from 0 to 100. Add clear axis and legend labels.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a percent-stacked bar of drv within each class,
+# with the y-axis shown as percentages.
+# Hint: position = &quot;fill&quot; plus scale_y_continuous(labels = scales::percent)
+
+# Write your code below:
+ggplot(mpg, aes(x = class, fill = drv))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = &quot;fill&quot;) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(y = &quot;Share within class&quot;, x = &quot;Class&quot;, fill = &quot;Drive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>position = &quot;fill&quot;</code> makes each bar a full-height composition, and <code>scale_y_continuous(labels = scales::percent)</code> relabels the 0-to-1 axis as percentages.</p>
+
+</details>
+
+<h3>Exercise 2: Grouped bars of a summary statistic</h3>
+
+<p>Sometimes the bar height is a computed number, not a count. First use dplyr to compute the mean highway mileage for each class and drivetrain into <code>my_summary</code>, then draw a dodged bar chart of those means with <code>geom_col()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1 (given): mean hwy for each class and drv.
+# Step 2: draw a dodged bar chart of mean_hwy by class, filled by drv.
+# Hint: geom_col(position = &quot;dodge&quot;)
+
+my_summary &lt;- mpg |&gt;
+  group_by(class, drv) |&gt;
+  summarise(mean_hwy = round(mean(hwy), 1), .groups = &quot;drop&quot;)
+
+# Write your plotting code below:
+my_summary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_summary &lt;- mpg |&gt;
+  group_by(class, drv) |&gt;
+  summarise(mean_hwy = round(mean(hwy), 1), .groups = &quot;drop&quot;)
+
+my_summary
+#&gt; # A tibble: 12 × 3
+#&gt;    class      drv   mean_hwy
+#&gt;    &lt;chr&gt;      &lt;chr&gt;    &lt;dbl&gt;
+#&gt;  1 2seater    r         24.8
+#&gt;  2 compact    4         25.8
+#&gt;  3 compact    f         29.1
+#&gt;  4 midsize    4         24  
+#&gt;  5 midsize    f         27.6
+#&gt;  6 minivan    f         22.4
+#&gt;  7 pickup     4         16.9
+#&gt;  8 subcompact 4         26  
+#&gt;  9 subcompact f         30.5
+#&gt; 10 subcompact r         23.2
+#&gt; 11 suv        4         18.3
+#&gt; 12 suv        r         17.5
+
+ggplot(my_summary, aes(x = class, y = mean_hwy, fill = drv)) +
+  geom_col(position = &quot;dodge&quot;) +
+  labs(y = &quot;Mean highway mpg&quot;, x = &quot;Class&quot;, fill = &quot;Drive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_col()</code> uses your precomputed <code>mean_hwy</code> as the bar height, and <code>position = &quot;dodge&quot;</code> places each drivetrain's mean in its own bar for a direct comparison.</p>
+
+</details>
+
+<h3>Exercise 3: Raw points on grouped boxplots</h3>
+
+<p>Combine two layers and a compound position. Draw boxplots of highway mileage by drivetrain, split by model year, then scatter the raw points on top so each point sits inside its own box.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Overlay raw points on boxplots of hwy by drv, split by year.
+# Keep the jitter narrow so points stay inside their box.
+# Hint: geom_boxplot() then geom_point(position = position_jitterdodge()).
+
+# Write your code below:
+ggplot(mpg, aes(x = drv, y = hwy, fill = factor(year)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(20)
+ggplot(mpg, aes(x = drv, y = hwy, fill = factor(year))) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.15),
+             size = 0.9, alpha = 0.6) +
+  labs(y = &quot;Highway mpg&quot;, x = &quot;Drive&quot;, fill = &quot;Year&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>position_jitterdodge()</code> dodges each point into its year group and jitters it sideways. Setting <code>outlier.shape = NA</code> hides the boxplot outliers so they are not drawn twice, since the raw points already show them.</p>
+
+</details>
+
+<h2>Frequently Asked Questions About Position Adjustments</h2>
+
+<p><strong>What is the difference between position_dodge and position_dodge2?</strong> <code>position_dodge()</code> needs a grouping (usually your <code>fill</code> or <code>colour</code> mapping) and spaces bars evenly based on it. <code>position_dodge2()</code> works out the spacing directly from the data, which lets it handle elements of different widths like boxplots and violins. For plain equal-width bars either works; for anything with variable widths, prefer <code>position_dodge2()</code>.</p>
+
+<p><strong>Why did my dodged bars change width between groups?</strong> When a group is missing a subgroup, plain dodge widens the remaining bars to fill the space, so widths look uneven across the chart. Add <code>preserve = &quot;single&quot;</code> inside <code>position_dodge()</code> or <code>position_dodge2()</code> to keep every bar the width of a single dodged bar.</p>
+
+<p><strong>Does jitter change my underlying data?</strong> Only for drawing. Jitter adds random offsets to where points are <em>plotted</em>, but your data frame is untouched. Because the offset is random, set a seed with <code>set.seed()</code> before the plot so the chart is reproducible, and keep the noise small so points stay near their true values.</p>
+
+<p><strong>When should I use fill instead of stack?</strong> Use stack when absolute totals matter and fill when you care about composition. Fill rescales every bar to the same height, so it is ideal for comparing shares across groups of very different sizes, but it deliberately hides the totals.</p>
+
+<p><strong>Can I stack boxplots the way I stack bars?</strong> No. Stacking only makes sense for geoms anchored to a baseline, like bars, areas, and histograms, where heights can add up. A boxplot summarizes a spread and has no baseline to stack from, which is why its default position is <code>dodge2</code>, not <code>stack</code>.</p>
+
+<h2>Summary</h2>
+
+<p>Position adjustments resolve the collisions that happen when marks share a coordinate. Pick one by asking what overlaps and what you want to show.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Position</th>
+<th>Use it when</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stack</td>
+<td>Bars share an x and totals matter</td>
+<td>Piles subgroups into one bar (the default)</td>
+</tr>
+<tr>
+<td>fill</td>
+<td>You care about share, not totals</td>
+<td>Stacks then rescales each bar to 100 percent</td>
+</tr>
+<tr>
+<td>dodge</td>
+<td>You want to compare subgroups</td>
+<td>Sets bars side by side from a shared baseline</td>
+</tr>
+<tr>
+<td>jitter</td>
+<td>Points overplot on discrete values</td>
+<td>Adds small random noise so density shows</td>
+</tr>
+<tr>
+<td>jitterdodge</td>
+<td>Raw points over grouped boxplots</td>
+<td>Dodges points into groups and jitters them</td>
+</tr>
+<tr>
+<td>nudge</td>
+<td>A label sits on top of its mark</td>
+<td>Shifts the label by a fixed offset</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mind map below shows the whole family at a glance.</p>
+
+<p><img src="screenshots/ggplot2-Position-Adjustments-in-R-overview-mindmap.webp" alt="Overview map of the ggplot2 position adjustment family" class="img-responsive img-zoomable" loading="lazy" width="1484" height="986" /></p>
+
+<p><em>Figure 3: The position-adjustment family at a glance: positions for bars, positions for points and a nudge for labels.</em></p>
+
+<p>The through-line is simple: the same data and mapping can tell different stories depending on the position, so choose the position that matches the question you are answering.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 reference: <code>position_stack()</code> and <code>position_fill()</code>. <a href="https://ggplot2.tidyverse.org/reference/position_stack.html">tidyverse.org reference</a></li>
+
+<li>ggplot2 reference: <code>position_dodge()</code>. <a href="https://ggplot2.tidyverse.org/reference/position_dodge.html">tidyverse.org reference</a></li>
+
+<li>ggplot2 reference: <code>position_jitter()</code>. <a href="https://ggplot2.tidyverse.org/reference/position_jitter.html">tidyverse.org reference</a></li>
+
+<li>ggplot2 reference: <code>position_jitterdodge()</code>. <a href="https://ggplot2.tidyverse.org/reference/position_jitterdodge.html">tidyverse.org reference</a></li>
+
+<li>ggplot2 reference: the <code>mpg</code> dataset. <a href="https://ggplot2.tidyverse.org/reference/mpg.html">tidyverse.org reference</a></li>
+
+<li>R Graph Gallery: grouped, stacked and percent-stacked barplots. <a href="https://r-graph-gallery.com/48-grouped-barplot-with-ggplot2.html">r-graph-gallery.com</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Bar-Charts.html">ggplot2 Bar Charts</a>: the geom where stack, fill, and dodge do most of their work, with more on ordering and coloring bars.</li>
+
+<li><a href="ggplot2-Scatter-Plots.html">ggplot2 Scatter Plots</a>: where jitter earns its keep, plus other ways to handle overplotting like transparency and binning.</li>
+
+<li><a href="ggplot2-Grammar-of-Graphics.html">The Grammar of Graphics</a>: how position fits alongside data, aesthetics, geoms, and scales as one of the seven building blocks of every ggplot2 chart.</li>
+
+</ul>
+
+{% endraw %}
