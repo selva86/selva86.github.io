@@ -31,7 +31,7 @@ const CSS = `
   .masthead nav a{color:#c7d2e8}
   .masthead .grow{flex:1}
   .masthead .cta{background:#fff;color:#101a30;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:600}
-  .hero{background:linear-gradient(180deg,#101a30 0%,#182644 100%);color:#e8edf8;padding:34px 0 0}
+  .hero{background:linear-gradient(180deg,var(--hero-a,#101a30) 0%,var(--hero-b,#182644) 100%);color:#e8edf8;padding:34px 0 0}
   .hero-in{max-width:1180px;margin:0 auto;padding:0 22px;display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
   .ringwrap{position:relative;width:148px;height:148px;flex:none}
   .ringwrap svg{position:absolute;inset:0}
@@ -340,6 +340,7 @@ function ownerScript(pageHandle: string): string {
       document.getElementById('f-otw').checked = !!x.open_to_work;
       document.getElementById('f-role').value = x.role || '';
       document.getElementById('f-pref').value = x.work_pref || 'any';
+      document.getElementById('f-theme').value = x.theme || 'navy';
       document.getElementById('f-sn-title').value = (x.snippet && x.snippet.title) || '';
       document.getElementById('f-sn-code').value = (x.snippet && x.snippet.code) || '';
       var h = document.getElementById('f-handle');
@@ -352,6 +353,34 @@ function ownerScript(pageHandle: string): string {
       ed.style.display = ed.style.display === 'block' ? 'none' : 'block';
       if (ed.style.display === 'block') fill();
     });
+    var avIn = document.getElementById('f-avatar');
+    if (avIn) avIn.addEventListener('change', function(){
+      var f = avIn.files && avIn.files[0];
+      if (!f) return;
+      var am = document.getElementById('avatar-msg');
+      am.textContent = 'Uploading...';
+      var img = new Image();
+      img.onload = function(){
+        try {
+          var c = document.createElement('canvas');
+          c.width = 256; c.height = 256;
+          var ctx = c.getContext('2d');
+          var side = Math.min(img.width, img.height);
+          ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+          var data = c.toDataURL('image/jpeg', 0.85);
+          fetch('/api/me/avatar', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: data })
+          }).then(function(r){ return r.json(); }).then(function(j){
+            if (j && j.ok) { am.textContent = 'Saved. Reloading...'; location.reload(); }
+            else { am.textContent = (j && j.error && j.error.message) || 'Upload failed.'; }
+          }).catch(function(){ am.textContent = 'Upload failed.'; });
+        } catch (e) { am.textContent = 'Could not read that image.'; }
+      };
+      img.onerror = function(){ am.textContent = 'Could not read that image.'; };
+      img.src = URL.createObjectURL(f);
+    });
     var save = document.getElementById('own-save');
     if (save) save.addEventListener('click', function(){
       save.disabled = true;
@@ -362,7 +391,8 @@ function ownerScript(pageHandle: string): string {
         bio: val('f-bio'), website: val('f-website'), resume: val('f-resume'),
         github: val('f-github'), projects: projects,
         open_to_work: document.getElementById('f-otw').checked,
-        role: val('f-role'), work_pref: val('f-pref')
+        role: val('f-role'), work_pref: val('f-pref'),
+        theme: val('f-theme')
       };
       var code = val('f-sn-code');
       body.snippet = code ? { title: val('f-sn-title'), code: document.getElementById('f-sn-code').value } : null;
@@ -416,6 +446,8 @@ function ownerBar(): string {
         <div><label>Project link 2</label><input type="text" id="f-p2" placeholder="https://..."></div>
         <div><label>Project link 3</label><input type="text" id="f-p3" placeholder="https://..."></div>
         <div><label>Work preference</label><select id="f-pref"><option value="any">Any</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option></select></div>
+        <div><label>Profile picture (square works best)</label><input type="file" id="f-avatar" accept="image/jpeg,image/png,image/webp"><div class="msg" id="avatar-msg"></div></div>
+        <div><label>Accent theme</label><select id="f-theme"><option value="navy">Navy (default)</option><option value="forest">Forest</option><option value="plum">Plum</option><option value="slate">Slate</option><option value="ember">Ember</option></select></div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="checkbox" id="f-otw" style="width:auto;margin:0"> Open to work (shows a badge on your public profile)</label>
       <label>Pinned snippet title</label><input type="text" id="f-sn-title" maxlength="80" placeholder="My favourite plot">
@@ -517,6 +549,13 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     monthlyDeltas(DB, u.id),
   ]);
   const extras = parseProfileJson(u.profile_json);
+  const THEMES: Record<string, [string, string]> = {
+    forest: ["#0d2418", "#12352a"], plum: ["#231031", "#331b49"],
+    slate: ["#15171c", "#20242c"], ember: ["#2a130c", "#3c2012"],
+  };
+  const themeVars = extras.theme && THEMES[extras.theme]
+    ? `<style>:root{--hero-a:${THEMES[extras.theme][0]};--hero-b:${THEMES[extras.theme][1]}}</style>`
+    : "";
   const tier = computeTier(u.total_xp || 0, stats.exercises_solved, stats.certificates.length);
   const xpPct = await xpPercentiles(DB, context.env.KV, u.total_xp || 0, deltas.xp30).catch(() => ({ alltime: null, month: null }));
 
@@ -698,7 +737,8 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     `<meta property="og:type" content="profile">` +
     `<meta property="og:url" content="https://r-statistics.co/u/${escHtml(raw)}">` +
     `<meta name="twitter:card" content="summary">` +
-    (extras.snippet ? `<link rel="stylesheet" href="/www/webr.css">` : "");
+    (extras.snippet ? `<link rel="stylesheet" href="/www/webr.css">` : "") +
+    themeVars;
 
   const hero = `
   <header class="hero">

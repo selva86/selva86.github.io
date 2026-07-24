@@ -27,6 +27,7 @@ export async function ensureProfileColumns(DB: D1Database): Promise<void> {
     "ALTER TABLE users ADD COLUMN handle TEXT",
     "ALTER TABLE users ADD COLUMN public_profile INTEGER DEFAULT 1",
     "ALTER TABLE users ADD COLUMN profile_json TEXT",
+    "ALTER TABLE users ADD COLUMN avatar_key TEXT",
     "ALTER TABLE users ADD COLUMN github_login TEXT",
     "ALTER TABLE users ADD COLUMN prev_handle TEXT",
     "ALTER TABLE users ADD COLUMN recap_opt_out INTEGER DEFAULT 0",
@@ -167,6 +168,8 @@ export function computeTier(xp: number, solved: number, certs: number): Tier {
 
 // ------------------------------------------------------------ profile_json
 
+export const THEME_IDS = ["navy", "forest", "plum", "slate", "ember"];
+
 export interface ProfileExtras {
   bio?: string;
   website?: string;
@@ -177,6 +180,7 @@ export interface ProfileExtras {
   role?: string;             // target role, <= 60 chars
   work_pref?: string;        // remote | hybrid | onsite | any
   snippet?: { title?: string; code?: string };  // pinned runnable R snippet
+  theme?: string;            // profile accent theme (THEME_IDS)
 }
 
 const URL_CAP = 200;
@@ -223,6 +227,11 @@ export function mergeProfileExtras(
       if (!b) return { ok: false, error: "bio must be 1-140 printable characters" };
       out.bio = b;
     }
+  }
+  if ("theme" in body) {
+    if (body.theme == null || body.theme === "" || body.theme === "navy") delete out.theme;
+    else if (typeof body.theme === "string" && THEME_IDS.includes(body.theme)) out.theme = body.theme;
+    else return { ok: false, error: "theme must be one of " + THEME_IDS.join(", ") };
   }
   for (const k of ["website", "resume", "github"] as const) {
     if (k in body) {
