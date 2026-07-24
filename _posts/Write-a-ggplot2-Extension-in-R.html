@@ -1,0 +1,1222 @@
+---
+title: "Write Your Own ggplot2 Geom and Stat"
+description: "Learn to build custom ggplot2 layers by writing your own geom and stat with ggproto. A step-by-step R guide from the layer pipeline to a working extension."
+keywords: "ggplot2 extension, custom ggplot2 geom, custom ggplot2 stat, ggproto, extending ggplot2, write your own geom, stat_chull, custom ggplot2 layer, ggplot2 layer, R data visualization"
+mathjax: false
+webr: true
+curriculum_id: "GG2-12.2"
+post_type: "C"
+auto_link_terms: "ggplot2 extension|extending ggplot2|custom ggplot2 geom|custom ggplot2 stat|write your own geom|write your own stat|ggproto|stat_chull|custom ggplot2 layer|new ggplot2 geom|ggplot2 geom and stat"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Write a Geom & Stat"
+sidebar_order: "69"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A ggplot2 extension is a reusable layer you call just like <a class="auto-link" href="ggplot2-Getting-Started.html" title="ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed">geom_point()</a>, built from two parts: a <strong>stat</strong> that transforms your data and a <strong>geom</strong> that draws it. Both are defined with ggplot2's object system, ggproto. This guide builds one from nothing, step by step, so you can package your own custom charts and reuse them everywhere.</p>
+
+<p>You have added <code>geom_point()</code> and <code>geom_smooth()</code> to plots a hundred times. This tutorial shows you the other side: how to write your own layers. We use ggplot2 throughout, because its ggproto system is the tool for the job, and every code block here runs directly in your browser.</p>
+
+<h2>What does it mean to extend ggplot2?</h2>
+
+<p>Every layer you have ever added to a plot, <code>geom_point()</code>, <code>geom_bar()</code>, <code>stat_smooth()</code>, is a thin wrapper around a single function called <code>layer()</code>. That function bundles three jobs: a stat transforms your raw data into something plottable, then a geom draws the result. A position step in between nudges overlapping shapes apart. When no built-in layer does what you want, you write your own and call it forever after.</p>
+
+<p>Let's start at the finish line. The code below defines a small extension that wraps each group of points in its tightest surrounding boundary, its convex hull. Do not worry about the details yet. Run it, see the payoff, and we will rebuild every line from scratch through the rest of this tutorial.</p>
+
+<div class="webr-container" data-block-title="A convex-hull layer in action">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A convex-hull layer in action</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# A tiny extension: compute the convex hull of each group
+StatChull &lt;- ggproto(&quot;StatChull&quot;, Stat,
+  compute_group = function(data, scales) {
+    data[chull(data$x, data$y), , drop = FALSE]
+  },
+  required_aes = c(&quot;x&quot;, &quot;y&quot;)
+)
+
+hull_demo &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point(size = 2) +
+  layer(
+    stat = StatChull, geom = &quot;polygon&quot;, position = &quot;identity&quot;,
+    mapping = aes(fill = Species), params = list(alpha = 0.2)
+  )
+
+# The new layer computed a boundary for each species:
+head(layer_data(hull_demo, 2)[, c(&quot;group&quot;, &quot;x&quot;, &quot;y&quot;)], 3)
+#&gt;   group   x   y
+#&gt; 1     1 5.5 3.5
+#&gt; 2     1 4.5 2.3
+#&gt; 3     1 4.3 3.0
+
+hull_demo</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you run this you get two things: a small table of the boundary points the new layer computed, and a plot showing the usual scatter plus three shaded blobs, one per species, each hugging the outermost points of its cluster. That shaded boundary is not a built-in geom. You just built it. <code>chull()</code> is a base R function that returns the points forming the outer boundary, and your new <code>StatChull</code> hands those boundary points to a polygon.</p>
+
+<p>Here is the mental model to carry through the whole tutorial. A ggplot layer is always three swappable pieces.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Layer part</th>
+<th>Its job</th>
+<th>What you supply</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stat</td>
+<td>Transform the data</td>
+<td>A <code>compute_group()</code> method</td>
+</tr>
+<tr>
+<td>Position</td>
+<td>Nudge overlapping shapes</td>
+<td>Usually <code>&quot;identity&quot;</code> (no change)</td>
+</tr>
+<tr>
+<td>Geom</td>
+<td>Draw the shapes</td>
+<td>A <code>draw_panel()</code> method returning graphics</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A layer is a stat plus a geom plus a position.</strong> To extend ggplot2 you only ever build the one piece you need, a new way to compute (a stat) or a new way to draw (a geom), and reuse ggplot2's machinery for the rest.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have <code>StatChull</code> defined above. Draw the hull as an open outline instead of a filled shape by swapping the geom from <code>&quot;polygon&quot;</code> to <code>&quot;path&quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: draw an open hull outline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: draw an open hull outline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse StatChull, but change the geom from &quot;polygon&quot; to &quot;path&quot;.
+# Fill the blank, then run:
+# ex_hull &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+#   geom_point(size = 2) +
+#   layer(stat = StatChull, geom = ____, position = &quot;identity&quot;)
+# ex_hull      # target: three open outlines tracing each species boundary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Open hull outline solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Open hull outline solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hull &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point(size = 2) +
+  layer(stat = StatChull, geom = &quot;path&quot;, position = &quot;identity&quot;)
+
+ex_hull</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>&quot;polygon&quot;</code> closes the shape and fills it, while <code>&quot;path&quot;</code> connects the same boundary points with a line but leaves them unfilled. Same stat, different geom, different look. That is the power of keeping the two jobs separate.</p>
+
+</details>
+</section>
+
+<h2>How does a ggplot layer turn data into a plot?</h2>
+
+<p>Before you write a stat, it helps to see the assembly line a stat sits on. When you print a plot, ggplot2 runs a build pipeline: it takes your raw data frame, lets the stat compute new columns, lets the position nudge things, then hands the result to the geom, which produces the actual graphics.</p>
+
+<p><img src="screenshots/Write-a-ggplot2-Extension-in-R-layer-pipeline.webp" alt="How ggplot2 turns raw data into a plot, from stat to position to geom." class="img-responsive img-zoomable" loading="lazy" width="2248" height="294" /></p>
+
+<p><em>Figure 1: How ggplot2 turns raw data into a plot: the stat computes new columns, then the geom draws them.</em></p>
+
+<p>Most of this pipeline is invisible, but you can peek inside it. The function <code>layer_data()</code> returns the exact data frame a layer produced after its stat ran. Let's use it to catch a built-in stat in the act. A bar chart looks like it just draws your data, but <code>geom_bar()</code> secretly runs a stat that counts rows.</p>
+
+<div class="webr-container" data-block-title="Reveal what a stat computes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reveal what a stat computes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bars &lt;- ggplot(mpg, aes(class)) + geom_bar()
+
+# What did the bar chart's stat actually compute?
+layer_data(bars, 1)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;, &quot;width&quot;)]
+#&gt;   x count prop width
+#&gt; 1 1     5    1   0.9
+#&gt; 2 2    47    1   0.9
+#&gt; 3 3    41    1   0.9
+#&gt; 4 4    11    1   0.9
+#&gt; 5 5    33    1   0.9
+#&gt; 6 6    35    1   0.9
+#&gt; 7 7    62    1   0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at that. You never gave <code>geom_bar()</code> a <code>count</code> column, yet here it is. The stat behind the bar chart, <code>StatCount</code>, looked at your <code>class</code> column, counted the rows in each category, and invented the <code>count</code>, <code>prop</code>, and <code>width</code> columns that the bars are actually drawn from. A stat's whole job is to manufacture the numbers a geom needs.</p>
+
+<p>Stats also run once per group, not once per plot. To see that, colour a smoother by drive type so ggplot2 fits a separate line to each group.</p>
+
+<div class="webr-container" data-block-title="Inspect a grouped stat&#x27;s output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect a grouped stat&#x27;s output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sm &lt;- ggplot(mpg, aes(displ, hwy, colour = drv)) +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x, se = FALSE)
+
+head(layer_data(sm, 1)[, c(&quot;group&quot;, &quot;x&quot;, &quot;y&quot;)], 3)
+#&gt;   group        x        y
+#&gt; 1     1 1.800000 25.50184
+#&gt; 2     1 1.859494 25.33059
+#&gt; 3     1 1.918987 25.15933</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>group</code> column is the giveaway. ggplot2 split the data by drive type, fit a line to each group separately, and stacked the fitted <code>x</code> and <code>y</code> points back together with a <code>group</code> label. Rows shown here all read <code>group 1</code>, the first drive type. When you write your own stat, you write the function that runs on one group at a time, and ggplot2 handles the splitting for you.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>layer_data(p, i) is your inspection tool.</strong> It returns exactly what the i-th layer computed and is identical to the longer form ggplot_build(p)$data[[i]]. Reach for it any time you want to know what a stat is really doing under a plot.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A box plot draws five summary numbers per box (the whiskers, the box edges, plus a median line). Use <code>layer_data()</code> to reveal them for <code>geom_boxplot()</code> grouped by drive type.</p>
+<div class="webr-container" data-block-title="Your turn: peek inside a boxplot stat">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: peek inside a boxplot stat</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_box &lt;- ggplot(mpg, aes(drv, hwy)) + geom_boxplot()
+
+# Fill the missing middle column name, then run:
+# layer_data(ex_box, 1)[, c(&quot;ymin&quot;, &quot;lower&quot;, ____, &quot;upper&quot;, &quot;ymax&quot;)]
+# target: one row per drive type with five summary numbers</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Boxplot stat inspection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxplot stat inspection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_box &lt;- ggplot(mpg, aes(drv, hwy)) + geom_boxplot()
+layer_data(ex_box, 1)[, c(&quot;ymin&quot;, &quot;lower&quot;, &quot;middle&quot;, &quot;upper&quot;, &quot;ymax&quot;)]
+#&gt;   ymin lower middle upper ymax
+#&gt; 1   12    17     18    22   28
+#&gt; 2   22    26     28    29   33
+#&gt; 3   15    17     21    24   26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>StatBoxplot</code> turned each group's raw <code>hwy</code> values into five numbers: the whisker ends (<code>ymin</code>, <code>ymax</code>), the box edges (<code>lower</code>, <code>upper</code>), and the <code>middle</code> median. The box geom draws those five numbers. Again, the stat does the math and the geom does the drawing.</p>
+
+</details>
+</section>
+
+<h2>What is ggproto, and how does its inheritance work?</h2>
+
+<p>You have now written <code>ggproto(&quot;StatChull&quot;, Stat, ...)</code> twice without me explaining it. Let's fix that, because ggproto is the object system every ggplot2 extension is built on.</p>
+
+<p>A ggproto object is a bundle of fields (values) and methods (functions). You create one with <code>ggproto(name, parent, ...)</code>. The second argument is the object it inherits from, so a new stat inherits from <code>Stat</code> and picks up all of ggplot2's built-in behaviour for free. Inside a method, the first argument is always <code>self</code>, which lets a method read the object's own fields. That is the whole idea. Here is a tiny example that has nothing to do with plotting, so you can see the mechanics clearly.</p>
+
+<div class="webr-container" data-block-title="A minimal ggproto object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A minimal ggproto object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A base object with a field and a method
+Animal &lt;- ggproto(&quot;Animal&quot;, NULL,
+  name = &quot;animal&quot;,
+  speak = function(self) paste0(self$name, &quot; makes a sound&quot;)
+)
+
+# Dog inherits from Animal, overrides two things
+Dog &lt;- ggproto(&quot;Dog&quot;, Animal,
+  name = &quot;dog&quot;,
+  speak = function(self) paste0(self$name, &quot; says woof&quot;)
+)
+
+Animal$speak()
+#&gt; [1] &quot;animal makes a sound&quot;
+
+Dog$speak()
+#&gt; [1] &quot;dog says woof&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that slowly. <code>Animal</code> has a <code>name</code> field and a <code>speak()</code> method that reads <code>self$name</code>. <code>Dog</code> is created with <code>Animal</code> as its parent, so it starts as a copy of <code>Animal</code>, then overrides both <code>name</code> and <code>speak()</code>. Calling <code>Dog$speak()</code> runs the dog's version. This is exactly how your stats and geoms work: you inherit from <code>Stat</code> or <code>Geom</code>, then override just the methods you care about.</p>
+
+<p>Inheritance leaves a visible trail. Ask R for the class of <code>Dog</code> and you see the chain it belongs to.</p>
+
+<div class="webr-container" data-block-title="Inspect the inheritance chain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the inheritance chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(Dog)
+#&gt; [1] &quot;Dog&quot;     &quot;Animal&quot;  &quot;ggproto&quot; &quot;gg&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chain reads child to parent: a <code>Dog</code> is also an <code>Animal</code>, which is a <code>ggproto</code> object, which is a <code>gg</code> object. When ggplot2 builds a plot and asks your stat to compute, it walks this same chain to find the right method.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You never call ggproto() to make a plot.</strong> You only use it to define a new Stat or Geom class. Building actual charts stays exactly as you know it: <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot()</a> plus your new layer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a <code>Cat</code> that inherits from <code>Animal</code> but says "cat says meow".</p>
+<div class="webr-container" data-block-title="Your turn: make a Cat speak">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: make a Cat speak</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill the parent and the return value, then run:
+# ex_Cat &lt;- ggproto(&quot;Cat&quot;, ____,
+#   name = &quot;cat&quot;,
+#   speak = function(self) ____
+# )
+# ex_Cat$speak()      # target: &quot;cat says meow&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cat ggproto solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cat ggproto solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Cat &lt;- ggproto(&quot;Cat&quot;, Animal,
+  name = &quot;cat&quot;,
+  speak = function(self) paste0(self$name, &quot; says meow&quot;)
+)
+
+ex_Cat$speak()
+#&gt; [1] &quot;cat says meow&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>Cat</code> inherits from <code>Animal</code>, then overrides <code>name</code> and <code>speak()</code>. Because <code>speak()</code> reads <code>self$name</code>, it automatically uses "cat". Same pattern you will use to override <code>compute_group()</code> in a stat.</p>
+
+</details>
+</section>
+
+<h2>How do you write your own stat?</h2>
+
+<p>Now you have every piece to understand a stat properly. A stat is a ggproto object that inherits from <code>Stat</code> and overrides one method: <code>compute_group()</code>. That method receives one group's data as a data frame, does some math, and returns a new data frame for the geom to draw. It also declares <code>required_aes</code>, the aesthetics that must be present for it to work.</p>
+
+<p>Recall from earlier that ggplot2 splits your data before your code ever runs. This diagram shows the three-level split. You only ever write the bottom box.</p>
+
+<p><img src="screenshots/Write-a-ggplot2-Extension-in-R-compute-hierarchy.webp" alt="A stat splits data by panel then by group, calling compute_group on each piece." class="img-responsive img-zoomable" loading="lazy" width="806" height="978" /></p>
+
+<p><em>Figure 2: A stat splits your data by panel and group, then calls compute_group on each piece.</em></p>
+
+<p>Here is <code>StatChull</code> from the opening, now with every line explained. It is genuinely this short.</p>
+
+<div class="webr-container" data-block-title="Define the StatChull stat">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the StatChull stat</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">StatChull &lt;- ggproto(&quot;StatChull&quot;, Stat,
+  # Fail early if x or y is missing
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+
+  # Runs once per group; returns the boundary rows
+  compute_group = function(data, scales) {
+    data[chull(data$x, data$y), , drop = FALSE]
+  }
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>compute_group()</code> function receives <code>data</code>, a data frame holding one group's rows with columns named <code>x</code> and <code>y</code> (ggplot2 renames your aesthetics to these standard names). <code>chull()</code> returns the row indices of the points on the convex hull, in order. Using those indices to subset <code>data</code> keeps only the boundary rows, which is exactly what a polygon needs. The <code>scales</code> argument is passed in case you need the panel's scale information; here you do not use it.</p>
+
+<p>A raw stat object is awkward to call. Users expect a friendly function like <code>stat_chull()</code>, so you write a thin constructor that passes your stat to <code>layer()</code>. This wrapper is boilerplate you will copy for every stat.</p>
+
+<div class="webr-container" data-block-title="Wrap the stat in a constructor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap the stat in a constructor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stat_chull &lt;- function(mapping = NULL, data = NULL, geom = &quot;polygon&quot;,
+                       position = &quot;identity&quot;, na.rm = FALSE,
+                       show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(
+    stat = StatChull, data = data, mapping = mapping, geom = geom,
+    position = position, show.legend = show.legend, inherit.aes = inherit.aes,
+    params = list(na.rm = na.rm, ...)
+  )
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every argument here is standard <code>layer()</code> plumbing. The one you choose is <code>geom = &quot;polygon&quot;</code>, the default shape your stat pairs with. Users can override it, just as you did in the first exercise. Now <code>stat_chull()</code> behaves like any built-in layer.</p>
+
+<p>Let's prove the stat actually ran by counting how many boundary points it kept for each species. Here <code>hull_plot</code> has two layers, so we inspect layer 2, your <code>stat_chull()</code>; layer 1 is the plain <code>geom_point()</code>.</p>
+
+<div class="webr-container" data-block-title="Verify the hull computation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the hull computation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hull_plot &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point(size = 2) +
+  stat_chull(fill = NA, linewidth = 1)
+
+# How many hull points did each species keep?
+table(layer_data(hull_plot, 2)$group)
+#&gt; 
+#&gt; 1 2 3 
+#&gt; 8 7 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each species started with 50 points, but the convex hull kept only the handful on the outer edge: 8, 7, and 6 points for the three species. Your <code>compute_group()</code> ran three times, once per species, and ggplot2 stitched the results together with the right <code>group</code> labels. You wrote seven lines of logic and got a reusable layer.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A stat runs compute_group once per group, so grouping matters.</strong> If you forget a grouping aesthetic such as colour = Species, ggplot2 treats all rows as one group and you get a single hull around everything. When a custom stat gives one shape where you expected several, check that a group aesthetic is mapped.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a stat whose <code>compute_group()</code> returns only the single highest point (largest <code>y</code>) of each group. Use <code>which.max()</code> to find it.</p>
+<div class="webr-container" data-block-title="Your turn: a stat that keeps the top point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a stat that keeps the top point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">StatTop &lt;- ggproto(&quot;StatTop&quot;, Stat,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  compute_group = function(data, scales) {
+    # Keep only the row with the largest y (hint: which.max(data$y)):
+    # data[____, , drop = FALSE]
+  }
+)
+# Add a stat_top() constructor just like stat_chull(), then try:
+# ex_top &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+#   geom_point() + stat_top(size = 5, shape = 17)
+# layer_data(ex_top, 2)[, c(&quot;group&quot;, &quot;x&quot;, &quot;y&quot;)]   # target: one top point per species</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Top-point stat solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-point stat solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">StatTop &lt;- ggproto(&quot;StatTop&quot;, Stat,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  compute_group = function(data, scales) {
+    data[which.max(data$y), , drop = FALSE]
+  }
+)
+stat_top &lt;- function(mapping = NULL, data = NULL, geom = &quot;point&quot;,
+                     position = &quot;identity&quot;, na.rm = FALSE,
+                     show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(stat = StatTop, data = data, mapping = mapping, geom = geom,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}
+
+ex_top &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point() + stat_top(size = 5, shape = 17)
+layer_data(ex_top, 2)[, c(&quot;group&quot;, &quot;x&quot;, &quot;y&quot;)]
+#&gt;   group   x   y
+#&gt; 1     1 5.7 4.4
+#&gt; 2     2 6.0 3.4
+#&gt; 3     3 7.7 3.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>which.max(data$y)</code> returns the index of the largest <code>y</code> in the group, and subsetting <code>data</code> by it keeps that one row. The stat runs per group, so you get one top point per species. The <code>y</code> values (4.4, 3.4, 3.8) are the maximum sepal widths in each species.</p>
+
+</details>
+</section>
+
+<h2>How do you write your own geom?</h2>
+
+<p>A stat makes numbers; a geom makes shapes. Writing a geom feels a little more involved because the end result is actual graphics rather than a data frame, but the pattern mirrors a stat closely. A geom is a ggproto object inheriting from <code>Geom</code> that overrides <code>draw_panel()</code>, the method that returns the drawing. It also lists <code>required_aes</code>, sets <code>default_aes</code> (fallback values for colour, size, and so on), and points <code>draw_key</code> at a legend-drawing helper.</p>
+
+<p>The one new idea is the coordinate transform. Your data lives in data units, like sepal length 5.1, but graphics are drawn in panel units from 0 to 1, where (0, 0) is the bottom-left corner and (1, 1) is the top-right. The call <code>coord$transform(data, panel_params)</code> converts your data columns into those 0-to-1 positions. After that, you use functions from R's built-in <code>grid</code> graphics system to draw. Here is the simplest possible geom, one that draws a point at each row.</p>
+
+<div class="webr-container" data-block-title="Define the GeomSimplePoint geom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the GeomSimplePoint geom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">GeomSimplePoint &lt;- ggproto(&quot;GeomSimplePoint&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(shape = 19, colour = &quot;black&quot;, size = 1.5, alpha = NA),
+  draw_key = draw_key_point,
+
+  draw_panel = function(data, panel_params, coord, ...) {
+    coords &lt;- coord$transform(data, panel_params)   # data units -&gt; 0..1
+    grid::pointsGrob(
+      coords$x, coords$y,
+      pch = coords$shape,
+      gp = grid::gpar(col = coords$colour)
+    )
+  }
+)
+
+geom_simple_point &lt;- function(mapping = NULL, data = NULL, stat = &quot;identity&quot;,
+                              position = &quot;identity&quot;, na.rm = FALSE,
+                              show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(geom = GeomSimplePoint, mapping = mapping, data = data, stat = stat,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}
+
+ggplot(mtcars, aes(wt, mpg)) + geom_simple_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and you get a plain scatter plot, drawn entirely by your own code. <code>coord$transform()</code> placed every car at its 0-to-1 position, and <code>grid::pointsGrob()</code> (a "grob" is a graphical object, grid's word for a drawable shape) stamped a point at each one. The <code>default_aes</code> line means a user who does not set a colour gets black. This is the skeleton every geom shares.</p>
+
+<p>A single point is not very exciting. The real power shows up when you <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> existing geoms. A <a class="auto-link" href="ggplot2-geom_segment-in-R.html" title="ggplot2 geom_segment() in R: Draw Line Segments">lollipop chart</a> is a stem rising from zero with a dot on top, which is just a segment plus a point. Rather than draw both from scratch, you call the built-in geoms' own <code>draw_panel()</code> methods and glue their outputs together with <code>grid::gList()</code>.</p>
+
+<div class="webr-container" data-block-title="Compose a lollipop geom from parts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compose a lollipop geom from parts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">GeomLollipop &lt;- ggproto(&quot;GeomLollipop&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(colour = &quot;black&quot;, linewidth = 0.5, size = 3,
+                    shape = 19, fill = NA, alpha = NA, stroke = 1, linetype = 1),
+  draw_key = draw_key_point,
+
+  draw_panel = function(data, panel_params, coord, ...) {
+    # A stem from y = 0 up to each value
+    stems &lt;- transform(data, xend = x, yend = 0)
+    grid::gList(
+      GeomSegment$draw_panel(stems, panel_params, coord, ...),
+      GeomPoint$draw_panel(data, panel_params, coord, ...)
+    )
+  }
+)
+
+geom_lollipop &lt;- function(mapping = NULL, data = NULL, stat = &quot;identity&quot;,
+                          position = &quot;identity&quot;, na.rm = FALSE,
+                          show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(geom = GeomLollipop, mapping = mapping, data = data, stat = stat,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice <code>draw_panel()</code> here never touches <code>grid</code> directly. It builds a <code>stems</code> data frame (each row gets an endpoint at <code>y = 0</code>), then asks <code>GeomSegment</code> to draw the stems and <code>GeomPoint</code> to draw the dots, wrapping both grobs in a <code>gList</code>. You reused two built-in geoms and wrote almost no drawing code. Let's plot the average miles-per-gallon for each cylinder count.</p>
+
+<div class="webr-container" data-block-title="Plot the lollipop geom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the lollipop geom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average mpg per cylinder count
+agg &lt;- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+agg$mpg &lt;- round(agg$mpg, 1)
+agg
+#&gt;   cyl  mpg
+#&gt; 1   4 26.7
+#&gt; 2   6 19.7
+#&gt; 3   8 15.1
+
+ggplot(agg, aes(factor(cyl), mpg)) +
+  geom_lollipop(colour = &quot;steelblue&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You get three clean lollipops: a steel-blue stem from zero to each average, capped with a dot. Four-cylinder cars average 26.7 mpg, eight-cylinder cars only 15.1. The chart type did not exist in ggplot2 until you defined it, and now <code>geom_lollipop()</code> works on any data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>draw_panel returns grobs, so you can compose instead of draw.</strong> Because a geom just has to return graphical objects, the easiest way to build a new geom is to call the draw_panel of geoms you already have and combine their output with grid::gList. You rarely start from a blank canvas.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Give <code>GeomSimplePoint</code> a new look. Redefine it so unset points default to steel-blue triangles (<code>shape = 17</code>), then replot.</p>
+<div class="webr-container" data-block-title="Your turn: restyle the point geom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: restyle the point geom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Redefine GeomSimplePoint's default_aes with a new shape and colour,
+# then replot. Fill the blanks (shape 17 is a filled triangle):
+# GeomSimplePoint &lt;- ggproto(&quot;GeomSimplePoint&quot;, Geom,
+#   required_aes = c(&quot;x&quot;, &quot;y&quot;),
+#   default_aes = aes(shape = __, colour = &quot;______&quot;, size = 1.5, alpha = NA),
+#   draw_key = draw_key_point,
+#   draw_panel = function(data, panel_params, coord, ...) {
+#     coords &lt;- coord$transform(data, panel_params)
+#     grid::pointsGrob(coords$x, coords$y, pch = coords$shape,
+#                      gp = grid::gpar(col = coords$colour))
+#   }
+# )
+# ggplot(mtcars, aes(wt, mpg)) + geom_simple_point()   # target: steel-blue triangles</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Restyled point geom solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restyled point geom solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">GeomSimplePoint &lt;- ggproto(&quot;GeomSimplePoint&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(shape = 17, colour = &quot;steelblue&quot;, size = 1.5, alpha = NA),
+  draw_key = draw_key_point,
+  draw_panel = function(data, panel_params, coord, ...) {
+    coords &lt;- coord$transform(data, panel_params)
+    grid::pointsGrob(coords$x, coords$y, pch = coords$shape,
+                     gp = grid::gpar(col = coords$colour))
+  }
+)
+ggplot(mtcars, aes(wt, mpg)) + geom_simple_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>default_aes</code> supplies the fallback aesthetics. Setting <code>shape = 17</code> (a filled triangle) and <code>colour = &quot;steelblue&quot;</code> there changes the default look for anyone who does not override them in <code>aes()</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you turn a stat and geom into a polished, reusable layer?</h2>
+
+<p>You have now written a stat constructor and a geom constructor, and both looked almost identical. That constructor is the public face of your extension, so it pays to understand its arguments. Every one of them is a standard <code>layer()</code> control.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mapping</code></td>
+<td>Aesthetics specific to this layer, from <code>aes()</code></td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>An optional data frame just for this layer</td>
+</tr>
+<tr>
+<td><code>stat</code> / <code>geom</code></td>
+<td>The partner piece; a <code>geom_*</code> sets a default <code>stat</code>, a <code>stat_*</code> sets a default <code>geom</code></td>
+</tr>
+<tr>
+<td><code>position</code></td>
+<td>Overlap handling, usually <code>&quot;identity&quot;</code></td>
+</tr>
+<tr>
+<td><code>na.rm</code></td>
+<td>Whether to silently drop <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a></td>
+</tr>
+<tr>
+<td><code>show.legend</code></td>
+<td>Force a legend on or off</td>
+</tr>
+<tr>
+<td><code>inherit.aes</code></td>
+<td>Whether to reuse the plot-level <code>aes()</code> mapping</td>
+</tr>
+</tbody>
+</table>
+
+<p>There is one gotcha worth knowing. If you want your geom to accept an extra setting, say a <code>baseline</code> for the lollipop stems, you cannot just add it to <code>draw_panel()</code>. Recent ggplot2 versions validate parameters and will drop an unrecognised one with a warning. You register the extra name in a field called <code>extra_params</code>.</p>
+
+<div class="webr-container" data-block-title="Add a custom parameter the right way">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a custom parameter the right way</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">GeomLollipop2 &lt;- ggproto(&quot;GeomLollipop2&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(colour = &quot;black&quot;, linewidth = 0.5, size = 3,
+                    shape = 19, fill = NA, alpha = NA, stroke = 1, linetype = 1),
+  extra_params = c(&quot;na.rm&quot;, &quot;baseline&quot;),   # register the new setting
+  draw_key = draw_key_point,
+
+  draw_panel = function(data, panel_params, coord, baseline = 0, ...) {
+    stems &lt;- transform(data, xend = x, yend = baseline)
+    grid::gList(
+      GeomSegment$draw_panel(stems, panel_params, coord, ...),
+      GeomPoint$draw_panel(data, panel_params, coord, ...)
+    )
+  }
+)
+
+geom_lollipop2 &lt;- function(mapping = NULL, data = NULL, stat = &quot;identity&quot;,
+                           position = &quot;identity&quot;, baseline = 0, na.rm = FALSE,
+                           show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(geom = GeomLollipop2, mapping = mapping, data = data, stat = stat,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(baseline = baseline,
+        na.rm = na.rm, ...))
+}
+
+ggplot(agg, aes(factor(cyl), mpg)) +
+  geom_lollipop2(baseline = 10)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This plots the same lollipops, but the stems now start at 10 instead of 0. The <code>baseline</code> value flowed from your constructor, through <code>layer()</code>'s <code>params</code>, into <code>draw_panel()</code>, all because you listed it in <code>extra_params</code>. Without that one line you would see an "unknown parameters" warning and the setting would be ignored.</p>
+
+<p>When should you write a stat, a geom, or both? Use this quick guide.</p>
+
+<ul>
+
+<li>Write a <strong>stat</strong> when you need new numbers from the data (a <a class="auto-link" href="dplyr-cummean-in-R.html" title="dplyr cummean() in R: Running Mean Across a Vector">running average</a>, a boundary, a summary point).</li>
+
+<li>Write a <strong>geom</strong> when you need a new shape drawn from numbers you already have (a lollipop, a crosshair, a labelled marker).</li>
+
+<li>Write <strong>both</strong> when a chart needs a custom calculation and a custom drawing.</li>
+
+<li>Always start by overriding only <code>compute_group()</code> or <code>draw_panel()</code>, and reach for the deeper methods (<code>setup_data</code>, <code>setup_params</code>) only if you must.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Register every extra draw argument in extra_params.</strong> Any setting your draw_panel accepts beyond the standard ones must be named in the geom's extra_params field, or ggplot2 4.x silently drops it with a warning. This is the single most common surprise when custom parameters "do nothing".</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw the lollipops with a baseline of 20 instead of 10, so only the four-cylinder stem points up.</p>
+<div class="webr-container" data-block-title="Your turn: change the baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change the baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set the baseline to 20 and replot:
+# ex_lolli &lt;- ggplot(agg, aes(factor(cyl), mpg)) +
+#   geom_lollipop2(baseline = __)
+# ex_lolli    # target: stems start at 20; the 6- and 8-cyl stems point down</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Baseline change solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Baseline change solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lolli &lt;- ggplot(agg, aes(factor(cyl), mpg)) +
+  geom_lollipop2(baseline = 20)
+ex_lolli</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>baseline = 20</code>, each stem runs between 20 and its value. Because six- and eight-cylinder averages (19.7 and 15.1) sit below 20, their stems point downward, while the four-cylinder stem (26.7) still points up. The parameter reaches <code>draw_panel()</code> only because <code>baseline</code> is in <code>extra_params</code>.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's tie the whole tutorial together by building a custom stat and a custom geom that work as a team. The goal: mark the centre of each group with a crosshair. The stat computes each group's centre (a new calculation), and the geom draws a crosshair spanning the panel (a new shape). Neither exists in ggplot2, and together they show every idea from this guide in one plot.</p>
+
+<p>First the stat. <code>StatMeanPoint</code> collapses each group down to a single row: the average <code>x</code> and average <code>y</code>.</p>
+
+<div class="webr-container" data-block-title="Step 1: a stat for the group centre">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: a stat for the group centre</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">StatMeanPoint &lt;- ggproto(&quot;StatMeanPoint&quot;, Stat,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  compute_group = function(data, scales) {
+    data.frame(x = mean(data$x), y = mean(data$y))
+  }
+)
+
+stat_mean_point &lt;- function(mapping = NULL, data = NULL, geom = &quot;point&quot;,
+                            position = &quot;identity&quot;, na.rm = FALSE,
+                            show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(stat = StatMeanPoint, data = data, mapping = mapping, geom = geom,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the geom. <code>GeomCrosshair</code> draws two dashed lines through each incoming point, one vertical and one horizontal, each spanning the full panel. Because the transformed coordinates run 0 to 1, a full-height vertical line goes from <code>y = 0</code> to <code>y = 1</code> at the point's <code>x</code>, and the horizontal line mirrors that.</p>
+
+<div class="webr-container" data-block-title="Step 2: a geom that draws a crosshair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: a geom that draws a crosshair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">GeomCrosshair &lt;- ggproto(&quot;GeomCrosshair&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(colour = &quot;red&quot;, linewidth = 0.5, linetype = 2, alpha = NA),
+  draw_key = draw_key_path,
+
+  draw_panel = function(data, panel_params, coord, ...) {
+    coords &lt;- coord$transform(data, panel_params)
+    gp &lt;- grid::gpar(col = coords$colour, lwd = coords$linewidth * .pt,
+                     lty = coords$linetype)
+    vertical   &lt;- grid::segmentsGrob(coords$x, 0, coords$x, 1, gp = gp)
+    horizontal &lt;- grid::segmentsGrob(0, coords$y, 1, coords$y, gp = gp)
+    grid::gList(vertical, horizontal)
+  }
+)
+
+geom_crosshair &lt;- function(mapping = NULL, data = NULL, stat = &quot;identity&quot;,
+                           position = &quot;identity&quot;, na.rm = FALSE,
+                           show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(geom = GeomCrosshair, mapping = mapping, data = data, stat = stat,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The one new token in that geom is <code>.pt</code>. ggplot2 measures <code>linewidth</code> in millimetres, but <code>grid</code> wants line widths in points, so multiplying by <code>.pt</code> (a conversion constant ggplot2 provides for exactly this) restates the width in the units <code>grid</code> draws with. You reach for it any time you pass a ggplot2 <code>linewidth</code> straight into a <code>grid</code> call.</p>
+
+<p>Finally, snap the two together. You do not need a <code>geom_crosshair()</code> call here; instead you tell <code>stat_mean_point()</code> to draw with your custom geom by passing <code>geom = GeomCrosshair</code>. That is the flexibility of the stat-and-geom split: any stat can feed any geom.</p>
+
+<div class="webr-container" data-block-title="Step 3: combine the custom stat and geom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 3: combine the custom stat and geom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point(alpha = 0.4) +
+  stat_mean_point(geom = GeomCrosshair)
+
+# Confirm the stat found each species centre
+layer_data(p, 2)[, c(&quot;group&quot;, &quot;x&quot;, &quot;y&quot;)]
+#&gt;   group     x     y
+#&gt; 1     1 5.006 3.428
+#&gt; 2     2 5.936 2.770
+#&gt; 3     3 6.588 2.974
+
+p</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed table confirms the stat collapsed each species to its centre point, for example (5.006, 3.428) for the first species. The final plot shows the faded scatter with a coloured dashed crosshair marking each group's centre. Your custom stat did the arithmetic, your custom geom did the drawing, and ggplot2 handled everything in between. That is a complete, reusable ggplot2 extension.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. The exercise code uses fresh names so it will not clash with the objects defined above.</p>
+
+<h3>Exercise 1: A median-centre stat</h3>
+
+<p>Write <code>StatMedianPoint</code>, a stat that returns the median <code>x</code> and median <code>y</code> of each group (medians resist outliers better than means). Wrap it in a <code>stat_median_point()</code> constructor and mark each iris species median with a large star (<code>shape = 8</code>).</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: copy the StatMeanPoint pattern, swap mean() for median()
+
+StatMedianPoint &lt;- ggproto(&quot;StatMedianPoint&quot;, Stat,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  compute_group = function(data, scales) {
+    # Return one row: median x and median y
+
+  }
+)
+
+# Write the stat_median_point() constructor, then:
+# ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+#   geom_point(alpha = 0.4) + stat_median_point(size = 6, shape = 8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median-centre stat solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median-centre stat solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">StatMedianPoint &lt;- ggproto(&quot;StatMedianPoint&quot;, Stat,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  compute_group = function(data, scales) {
+    data.frame(x = median(data$x), y = median(data$y))
+  }
+)
+stat_median_point &lt;- function(mapping = NULL, data = NULL, geom = &quot;point&quot;,
+                              position = &quot;identity&quot;, na.rm = FALSE,
+                              show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(stat = StatMedianPoint, data = data, mapping = mapping, geom = geom,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}
+
+pm &lt;- ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point(alpha = 0.4) +
+  stat_median_point(size = 6, shape = 8)
+
+layer_data(pm, 2)[, c(&quot;group&quot;, &quot;x&quot;, &quot;y&quot;)]
+#&gt;   group   x   y
+#&gt; 1     1 5.0 3.4
+#&gt; 2     2 5.9 2.8
+#&gt; 3     3 6.5 3.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The only change from <code>StatMeanPoint</code> is <code>median()</code> in place of <code>mean()</code>. The constructor is identical boilerplate. The stars land on each species median, for example (5.0, 3.4) for the first species.</p>
+
+</details>
+
+<h3>Exercise 2: A stem geom from scratch</h3>
+
+<p>Build <code>GeomStem</code>, a geom that draws a bare vertical stem from <code>y = 0</code> up to each point, using <code>grid</code> directly (no borrowing <code>GeomSegment</code>). You will need to transform both the points and a <code>y = 0</code> baseline, then draw with <code>grid::segmentsGrob()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: coord$transform() the data once for the tops, and again
+# for a copy with y = 0 for the bottoms.
+
+GeomStem &lt;- ggproto(&quot;GeomStem&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(colour = &quot;black&quot;, linewidth = 0.5, linetype = 1, alpha = NA),
+  draw_key = draw_key_path,
+  draw_panel = function(data, panel_params, coord, ...) {
+    # 1. transform the points
+    # 2. transform a y = 0 copy for the baseline
+    # 3. return a segmentsGrob from baseline to point
+
+  }
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stem geom solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stem geom solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">GeomStem &lt;- ggproto(&quot;GeomStem&quot;, Geom,
+  required_aes = c(&quot;x&quot;, &quot;y&quot;),
+  default_aes = aes(colour = &quot;black&quot;, linewidth = 0.5, linetype = 1, alpha = NA),
+  draw_key = draw_key_path,
+  draw_panel = function(data, panel_params, coord, ...) {
+    pts  &lt;- coord$transform(data, panel_params)
+    base &lt;- coord$transform(transform(data, y = 0), panel_params)
+    grid::segmentsGrob(
+      pts$x, base$y, pts$x, pts$y,
+      gp = grid::gpar(col = pts$colour, lwd = pts$linewidth * .pt,
+                      lty = pts$linetype)
+    )
+  }
+)
+geom_stem &lt;- function(mapping = NULL, data = NULL, stat = &quot;identity&quot;,
+                      position = &quot;identity&quot;, na.rm = FALSE,
+                      show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(geom = GeomStem, mapping = mapping, data = data, stat = stat,
+        position = position, show.legend = show.legend,
+        inherit.aes = inherit.aes, params = list(na.rm = na.rm, ...))
+}
+
+agg &lt;- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+ggplot(agg, aes(factor(cyl), mpg)) +
+  geom_stem(colour = &quot;grey40&quot;) +
+  geom_point(size = 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Transforming a <code>y = 0</code> copy of the data gives the baseline's panel position, so <code>segmentsGrob()</code> can draw from the baseline up to each point. Multiplying <code>linewidth</code> by <code>.pt</code> (a ggplot2 constant) converts to the units <code>grid</code> expects.</p>
+
+</details>
+
+<h3>Exercise 3: Feed your stat into a styled marker</h3>
+
+<p>Reuse <code>StatMedianPoint</code> from Exercise 1, but this time mark the medians as thin crosses (<code>shape = 3</code>) sized to stand out. Then explain in a sentence why the crosses come out coloured by species even though <code>stat_median_point()</code> never mentions colour.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+#   geom_point(alpha = 0.3) +
+#   stat_median_point(geom = &quot;point&quot;, shape = __, size = __)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Styled median marker solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Styled median marker solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(iris, aes(Sepal.Length, Sepal.Width, colour = Species)) +
+  geom_point(alpha = 0.3) +
+  stat_median_point(geom = &quot;point&quot;, shape = 3, size = 7, stroke = 1.2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The crosses inherit <code>colour = Species</code> because <code>inherit.aes = TRUE</code> (the constructor default) passes the plot-level <code>aes()</code> mapping down to your layer. Your stat splits the data by that same grouping, computes a median per species, and the geom draws each median in its group colour. You never wrote colour handling; the grammar carried it for you.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>You can now build <a class="auto-link" href="ggplot2-Grammar-of-Graphics.html" title="ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click">ggplot2 layers</a> instead of only using them. Here are the pieces and the one function that anchors each.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it is</th>
+<th>Key function or field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Layer</td>
+<td>A stat + geom + position bundle</td>
+<td><code>layer()</code></td>
+</tr>
+<tr>
+<td>Stat</td>
+<td>Transforms data, once per group</td>
+<td><code>compute_group()</code></td>
+</tr>
+<tr>
+<td>Geom</td>
+<td>Draws shapes from data</td>
+<td><code>draw_panel()</code></td>
+</tr>
+<tr>
+<td>ggproto</td>
+<td>The object system for both</td>
+<td><code>ggproto()</code></td>
+</tr>
+<tr>
+<td>Inheritance</td>
+<td>Reuse ggplot2's machinery</td>
+<td><code>ggproto(&quot;New&quot;, Stat, ...)</code></td>
+</tr>
+<tr>
+<td>Constructor</td>
+<td>The user-facing <code>stat_*</code> / <code>geom_*</code></td>
+<td>wraps <code>layer()</code></td>
+</tr>
+<tr>
+<td>Coordinate transform</td>
+<td>Data units to 0-to-1 panel units</td>
+<td><code>coord$transform()</code></td>
+</tr>
+<tr>
+<td>Custom parameters</td>
+<td>Extra draw settings</td>
+<td><code>extra_params</code></td>
+</tr>
+<tr>
+<td>Inspection</td>
+<td>See what a stat computed</td>
+<td><code>layer_data()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Write-a-ggplot2-Extension-in-R-overview-mindmap.webp" alt="The parts of a ggplot2 extension at a glance." class="img-responsive img-zoomable" loading="lazy" width="1584" height="1064" /></p>
+
+<p><em>Figure 3: The parts of a ggplot2 extension at a glance.</em></p>
+
+<p>The habit to keep: a stat makes numbers, a geom makes shapes, and you only build the piece you need. Start by overriding a single method, inspect the result with <code>layer_data()</code>, and compose existing geoms whenever you can. From here, the natural next step is to move these definitions into an R package so <code>geom_lollipop()</code> and friends install alongside ggplot2 and travel between every project you work on.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I write a stat versus a geom?</h3>
+
+<p>Write a stat when you need new numbers computed from your data, such as a boundary, a running average, or a group summary. Write a geom when you already have the numbers and need a new shape drawn from them, such as a lollipop or a crosshair. If you need both a new calculation and a new drawing, write both and let the stat feed the geom.</p>
+
+<h3>Do I have to build an R package to reuse my extension?</h3>
+
+<p>No. Everything in this tutorial runs in a plain script, and you can keep your <code>ggproto</code> definitions and constructors in a sourced <code>.R</code> file. A package is simply the tidy way to share them: once <code>geom_lollipop()</code> lives in a package, it installs and loads alongside ggplot2 and travels between projects. Start in a script, move to a package when you want to reuse or publish.</p>
+
+<h3>What is the difference between draw_panel and draw_group?</h3>
+
+<p>Both return the graphics for your geom, but they run at different granularities. <code>draw_panel()</code> receives all the rows in a panel at once, which is efficient and right for most geoms. <code>draw_group()</code> runs once per group and is what you want when a shape depends on a whole group together, like a single polygon that connects a group's points.</p>
+
+<h3>Why does my custom parameter get ignored?</h3>
+
+<p>Recent ggplot2 versions validate layer parameters and quietly drop any they do not recognise, with an "unknown parameters" warning. If you add an argument to <code>draw_panel()</code>, you must also list its name in the geom's <code>extra_params</code> field. That is what tells ggplot2 to pass the value through instead of discarding it.</p>
+
+<h3>How do I get a legend for my custom geom?</h3>
+
+<p>Point the geom's <code>draw_key</code> field at one of ggplot2's key-drawing helpers, such as <code>draw_key_point</code> for dot-like geoms or <code>draw_key_path</code> for line-like ones. The helper draws the small swatch shown in the legend. If you omit it, your geom either shows no key or borrows an unhelpful default.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. et al. Extending ggplot2 (official vignette). <a href="https://ggplot2.tidyverse.org/articles/extending-ggplot2.html">Link</a></li>
+
+<li>Wickham, H. <em>ggplot2: Elegant Graphics for Data Analysis</em> (3e), Chapter 20: Extending ggplot2. <a href="https://ggplot2-book.org/extensions.html">Link</a></li>
+
+<li>ggplot2 reference, Stats (the Stat ggproto class). <a href="https://ggplot2.tidyverse.org/reference/Stat.html">Link</a></li>
+
+<li>ggplot2 reference, base ggproto classes (Geom, Stat, Coord). <a href="https://ggplot2.tidyverse.org/reference/ggplot2-ggproto.html">Link</a></li>
+
+<li>ggplot2 reference, layer() (the function every constructor wraps). <a href="https://ggplot2.tidyverse.org/reference/layer.html">Link</a></li>
+
+<li>Murrell, P. <em>R Graphics</em> and the grid package documentation (grobs and units). <a href="https://stat.ethz.ch/R-manual/R-devel/library/grid/html/00Index.html">Link</a></li>
+
+<li>R Core Team, chull() documentation (convex hulls in base R). <a href="https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/chull.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Stat-System-in-R.html">The stat System in ggplot2</a> - a closer look at how built-in stats compute the numbers behind every chart.</li>
+
+<li><a href="ggplot2-Extensions-in-R.html">ggplot2 Extensions</a> - the wider ecosystem of extension packages built on the mechanics you just learned.</li>
+
+<li><a href="Build-a-ggplot2-Theme-in-R.html">Build a ggplot2 Theme</a> - extend the other half of the grammar, the appearance, by writing a reusable theme.</li>
+
+</ul>
+
+{% endraw %}
