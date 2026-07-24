@@ -1,0 +1,1064 @@
+---
+title: "Visualizing Uncertainty in R: Intervals, Bands and ggdist"
+description: "Show uncertainty in R the right way: error bars, point-intervals, confidence bands and ggdist. A clear ggplot2 guide with runnable examples from scratch."
+keywords: "visualizing uncertainty in R, ggdist, confidence intervals ggplot2, error bars in R, geom_ribbon, stat_pointinterval, stat_halfeye, confidence bands, uncertainty visualization, stat_lineribbon"
+mathjax: true
+webr: true
+curriculum_id: "GG2-10.1"
+post_type: "C"
+auto_link_terms: "visualizing uncertainty in R|uncertainty visualization|confidence bands|confidence band|point-interval plot|point intervals|half-eye plot|gradient interval|ggdist|stat_halfeye()|stat_pointinterval()|stat_lineribbon()|stat_interval()|eye plot"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Visualizing Uncertainty"
+sidebar_order: "60"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Visualizing uncertainty means showing not just a number but how sure you are of it. Instead of a lone average, you draw error bars, intervals, bands or a <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">distribution shape</a> so the reader can see the full range of plausible values at a glance. This guide teaches the whole toolkit from scratch: base <a class="auto-link" href="ggplot2-Error-Bars-in-R.html" title="Error Bars in ggplot2: geom_errorbar, pointrange, crossbar">ggplot2 error bars</a> and <a class="auto-link" href="ggplot2-Area-Charts-and-Ribbons-in-R.html" title="Area Charts and Ribbons in ggplot2: geom_area, geom_ribbon">confidence bands</a> first, then the ggdist package for richer point-intervals, half-eye plots and model bands.</p>
+
+<p>We build up slowly, and we use base R and the tidyverse together. The first four sections run right here in your browser, so you can execute every line as you read. Later sections use the ggdist package, which you run in your own R session. No prior knowledge of confidence intervals is assumed; we explain each idea before we use it.</p>
+
+<h2>Why plot uncertainty instead of just the average?</h2>
+
+<p>A bar chart of group averages looks clean and confident. That is exactly the problem. It shows one number per group and quietly hides how noisy that number is. Two groups can have the same average while one is rock-solid and the other is barely more than a guess, and a plain bar chart draws them identically.</p>
+
+<p>The fix is to always pair an estimate with a measure of how much it could wobble. Let's start with the <code>mtcars</code> dataset, which ships with R, and summarise fuel economy (<code>mpg</code>) for cars grouped by their number of cylinders (<code>cyl</code>). Alongside the mean we compute the standard deviation, the <a class="auto-link" href="dplyr-n-in-R.html" title="dplyr n() in R: Count Rows Inside summarise or mutate">group size</a>, and the standard error, which we will unpack properly in the next section. The <code>|&gt;</code> symbol in the code is R's pipe: it feeds the value on its left into the function on its right, so you read the steps top to bottom as take <code>mtcars</code>, group it by <code>cyl</code>, then summarise each group.</p>
+
+<div class="webr-container" data-block-title="Summarise mpg with its uncertainty">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise mpg with its uncertainty</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+mpg_by_cyl &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mean_mpg = mean(mpg),
+    sd_mpg   = sd(mpg),
+    n        = n(),
+    se_mpg   = sd_mpg / sqrt(n)
+  )
+
+mpg_by_cyl
+#&gt; # A tibble: 3 × 5
+#&gt;     cyl mean_mpg sd_mpg     n se_mpg
+#&gt;   &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;int&gt;  &lt;dbl&gt;
+#&gt; 1     4     26.7   4.51    11  1.36
+#&gt; 2     6     19.7   1.45     7  0.549
+#&gt; 3     8     15.1   2.56    14  0.684</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the last two columns. The 4-cylinder cars average 26.7 mpg with a standard error of 1.36, while the 6-cylinder cars average 19.7 with a much smaller standard error of 0.549. That single extra column is the whole point: we now know not just the averages but how precisely we know each one.</p>
+
+<p>Numbers in a table are hard to compare, so let's turn them into a picture. <code>geom_pointrange()</code> draws a dot for the estimate and a vertical line for the range around it. Here we draw the mean plus or minus one standard error.</p>
+
+<div class="webr-container" data-block-title="Plot group means as point-intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot group means as point-intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg_by_cyl, aes(x = factor(cyl), y = mean_mpg)) +
+  geom_pointrange(aes(ymin = mean_mpg - se_mpg, ymax = mean_mpg + se_mpg)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Mean MPG (+/- 1 SE)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that block and you get three dots with short vertical whiskers. The dot is the average; the whisker is the uncertainty. The 6-cylinder whisker is tiny, telling you that estimate is precise, while the 4-cylinder whisker is longer, telling you to trust it a little less. That contrast is invisible on a bar chart.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An estimate without an interval is only half the story.</strong> The interval tells the reader how much the estimate might move if you collected the data again, which is the difference between "about 27" and "27, give or take a lot".</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a summary of horsepower (<code>hp</code>) by cylinder. Start from the scaffold, then add the <code>sd_hp</code>, <code>n</code> and <code>se_hp</code> columns the same way we did for mpg.</p>
+<div class="webr-container" data-block-title="Your turn: summarise horsepower by cylinder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: summarise horsepower by cylinder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_by_cyl &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mean_hp = mean(hp)
+    # add sd_hp, n, and se_hp columns here
+  )
+
+ex_hp_by_cyl
+#&gt; Expected: a tibble with mean_hp, sd_hp, n and se_hp for cyl 4, 6, 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Horsepower summary solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Horsepower summary solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_by_cyl &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mean_hp = mean(hp),
+    sd_hp   = sd(hp),
+    n       = n(),
+    se_hp   = sd_hp / sqrt(n)
+  )
+ex_hp_by_cyl
+#&gt; # A tibble: 3 × 5
+#&gt;     cyl mean_hp sd_hp     n se_hp
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt;
+#&gt; 1     4    82.6  20.9    11  6.31
+#&gt; 2     6   122.   24.3     7  9.17
+#&gt; 3     8   209.   51.0    14 13.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The pattern is identical to the mpg summary. <code>se_hp = sd_hp / sqrt(n)</code> shrinks the spread of the raw values into a measure of how precisely we know the mean.</p>
+
+</details>
+</section>
+
+<h2>What do SD, standard error, and confidence intervals actually measure?</h2>
+
+<p>Those three terms trip up almost everyone, because they sound similar but answer different questions. Getting them straight is the foundation for every plot in this guide, so let's slow down and define each one in plain language before touching the formulas.</p>
+
+<ul>
+
+<li><strong>Standard deviation (SD)</strong> measures the spread of the raw data. If individual cars vary a lot in mpg, the SD is large. It describes the data points themselves.</li>
+
+<li><strong>Standard error (SE)</strong> measures the precision of the average. It answers "if I recomputed this mean from a fresh sample, how much would it jump around?" More data means a more stable mean, so SE shrinks as the sample grows.</li>
+
+<li><strong>Confidence interval (CI)</strong> turns the SE into a plain-language range, such as "we are 95% confident the true average lies between 24 and 29".</li>
+
+</ul>
+
+<p>The three are linked by a short chain. You start with the spread of the data, divide by the square root of the <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a> to get the precision of the mean, then widen that by a critical value to get an interval.</p>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-sd-se-ci-flow.webp" alt="How a spread of data points becomes a standard error and then a 95% confidence interval." class="img-responsive img-zoomable" loading="lazy" width="2154" height="442" /></p>
+
+<p><em>Figure 1: From raw spread to a confidence interval in two steps.</em></p>
+
+<p>Here is the same chain in R, computed by hand for the 4-cylinder cars so you can see every step. We pull out the raw mpg values, then walk from SD to SE to a 95% interval.</p>
+
+<div class="webr-container" data-block-title="Standard deviation, standard error, and a 95% CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard deviation, standard error, and a 95% CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_4cyl &lt;- mtcars$mpg[mtcars$cyl == 4]
+
+n_obs    &lt;- length(mpg_4cyl)
+mean_val &lt;- mean(mpg_4cyl)
+sd_val   &lt;- sd(mpg_4cyl)
+se_val   &lt;- sd_val / sqrt(n_obs)
+
+ci_lower &lt;- mean_val - 1.96 * se_val
+ci_upper &lt;- mean_val + 1.96 * se_val
+
+round(c(n = n_obs, mean = mean_val, sd = sd_val, se = se_val,
+        ci_lower = ci_lower, ci_upper = ci_upper), 2)
+#&gt;        n     mean       sd       se ci_lower ci_upper
+#&gt;    11.00    26.66     4.51     1.36    24.00    29.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the numbers. The raw mpg values have an SD of 4.51, a fairly wide spread. Dividing by the square root of 11 shrinks that to an SE of 1.36. Multiplying the SE by 1.96 and stepping out on both sides of the mean gives an interval from 24.0 to 29.3. That interval is our best guess for where the true 4-cylinder average lives.</p>
+
+<p>Two formulas capture that chain. The standard error rescales the spread by sample size:</p>
+
+<p>$$SE = \frac{SD}{\sqrt{n}}$$</p>
+
+<p>And the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> steps out from the mean by about two standard errors:</p>
+
+<p>$$CI_{95\%} = \bar{x} \pm 1.96 \times SE$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{x}$ = the sample mean (our estimate)</li>
+
+<li>$SD$ = the standard deviation of the raw values</li>
+
+<li>$n$ = the number of observations</li>
+
+<li>$1.96$ = the critical value that captures the middle 95% of a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a></li>
+
+</ul>
+
+<p>The value 1.96 is the large-sample shortcut. With only 11 cars, the honest critical value is a little larger, and R's built-in <code>t.test()</code> uses the exact one for you. Let's compare.</p>
+
+<div class="webr-container" data-block-title="The exact interval from t.test()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The exact interval from t.test()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(mpg_4cyl)$conf.int
+#&gt; [1] 23.63389 29.69338
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact interval runs from 23.6 to 29.7, slightly wider than our hand-rolled 24.0 to 29.3, because the t-distribution accounts for the small sample. For quick plots the difference is small, but for a real report you should let <code>t.test()</code> or a model compute the interval.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A 95% CI is about the procedure, not a single interval.</strong> It means that if you repeated the whole study many times, about 95% of the intervals you build this way would contain the true value. Any one interval either contains it or does not; the 95% describes the long-run hit rate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the exact 95% confidence interval for the mean mpg of the 6-cylinder cars using <code>t.test()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 95% CI for 6-cylinder mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 95% CI for 6-cylinder mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_6cyl &lt;- mtcars$mpg[mtcars$cyl == 6]
+
+# use t.test() to pull out the confidence interval
+
+#&gt; Expected: an interval of roughly 18.4 to 21.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="6-cylinder CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">6-cylinder CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_6cyl &lt;- mtcars$mpg[mtcars$cyl == 6]
+t.test(mpg_6cyl)$conf.int
+#&gt; [1] 18.39853 21.08718
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>t.test()</code> returns a list, and <code>$conf.int</code> grabs the interval directly. The 6-cylinder average is known more precisely than the 4-cylinder one, so this interval is narrower.</p>
+
+</details>
+</section>
+
+<h2>How do you draw error bars and point-intervals in ggplot2?</h2>
+
+<p>Now that you know what an interval means, let's draw it properly for several groups at once. The recipe is always the same: compute a lower and upper bound per group, then hand those bounds to a ggplot2 geom. We'll build the bounds with <code>qt()</code>, which gives the exact t critical value for each group's sample size.</p>
+
+<div class="webr-container" data-block-title="Add 95% CI columns to the summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add 95% CI columns to the summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_ci &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mean_mpg = mean(mpg),
+    se_mpg   = sd(mpg) / sqrt(n()),
+    n        = n()
+  ) |&gt;
+  mutate(
+    tcrit = qt(0.975, df = n - 1),
+    lower = mean_mpg - tcrit * se_mpg,
+    upper = mean_mpg + tcrit * se_mpg
+  )
+
+mpg_ci
+#&gt; # A tibble: 3 × 7
+#&gt;     cyl mean_mpg se_mpg     n tcrit lower upper
+#&gt;   &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     4     26.7  1.36     11  2.23  23.6  29.7
+#&gt; 2     6     19.7  0.549     7  2.45  18.4  21.1
+#&gt; 3     8     15.1  0.684    14  2.16  13.6  16.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>tcrit</code> column shows the critical value shrinking as the group grows, from 2.45 for the 7-car group down to 2.16 for the 14-car group. The <code>lower</code> and <code>upper</code> columns are the 95% bounds, and notice they match the <code>t.test()</code> interval we computed earlier for the 4-cylinder group. Now we can plot them.</p>
+
+<p><code>geom_errorbar()</code> draws the classic capped bar. We pair it with <code>geom_point()</code> for the estimate.</p>
+
+<div class="webr-container" data-block-title="Draw error bars with geom_errorbar()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw error bars with geom_errorbar()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg_ci, aes(x = factor(cyl), y = mean_mpg)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15) +
+  geom_point(size = 3, colour = &quot;steelblue&quot;) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Mean MPG (95% CI)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>width</code> argument controls the little horizontal caps; smaller values give narrower caps. If you prefer a cleaner look with no caps, swap <code>geom_errorbar()</code> for <code>geom_linerange()</code>, or use <code>geom_pointrange()</code> from the first section to draw the point and the line in one geom.</p>
+
+<p>Computing the summary yourself is the transparent way, but ggplot2 can also do it on the fly. <code>stat_summary()</code> takes the raw data and computes a summary function per group. Passing <code>fun.data = mean_se</code> gives the mean plus or minus one standard error, drawn as a point-interval, all without a separate summary table.</p>
+
+<div class="webr-container" data-block-title="Let stat_summary() do the work">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let stat_summary() do the work</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_jitter(width = 0.08, colour = &quot;grey70&quot;) +
+  stat_summary(fun.data = mean_se, geom = &quot;pointrange&quot;, colour = &quot;firebrick&quot;) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;MPG&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This plot layers the raw data (grey jittered dots) under the summary (red point-intervals), which is a genuinely honest chart: the reader sees both the individual cars and the summarised uncertainty. The jitter spreads points sideways so they do not overlap.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Show the raw data whenever you can.</strong> Layering jittered points under a summary lets readers judge the spread and spot outliers, instead of trusting a floating interval with no context.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recreate the raw-plus-summary plot, but for car weight (<code>wt</code>) instead of mpg, and colour the point-intervals dark green.</p>
+<div class="webr-container" data-block-title="Your turn: point-intervals for weight by cylinder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: point-intervals for weight by cylinder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = factor(cyl), y = wt)) +
+  geom_jitter(width = 0.08, colour = &quot;grey70&quot;) +
+  # add a stat_summary() point-interval layer in dark green
+
+  labs(x = &quot;Cylinders&quot;, y = &quot;Weight (1000 lbs)&quot;) +
+  theme_minimal()
+#&gt; Expected: green point-intervals over jittered weight points, per cylinder</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weight point-interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weight point-interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = factor(cyl), y = wt)) +
+  geom_jitter(width = 0.08, colour = &quot;grey70&quot;) +
+  stat_summary(fun.data = mean_se, geom = &quot;pointrange&quot;, colour = &quot;darkgreen&quot;) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Weight (1000 lbs)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the <code>y</code> aesthetic and the colour change. <code>stat_summary()</code> recomputes <code>mean_se</code> for the new variable automatically, which is why it is so convenient.</p>
+
+</details>
+</section>
+
+<h2>How do you add a confidence band around a trend line?</h2>
+
+<p>Error bars work when the x-axis is a handful of categories. When x is continuous, like car weight, you want a smooth <strong>confidence band</strong>: a shaded ribbon that hugs a trend line and shows how uncertain the line is at every x value. The band is narrow where you have lots of data and flares out where data is sparse.</p>
+
+<p>The quickest way is <code>geom_smooth()</code>. Ask it for a linear model with <code>method = &quot;lm&quot;</code> and it fits the line and draws the 95% band in one step.</p>
+
+<div class="webr-container" data-block-title="A confidence band with geom_smooth()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A confidence band with geom_smooth()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey40&quot;) +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;MPG&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and you get the downward trend line with a grey band around it. The band is the confidence interval for the fitted line at each weight. It is thinnest near the middle of the data and widens toward the edges, exactly where predictions get shakier.</p>
+
+<p><code>geom_smooth()</code> is convenient but a bit of a black box, so let's open it up. The band comes from fitting a model and asking <code>predict()</code> for a confidence interval at a grid of x values. We build that grid, get predictions with bounds, and glue them together.</p>
+
+<div class="webr-container" data-block-title="Build the band yourself with predict()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the band yourself with predict()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model &lt;- lm(mpg ~ wt, data = mtcars)
+
+grid  &lt;- data.frame(wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 50))
+preds &lt;- predict(model, newdata = grid, interval = &quot;confidence&quot;, level = 0.95)
+
+band &lt;- cbind(grid, as.data.frame(preds))
+head(band, 3)
+#&gt;         wt      fit      lwr      upr
+#&gt; 1 1.513000 29.19894 26.96376 31.43412
+#&gt; 2 1.592816 28.77236 26.61606 30.92867
+#&gt; 3 1.672633 28.34579 26.26736 30.42421</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>fit</code> column is the predicted mpg, and <code>lwr</code> and <code>upr</code> are the confidence bounds at each weight. Now <code>geom_ribbon()</code> draws the shaded area between <code>lwr</code> and <code>upr</code>, and <code>geom_line()</code> draws the fit on top.</p>
+
+<div class="webr-container" data-block-title="Draw the band with geom_ribbon()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the band with geom_ribbon()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(band, aes(x = wt, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = &quot;steelblue&quot;, alpha = 0.25) +
+  geom_line(colour = &quot;steelblue&quot;, linewidth = 1) +
+  geom_point(data = mtcars, aes(x = wt, y = mpg), colour = &quot;grey40&quot;) +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;MPG&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This reproduces what <code>geom_smooth()</code> did, but now you control every piece: the model, the confidence level, the fill colour, and the transparency set by <code>alpha</code>. Building it by hand also makes the next distinction concrete.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A confidence band is not a prediction band.</strong> The confidence band shows uncertainty about the average line, so it is narrow. A prediction band shows where a single new car might fall, which is much wider because individual cars scatter around the line. Use <code>interval = &quot;confidence&quot;</code> for the mean and <code>interval = &quot;prediction&quot;</code> for one new observation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the <code>band</code> data frame using a <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">prediction interval</a> instead of a confidence interval, and print the first few rows. Notice how much wider the bounds get.</p>
+<div class="webr-container" data-block-title="Your turn: build a prediction band">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a prediction band</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse `model` and `grid` from above.
+# Your task: change &quot;confidence&quot; to &quot;prediction&quot; in the predict() call.
+ex_preds &lt;- predict(model, newdata = grid, interval = &quot;confidence&quot;, level = 0.95)
+ex_band  &lt;- cbind(grid, as.data.frame(ex_preds))
+head(ex_band, 3)
+#&gt; Expected: after the switch, lwr/upr are far wider (about 22.6 and 35.8 at wt = 1.51)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Prediction band solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prediction band solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_band &lt;- cbind(
+  grid,
+  as.data.frame(predict(model, newdata = grid, interval = &quot;prediction&quot;, level = 0.95))
+)
+head(ex_band, 3)
+#&gt;         wt      fit      lwr      upr
+#&gt; 1 1.513000 29.19894 22.58903 35.80885
+#&gt; 2 1.592816 28.77236 22.18871 35.35602
+#&gt; 3 1.672633 28.34579 21.78723 34.90435</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>fit</code> column is unchanged, but the bounds widen sharply. At a weight of 1.51 the confidence band spanned 27.0 to 31.4, while the prediction band spans 22.6 to 35.8, because it must account for a single car's scatter, not just the uncertainty of the average.</p>
+
+</details>
+</section>
+
+<h2>What is ggdist and how do its point-intervals work?</h2>
+
+<p>Base ggplot2 gets you error bars and bands. The ggdist package goes further: it treats <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">uncertainty visualization</a> as <strong>distribution visualization</strong>, and gives you a family of stats that draw point estimates, one or more nested intervals, and the shape of the distribution, all from a single line of code. It is the tool the title of this guide promises.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The ggdist examples run in your local R session.</strong> ggdist is not part of the in-page runner, so copy the blocks below into RStudio or an R console to run them. Everything up to this point runs directly in your browser. Each block below shows the real output it produces, so you can check your own results against it after running it locally.</div></div>
+
+<p>ggdist's core idea is the <strong>point-interval</strong>: a dot for a central estimate, plus one or more bars of increasing thinness for wider intervals. Adding a density curve on top turns it into a half-eye plot. The diagram below shows the anatomy.</p>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-pointinterval-anatomy.webp" alt="The parts of a ggdist point-interval, and how adding a density slab turns it into a half-eye." class="img-responsive img-zoomable" loading="lazy" width="1484" height="986" /></p>
+
+<p><em>Figure 2: A point-interval is a point plus nested interval bars; a slab of density makes it a half-eye.</em></p>
+
+<p>Before plotting, it helps to see the numbers ggdist works with. The <code>point_interval()</code> function summarises a column into a point estimate and its intervals. The <code>.width</code> argument asks for several interval widths at once, here the 50%, 80% and 95% intervals.</p>
+
+<pre><code class="language-r">library(ggdist)
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  point_interval(mpg, .width = c(0.5, 0.8, 0.95))
+#&gt; # A tibble: 9 × 7
+#&gt;     cyl   mpg .lower .upper .width .point .interval
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;
+#&gt; 1     4  26     22.8   30.4   0.5  median qi
+#&gt; 2     6  19.7   18.6   21     0.5  median qi
+#&gt; 3     8  15.2   14.4   16.2   0.5  median qi
+#&gt; 4     4  26     21.5   32.4   0.8  median qi
+#&gt; 5     6  19.7   18.0   21.2   0.8  median qi
+#&gt; 6     8  15.2   11.3   18.3   0.8  median qi
+#&gt; 7     4  26     21.4   33.5   0.95 median qi
+#&gt; 8     6  19.7   17.8   21.3   0.95 median qi
+#&gt; 9     8  15.2   10.4   19.0   0.95 median qi</code></pre>
+
+<p>Each cylinder group gets three rows, one per width. The <code>.point</code> column tells you the estimate is the median, and <code>.interval</code> says the bounds are quantile intervals (<code>qi</code>). Notice the intervals nest: the 95% interval for the 4-cylinder group (21.4 to 33.5) contains the 80% interval (21.5 to 32.4), which contains the 50% interval (22.8 to 30.4). This is the data behind a ggdist plot.</p>
+
+<p>Now the plot. <code>stat_pointinterval()</code> takes the raw data and draws exactly those nested intervals, thick bars for narrow intervals and thin bars for wide ones.</p>
+
+<pre><code class="language-r">ggplot(mtcars, aes(x = mpg, y = factor(cyl))) +
+  stat_pointinterval(.width = c(0.5, 0.95)) +
+  labs(x = &quot;MPG&quot;, y = &quot;Cylinders&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-pointinterval.png" alt="Point-intervals for mpg by cylinder, with a thick 50% bar and a thin 95% bar." class="img-responsive img-zoomable" loading="lazy" width="770" height="396" /></p>
+
+<p><em>Figure 3: <a class="auto-link" href="ggdist-Package-in-R.html" title="ggdist Package in R: Visualize Distributions & Uncertainty (Raincloud Plots)">stat_pointinterval()</a> draws a point plus nested interval bars per group, no summary table needed.</em></p>
+
+<p>The dot is the median mpg, the thick bar is the 50% interval, and the thin bar is the 95% interval. The whole plot came from one stat, with no manual summarising. To make the widths pop with colour instead of thickness, <code>stat_interval()</code> draws each interval as a coloured band.</p>
+
+<pre><code class="language-r">ggplot(mtcars, aes(x = mpg, y = factor(cyl))) +
+  stat_interval(.width = c(0.5, 0.8, 0.95), linewidth = 6) +
+  scale_color_brewer(palette = &quot;Blues&quot;) +
+  labs(x = &quot;MPG&quot;, y = &quot;Cylinders&quot;, color = &quot;Interval&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-stat-interval.png" alt="Nested coloured intervals for mpg by cylinder using stat_interval()." class="img-responsive img-zoomable" loading="lazy" width="770" height="396" /></p>
+
+<p><em>Figure 4: stat_interval() encodes interval width with colour, darkest for the narrowest interval.</em></p>
+
+<p>Now the 50%, 80% and 95% intervals stack as darker-to-lighter bands. This is a compact way to show that most of the plausible values sit in the dark core, with the light edges being less likely.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Nested intervals show confidence as a gradient, not a cliff.</strong> A single 95% bar implies everything inside is equally likely and everything outside is impossible. Stacking 50%, 80% and 95% intervals reminds the reader that plausibility fades smoothly from the center outward.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>point_interval()</code> to summarise horsepower (<code>hp</code>) by cylinder at a single 90% interval width.</p>
+<pre><code class="language-r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  # call point_interval() on hp with .width = 0.9
+
+#&gt; Expected: a median hp per cylinder with 90% lower and upper bounds</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  point_interval(hp, .width = 0.9)
+#&gt; # A tibble: 3 × 7
+#&gt;     cyl    hp .lower .upper .width .point .interval
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;
+#&gt; 1     4   91     57    111     0.9 median qi
+#&gt; 2     6  110    106.   159.    0.9 median qi
+#&gt; 3     8  192.   150    289.    0.9 median qi</code></pre>
+
+<p><strong>Explanation:</strong> Swapping <code>mpg</code> for <code>hp</code> and using a single <code>.width</code> gives one row per group. The 8-cylinder cars have both the highest median horsepower and the widest interval, meaning their power varies the most.</p>
+
+</details>
+</section>
+
+<h2>How do you show a whole distribution with half-eye and gradient plots?</h2>
+
+<p>A point-interval summarises a distribution into a point and some bars. Sometimes you want to show the full shape: is it symmetric, skewed, or bimodal? ggdist's slabinterval family answers this by drawing a <strong>slab</strong> (the distribution's shape) attached to an interval. The most popular is the half-eye plot.</p>
+
+<p><code>stat_halfeye()</code> draws a density curve (the "eye") above a point-interval. You see the estimate, the intervals, and the entire distribution in one compact glyph.</p>
+
+<pre><code class="language-r">ggplot(mtcars, aes(x = mpg, y = factor(cyl))) +
+  stat_halfeye(.width = c(0.5, 0.95)) +
+  labs(x = &quot;MPG&quot;, y = &quot;Cylinders&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-halfeye.png" alt="Half-eye plots of mpg by cylinder: a density slab above a point-interval for each group." class="img-responsive img-zoomable" loading="lazy" width="770" height="418" /></p>
+
+<p><em>Figure 5: stat_halfeye() stacks a density slab on top of a point-interval, showing shape and summary together.</em></p>
+
+<p>Look at the 8-cylinder group at the bottom. Its density slab has a clear peak, telling you most 8-cylinder cars cluster tightly, while the 4-cylinder slab at the top is wider and flatter, meaning those cars vary more in mpg. The point-interval underneath each slab gives the same summary you saw before. This is the plot that made ggdist famous.</p>
+
+<p>A gradient plot carries the same information but fades the fill by density instead of drawing a curve. Denser regions are darker, so the eye is drawn to the most probable values.</p>
+
+<pre><code class="language-r">ggplot(mtcars, aes(x = mpg, y = factor(cyl))) +
+  stat_gradientinterval(.width = c(0.5, 0.95)) +
+  labs(x = &quot;MPG&quot;, y = &quot;Cylinders&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-gradient.png" alt="Gradient-interval plots of mpg by cylinder, where colour fades with density." class="img-responsive img-zoomable" loading="lazy" width="770" height="418" /></p>
+
+<p><em>Figure 6: stat_gradientinterval() encodes probability as opacity, darkest where values are most likely.</em></p>
+
+<p>Gradient plots are handy when you have many groups and stacked density curves would overlap. The fading fill communicates "most likely here, less likely there" without adding vertical height.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match the glyph to your audience.</strong> Point-intervals are safest for reports because everyone reads error bars. Half-eye and gradient plots reward a more technical audience with the full distribution shape. Pick the simplest glyph that still tells the story.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Swap <code>stat_halfeye()</code> for <code>stat_eye()</code> to draw a full eye, which mirrors the density above and below the interval.</p>
+<pre><code class="language-r">ggplot(mtcars, aes(x = mpg, y = factor(cyl))) +
+  # replace this comment with a stat_eye() layer using .width = c(0.5, 0.95)
+  labs(x = &quot;MPG&quot;, y = &quot;Cylinders&quot;) +
+  theme_ggdist()
+#&gt; Expected: a symmetric (mirrored) density with an interval, one per cylinder</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ggplot(mtcars, aes(x = mpg, y = factor(cyl))) +
+  stat_eye(.width = c(0.5, 0.95)) +
+  labs(x = &quot;MPG&quot;, y = &quot;Cylinders&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><strong>Explanation:</strong> <code>stat_eye()</code> is the two-sided cousin of <code>stat_halfeye()</code>. It mirrors the density into a violin-like shape with the point-interval running through the middle.</p>
+
+</details>
+</section>
+
+<h2>How do you visualize model uncertainty with stat_lineribbon()?</h2>
+
+<p>The final piece ties intervals and bands together. When you fit a model and want a trend line with nested uncertainty bands, ggdist's <code>stat_lineribbon()</code> is purpose-built. It draws the fit plus several bands at once, giving the continuous cousin of the nested point-intervals from earlier.</p>
+
+<p>First we need fitted values with their standard errors along a grid of weights. The broom package does this cleanly: <code>augment()</code> with <code>se_fit = TRUE</code> returns the fitted value and its standard error for each new x. This step uses only broom, so it runs in your browser.</p>
+
+<div class="webr-container" data-block-title="Fitted values with standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitted values with standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+
+lm_fit  &lt;- lm(mpg ~ wt, data = mtcars)
+wt_grid &lt;- data.frame(wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 50))
+
+aug &lt;- augment(lm_fit, newdata = wt_grid, se_fit = TRUE)
+head(aug, 3)
+#&gt; # A tibble: 3 × 3
+#&gt;      wt .fitted .se.fit
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1  1.51    29.2    1.09
+#&gt; 2  1.59    28.8    1.06
+#&gt; 3  1.67    28.3    1.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.fitted</code> column is the predicted mpg and <code>.se.fit</code> is its standard error at each weight. To turn a fitted value and its standard error into a full distribution, ggdist uses the distributional package: <code>dist_student_t()</code> builds a t-distribution for every row from the degrees of freedom, the fitted mean, and the standard error. <code>stat_lineribbon()</code> then draws nested bands from those distributions.</p>
+
+<pre><code class="language-r">library(ggdist)
+library(distributional)
+
+ggplot(aug, aes(x = wt)) +
+  stat_lineribbon(
+    aes(ydist = dist_student_t(df = df.residual(lm_fit), mu = .fitted, sigma = .se.fit)),
+    .width = c(0.5, 0.8, 0.95)
+  ) +
+  geom_point(data = mtcars, aes(y = mpg), colour = &quot;grey40&quot;) +
+  scale_fill_brewer(palette = &quot;Blues&quot;) +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;MPG&quot;, fill = &quot;Interval&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-lineribbon.png" alt="A fit line with nested 50%, 80% and 95% uncertainty bands from stat_lineribbon()." class="img-responsive img-zoomable" loading="lazy" width="770" height="462" /></p>
+
+<p><em>Figure 7: stat_lineribbon() draws the fit with nested confidence bands, darkest at the center.</em></p>
+
+<p>The result is the plot the whole guide has been building toward: a fit line wrapped in three nested bands, dark in the middle where the model is most confident and fading outward. It is the band from section four, upgraded to show several confidence levels at once, with the same nested logic as the point-intervals from section five.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Uncertainty visualization is one idea in many outfits.</strong> A point-interval, a half-eye, and a lineribbon all answer the same question, "how sure are we?", for categories, for a single distribution, and for a trend. Once you see the shared logic, choosing a geom becomes a matter of data shape, not new theory.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Redraw the lineribbon with a single 95% band in a solid fill colour instead of three nested bands.</p>
+<pre><code class="language-r">ggplot(aug, aes(x = wt)) +
+  stat_lineribbon(
+    aes(ydist = dist_student_t(df = df.residual(lm_fit), mu = .fitted, sigma = .se.fit))
+    # then add: , .width = 0.95, fill = &quot;steelblue&quot;, alpha = 0.4
+  ) +
+  geom_point(data = mtcars, aes(y = mpg), colour = &quot;grey40&quot;) +
+  theme_ggdist()
+#&gt; Expected: one shaded 95% band around the fit line</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ggplot(aug, aes(x = wt)) +
+  stat_lineribbon(
+    aes(ydist = dist_student_t(df = df.residual(lm_fit), mu = .fitted, sigma = .se.fit)),
+    .width = 0.95, fill = &quot;steelblue&quot;, alpha = 0.4
+  ) +
+  geom_point(data = mtcars, aes(y = mpg), colour = &quot;grey40&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><strong>Explanation:</strong> Setting a single <code>.width</code> gives one band, and moving <code>fill</code> and <code>alpha</code> outside <code>aes()</code> makes them fixed styling rather than data-driven. This is the ggdist equivalent of the <code>geom_ribbon()</code> band from section four.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's tie the whole workflow together with a chart you could drop into a report. We compare fuel economy across cylinder counts, split by transmission type, and show a 95% confidence interval for every group. This uses only browser-runnable code, so you can run the entire thing here.</p>
+
+<p>First, summarise mpg by cylinder and transmission, building the confidence bounds with <code>qt()</code> exactly as before.</p>
+
+<div class="webr-container" data-block-title="Summarise mpg by cylinder and transmission">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise mpg by cylinder and transmission</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_am &lt;- mtcars |&gt;
+  mutate(transmission = if_else(am == 1, &quot;Manual&quot;, &quot;Automatic&quot;)) |&gt;
+  group_by(cyl, transmission) |&gt;
+  summarise(
+    mean_mpg = mean(mpg),
+    se_mpg   = sd(mpg) / sqrt(n()),
+    n        = n(),
+    .groups  = &quot;drop&quot;
+  ) |&gt;
+  mutate(
+    tcrit = qt(0.975, df = pmax(n - 1, 1)),
+    lower = mean_mpg - tcrit * se_mpg,
+    upper = mean_mpg + tcrit * se_mpg
+  )
+
+mpg_am
+#&gt; # A tibble: 6 × 8
+#&gt;     cyl transmission mean_mpg se_mpg     n tcrit lower upper
+#&gt;   &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;  &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     4 Automatic        22.9  0.839     3  4.30  19.3  26.5
+#&gt; 2     4 Manual           28.1  1.59      8  2.36  24.3  31.8
+#&gt; 3     6 Automatic        19.1  0.816     4  3.18  16.5  21.7
+#&gt; 4     6 Manual           20.6  0.433     3  4.30  18.7  22.4
+#&gt; 5     8 Automatic        15.0  0.801    12  2.20  13.3  16.8
+#&gt; 6     8 Manual           15.4  0.400     2 12.7   10.3  20.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the last row: only two 8-cylinder manual cars exist, so its critical value rises to 12.7 and its interval is very wide. That very wide interval is exactly the point: with only two cars we barely know that group's average, and a plain bar chart would have hidden how little data it rests on.</p>
+
+<p>Now plot it. We colour by transmission and use <code>position_dodge()</code> so the two transmissions sit side by side within each cylinder group instead of overlapping.</p>
+
+<div class="webr-container" data-block-title="Plot dodged confidence intervals by transmission">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot dodged confidence intervals by transmission</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg_am, aes(x = factor(cyl), y = mean_mpg, colour = transmission)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper),
+                  position = position_dodge(width = 0.4)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Mean MPG (95% CI)&quot;, colour = &quot;Transmission&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The finished chart reads cleanly: manual cars average better mpg among 4-cylinder models, the gap shrinks for 6 cylinders, and the huge whisker on the 8-cylinder manual group warns you not to over-read its two-car average. Every claim a reader might make is now tempered by a visible interval.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the guide. Try each before opening the solution.</p>
+
+<h3>Exercise 1: Confidence intervals for gear groups</h3>
+
+<p>Summarise the rear axle ratio (<code>drat</code>) by the number of forward gears (<code>gear</code>), compute a 95% confidence interval per group with <code>qt()</code>, and print the result. Save it to <code>drat_ci</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: group_by(gear), summarise mean + se + n, then mutate lower/upper with qt(0.975, n - 1)
+
+drat_ci &lt;- mtcars |&gt;
+  group_by(gear)
+  # complete the pipeline
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">drat_ci &lt;- mtcars |&gt;
+  group_by(gear) |&gt;
+  summarise(mean_drat = mean(drat), se = sd(drat) / sqrt(n()), n = n(), .groups = &quot;drop&quot;) |&gt;
+  mutate(lower = mean_drat - qt(0.975, n - 1) * se,
+         upper = mean_drat + qt(0.975, n - 1) * se)
+drat_ci
+#&gt; # A tibble: 3 × 6
+#&gt;    gear mean_drat     se     n lower upper
+#&gt;   &lt;dbl&gt;     &lt;dbl&gt;  &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     3      3.13 0.0707    15  2.98  3.28
+#&gt; 2     4      4.04 0.0902    12  3.84  4.24
+#&gt; 3     5      3.92 0.174      5  3.43  4.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> This is the section-three recipe applied to a new grouping variable. The 5-gear group has the fewest cars and the widest interval, a pattern you should now expect.</p>
+
+</details>
+
+<h3>Exercise 2: A confidence band for mpg versus horsepower</h3>
+
+<p>Fit a linear model of <code>mpg</code> on <code>hp</code>, build a 95% confidence band over a grid of horsepower values with <code>predict()</code>, and store the first few rows in <code>cap_band</code>. You do not have to plot it, just produce the banded data frame.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: lm(mpg ~ hp), make a data.frame grid of hp, predict(interval = &quot;confidence&quot;)
+
+cap_model &lt;- lm(mpg ~ hp, data = mtcars)
+# build cap_grid and cap_band, then print head(cap_band, 3)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_model &lt;- lm(mpg ~ hp, data = mtcars)
+cap_grid  &lt;- data.frame(hp = seq(min(mtcars$hp), max(mtcars$hp), length.out = 50))
+cap_band  &lt;- cbind(cap_grid,
+  as.data.frame(predict(cap_model, newdata = cap_grid, interval = &quot;confidence&quot;)))
+head(cap_band, 3)
+#&gt;         hp      fit      lwr      upr
+#&gt; 1 52.00000 26.55099 24.14802 28.95396
+#&gt; 2 57.77551 26.15694 23.85013 28.46374
+#&gt; 3 63.55102 25.76288 23.54998 27.97579</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The workflow matches section four exactly, only the predictor changed from <code>wt</code> to <code>hp</code>. Feed <code>cap_band</code> into <code>geom_ribbon()</code> plus <code>geom_line()</code> and you have the finished band.</p>
+
+</details>
+
+<h3>Exercise 3: Compare distributions with a half-eye plot</h3>
+
+<p>Using ggdist, draw a half-eye plot of <code>mpg</code> split by transmission (<code>am</code>, where 0 is automatic and 1 is manual), showing 66% and 95% intervals. This one runs in your local R session.</p>
+
+<pre><code class="language-r"># Hint: aes(x = mpg, y = factor(am)) then stat_halfeye(.width = c(0.66, 0.95))
+
+ggplot(mtcars, aes(x = mpg, y = factor(am))) +
+  # add the stat_halfeye() layer here
+  labs(x = &quot;MPG&quot;, y = &quot;Transmission (0 = auto, 1 = manual)&quot;) +
+  theme_ggdist()
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">library(ggdist)
+
+ggplot(mtcars, aes(x = mpg, y = factor(am))) +
+  stat_halfeye(.width = c(0.66, 0.95)) +
+  labs(x = &quot;MPG&quot;, y = &quot;Transmission (0 = auto, 1 = manual)&quot;) +
+  theme_ggdist()</code></pre>
+
+<p><strong>Explanation:</strong> Mapping <code>factor(am)</code> to <code>y</code> gives one half-eye per transmission. The manual group's density sits clearly to the right, showing manual cars tend to get better mileage, and the slab shape reveals how spread out each group is.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Visualizing uncertainty is a single skill with a few interchangeable tools. Choose the tool by the shape of your data, then let the geom show the reader how much to trust each number.</p>
+
+<p><img src="screenshots/Visualizing-Uncertainty-in-R-toolkit-mindmap.webp" alt="The uncertainty visualization toolkit: base ggplot2 geoms and ggdist stats." class="img-responsive img-zoomable" loading="lazy" width="1610" height="914" /></p>
+
+<p><em>Figure 8: The full toolkit, from base ggplot2 error bars to ggdist slabintervals.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your data</th>
+<th>Best tool</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A few group means</td>
+<td><code>geom_pointrange()</code> or <code>geom_errorbar()</code></td>
+<td>Estimate plus one interval</td>
+</tr>
+<tr>
+<td>Groups, computed on the fly</td>
+<td><code>stat_summary(fun.data = mean_se)</code></td>
+<td>Mean and SE without a summary table</td>
+</tr>
+<tr>
+<td>A trend over continuous x</td>
+<td><code>geom_smooth()</code> or <code>geom_ribbon()</code></td>
+<td>A confidence band around the line</td>
+</tr>
+<tr>
+<td>Groups, nested intervals</td>
+<td>ggdist <code>stat_pointinterval()</code> / <code>stat_interval()</code></td>
+<td>Point plus 50/80/95 intervals</td>
+</tr>
+<tr>
+<td>The full distribution shape</td>
+<td>ggdist <code>stat_halfeye()</code> / <code>stat_gradientinterval()</code></td>
+<td>Density slab plus interval</td>
+</tr>
+<tr>
+<td>Model trend, nested bands</td>
+<td>ggdist <code>stat_lineribbon()</code></td>
+<td>Fit line with 50/80/95 bands</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways to carry forward:</p>
+
+<ul>
+
+<li><strong>Always pair an estimate with an interval.</strong> A number alone hides how precise it is.</li>
+
+<li><strong>Know your three quantities.</strong> SD is the spread of data, SE is the precision of the mean, and a CI turns SE into a plain-language range.</li>
+
+<li><strong>A confidence band tracks the average; a prediction band tracks a single new point.</strong> They differ a lot in width.</li>
+
+<li><strong>ggdist unifies it all</strong> as distribution visualization, from point-intervals to half-eyes to lineribbons.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Do I need the ggdist package, or can I do everything in base ggplot2?</strong></p>
+
+<p>Base ggplot2 already covers a lot: <code>geom_errorbar()</code> and <code>geom_pointrange()</code> for group intervals, and <code>geom_smooth()</code> or <code>geom_ribbon()</code> for a single confidence band, all of which run anywhere. Reach for ggdist when you want nested intervals, the full distribution shape (half-eye or gradient plots), or model bands at several confidence levels from one line. The two are complementary, not an either-or choice.</p>
+
+<p><strong>My error bars are much longer than someone else's on the same data. Why?</strong></p>
+
+<p>Almost always because you are drawing different quantities. A standard deviation bar shows the spread of the raw values, while a standard error bar shows the precision of the mean and is therefore smaller. A confidence interval takes that standard error and widens it by a critical value. Label which one you plotted so readers can compare like with like.</p>
+
+<p><strong>How do I put error bars on a bar chart instead of on points?</strong></p>
+
+<p>Draw the bars with <code>geom_col()</code> and add <code>geom_errorbar()</code> on top, mapping <code>ymin</code> and <code>ymax</code> to your bounds. If the bars are grouped, give <code>geom_col()</code> and <code>geom_errorbar()</code> the same <code>position_dodge()</code> width so each error bar sits on its own bar. Many people prefer <code>geom_pointrange()</code> instead, because solid bars can hide the data behind them.</p>
+
+<p><strong>Can I draw these uncertainty bands for a model other than <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a>, such as a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>?</strong></p>
+
+<p>Yes. <code>predict()</code> and broom's <code>augment()</code> work for <code>glm()</code> and many other model types, so the recipes from sections four and seven carry over. For a <code>glm()</code> you usually predict on the link scale with standard errors, then transform the fitted value and its bounds back to the response scale before plotting.</p>
+
+<p><strong>My ggdist plot code returns nothing or an error. What went wrong?</strong></p>
+
+<p>The ggdist blocks run in your own R session, not in the page. Install the package once with <code>install.packages(&quot;ggdist&quot;)</code> (plus <code>&quot;distributional&quot;</code> for the lineribbon example), then load it with <code>library(ggdist)</code> before the plotting code. If a plot still does not appear, make sure the <code>ggplot()</code> call is the value printed at the console rather than assigned to a variable.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Kay, M. - <em>ggdist: Visualizations of Distributions and Uncertainty</em>. Package documentation and reference. <a href="https://mjskay.github.io/ggdist/">Link</a></li>
+
+<li>Kay, M. - <em>Frequentist uncertainty visualization</em> (ggdist vignette). <a href="https://mjskay.github.io/ggdist/articles/freq-uncertainty-vis.html">Link</a></li>
+
+<li>Kay, M. - <em>Slab + interval stats and geoms</em> (ggdist vignette). <a href="https://mjskay.github.io/ggdist/articles/slabinterval.html">Link</a></li>
+
+<li>Kay, M. - <em>Lineribbon stats and geoms</em> (ggdist vignette). <a href="https://mjskay.github.io/ggdist/articles/lineribbon.html">Link</a></li>
+
+<li>ggplot2 documentation - <code>geom_ribbon()</code> and <code>geom_smooth()</code> reference. <a href="https://ggplot2.tidyverse.org/reference/geom_ribbon.html">Link</a></li>
+
+<li>Robinson, D., Hayes, A., & Couch, S. - <em>broom: Convert Statistical Objects into Tidy Tibbles</em>. <a href="https://broom.tidymodels.org/">Link</a></li>
+
+<li>O'Hara-Wild, M., et al. - <em>distributional: Vectorised Probability Distributions</em>. <a href="https://pkg.mitchelloharawild.com/distributional/">Link</a></li>
+
+<li>Wilke, C. O. - <em>Fundamentals of Data Visualization</em>, Chapter 16: Visualizing uncertainty. O'Reilly (2019). <a href="https://clauswilke.com/dataviz/visualizing-uncertainty.html">Link</a></li>
+
+<li>Wickham, H., & Grolemund, G. - <em>R for Data Science</em>, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Error-Bars-in-R.html">Error Bars in ggplot2: SD, SE or CI, Done Right</a> - a closer look at which error bar to draw and how to compute each one correctly.</li>
+
+<li><a href="ggdist-Package-in-R.html">ggdist Package in R: Visualize Distributions and Uncertainty</a> - a focused tour of ggdist's slabinterval and dotsinterval families, including raincloud plots.</li>
+
+<li><a href="Communicating-Uncertainty.html">Communicating Uncertainty in R</a> - how to present intervals honestly so your charts inform rather than mislead.</li>
+
+</ul>
+
+{% endraw %}
