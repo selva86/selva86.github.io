@@ -1,0 +1,1007 @@
+---
+title: "Plotting Big Data in R: Overplotting, Binning, scattermore"
+description: "Overplotting turns a big scatter plot into a solid blob. Learn to plot millions of points in R with transparency, sampling, hexbin binning and scattermore."
+keywords: "plotting big data in R, overplotting ggplot2, geom_hex, geom_bin2d, scattermore R, hexbin R, ggplot2 large dataset, plot millions of points R, rasterize scatter plot, 2D binning R"
+mathjax: false
+webr: true
+curriculum_id: "GG2-12.4"
+post_type: "C"
+auto_link_terms: "plotting big data in R|plot big data in R|plotting large datasets in R|overplotting in R|plot millions of points|geom_scattermore|scattermore|scattermore in R|rasterize a scatter plot|rasterized scatterplot|downsampling for plots|big data visualization in R"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Plotting Big Data"
+sidebar_order: "96"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">When a scatter plot has to draw hundreds of thousands of points, they stack into a solid blob and the plot takes seconds to render. The fix is to stop drawing every dot. Instead, you <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> the points into counts or keep only a sample, and when every point must stay you rasterize them into pixels. This tutorial walks through every option in ggplot2, from a one-line transparency tweak to the scattermore package, using plain ggplot2 the whole way.</p>
+
+<h2>Why does a scatter plot fail when you have too many points?</h2>
+
+<p>A scatter plot draws one dot per row. That is perfect for a few hundred points, but real datasets are often much larger: sensor logs, transaction records, or simulation output can run to hundreds of thousands or millions of rows. At that scale the dots pile on top of each other, the interesting structure disappears under a wall of ink, and every redraw gets slow. Let's build a dataset big enough to see the problem, then watch it happen.</p>
+
+<p>We will simulate 300,000 points that fall into two overlapping clouds, so there is real structure hiding in the data. The first code block loads ggplot2, generates the data, and confirms its size so you know exactly what you are working with.</p>
+
+<div class="webr-container" data-block-title="Simulate 300,000 data points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate 300,000 data points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Two overlapping clouds of points, 300,000 rows in total
+set.seed(2024)
+n &lt;- 300000
+grp &lt;- sample(c(&quot;A&quot;, &quot;B&quot;), n, replace = TRUE, prob = c(0.6, 0.4))
+x &lt;- ifelse(grp == &quot;A&quot;, rnorm(n, 0, 1), rnorm(n, 4, 1.2))
+y &lt;- 0.6 * x + rnorm(n, 0, 1.4)
+big &lt;- data.frame(x = x, y = y)
+
+nrow(big)
+#&gt; [1] 300000
+
+head(big, 5)
+#&gt;           x         y
+#&gt; 1  5.176872 5.4325660
+#&gt; 2  1.442324 1.0826366
+#&gt; 3  4.643746 2.1937810
+#&gt; 4  2.502172 0.4090467
+#&gt; 5 -1.287542 0.6502555</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>nrow()</code> call confirms 300,000 rows, and <code>head()</code> shows each row is just a pair of numbers, <code>x</code> and <code>y</code>. There are two clouds baked in here: one centered near zero and a second, looser one centered near <code>x = 4</code>. Keep that in mind, because the whole point of the tutorial is that a plain scatter plot will completely hide the second cloud.</p>
+
+<p>Now let's plot all 300,000 points the obvious way, with <code>geom_point()</code>, and see what happens.</p>
+
+<div class="webr-container" data-block-title="Plot all 300,000 points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot all 300,000 points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a near-solid black mass. Points have stacked so densely that you cannot tell where the data is thick and where it is thin, and you certainly cannot see the two separate clouds. This is called overplotting: so many marks overlap that the plot shows every point yet communicates almost nothing. It is also slow, because ggplot2 still has to draw all 300,000 dots even though most of them land on ink that is already black.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Once ink saturates, adding more points cannot show density.</strong> A black region could hold ten points or ten thousand, and the plot looks identical either way, so the fix is never "draw harder", it is to summarise or thin the data before it reaches the page.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Prove that overplotting is about volume, not the data itself. Plot just the first 1,000 rows below and the points are clearly separate. Then change <code>1000</code> to <code>50000</code> and watch the blob start to form again.</p>
+<div class="webr-container" data-block-title="Your turn: shrink the row count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrink the row count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot a small slice, then raise 1000 to 50000 and re-run
+ggplot(big[1:1000, ], aes(x, y)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Row count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 50,000 points already overlap heavily in the dense core
+ggplot(big[1:50000, ], aes(x, y)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 1,000 points you can see gaps between dots. By 50,000 the dense center is filling in again. The data never changed; only the number of overlapping marks did.</p>
+
+</details>
+</section>
+
+<h2>Does making points transparent fix overplotting?</h2>
+
+<p>The most common first fix is to make each point partly see-through, so that places where many dots overlap show up as darker patches. In ggplot2 you control this with <code>alpha</code>, which sets opacity from 0 (fully transparent) to 1 (fully solid). Let's set a very low alpha so that a single point is almost invisible and only overlaps build up to visible ink.</p>
+
+<div class="webr-container" data-block-title="Add transparency with alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add transparency with alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_point(alpha = 0.02)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is a real improvement. The dense core now reads as a darker cloud, and you can start to sense that the data is not uniform. But there is still a problem: the busiest region saturates to solid black long before the sparse edges become visible, so you lose detail at both ends. A single alpha value has to serve the whole plot, and no single value is right everywhere.</p>
+
+<p>Shrinking the dots helps a little more, because smaller marks overlap less. Let's combine a low alpha with a small point size.</p>
+
+<div class="webr-container" data-block-title="Shrink the points too">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrink the points too</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_point(alpha = 0.02, size = 0.3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Together, transparency and small points give the clearest picture yet, and you can finally see a hint of the second cloud on the right. This is genuinely useful for tens of thousands of points. The catch is that it does not scale: it still draws every single point, so it stays slow, and past a few hundred thousand points the dense core still saturates.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Transparency is not a speed fix.</strong> Drawing a million semi-transparent points still means drawing a million points, so the plot stays just as slow as a solid one. Alpha improves readability up to a point, but it does nothing for render time and it cannot rescue a truly saturated core.</div></div>
+
+<p>There is a natural order to the fixes, from the cheapest tweak to the heaviest tool, and the rest of this tutorial climbs that ladder. The figure below is the map.</p>
+
+<p><img src="screenshots/Plotting-Big-Data-in-R-fix-ladder.webp" alt="Fixes for overplotting, from the cheapest change to the heaviest tool" class="img-responsive img-zoomable" loading="lazy" width="2248" height="388" /></p>
+
+<p><em>Figure 1: Fixes for overplotting, from the cheapest change to the heaviest tool.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Push the settings to the extreme. Lower <code>alpha</code> to <code>0.005</code> and <code>size</code> to <code>0.1</code>, and notice that the sparse edges almost vanish while the core is still dark. That trade-off is exactly why a single alpha never fully wins.</p>
+<div class="webr-container" data-block-title="Your turn: go more extreme">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: go more extreme</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lower alpha to 0.005 and size to 0.1
+ggplot(big, aes(x, y)) +
+  geom_point(alpha = 0.02, size = 0.3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extreme transparency solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extreme transparency solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_point(alpha = 0.005, size = 0.1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>alpha = 0.005</code> it takes 200 overlapping points to reach solid colour, so the tails fade out while the core stays dark. No single alpha reveals both the dense middle and the thin edges at once.</p>
+
+</details>
+</section>
+
+<h2>Can I just plot a random sample of the data?</h2>
+
+<p>If you only need a quick look at the shape of the data, the simplest big-data trick is to not use all of it. A random sample of a few thousand points usually shows the same overall pattern as the full dataset, and it plots instantly because there is almost nothing to draw. Let's pull 5,000 random rows out of our 300,000.</p>
+
+<div class="webr-container" data-block-title="Take a random sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Take a random sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+big_sample &lt;- big[sample(nrow(big), 5000), ]
+
+nrow(big_sample)
+#&gt; [1] 5000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>sample(nrow(big), 5000)</code> call picks 5,000 random row numbers, and <code>big[those, ]</code> keeps just those rows. We set a seed first so the sample is reproducible. Now those 5,000 points plot cleanly, with a light alpha to handle what little overlap remains.</p>
+
+<div class="webr-container" data-block-title="Plot the sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big_sample, aes(x, y)) +
+  geom_point(alpha = 0.4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This plot renders instantly and, importantly, the two clouds are now visible: one dense group on the left and a looser one on the right. A random sample preserves the shape of dense regions well, because dense regions contribute the most points and so survive the thinning.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A random sample can erase rare points.</strong> Sampling keeps common patterns but may drop outliers, small clusters, or the single unusual record you were hunting for. If rare events matter, do not sample; bin or rasterize instead so every point still counts.</div></div>
+
+<p>Sampling pairs nicely with the <a href="ggplot2-Position-Adjustments-in-R.html">position adjustments</a> you may already use, such as a touch of jitter, because both are about making a manageable number of points readable. It is the right tool for fast exploration, and the wrong tool when completeness matters.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A bigger sample shows more detail at some cost in speed and clarity. Increase the sample from 5,000 to 20,000 rows and re-plot.</p>
+<div class="webr-container" data-block-title="Your turn: sample more rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sample more rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change 5000 to 20000
+set.seed(1)
+ex_s &lt;- big[sample(nrow(big), 5000), ]
+ggplot(ex_s, aes(x, y)) +
+  geom_point(alpha = 0.3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sample 20,000 rows solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample 20,000 rows solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_s &lt;- big[sample(nrow(big), 20000), ]
+ggplot(ex_s, aes(x, y)) +
+  geom_point(alpha = 0.3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 20,000 points the shape is crisper and the two clouds are obvious, but the dense core starts to fill in again. Sampling is a dial between speed and detail, not a permanent fix.</p>
+
+</details>
+</section>
+
+<h2>How do I turn points into a density map with binning?</h2>
+
+<p>The most reliable fix for overplotting is to stop plotting points at all and instead count them. Binning chops the plotting area into a grid of small cells, counts how many points fall in each cell, and colours each cell by its count. The result is a density map that stays readable no matter how many points you started with, because the number of cells is fixed. Let's start with <a class="auto-link" href="ggplot2-geom_bin2d-in-R.html" title="ggplot2 geom_bin2d() in R: 2D Rectangular Density Bins">rectangular bins</a> using <code>geom_bin2d()</code>.</p>
+
+<div class="webr-container" data-block-title="Bin into a 2D grid with geom_bin2d">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bin into a 2D grid with geom_bin2d</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_bin2d(bins = 60)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Instantly the two clouds appear as two bright regions, and you can read the density directly from the colour of each tile. The <code>bins = 60</code> argument splits each axis into 60 slices, giving a 60 by 60 grid. This drew in about a second even though it summarised 300,000 points, because ggplot2 only has to paint a few thousand tiles, not 300,000 dots.</p>
+
+<p>The default blue gradient is hard to read precisely, because our eyes do not judge "how much bluer" very well. A perceptual colour scale fixes this. The viridis scales, built into ggplot2, map numbers to colours so that equal steps in count look like equal steps in colour.</p>
+
+<div class="webr-container" data-block-title="Use a perceptual color scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a perceptual color scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_bin2d(bins = 60) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now a cell that is twice as busy genuinely looks about twice as bright, so you can compare regions by eye with confidence. You can read a viridis map from dark purple (few points) through green to bright yellow (many points).</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for a perceptual colour scale on any density plot.</strong> A viridis fill via <a class="auto-link" href="R-Color-Theory-ggplot2.html" title="R Color Theory: Choose Palettes, Use ColorBrewer, and Design for Colorblind Readers">scale_fill_viridis_c()</a> keeps the mapping from count to colour even, so brightness tracks density honestly and the plot stays legible for colour-blind readers too.</div></div>
+
+<p>Square bins have one small flaw: the grid lines up horizontally and vertically, which can create distracting stripes. Hexagonal bins avoid this because hexagons tile the plane without aligning into <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a>. Use <code>geom_hex()</code>, which needs the hexbin package installed.</p>
+
+<div class="webr-container" data-block-title="Hexagonal bins with geom_hex">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hexagonal bins with geom_hex</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(hexbin)
+
+ggplot(big, aes(x, y)) +
+  geom_hex(bins = 60) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hexagonal map is smoother than the square one and, for most density plots, it is the best default. Both clouds are crisp, the transition between them is clean, and the whole thing rendered in well under a second. If you want a deeper tour of binning and smoothing options, the dedicated guide to <a href="ggplot2-2D-Density-and-Hexbin-in-R.html">2D density and hexbin plots</a> goes further; here we care about them as the workhorse fix for scale.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fewer, bigger bins give a coarser but bolder map. Change <code>bins = 60</code> to <code>bins = 30</code> and compare.</p>
+<div class="webr-container" data-block-title="Your turn: try coarser bins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try coarser bins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change bins to 30
+ggplot(big, aes(x, y)) +
+  geom_hex(bins = 60) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Coarser hexbins solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coarser hexbins solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_hex(bins = 30) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fewer bins means larger hexagons, each holding more points. The map gets bolder and less noisy but loses fine detail. Bin count is the main dial you tune on a binned plot.</p>
+
+</details>
+</section>
+
+<h2>How do I draw smooth density contours?</h2>
+
+<p>Binning gives you a blocky map. Sometimes you want a smooth one, like the contour lines on a topographic map, where each line connects places of equal point density. ggplot2 estimates that smooth surface for you with <code>geom_density_2d()</code>, which draws contour lines.</p>
+
+<div class="webr-container" data-block-title="Draw density contour lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw density contour lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_density_2d()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The contour rings show the two clouds as two sets of nested loops, with tightly packed rings marking the densest centers. Contours are excellent for seeing the overall shape and for spotting multiple peaks, and because they summarise the data into a handful of lines they draw without any overplotting at all.</p>
+
+<p>If you prefer a filled heat map to bare lines, <code>stat_density_2d()</code> can shade the whole surface by estimated density. We map the computed density to fill and draw it as a raster, which is a grid of coloured pixels.</p>
+
+<div class="webr-container" data-block-title="Fill the density with a heat map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill the density with a heat map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  stat_density_2d(aes(fill = after_stat(density)), geom = &quot;raster&quot;, contour = FALSE) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This produces a smooth, glowing heat map where brightness is estimated density. It is the smooth cousin of the hexbin plot: hexbins count points in hard-edged cells, while this estimates a continuous surface. The <code>after_stat(density)</code> part tells ggplot2 to colour by the density that the stat computed, rather than by any column in your data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Smooth density plots estimate a surface, they do not count points.</strong> Both density geoms fit a smoothed 2D distribution to your data, so they show where points are concentrated but not exact counts. When you need actual numbers per region, bin with <a class="auto-link" href="ggplot2-geom_hex-in-R.html" title="ggplot2 geom_hex() in R: 2D Hexagonal Density Bins">geom_hex()</a> or geom_bin2d() instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Contours are most useful laid over the points they summarise. Start from the sampled scatter and add <code>geom_density_2d()</code> on top so the rings sit over the dots.</p>
+<div class="webr-container" data-block-title="Your turn: overlay contours on points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: overlay contours on points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add + geom_density_2d(color = &quot;white&quot;) to this plot
+ggplot(big_sample, aes(x, y)) +
+  geom_point(alpha = 0.2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Contours over points solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contours over points solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big_sample, aes(x, y)) +
+  geom_point(alpha = 0.2) +
+  geom_density_2d(color = &quot;white&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The faint points give context while the white contour lines trace the density on top. Layering a summary over a light scatter is a clean way to show both the raw data and its shape.</p>
+
+</details>
+</section>
+
+<h2>How do I aggregate the data before plotting?</h2>
+
+<p>The binning geoms feel like magic, but underneath they do something you could do yourself: group the points into cells and count them. Doing that aggregation by hand is worth seeing once, because it demystifies binning and because a pre-aggregated table is tiny and fast to plot, and you can reuse it later. Let's round each coordinate to one decimal place, which snaps every point to a grid, then count the points at each grid position with dplyr.</p>
+
+<div class="webr-container" data-block-title="Aggregate to a grid with dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate to a grid with dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+grid &lt;- big |&gt;
+  mutate(xr = round(x, 1), yr = round(y, 1)) |&gt;
+  count(xr, yr, name = &quot;n&quot;)
+
+head(grid, 5)
+#&gt;     xr   yr n
+#&gt; 1 -4.3 -3.2 1
+#&gt; 2 -4.1 -3.5 1
+#&gt; 3 -4.1 -2.6 1
+#&gt; 4 -4.1 -2.4 1
+#&gt; 5 -4.1 -1.7 1
+
+nrow(grid)
+#&gt; [1] 9063</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>|&gt;</code> symbol is the pipe: it feeds the value on its left into the first argument of the function on its right, so you read the block top to bottom instead of inside out. Here it means "take <code>big</code>, add two rounded columns with <code>mutate()</code>, then <code>count()</code> the rows in each cell". The <code>round(x, 1)</code> and <code>round(y, 1)</code> calls snap each point onto a grid spaced 0.1 apart, <code>mutate()</code> stores those as new <code>xr</code> and <code>yr</code> columns, and <code>count()</code> tallies how many points share each grid cell. We went from 300,000 rows to just 9,063 grid cells: a table 33 times smaller that holds the same density information. Now plotting is trivial, because we just draw one tile per cell and colour it by the count.</p>
+
+<div class="webr-container" data-block-title="Plot the aggregated grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the aggregated grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(grid, aes(xr, yr, fill = n)) +
+  geom_tile() +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This looks almost identical to the <code>geom_bin2d()</code> plot from earlier, which is the whole point: <code>geom_bin2d()</code> is doing exactly this aggregation for you behind the scenes. Once you see binning as "round, group, count, colour", you understand every binned plot in ggplot2.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every binning geom is aggregate-then-colour underneath.</strong> geom_bin2d() and geom_hex() round each point to a cell, then count the points per cell and map that count to fill. Doing it by hand gives you a small summary table you can cache, join, or re-plot without ever touching the raw millions again.</div></div>
+
+<p>For very large data, the aggregation step itself can be the slow part, and here the <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table package</a> shines. It groups and counts enormous tables far faster than most alternatives. The syntax is compact: inside the brackets we say what to compute and what to group by.</p>
+
+<div class="webr-container" data-block-title="Aggregate faster with data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate faster with data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+setDTthreads(1)
+
+dt &lt;- as.data.table(big)
+agg &lt;- dt[, .(count = .N), by = .(xr = round(x, 1), yr = round(y, 1))]
+
+nrow(agg)
+#&gt; [1] 9063
+
+head(agg[order(-count)], 3)
+#&gt;       xr    yr count
+#&gt;    &lt;num&gt; &lt;num&gt; &lt;int&gt;
+#&gt; 1:   0.2   0.0   239
+#&gt; 2:  -0.1  -0.1   228
+#&gt; 3:   0.0   0.2   223</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The expression <code>.N</code> is data.table shorthand for "number of rows in this group", and <code>by = .(...)</code> defines the grid cells. Sorting by <code>-count</code> shows the busiest cells: the densest spot, near the origin, holds 239 points in a single 0.1 by 0.1 cell. We get the same 9,063 cells as dplyr, just computed with an engine built for scale.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Set setDTthreads(1) for reproducible timing and safe in-browser runs.</strong> data.table is multi-threaded by default; pinning it to one thread makes benchmarks comparable and keeps the code well behaved when it runs in a single-threaded environment.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The grid has a long tail of near-empty cells. Count how many cells contain exactly one point, using the <code>grid</code> table.</p>
+<div class="webr-container" data-block-title="Your turn: count single-point cells">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count single-point cells</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the cells in grid where n equals 1
+my_singletons &lt;- sum(grid$n == 0)  # fix the comparison
+my_singletons</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Single-point cells solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-point cells solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_singletons &lt;- sum(grid$n == 1)
+my_singletons
+#&gt; [1] 1418</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 1,418 of the 9,063 cells hold just one point. Those lonely cells are the sparse outskirts of the clouds, and binning still shows them faithfully, which is exactly why binning beats sampling when rare points matter.</p>
+
+</details>
+</section>
+
+<h2>How do I keep every point but plot fast? (scattermore)</h2>
+
+<p>Binning and sampling both give something up: binning replaces points with counts, and sampling throws points away. Sometimes you truly need every point on the page, as a real scatter, but you need it to render in about a second instead of grinding for ten. That is what rasterizing does. Instead of asking the graphics engine to draw a million separate dots, a rasterizer paints the points straight onto a pixel grid, which is dramatically faster. The scattermore package brings this to ggplot2 as a drop-in replacement for <code>geom_point()</code>.</p>
+
+<p>Because scattermore is a specialised package rather than part of base ggplot2, the next blocks are meant to be run in R on your own machine. Install it once with <code>install.packages(&quot;scattermore&quot;)</code>, then swap <code>geom_point()</code> for <code>geom_scattermore()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>These scattermore blocks run in R on your computer, not on this page.</strong> Install the package first with install.packages("scattermore"). Everything above runs live in your browser; scattermore is the one tool here that needs a local R session.</div></div>
+
+<pre><code class="language-r">library(scattermore)
+
+# geom_scattermore() is a fast, pixel-based drop-in for geom_point()
+ggplot(big, aes(x, y)) +
+  geom_scattermore(pointsize = 2)</code></pre>
+
+<p>The output looks like an ordinary scatter of all 300,000 points, but it was rasterized to pixels first, so it renders in a fraction of the time and every point is still there. On a million points the difference is stark, which the benchmark below makes concrete. Point size is fixed for all points with <code>geom_scattermore()</code>, which is the small trade for the speed.</p>
+
+<p>A close relative solves a different problem: colouring each point by how crowded its neighbourhood is, so you get a real scatter that also reads as a density map. The ggpointdensity package adds <code>geom_pointdensity()</code> for this.</p>
+
+<pre><code class="language-r">library(ggpointdensity)
+
+# Every point is drawn, coloured by how many neighbours are nearby
+ggplot(big, aes(x, y)) +
+  geom_pointdensity() +
+  scale_color_viridis_c()</code></pre>
+
+<p>This gives the best of both worlds for many jobs: you see individual points in the sparse regions, where each dot matters, and a smooth density glow in the crowded core. It is slower than plain scattermore because it computes a neighbour count for every point, but it is a beautiful default for exploratory work.</p>
+
+<p>Here is how the main approaches compare when the dataset grows to 1,000,000 points. These are representative build-and-draw times on one laptop; your exact numbers will differ, but the ratios are what matter.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Draw time</th>
+<th>Points kept</th>
+<th>Shows density?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plain <code>geom_point()</code></td>
+<td>~10 s</td>
+<td>all 1,000,000</td>
+<td>No, solid blob</td>
+</tr>
+<tr>
+<td>Transparency (<code>alpha</code>)</td>
+<td>~10 s</td>
+<td>all 1,000,000</td>
+<td>Partly</td>
+</tr>
+<tr>
+<td>Sample 10,000, then points</td>
+<td>~0.2 s</td>
+<td>10,000</td>
+<td>Approximately</td>
+</tr>
+<tr>
+<td><code>geom_bin2d()</code></td>
+<td>~1 s</td>
+<td>counted into cells</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>geom_hex()</code></td>
+<td>~0.8 s</td>
+<td>counted into cells</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>geom_scattermore()</code></td>
+<td>~1 s</td>
+<td>all 1,000,000 as pixels</td>
+<td>With alpha</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Rasterize when you must keep every point.</strong> scattermore draws all points as pixels, so a million-point scatter renders in about a second instead of ten while staying a true scatter plot. It is also the trick that keeps ggplot2 files small when you export a huge scatter to PDF.</div></div>
+
+<p>The table shows the shape of the whole problem. Plain points and transparency are the slowest and least readable at scale. Sampling is fastest but incomplete. Binning is fast and readable but replaces points with counts. Rasterizing is the only option that is both fast and keeps every point. If you want a rasterized layer inside an otherwise vector plot, for example a scatter over crisp text and axes in a PDF, the ggrastr package offers <code>geom_point_rast()</code>, which rasterizes just the point layer.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Think through the trade-off before revealing the answer. If you had 5,000,000 points and needed to see individual outliers in the sparse tails, which single tool from this tutorial fits best, and why?</p>
+<pre><code class="language-r"># Which one keeps every point AND renders fast?
+# Options: alpha, sampling, geom_hex, geom_scattermore</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p><strong>Answer:</strong> <code>geom_scattermore()</code>. Sampling would risk dropping the very outliers you care about, binning replaces points with cell counts so single outliers blur into their cell, and alpha stays slow at that size. Rasterizing keeps all 5,000,000 points as pixels and still renders in about a second, so the lonely tail points survive and stay visible.</p>
+
+</details>
+</section>
+
+<h2>Which technique should I use?</h2>
+
+<p>You now have six tools, and the right choice comes down to two questions: what do you need the plot to show, and how big is the data. The diagram below turns that into a quick decision.</p>
+
+<p><img src="screenshots/Plotting-Big-Data-in-R-decision.webp" alt="Pick a technique by what you need the plot to show" class="img-responsive img-zoomable" loading="lazy" width="1802" height="806" /></p>
+
+<p><em>Figure 2: Pick a technique by what you need the plot to show.</em></p>
+
+<p>Read it as a short set of rules. If you want to see where points pile up, bin them with <code>geom_hex()</code>. If you want the smooth shape of the distribution, draw contours with <code>geom_density_2d()</code>. If you need every individual point on the page, rasterize with <code>geom_scattermore()</code>. And if you just want a fast first look, take a random sample. The table below adds the size dimension.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your data size</th>
+<th>Just exploring</th>
+<th>Publication-quality density</th>
+<th>Must keep every point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Up to ~50,000</td>
+<td><code>geom_point(alpha = ...)</code></td>
+<td><code>geom_hex()</code></td>
+<td><code>geom_point()</code></td>
+</tr>
+<tr>
+<td>~50,000 to 1,000,000</td>
+<td>random sample</td>
+<td><code>geom_hex()</code> + viridis</td>
+<td><code>geom_scattermore()</code></td>
+</tr>
+<tr>
+<td>Over 1,000,000</td>
+<td>sample or <code>geom_hex()</code></td>
+<td>aggregate then <code>geom_tile()</code></td>
+<td><code>geom_scattermore()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The honest summary is that binning with <code>geom_hex()</code> is the best default for most big scatter plots, sampling is the fastest way to peek, and scattermore is the specialist you call when every point must stay.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine the techniques above. Each uses the <code>big</code>, <code>grid</code>, and <code>dt</code> objects created earlier in the tutorial, so run the tutorial code first. Try each one before opening the solution.</p>
+
+<h3>Exercise 1: Sample then bin</h3>
+
+<p>Real workflows often combine tools. Take a 50,000-row random sample of <code>big</code>, then draw a hexbin plot of that sample with 50 bins and a viridis fill. This is a common pattern: thin first for speed, then bin for readability.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: sample 50,000 rows into cap_s
+# Step 2: hexbin plot with bins = 50 and a viridis fill
+
+set.seed(5)
+cap_s &lt;- big[sample(nrow(big), 50000), ]
+# add your ggplot below</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sample then bin solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample then bin solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+cap_s &lt;- big[sample(nrow(big), 50000), ]
+
+ggplot(cap_s, aes(x, y)) +
+  geom_hex(bins = 50) +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sampling drops the row count to 50,000 for speed, and hexbinning then turns those into a clean density map. Combining a cheap and a mid-tier technique is often the practical answer.</p>
+
+</details>
+
+<h3>Exercise 2: Measure the sparse tail</h3>
+
+<p>A binned map is trustworthy only if you know how much of it is nearly empty. Using the <code>grid</code> table from the aggregation section, compute what percentage of grid cells hold only a single point. Round the answer to one decimal place.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># grid has one row per cell with a count column n
+# what fraction of cells have n == 1, as a percentage?
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sparse tail solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sparse tail solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(grid$n == 1) * 100, 1)
+#&gt; [1] 15.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>grid$n == 1</code> is TRUE for single-point cells, and <code>mean()</code> of a TRUE/FALSE vector is the fraction that are TRUE. About 15.6% of cells hold just one point, confirming a long, sparse tail that sampling would thin away but binning preserves.</p>
+
+</details>
+
+<h3>Exercise 3: Find the busiest region</h3>
+
+<p>Sometimes the goal is to locate the single densest spot. Using data.table on <code>big</code>, group the points into wider cells, 0.5 units on a side, count them, and return the busiest cell with its count. Use the <code>dt</code> object from earlier.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Round x and y to the nearest 0.5, count per cell,
+# and return the single cell with the highest count.
+
+# Hint: round(x / 0.5) * 0.5 snaps to a 0.5 grid
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Busiest region solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Busiest region solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_agg &lt;- dt[, .(count = .N), by = .(xr = round(x / 0.5) * 0.5, yr = round(y / 0.5) * 0.5)]
+head(cap_agg[order(-count)], 1)
+#&gt;       xr    yr count
+#&gt;    &lt;num&gt; &lt;num&gt; &lt;int&gt;
+#&gt; 1:     0     0  5057</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The busiest half-unit cell sits at the origin and holds 5,057 points, the heart of the first cloud. Coarser cells pool more points, so counts are larger than the 0.1-grid counts you saw earlier.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the plot you would actually ship for a 300,000-point dataset: a hexbin density map with a perceptual colour scale, clear labels, and a clean theme. It renders in well under a second and reveals both clouds at a glance.</p>
+
+<div class="webr-container" data-block-title="A publication-ready big-data plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A publication-ready big-data plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(big, aes(x, y)) +
+  geom_hex(bins = 70) +
+  scale_fill_viridis_c(name = &quot;count&quot;) +
+  labs(
+    title = &quot;Where 300,000 points pile up&quot;,
+    x = &quot;measure x&quot;,
+    y = &quot;measure y&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This single block ties the tutorial together. We took a dataset far too large for a plain scatter plot, summarised it into hexagonal bins, coloured those bins with an honest viridis scale, and labelled the result. The two clouds are obvious, the density is readable, and the plot is fast and export-friendly. That is the big-data plotting workflow in one figure.</p>
+
+<h2>Summary</h2>
+
+<p>Overplotting is what happens when a scatter plot has more points than it has room for: the dots merge into a blob and the plot slows down. The fix is always to stop drawing every point and instead summarise, thin, or rasterize. The toolkit below covers every case.</p>
+
+<p><img src="screenshots/Plotting-Big-Data-in-R-toolkit.webp" alt="The big-data plotting toolkit at a glance" class="img-responsive img-zoomable" loading="lazy" width="1592" height="874" /></p>
+
+<p><em>Figure 3: The big-data plotting toolkit at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Technique</th>
+<th>Function</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transparency</td>
+<td><code>geom_point(alpha = ...)</code></td>
+<td>Tens of thousands of points</td>
+</tr>
+<tr>
+<td>Sampling</td>
+<td><code>sample()</code> then <code>geom_point()</code></td>
+<td>Fast exploration</td>
+</tr>
+<tr>
+<td>Rectangular bins</td>
+<td><code>geom_bin2d()</code></td>
+<td>Exact counts on a grid</td>
+</tr>
+<tr>
+<td>Hex bins</td>
+<td><code>geom_hex()</code></td>
+<td>The best default density map</td>
+</tr>
+<tr>
+<td>Density contours</td>
+<td><code>geom_density_2d()</code></td>
+<td>Smooth <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">distribution shape</a></td>
+</tr>
+<tr>
+<td>Manual aggregation</td>
+<td><code>dplyr</code> or <code>data.table</code></td>
+<td>Caching a small summary table</td>
+</tr>
+<tr>
+<td>Rasterizing</td>
+<td><code>geom_scattermore()</code></td>
+<td>Keeping every point, fast</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one rule to remember: past a hundred thousand points, bin by default with <code>geom_hex()</code>, sample for a quick peek, and rasterize with scattermore when every single point has to stay on the page.</p>
+
+<h2>FAQ</h2>
+
+<h3>What counts as "big" for a scatter plot?</h3>
+
+<p>Overplotting starts to bite around 10,000 to 50,000 points, where the dense core begins to fill in. By a few hundred thousand points a plain <code>geom_point()</code> is both unreadable and slow to draw. Those are the thresholds where the techniques in this tutorial start to pay off.</p>
+
+<h3>Should I use geom_hex() or geom_bin2d()?</h3>
+
+<p>Both count points per cell and colour by the count, so they carry the same information. <code>geom_hex()</code> uses hexagons, which tile more evenly and avoid the faint stripes that square bins can show, so it is the better default. Reach for <code>geom_bin2d()</code> when you specifically want axis-aligned cells, for example to line up with a grid already in your data.</p>
+
+<h3>Why is my binned plot almost all one colour?</h3>
+
+<p>A few very dense cells can stretch the colour scale so that everything else looks flat. Add more bins, or transform the fill with <code>scale_fill_viridis_c(trans = &quot;log&quot;)</code> so counts are compared on a log scale and the sparse regions become visible again.</p>
+
+<h3>Does scattermore support colour and facets?</h3>
+
+<p>Yes. <code>geom_scattermore()</code> accepts the <code>colour</code> and <code>alpha</code> aesthetics and works inside <code>facet_wrap()</code> like any other geom. The one limit is that point size is fixed for every point, so you cannot map a variable to size the way <code>geom_point()</code> allows.</p>
+
+<h3>How do I plot big data quickly in base R instead of ggplot2?</h3>
+
+<p>Base R has <code>smoothScatter()</code>, which draws a smoothed density image of the points in a single fast call. The ggplot2 tools here give you more control and a consistent grammar, but <code>smoothScatter(big$x, big$y)</code> is a quick base-R equivalent of the filled density heat map.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation. geom_hex() reference. <a href="https://ggplot2.tidyverse.org/reference/geom_hex.html">Link</a></li>
+
+<li>ggplot2 documentation. geom_bin2d() reference. <a href="https://ggplot2.tidyverse.org/reference/geom_bin_2d.html">Link</a></li>
+
+<li>ggplot2 documentation. geom_density_2d() reference. <a href="https://ggplot2.tidyverse.org/reference/geom_density_2d.html">Link</a></li>
+
+<li>Wickham, H. ggplot2: Elegant Graphics for Data Analysis. Chapter on scales and overplotting. <a href="https://ggplot2-book.org/scales-colour">Link</a></li>
+
+<li>scattermore package on CRAN. <a href="https://cran.r-project.org/package=scattermore">Link</a></li>
+
+<li>ggpointdensity package on CRAN. <a href="https://cran.r-project.org/package=ggpointdensity">Link</a></li>
+
+<li>data.table documentation. Introduction and grouping syntax. <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-2D-Density-and-Hexbin-in-R.html">2D Density and Hexbin Plots in ggplot2</a>: a deeper tour of binning and smoothing, the family of tools this tutorial uses as its workhorse fix.</li>
+
+<li><a href="ggplot2-Colours.html">ggplot2 Colours and Colour Scales</a>: how the viridis and other fill scales work, so your density maps stay honest and readable.</li>
+
+<li><a href="ggplot2-Position-Adjustments-in-R.html">Position Adjustments in ggplot2</a>: jitter, dodge, and stack, the lighter-weight overlap fixes for smaller datasets.</li>
+
+</ul>
+
+{% endraw %}
