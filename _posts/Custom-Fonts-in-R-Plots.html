@@ -1,0 +1,773 @@
+---
+title: "Custom Fonts in R Plots: systemfonts, ragg and showtext"
+description: "Use any font in your R plots. This guide shows how systemfonts finds installed fonts, ragg renders them at high quality, and showtext adds any Google Font."
+keywords: "custom fonts in R plots, systemfonts, ragg, showtext, ggplot2 fonts, font_add_google, element_text family, R graphics device fonts, Google Fonts in ggplot2"
+mathjax: false
+webr: true
+curriculum_id: "GG2-7.3"
+post_type: "C"
+auto_link_terms: "custom fonts in R|fonts in R plots|systemfonts|ragg|showtext|font_add_google()|ggplot2 fonts|element_text()|Google Fonts in ggplot2|R graphics device|agg_png()|register_variant()|base_family"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Custom Fonts in Plots"
+sidebar_order: "63"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Getting a specific typeface into an R plot means going past R's three built-in font families. Three modern packages fix that: systemfonts finds the fonts already on your machine and ragg renders them at high quality, while showtext pulls in any Google Font you lack.</p>
+
+<h2>Why won't R just use the font I want?</h2>
+
+<p>You set <code>family = &quot;Lato&quot;</code> in your plot, run it, and the text comes out looking exactly the same as before. This is the classic first surprise with fonts in R, and it is not your fault. The font on a plot is chosen by the graphics <em>device</em>, the thing that actually turns your plot into pixels or PDF, not by ggplot2 itself. For years the default devices had awkward font handling, so a name they did not recognise was quietly swapped for a default.</p>
+
+<p>Before we fix that, let's see what R gives you for free. Every R graphics device understands exactly three portable family names. Run this to see them.</p>
+
+<div class="webr-container" data-block-title="R&#x27;s three portable font families">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">R&#x27;s three portable font families</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+library(knitr)
+library(sysfonts)
+# The only font families guaranteed to work on every R graphics device:
+c(&quot;sans&quot;, &quot;serif&quot;, &quot;mono&quot;)
+#&gt; [1] &quot;sans&quot;  &quot;serif&quot; &quot;mono&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those three names are aliases. <code>&quot;sans&quot;</code> means "the device's default sans-serif" (usually something Arial-like), <code>&quot;serif&quot;</code> means a Times-like serif, and <code>&quot;mono&quot;</code> a fixed-width font. They always work because the device maps them to whatever it has. Anything else, a real named font like Georgia or Lato, needs the tools in this tutorial.</p>
+
+<p>Let's prove the three aliases do something. We build one scatterplot and switch its whole font to serif with <code>base_family</code>, the argument every built-in theme accepts.</p>
+
+<div class="webr-container" data-block-title="Set the whole plot font to serif">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set the whole plot font to serif</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(color = &quot;#2c7fb8&quot;, alpha = 0.7) +
+  labs(title = &quot;Engine size vs highway mpg&quot;,
+       x = &quot;Displacement (litres)&quot;, y = &quot;Highway mpg&quot;)
+
+# base_family switches every text element to serif at once
+p + theme_minimal(base_size = 14, base_family = &quot;serif&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot below renders the same data three times so you can compare the aliases directly. The sans panel is clean and modern, the serif panel has small strokes at the ends of letters, and the mono panel gives every character the same width.</p>
+
+<p><img src="screenshots/Custom-Fonts-in-R-Plots-three-families.webp" alt="Three scatterplots of engine size versus highway mpg using the sans, serif and mono font families" class="img-responsive img-zoomable" loading="lazy" width="2400" height="850" /></p>
+
+<p><em>Figure 1: R's three portable font families, applied to the same plot with base_family.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The device turns a family name into an actual font file.</strong> When you write <code>family = &quot;Georgia&quot;</code>, something has to find a Georgia file on disk and hand its glyphs to the device. That lookup step is exactly what systemfonts, ragg and showtext handle for you.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Render <code>p</code> with the <code>&quot;mono&quot;</code> family instead of serif and see the fixed-width axis numbers.</p>
+<div class="webr-container" data-block-title="Try it: switch to the mono family">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Try it: switch to the mono family</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: render p with base_family = &quot;mono&quot; instead of &quot;serif&quot;.
+# Hint: change one word in the theme_minimal() call above.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mono family solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mono family solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p + theme_minimal(base_size = 14, base_family = &quot;mono&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>base_family</code> sets one font for every text element in the theme at once, so a single word changes the entire plot.</p>
+
+</details>
+</section>
+
+<h2>How do I control fonts inside ggplot with element_text()?</h2>
+
+<p><code>base_family</code> is the blunt instrument: one font for everything. Most of the time you want finer control, a serif title over mono axis labels, for example. In ggplot2 that control lives in one function: <code>element_text()</code>. Any text element in a theme, the title, the axis labels, the legend, is styled by handing it an <code>element_text()</code>.</p>
+
+<p>The function takes a handful of arguments. The two you will use most are <code>family</code> (the typeface) and <code>face</code> (plain, bold, italic, or bold.italic). Here we give the title a bold serif and both axes a grey mono.</p>
+
+<div class="webr-container" data-block-title="Style individual text elements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Style individual text elements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(family = &quot;serif&quot;, face = &quot;bold&quot;, size = 18),
+    axis.title = element_text(family = &quot;mono&quot;, color = &quot;grey30&quot;),
+    axis.text  = element_text(family = &quot;mono&quot;, size = 10)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each line targets one element by name and describes how its text should look. <code>plot.title</code> gets the serif treatment, while <code>axis.title</code> (the axis names) and <code>axis.text</code> (the numbers) share the mono look. The result is a plot with a deliberate typographic hierarchy.</p>
+
+<p><img src="screenshots/Custom-Fonts-in-R-Plots-element-text.webp" alt="Scatterplot with a bold serif title and monospace axis labels set through element_text" class="img-responsive img-zoomable" loading="lazy" width="1700" height="1050" /></p>
+
+<p><em>Figure 2: <a class="auto-link" href="ggplot2-element_line-in-R.html" title="ggplot2 element_line() in R: Style Lines and Gridlines">element_text()</a> styles each text element independently.</em></p>
+
+<p>Setting a family on every element by hand gets repetitive. Theme elements inherit, so you can set a default once on the root <code>text</code> element and then override only what differs. Here every text starts as serif, and just the title adds bold.</p>
+
+<div class="webr-container" data-block-title="The text element sets a default others inherit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The text element sets a default others inherit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p +
+  theme_minimal(base_size = 13) +
+  theme(
+    text       = element_text(family = &quot;serif&quot;),      # root for all text
+    plot.title = element_text(face = &quot;bold&quot;, size = 18) # inherits serif, adds bold
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is one place <code>element_text()</code> does not reach: text you draw <em>inside</em> the panel with <code>geom_text()</code> or <code>geom_label()</code>. Those are geoms, not theme elements, so they carry their own <code>family</code> and <code>fontface</code> arguments. Notice we use <code>fontface</code> here, not <code>face</code>, a small naming quirk worth remembering.</p>
+
+<div class="webr-container" data-block-title="Fonts for in-panel text use the geom, not the theme">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fonts for in-panel text use the geom, not the theme</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+label_df &lt;- mpg |&gt;
+  group_by(class) |&gt;
+  summarise(displ = mean(displ), hwy = mean(hwy))
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(color = &quot;grey70&quot;) +
+  geom_text(data = label_df, aes(label = class),
+            family = &quot;mono&quot;, fontface = &quot;bold&quot;, size = 4) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We first build <code>label_df</code>, the average position of each vehicle class, then drop a bold mono label at each of those points. The <code>family</code> and <code>fontface</code> arguments belong to <code>geom_text()</code> directly, which is why theme settings never touch them.</p>
+
+<p>Here are the arguments you will reach for inside <code>element_text()</code>.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Controls</th>
+<th>Example values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>family</td>
+<td>the typeface</td>
+<td>"serif", "mono", "Georgia"</td>
+</tr>
+<tr>
+<td>face</td>
+<td>weight and slant</td>
+<td>"plain", "bold", "italic", "bold.italic"</td>
+</tr>
+<tr>
+<td>size</td>
+<td>point size</td>
+<td>14</td>
+</tr>
+<tr>
+<td>color</td>
+<td>text colour</td>
+<td>"grey30"</td>
+</tr>
+<tr>
+<td>angle</td>
+<td>rotation in degrees</td>
+<td>45</td>
+</tr>
+<tr>
+<td>hjust</td>
+<td>horizontal alignment</td>
+<td>0, 0.5, 1</td>
+</tr>
+</tbody>
+</table>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the <code>geom_text()</code> labels to a serif italic style.</p>
+<div class="webr-container" data-block-title="Try it: label points in a serif italic font">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Try it: label points in a serif italic font</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: set the geom_text() font to serif italic.
+# Hint: family = &quot;serif&quot; and fontface = &quot;italic&quot;.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Serif italic labels solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Serif italic labels solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point(color = &quot;grey70&quot;) +
+  geom_text(data = label_df, aes(label = class),
+            family = &quot;serif&quot;, fontface = &quot;italic&quot;, size = 4) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_text()</code> takes <code>family</code> and <code>fontface</code> on the geom itself, so in-panel text is styled separately from the theme.</p>
+
+</details>
+</section>
+
+<h2>What fonts does my computer already have? (systemfonts)</h2>
+
+<p>So far every font has been one of the three portable aliases. To use a real named font you need to know two things: which fonts your machine actually has, and where their files live. The systemfonts package answers both. It scans your operating system's font folders and is the engine the modern R graphics stack uses to turn a family name into a file.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The next three sections use systemfonts, ragg and showtext.</strong> These packages talk to your operating system's fonts, so run their code in your local R session (for example RStudio) rather than the browser preview. Install them once with <code>install.packages(c(&quot;systemfonts&quot;, &quot;ragg&quot;, &quot;showtext&quot;))</code>.</div></div>
+
+<p>Start by listing what you have. <code>system_fonts()</code> returns one row per font file, with columns describing each one.</p>
+
+<pre><code class="language-r">library(systemfonts)
+
+fonts &lt;- system_fonts()
+# Which columns describe each font?
+colnames(fonts)
+#&gt;  [1] &quot;path&quot;      &quot;index&quot;     &quot;name&quot;      &quot;family&quot;    &quot;style&quot;     &quot;weight&quot;    &quot;width&quot;     &quot;italic&quot;
+#&gt;  [9] &quot;monospace&quot; &quot;variable&quot;</code></pre>
+
+<p>The two columns you care about most are <code>family</code> (the name you type into a plot) and <code>path</code> (the file on disk). <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> to a family you have to see its available styles. On Windows, Georgia ships with the system, so it makes a good example.</p>
+
+<pre><code class="language-r">fonts |&gt;
+  filter(family == &quot;Georgia&quot;) |&gt;
+  select(family, style, weight, italic)
+#&gt; # A tibble: 4 × 4
+#&gt;   family  style       weight italic
+#&gt;   &lt;chr&gt;   &lt;chr&gt;       &lt;ord&gt;  &lt;lgl&gt;
+#&gt; 1 Georgia Regular     normal FALSE
+#&gt; 2 Georgia Bold        bold   FALSE
+#&gt; 3 Georgia Bold Italic bold   TRUE
+#&gt; 4 Georgia Italic      normal TRUE</code></pre>
+
+<p>Georgia comes in four styles, and each is a separate file. That matters, because "bold" is not a switch you flip, it is a different font file that systemfonts has to locate. You can see it do exactly that with <code>match_fonts()</code>, which resolves a family name plus a weight to the file that will actually be used.</p>
+
+<pre><code class="language-r">match_fonts(&quot;Georgia&quot;, weight = &quot;bold&quot;)$path
+#&gt; [1] &quot;C:\\Windows\\Fonts\\georgiab.ttf&quot;</code></pre>
+
+<p>That path, <code>georgiab.ttf</code>, is the bold Georgia file. This is the whole game: a name in, a file out. Figure 3 shows the pipeline end to end.</p>
+
+<p><img src="screenshots/Custom-Fonts-in-R-Plots-font-pipeline.webp" alt="Flow from a family name through systemfonts to a font file to the device and finally rendered text" class="img-responsive img-zoomable" loading="lazy" width="2248" height="386" /></p>
+
+<p><em>Figure 3: How a family name becomes rendered text.</em></p>
+
+<p>Sometimes you want a name for a weight that has no standard alias, a light or semibold cut. <code>register_variant()</code> lets you create your own family name that points at a specific weight, so you can then use it like any other font.</p>
+
+<pre><code class="language-r">register_variant(&quot;Segoe Light&quot;, family = &quot;Segoe UI&quot;, weight = &quot;light&quot;)
+
+&quot;Segoe Light&quot; %in% registry_fonts()$family
+#&gt; [1] TRUE</code></pre>
+
+<p>Now <code>family = &quot;Segoe Light&quot;</code> will render Segoe UI at its light weight anywhere you use it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From <code>system_fonts()</code>, keep only the monospace fonts and look at their family names.</p>
+<pre><code class="language-r"># Your turn: filter fonts to rows where monospace is TRUE,
+# then look at the unique family names. Which mono fonts do you have?</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">fonts |&gt;
+  filter(monospace) |&gt;
+  distinct(family) |&gt;
+  head(5)
+#&gt; # A tibble: 5 × 1
+#&gt;   family
+#&gt;   &lt;chr&gt;
+#&gt; 1 Consolas
+#&gt; 2 Courier New
+#&gt; 3 Lucida Console
+#&gt; 4 MS Gothic
+#&gt; 5 NSimSun</code></pre>
+
+<p><strong>Explanation:</strong> <code>system_fonts()</code> flags fixed-width fonts in a <code>monospace</code> column, so filtering on it lists exactly the mono families you can use. Your list will depend on what is installed.</p>
+
+</details>
+</section>
+
+<h2>How do I render a system font in a saved plot? (ragg)</h2>
+
+<p>Knowing you have Georgia is only half the story. The default <code>png()</code> device still may not draw it. This is where ragg comes in. It is a graphics device, a drop-in replacement for <code>png()</code>, built on the AGG rendering library. Crucially, ragg asks systemfonts to resolve every family name, so any font on your machine works with no extra setup. You write <code>base_family = &quot;Georgia&quot;</code> and Georgia appears.</p>
+
+<p>You use ragg the way you use <code>png()</code>: open the device, print your plot, close the device. The <code>agg_png()</code> function even accepts a <code>res</code> argument so text scales correctly at high resolution.</p>
+
+<pre><code class="language-r">library(ragg)
+
+p_geo &lt;- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(color = &quot;#2c7fb8&quot;, alpha = 0.7) +
+  labs(title = &quot;Engine size vs highway mpg (Georgia)&quot;,
+       x = &quot;Displacement (litres)&quot;, y = &quot;Highway mpg&quot;) +
+  theme_minimal(base_size = 14, base_family = &quot;Georgia&quot;)
+
+agg_png(&quot;georgia_plot.png&quot;, width = 1600, height = 1000, res = 200)
+print(p_geo)
+invisible(dev.off())
+
+file.exists(&quot;georgia_plot.png&quot;)
+#&gt; [1] TRUE</code></pre>
+
+<p>Open <code>georgia_plot.png</code> and you will see the real Georgia typeface, with its distinctive numerals that dip below the baseline. That is a font ragg found through systemfonts, rendered faithfully.</p>
+
+<p><img src="screenshots/Custom-Fonts-in-R-Plots-georgia.webp" alt="Scatterplot rendered in the Georgia typeface using the ragg device" class="img-responsive img-zoomable" loading="lazy" width="1700" height="1050" /></p>
+
+<p><em>Figure 4: A system font, Georgia, rendered by ragg with no extra configuration.</em></p>
+
+<p>You rarely want to type <code>agg_png()</code> around every plot. Two settings make ragg your default. In a report, tell knitr to use it for every chunk. In RStudio, switch the graphics backend once.</p>
+
+<pre><code class="language-r">knitr::opts_chunk$set(dev = &quot;ragg_png&quot;)</code></pre>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set ragg as the RStudio backend to preview fonts as they will export.</strong> Open Tools then Global Options and set the Graphics backend to AGG in the General pane. Every plot you preview then uses the same renderer as your saved files, so what you see matches what you ship.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Render the same plot in Verdana, another font that ships with Windows.</p>
+<pre><code class="language-r"># Your turn: change base_family to &quot;Verdana&quot; and re-render.
+# Tip: first confirm you actually have the font.</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r"># swap the base_family, everything else stays the same
+p_verd &lt;- p_geo + theme_minimal(base_size = 14, base_family = &quot;Verdana&quot;)
+&quot;Verdana&quot; %in% system_fonts()$family   # confirm you actually have it
+#&gt; [1] TRUE</code></pre>
+
+<p><strong>Explanation:</strong> Because ragg resolves names through systemfonts, changing <code>base_family</code> to any installed family is all it takes. Checking membership first avoids a silent fallback when the font is missing.</p>
+
+</details>
+</section>
+
+<h2>How do I use a Google Font without installing it? (showtext)</h2>
+
+<p>ragg is the right answer when the font lives on your machine. But what about a font you have seen online and not installed, like most of the Google Fonts library? Installing a font system-wide just to try it is a hassle, and it does not help a teammate who lacks the file. The showtext package solves this. It loads a font from a file or straight from Google, then draws text as vector outlines that work on any device.</p>
+
+<p>The workflow has three steps: add the font, turn showtext on, then set its resolution to match the device. That last step is the one everyone forgets.</p>
+
+<pre><code class="language-r">library(showtext)
+
+font_add_google(&quot;Lato&quot;, &quot;lato&quot;)   # download and register under the name &quot;lato&quot;
+showtext_auto()                    # route all plot text through showtext
+showtext_opts(dpi = 200)           # match the device resolution (the key step)
+
+p_lato &lt;- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(color = &quot;#d95f0e&quot;, alpha = 0.7) +
+  labs(title = &quot;Engine size vs highway mpg (Lato)&quot;,
+       x = &quot;Displacement (litres)&quot;, y = &quot;Highway mpg&quot;) +
+  theme_minimal(base_size = 14, base_family = &quot;lato&quot;)
+
+agg_png(&quot;lato_plot.png&quot;, width = 1600, height = 1000, res = 200)
+print(p_lato)
+invisible(dev.off())
+
+&quot;lato&quot; %in% sysfonts::font_families()
+#&gt; [1] TRUE</code></pre>
+
+<p><code>font_add_google(&quot;Lato&quot;, &quot;lato&quot;)</code> downloads the font and registers it under the short name <code>&quot;lato&quot;</code>, which you then pass as <code>base_family</code>. The <code>showtext_opts(dpi = 200)</code> line matches showtext's resolution to the <code>res = 200</code> on the device, so the text comes out the right size. The result is a clean Lato render with no system install.</p>
+
+<p><img src="screenshots/Custom-Fonts-in-R-Plots-lato.webp" alt="Scatterplot rendered in the Lato Google Font using showtext" class="img-responsive img-zoomable" loading="lazy" width="1700" height="1050" /></p>
+
+<p><em>Figure 5: Lato, a Google Font, rendered with showtext and no system install.</em></p>
+
+<p>showtext is not limited to Google. <code>font_add()</code> loads any font file you point it at, handy for a brand font shipped with your project. When you are done, <code>showtext_auto(FALSE)</code> restores the normal renderer.</p>
+
+<pre><code class="language-r">sysfonts::font_add(&quot;MyGeorgia&quot;, regular = &quot;C:/Windows/Fonts/georgia.ttf&quot;)
+&quot;MyGeorgia&quot; %in% sysfonts::font_families()
+#&gt; [1] TRUE
+
+showtext_auto(FALSE)   # restore the default renderer when you are done</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>showtext draws text as shapes, and forgetting the dpi makes it tiny.</strong> Because letters become vector outlines, a PDF has no selectable or searchable text and its file size grows. And if <code>showtext_opts(dpi=)</code> does not match your device resolution, text renders far too small or too large. Set the dpi every time and you avoid the most common showtext bug.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Load a different Google Font of your choice and confirm it registered.</p>
+<pre><code class="language-r"># Your turn: pick a font from fonts.google.com (for example &quot;Merriweather&quot;),
+# load it with font_add_google(), then check font_families().</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">font_add_google(&quot;Merriweather&quot;, &quot;merri&quot;)
+&quot;merri&quot; %in% sysfonts::font_families()
+#&gt; [1] TRUE</code></pre>
+
+<p><strong>Explanation:</strong> <code>font_add_google()</code> takes the font's name on Google Fonts and a short alias you choose. After it runs, the alias appears in <code>font_families()</code> and works as a <code>base_family</code>.</p>
+
+</details>
+</section>
+
+<h2>ragg or showtext, which should I use?</h2>
+
+<p>You now have two ways to get a real font into a plot, and they overlap. The short rule: reach for ragg first, and use showtext for the fonts ragg cannot get. Figure 6 turns that into a decision you can follow in a few seconds.</p>
+
+<p><img src="screenshots/Custom-Fonts-in-R-Plots-decision.webp" alt="Decision tree choosing ragg with systemfonts for installed fonts and showtext for Google Fonts" class="img-responsive img-zoomable" loading="lazy" width="900" height="1596" /></p>
+
+<p><em>Figure 6: Choosing between ragg and showtext.</em></p>
+
+<p>The table lays out the trade-offs side by side.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>ragg with systemfonts</th>
+<th>showtext</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Which fonts?</td>
+<td>any font installed on your machine</td>
+<td>any font, Google Fonts included, no install</td>
+</tr>
+<tr>
+<td>How is text stored?</td>
+<td>real, selectable text</td>
+<td>vector outlines (shapes)</td>
+</tr>
+<tr>
+<td>PDF output</td>
+<td>keeps real text</td>
+<td>text becomes shapes</td>
+</tr>
+<tr>
+<td>Main gotcha</td>
+<td>the font must be installed</td>
+<td>set the dpi to match the device</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>high-quality raster exports, the knitr default</td>
+<td>a quick font you have not installed</td>
+</tr>
+</tbody>
+</table>
+
+<p>For most work, ragg with systemfonts is the better default: it produces real text, top quality, and one setting makes it your global device. showtext earns its place when you want a Google Font or a one-off you would rather not install.</p>
+
+<p>There is also a way to set your font once for a whole session, no matter which device you use. <code>theme_set()</code> changes the default theme every later plot inherits.</p>
+
+<div class="webr-container" data-block-title="Set a font once for every plot in your session">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a font once for every plot in your session</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theme_set(theme_minimal(base_size = 13, base_family = &quot;serif&quot;))
+
+# Now every ggplot uses serif until you change it
+ggplot(mpg, aes(hwy)) + geom_histogram(bins = 20, fill = &quot;#2c7fb8&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick the tool by where the font lives, not by the chart.</strong> If the typeface is on your machine, ragg renders it with real text and the best quality. If it is a Google Font or a file a colleague sent, showtext loads it without a system install. That one question settles almost every case.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Set every plot in your session to a mono font, then reset to the ggplot2 default.</p>
+<div class="webr-container" data-block-title="Try it: set a global font then reset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Try it: set a global font then reset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: use theme_set() with base_family = &quot;mono&quot;,
+# then call theme_set(theme_grey()) to go back to the default.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Global font solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Global font solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theme_set(theme_minimal(base_family = &quot;mono&quot;))   # every plot is now mono
+# ... build your plots ...
+theme_set(theme_grey())                           # back to the ggplot2 default</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>theme_set()</code> replaces the active default theme, so the font applies to every later plot until you set it back.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the ideas above. Each solution uses only functions from this tutorial. Use fresh variable names so you do not overwrite the plots from earlier.</p>
+
+<h3>Exercise 1: Build a typographic hierarchy</h3>
+
+<p>Style a scatterplot of <code>displ</code> against <code>hwy</code> so the title is a bold serif and both axis titles and axis text are mono grey. Use only <code>element_text()</code> in a <code>theme()</code> call.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the plot, then add a theme() that styles:
+#   plot.title -&gt; serif, bold, size 18
+#   axis.title and axis.text -&gt; mono
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point(color = &quot;grey60&quot;) +
+  labs(title = &quot;Fuel economy by engine size&quot;) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(family = &quot;serif&quot;, face = &quot;bold&quot;, size = 18),
+    axis.title = element_text(family = &quot;mono&quot;),
+    axis.text  = element_text(family = &quot;mono&quot;, size = 10)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each <code>element_text()</code> targets one element, so the title and the axes can carry different fonts in the same plot.</p>
+
+</details>
+
+<h3>Exercise 2: Export a bar chart in an installed font at print resolution</h3>
+
+<p>Render a bar chart of vehicle <code>class</code> to a PNG in the Trebuchet MS font at 300 dpi using ragg, then confirm the file was written. Save the plot object as <code>p_treb</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a bar chart with base_family = &quot;Trebuchet MS&quot;,
+# open agg_png() at res = 300, print it, close the device,
+# then check the file exists. Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">p_treb &lt;- ggplot(mpg, aes(class)) +
+  geom_bar(fill = &quot;#2c7fb8&quot;) +
+  labs(title = &quot;Cars per class&quot;) +
+  theme_minimal(base_size = 14, base_family = &quot;Trebuchet MS&quot;)
+
+agg_png(&quot;trebuchet_plot.png&quot;, width = 1800, height = 1100, res = 300)
+print(p_treb)
+invisible(dev.off())
+
+file.exists(&quot;trebuchet_plot.png&quot;)
+#&gt; [1] TRUE</code></pre>
+
+<p><strong>Explanation:</strong> ragg resolves "Trebuchet MS" through systemfonts and renders it as real text; the <code>res = 300</code> argument makes the text sharp at print resolution.</p>
+
+</details>
+
+<h3>Exercise 3: Export a bar chart in a Google Font</h3>
+
+<p>Now do the same chart with a Google Font that is not installed. Load Roboto with showtext, set the dpi to match the device, render to PNG, and confirm the family loaded. Save the plot as <code>p_rob</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load &quot;Roboto&quot; with font_add_google(), turn showtext on,
+# set showtext_opts(dpi = 200), build the bar chart with
+# base_family = &quot;roboto&quot;, render, then check the family loaded.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">font_add_google(&quot;Roboto&quot;, &quot;roboto&quot;)
+showtext_auto()
+showtext_opts(dpi = 200)
+
+p_rob &lt;- ggplot(mpg, aes(class)) +
+  geom_bar(fill = &quot;#d95f0e&quot;) +
+  labs(title = &quot;Cars per class (Roboto)&quot;) +
+  theme_minimal(base_size = 14, base_family = &quot;roboto&quot;)
+
+agg_png(&quot;roboto_plot.png&quot;, width = 1800, height = 1100, res = 200)
+print(p_rob)
+invisible(dev.off())
+
+&quot;roboto&quot; %in% sysfonts::font_families()
+#&gt; [1] TRUE
+showtext_auto(FALSE)</code></pre>
+
+<p><strong>Explanation:</strong> showtext downloads Roboto, registers it under the alias "roboto", and draws it as outlines on the ragg canvas, so a font you never installed still appears in the export.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Why does my custom font silently fall back to the default?</strong> The graphics device could not find a file for the name you gave. Either the font is not installed (check with <code>&quot;Name&quot; %in% systemfonts::system_fonts()$family</code>), or your device does not use systemfonts to resolve names. Switching to ragg fixes the second problem for installed fonts.</p>
+
+<p><strong>Is ragg better than the old cairo or Windows devices?</strong> For most raster output, yes. ragg renders through systemfonts so named fonts work without configuration, and its text and anti-aliasing are typically cleaner. It is also the device the tidyverse now recommends as the knitr and RStudio default.</p>
+
+<p><strong>Can I use a Google Font without an internet connection?</strong> <code>font_add_google()</code> needs to download the font the first time. Once you have the file, load it offline with <code>font_add(&quot;MyFont&quot;, regular = &quot;path/to/file.ttf&quot;)</code>, or install it on your system and let ragg pick it up.</p>
+
+<p><strong>I set face = "bold" but nothing changed. Why?</strong> Bold is a separate font file, not a computed effect. If the family has no bold style on your machine, there is nothing to switch to. Check the available styles with <code>systemfonts::system_fonts()</code> filtered to that family, as in the systemfonts section above.</p>
+
+<p><strong>How do fonts behave when I export to PDF?</strong> With ragg you are producing raster images (PNG, TIFF), where the font is baked into pixels. For a PDF, use a device like <code>cairo_pdf()</code> for real embedded text, or accept that showtext turns text into shapes, which always looks right but is not selectable.</p>
+
+<h2>Summary</h2>
+
+<p>Custom fonts in R come down to three jobs handled by three packages. systemfonts finds and matches the fonts you have and ragg renders them as real text, while showtext fetches the ones you lack.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Package</th>
+<th>Its job</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>systemfonts</td>
+<td>finds and matches the fonts on your machine</td>
+<td>you want to know what you have, or alias a weight</td>
+</tr>
+<tr>
+<td>ragg</td>
+<td>a fast device that renders those fonts as real text</td>
+<td>you want an installed font in a saved plot (the default choice)</td>
+</tr>
+<tr>
+<td>showtext</td>
+<td>loads any font, Google included, and draws it as outlines</td>
+<td>you need a font you have not installed</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mental model to keep: a family name is just a label until something turns it into a file and hands it to the device. Set ragg as your default backend, learn the <code>element_text()</code> arguments for fine control, and keep showtext ready for the day you want a font off Google Fonts.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>systemfonts documentation, r-lib. <a href="https://systemfonts.r-lib.org/">Link</a>. The reference for the functions that find and match fonts: <code>system_fonts()</code>, <code>match_fonts()</code>, and <code>register_variant()</code>.</li>
+
+<li>ragg documentation, r-lib. <a href="https://ragg.r-lib.org/">Link</a>. Documents the device functions like <code>agg_png()</code> and how to make ragg your knitr and RStudio default.</li>
+
+<li>showtext package, Yixuan Qiu. <a href="https://github.com/yixuan/showtext">Link</a>. Shows <code>font_add()</code>, <code>font_add_google()</code>, and the dpi setting with worked examples.</li>
+
+<li>ggplot2 reference, theme elements including element_text(). <a href="https://ggplot2.tidyverse.org/reference/element.html">Link</a>. Lists every argument <code>element_text()</code> accepts in one place.</li>
+
+<li>Modern Text Features in R, tidyverse blog. <a href="https://www.tidyverse.org/blog/2021/02/modern-text-features/">Link</a>. The tidyverse team's own walkthrough of systemfonts and ragg, the basis for this workflow.</li>
+
+<li>Google Fonts library. <a href="https://fonts.google.com/">Link</a>. Browse the library and copy the exact family name you pass to <code>font_add_google()</code>.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Colours.html">ggplot2 Colours</a>: how ggplot2 maps colours, the natural companion to font styling.</li>
+
+<li><a href="R-Color-Theory-ggplot2.html">R Color Theory for ggplot2</a>: choose palettes that pair well with your typography.</li>
+
+<li><a href="ggplot2-Cheat-Sheet.html">ggplot2 Cheat Sheet</a>: a quick reference for the themes and geoms used throughout this tutorial.</li>
+
+</ul>
+
+{% endraw %}
