@@ -533,10 +533,17 @@ export function renderCardSvg(args: {
   streak: number;
   certs: number;
   heat: Array<{ day: string; n: number; xp: number }>;
-}): string {
+}, theme: "light" | "dark" = "light"): string {
   const W = 480, H = 180;
   const name = escHtml(args.name.slice(0, 32));
   const tierName = escHtml(args.tier.name);
+  // GitHub README embeds skew dark; both palettes ship system fonts only
+  // (camo re-hosts the SVG, webfonts would never load).
+  const P = theme === "dark"
+    ? { bg: "#161b22", border: "#30363d", fg: "#e6edf3", mute: "#8d96a0",
+        heat: ["#21262d", "#1d3a6e", "#2b5cb8", "#4e83e8", "#88b3ff"], mark: "#7da2ff" }
+    : { bg: "#ffffff", border: "#d4d9e3", fg: "#0a0d14", mute: "#6b7280",
+        heat: ["#e9edf4", "#bcd0f0", "#7fa3e8", "#4272d4", "#1f4eb8"], mark: "#2056d2" };
 
   // 16-week mini heatmap strip
   const byDay = new Map(args.heat.map((h) => [h.day, h]));
@@ -544,7 +551,7 @@ export function renderCardSvg(args: {
   const now = new Date();
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const start = todayUtc - ((WEEKS - 1) * 7 + new Date(todayUtc).getUTCDay()) * 86400000;
-  const colors = ["#e9edf4", "#bcd0f0", "#7fa3e8", "#4272d4", "#1f4eb8"];
+  const colors = P.heat;
   let strip = "";
   for (let w = 0; w < WEEKS; w++) {
     for (let d = 0; d < 7; d++) {
@@ -559,12 +566,12 @@ export function renderCardSvg(args: {
   }
 
   const stat = (x: number, value: string, label: string) =>
-    `<text x="${x}" y="112" font-size="22" font-weight="700" fill="#0a0d14" font-family="'Segoe UI',Roboto,Arial,sans-serif">${value}</text>` +
-    `<text x="${x}" y="130" font-size="10.5" fill="#6b7280" font-family="'Segoe UI',Roboto,Arial,sans-serif">${label}</text>`;
+    `<text x="${x}" y="112" font-size="22" font-weight="700" fill="${P.fg}" font-family="'Segoe UI',Roboto,Arial,sans-serif">${value}</text>` +
+    `<text x="${x}" y="130" font-size="10.5" fill="${P.mute}" font-family="'Segoe UI',Roboto,Arial,sans-serif">${label}</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="r-statistics.co learner card for ${name}">
-  <rect width="${W - 1}" height="${H - 1}" x="0.5" y="0.5" rx="12" fill="#ffffff" stroke="#d4d9e3"/>
-  <text x="24" y="42" font-size="20" font-weight="700" fill="#0a0d14" font-family="'Segoe UI',Roboto,Arial,sans-serif">${name}</text>
+  <rect width="${W - 1}" height="${H - 1}" x="0.5" y="0.5" rx="12" fill="${P.bg}" stroke="${P.border}"/>
+  <text x="24" y="42" font-size="20" font-weight="700" fill="${P.fg}" font-family="'Segoe UI',Roboto,Arial,sans-serif">${name}</text>
   <rect x="24" y="54" rx="9" height="18" width="${16 + tierName.length * 7}" fill="${args.tier.color}"/>
   <text x="${24 + (16 + tierName.length * 7) / 2}" y="67" font-size="10.5" font-weight="600" fill="#ffffff" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif">${tierName}</text>
   ${stat(24, args.totalXp.toLocaleString(), "XP")}
@@ -572,8 +579,8 @@ export function renderCardSvg(args: {
   ${stat(194, String(args.streak), "day streak")}
   ${stat(274, String(args.certs), "certificates")}
   ${strip}
-  <text x="24" y="164" font-size="10.5" fill="#6b7280" font-family="'Segoe UI',Roboto,Arial,sans-serif">r-statistics.co/u/${escHtml(args.handle)}</text>
-  <text x="${W - 24}" y="164" font-size="12" font-weight="700" text-anchor="end" fill="#2056d2" font-family="Georgia,serif">R.</text>
+  <text x="24" y="164" font-size="10.5" fill="${P.mute}" font-family="'Segoe UI',Roboto,Arial,sans-serif">r-statistics.co/u/${escHtml(args.handle)}</text>
+  <text x="${W - 24}" y="164" font-size="12" font-weight="700" text-anchor="end" fill="${P.mark}" font-family="Georgia,serif">R.</text>
 </svg>`;
 }
 
