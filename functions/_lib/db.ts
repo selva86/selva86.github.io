@@ -307,6 +307,8 @@ export interface AttemptResult {
   current_streak_days: number;
   longest_streak_days: number;
   first_pass: boolean;        // true if this attempt was the first-ever pass for this exercise
+  streak_freezes: number;     // banked freezes after this attempt (0-2)
+  freeze_used_today: boolean; // a freeze bridged yesterday's gap on this touch
 }
 
 export interface UserStats {
@@ -397,49 +399,97 @@ export async function recordAttempt(
 
   // Touch streak on any pass (whether or not it was a first-pass — engaging
   // with previously-solved exercises still counts as "showed up today").
+  let freezeUsed = false;
   if (passed) {
-    await touchStreak(db, userId, now);
+    freezeUsed = (await touchStreak(db, userId, now)).freezeUsed;
   }
 
   const stats = await getStats(db, userId);
+  const fz = await db
+    .prepare("SELECT COALESCE(streak_freezes, 0) AS n FROM users WHERE id = ?")
+    .bind(userId)
+    .first<{ n: number }>()
+    .catch(() => ({ n: 0 } as { n: number }));
   return {
     xp_awarded_now: xpAwarded,
     total_xp: stats.total_xp,
     current_streak_days: stats.current_streak_days,
     longest_streak_days: stats.longest_streak_days,
     first_pass: firstPass,
+    streak_freezes: Number((fz as { n?: number })?.n ?? 0),
+    freeze_used_today: freezeUsed,
   };
 }
 
-// Streak math. Reads current state, applies one of four transitions, writes
+let freezeColReady = false;
+async function ensureFreezeColumn(db: D1Database): Promise<void> {
+  if (freezeColReady) return;
+  try { await db.prepare("ALTER TABLE users ADD COLUMN streak_freezes INTEGER DEFAULT 0").run(); }
+  catch { /* exists */ }
+  freezeColReady = true;
+}
+
+function utcGapDays(lastDay: string, today: string): number {
+  const a = Date.parse(lastDay + "T00:00:00Z");
+  const b = Date.parse(today + "T00:00:00Z");
+  if (!a || !b) return 999;
+  return Math.round((b - a) / 86400000);
+}
+
+// Streak math. Reads current state, applies one of five transitions, writes
 // back. Idempotent within a single UTC day (multiple calls same-day are
 // no-ops after the first).
+//
+// Freeze rules (profile v3 pass 2): a banked freeze bridges EXACTLY one
+// missed day (gap of 2); longer gaps always reset. One freeze is earned at
+// every 7-day multiple, capped at 2. Consumption is an atomic decrement
+// guarded by freezes > 0, so a concurrent double-touch cannot double-spend.
+// Any failure in the freeze branch falls back to the pre-freeze behavior.
 export async function touchStreak(
   db: D1Database, userId: string, nowSec: number,
-): Promise<void> {
+): Promise<{ freezeUsed: boolean }> {
   const today = utcDay(nowSec);
+  await ensureFreezeColumn(db);
   const row = await db
     .prepare(
-      "SELECT last_active_date, current_streak_days, longest_streak_days FROM users WHERE id = ?",
+      "SELECT last_active_date, current_streak_days, longest_streak_days, COALESCE(streak_freezes, 0) AS streak_freezes FROM users WHERE id = ?",
     )
     .bind(userId)
     .first<{
       last_active_date: string | null;
       current_streak_days: number;
       longest_streak_days: number;
+      streak_freezes: number;
     }>();
-  if (!row) return; // user_id should always exist by now; defensive bail
+  if (!row) return { freezeUsed: false }; // defensive bail
 
   const last = row.last_active_date;
   let current = row.current_streak_days ?? 0;
   const longest = row.longest_streak_days ?? 0;
+  let freezeUsed = false;
 
   if (last === today) {
-    return; // already counted today
+    return { freezeUsed: false }; // already counted today
   } else if (last && isYesterdayUtc(last, today)) {
     current += 1;
+  } else if (last && utcGapDays(last, today) === 2 && (row.streak_freezes ?? 0) > 0) {
+    // exactly one missed day and a freeze is banked: try to spend it
+    try {
+      const spend = await db
+        .prepare("UPDATE users SET streak_freezes = streak_freezes - 1 WHERE id = ? AND streak_freezes > 0")
+        .bind(userId)
+        .run();
+      if (spend.meta.changes) {
+        current += 1;          // the streak survives the bridge
+        freezeUsed = true;
+      } else {
+        current = 1;           // race lost: normal reset
+      }
+    } catch {
+      current = 1;             // freeze machinery failing = old behavior
+    }
   } else {
-    // null OR a date older than yesterday → fresh streak
+    // null OR a gap freezes cannot bridge → fresh streak
     current = 1;
   }
   const newLongest = current > longest ? current : longest;
@@ -453,6 +503,18 @@ export async function touchStreak(
     )
     .bind(current, newLongest, today, userId)
     .run();
+
+  // Earn a freeze at each full week of streak (cap 2). The last==today guard
+  // above means this runs at most once per user per day.
+  if (current > 0 && current % 7 === 0) {
+    try {
+      await db
+        .prepare("UPDATE users SET streak_freezes = MIN(2, COALESCE(streak_freezes, 0) + 1) WHERE id = ?")
+        .bind(userId)
+        .run();
+    } catch { /* earning is best-effort */ }
+  }
+  return { freezeUsed };
 }
 
 export async function getStats(db: D1Database, userId: string): Promise<UserStats> {

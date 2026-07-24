@@ -595,6 +595,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
         <a href="/cert/${escHtml(c.public_id)}">View credential</a>
         <a class="li" href="${escHtml(linkedInAddUrl(c))}" target="_blank" rel="noopener">Add to LinkedIn</a>
         <a href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`https://r-statistics.co/cert/${c.public_id}`)}" target="_blank" rel="noopener">Share</a>
+        <a href="/u/${escHtml(raw)}/cert-card.svg?id=${escHtml(c.public_id)}" target="_blank" rel="noopener">Card</a>
       </div>
     </div>`).join("");
 

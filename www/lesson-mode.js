@@ -169,7 +169,7 @@
       save();
       if (solved === false) return;   // the gate opens on any answer, but a wrong answer earns no XP
       var id = exerciseId(steps[idx]);
-      if (API && id) API.reportSolve(hub, id, 0);
+      if (API && id) API.reportSolve(hub, id, 0).then(handleAttemptExtras);
     }
     function hydrateSolved() {
       if (!API) return;
@@ -246,6 +246,71 @@
 
     function gated(idx) {
       return steps[idx].hasAttribute('data-gate') && !steps[idx].classList.contains('passed');
+    }
+
+    /* ---- pass-2 award moments: nudge toast + badge modal ---- */
+    var cachedHandle = null;
+    function myHandle() {
+      if (cachedHandle) return Promise.resolve(cachedHandle);
+      try {
+        var tk = API && API.token && API.token();
+        if (!tk) return Promise.resolve(null);
+        return fetch('/api/me/profile', { headers: { 'Authorization': 'Bearer ' + tk } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (p) { cachedHandle = p && p.handle; return cachedHandle; })
+          .catch(function () { return null; });
+      } catch (e) { return Promise.resolve(null); }
+    }
+    function showNudgeToast(text) {
+      try {
+        var el = document.createElement('div');
+        el.className = 'lm-nudge-toast';
+        el.textContent = text;
+        body.appendChild(el);
+        setTimeout(function () { el.classList.add('on'); }, 30);
+        setTimeout(function () {
+          el.classList.remove('on');
+          setTimeout(function () { el.remove(); }, 400);
+        }, 5200);
+      } catch (e) {}
+    }
+    function showAwardModal(badge) {
+      myHandle().then(function (h) {
+        try {
+          var wrap = document.createElement('div');
+          wrap.className = 'lm-award';
+          var profileUrl = h ? location.origin + '/u/' + h : location.origin;
+          var cardUrl = h ? '/u/' + h + '/badge-card.svg?id=' + encodeURIComponent(badge.id) : '';
+          wrap.innerHTML =
+            '<div class="lm-award-box">' +
+              '<h3>Badge earned</h3>' +
+              '<p class="lm-award-name">' + esc(badge.name) + '</p>' +
+              (cardUrl ? '<img class="lm-award-card" alt="' + esc(badge.name) + ' share card" src="' + cardUrl + '">' : '') +
+              '<div class="lm-award-row">' +
+                (h ? '<a class="lm-award-btn li" target="_blank" rel="noopener" href="https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(profileUrl) + '">Share on LinkedIn</a>' : '') +
+                (h ? '<a class="lm-award-btn" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=' + encodeURIComponent('Just earned the ' + badge.name + ' badge on r-statistics.co: ' + profileUrl) + '">Share on X</a>' : '') +
+                '<button class="lm-award-btn keep" type="button">Keep going</button>' +
+              '</div>' +
+            '</div>';
+          wrap.addEventListener('click', function (ev) {
+            if (ev.target === wrap || (ev.target.classList && ev.target.classList.contains('keep'))) wrap.remove();
+          });
+          body.appendChild(wrap);
+        } catch (e) {}
+      });
+    }
+    function handleAttemptExtras(res) {
+      if (!res) return;
+      try {
+        if (res.new_badges && res.new_badges.length) {
+          showAwardModal(res.new_badges[0]);
+        } else if (res.nudge) {
+          showNudgeToast(res.nudge);
+        }
+        if (res.freeze_used_today) {
+          showNudgeToast('A streak freeze saved your streak. Keep it rolling today.');
+        }
+      } catch (e) {}
     }
 
     /* First-party intent beacon (see /api/signal). Deduped per session per

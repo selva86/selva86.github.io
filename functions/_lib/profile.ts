@@ -29,6 +29,7 @@ export async function ensureProfileColumns(DB: D1Database): Promise<void> {
     "ALTER TABLE users ADD COLUMN profile_json TEXT",
     "ALTER TABLE users ADD COLUMN github_login TEXT",
     "ALTER TABLE users ADD COLUMN prev_handle TEXT",
+    "ALTER TABLE users ADD COLUMN recap_opt_out INTEGER DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle)",
     "CREATE INDEX IF NOT EXISTS idx_users_prev_handle ON users(prev_handle)",
     "CREATE TABLE IF NOT EXISTS profile_views (" +
@@ -765,4 +766,38 @@ export async function renderXpChartSvg(
       <text x="${px(11).toFixed(1)}" y="${H - B + 17}" font-size="10" fill="#98a0ad" text-anchor="end">${lab(labels[11])}</text>
     </svg>`;
   } catch { return ""; }
+}
+
+
+// Navy share card (cert + badge award moments). Everything user-derived is
+// escaped; callers gate on public profile + ownership.
+export function renderShareCardSvg(args: {
+  name: string;
+  handle: string;
+  headline: string;     // e.g. "earned the Data Analyst with R certificate"
+  chip: string;         // e.g. "VERIFIED" | "BADGE EARNED"
+  footer: string;       // e.g. verify URL line
+  ringText: string;     // 1-3 chars in the gold ring
+  ringSub?: string;
+}): string {
+  const W = 480, H = 250;
+  const name = escHtml(args.name.slice(0, 30));
+  const headline = escHtml(args.headline.slice(0, 60));
+  const chip = escHtml(args.chip.slice(0, 16));
+  const footer = escHtml(args.footer.slice(0, 70));
+  const ringText = escHtml(args.ringText.slice(0, 3));
+  const ringSub = escHtml((args.ringSub || "").slice(0, 8));
+  const chipW = 24 + chip.length * 8;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${name} ${headline}">
+  <rect width="${W}" height="${H}" fill="#101a30"/>
+  <text x="36" y="52" font-family="Georgia,serif" font-size="17" font-weight="700" fill="#7da2ff">R.</text>
+  <text x="36" y="104" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-size="26" font-weight="700" fill="#ffffff">${name}</text>
+  <text x="36" y="132" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-size="14" fill="#9daac6">${headline}</text>
+  <rect x="36" y="156" width="${chipW}" height="26" rx="13" fill="#0f7a52"/>
+  <text x="${36 + chipW / 2}" y="173" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-size="12" font-weight="600" fill="#ffffff">${chip}</text>
+  <text x="36" y="216" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-size="12" fill="#9daac6">${footer}</text>
+  <circle cx="404" cy="125" r="52" fill="none" stroke="#d9a021" stroke-width="5"/>
+  <text x="404" y="122" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-size="17" font-weight="700" fill="#ffffff">${ringText}</text>
+  ${ringSub ? `<text x="404" y="142" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif" font-size="10" fill="#9daac6">${ringSub}</text>` : ""}
+</svg>`;
 }
