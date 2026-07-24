@@ -1,0 +1,1057 @@
+---
+title: "Raincloud Plots in R: Distribution Comparisons that Work"
+description: "Learn to build raincloud plots in R with ggplot2, layer by layer. Combine a half-violin, boxplot, and raw points to compare distributions boxplots hide."
+keywords: "raincloud plot R, raincloud plot ggplot2, half violin plot R, ggdist raincloud, distribution comparison R, geom_violin, ggplot2 distribution plot, raincloud plot tutorial"
+mathjax: false
+webr: true
+curriculum_id: "GG2-10.4"
+post_type: "C"
+auto_link_terms: "raincloud plot|raincloud plots|raincloud plot in R|rain cloud plot|half-violin plot|half violin plot|raincloud chart|raincloud visualization|raincloud plot in ggplot2|raincloud plot tutorial"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Raincloud Plots"
+sidebar_order: "55"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A <a class="auto-link" href="ggdist-Package-in-R.html" title="ggdist Package in R: Visualize Distributions & Uncertainty (Raincloud Plots)">raincloud plot</a> stacks three views of the same numbers: a half-violin that shows the distribution's shape (the cloud), a boxplot that shows the summary, and jittered raw points that show every observation (the rain). It reveals gaps, clusters, and skew that a boxplot alone would hide, which makes it one of the clearest ways to compare groups.</p>
+
+<p>This tutorial builds a raincloud plot from scratch using only core ggplot2, so you understand every layer instead of copying a black-box function. Every code block below runs directly in your browser: press Run and change the numbers. We use base R and the tidyverse staples <code>ggplot2</code> and <code>dplyr</code>, and near the end we look at packages that automate the whole thing once you know how the pieces fit.</p>
+
+<h2>Why do boxplots hide what raincloud plots reveal?</h2>
+
+<p>A boxplot squeezes a whole distribution down to five numbers: the minimum, the first quartile, the median, the third quartile, and the maximum. That summary is useful, but it throws away the shape. Two groups can have almost the same five numbers while having completely different distributions, and the boxplot will not tell you.</p>
+
+<p>Let's prove it. We will make two groups on purpose. Group A is a single smooth hump. Group B is two separate clusters (bimodal), which is what you get when two subgroups are mixed together in the same column. We tune Group B so its quartiles land almost exactly on Group A's.</p>
+
+<div class="webr-container" data-block-title="Build two groups with matching summaries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build two groups with matching summaries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+set.seed(2026)
+n &lt;- 300
+group_a &lt;- rnorm(n, mean = 50, sd = 11)                 # one smooth hump
+group_b &lt;- c(rnorm(n / 2, mean = 43, sd = 6),           # a low cluster
+             rnorm(n / 2, mean = 57, sd = 6))           # and a high cluster
+scores &lt;- data.frame(
+  group = rep(c(&quot;Group A&quot;, &quot;Group B&quot;), each = n),
+  score = c(group_a, group_b)
+)
+
+# Compare the quartiles side by side
+scores |&gt;
+  group_by(group) |&gt;
+  summarise(Q1 = quantile(score, 0.25),
+            median = median(score),
+            Q3 = quantile(score, 0.75))
+#&gt; # A tibble: 2 × 4
+#&gt;   group      Q1 median    Q3
+#&gt;   &lt;chr&gt;   &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Group A  43.2   49.9  56.9
+#&gt; 2 Group B  43.5   50.5  58.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table row by row. Group A and Group B share the same median (about 50) and nearly the same first and third quartiles (about 43 and 57). A boxplot draws its box from Q1 to Q3 with a line at the median, so both boxes will look like near-twins. The takeaway: the five-number summary cannot distinguish these two groups.</p>
+
+<p>Now draw the boxplots and see for yourself.</p>
+
+<div class="webr-container" data-block-title="Draw two nearly identical boxplots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw two nearly identical boxplots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(scores, aes(x = group, y = score)) +
+  geom_boxplot(fill = &quot;grey85&quot;) +
+  labs(x = NULL, y = &quot;Score&quot;,
+       title = &quot;Two boxplots that look almost the same&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two boxes are practically identical, and nothing on the chart hints that the groups differ. If you stopped here, you would report "same distribution" and move on. That would be wrong.</p>
+
+<p>Watch what happens when we swap the boxplot for a violin, which mirrors the distribution's density so its width shows where values pile up.</p>
+
+<div class="webr-container" data-block-title="Reveal the shape with violins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reveal the shape with violins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(scores, aes(x = group, y = score, fill = group)) +
+  geom_violin() +
+  labs(x = NULL, y = &quot;Score&quot;, title = &quot;The same data as violins&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the difference is obvious. Group A is a single bulge in the middle. Group B pinches in the center and bulges twice, once low and once high: two hidden clusters the boxplot completely erased. Same summary numbers, very different stories.</p>
+
+<p>A raincloud plot is the natural next step. It keeps the density shape from the violin, adds the boxplot summary back in, and layers the raw points on top so you can also count and inspect individual observations. You get all three views in one glance.</p>
+
+<p><img src="screenshots/Raincloud-Plots-in-R-from-boxplot.webp" alt="From boxplot to raincloud" class="img-responsive img-zoomable" loading="lazy" width="1784" height="394" /></p>
+
+<p><em>Figure 1: Boxplots hide a distribution's shape; a raincloud adds density and raw points to show the full picture.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A boxplot compresses a distribution into five numbers, and different shapes can produce the same five numbers.</strong> Whenever a decision depends on whether a group is single-peaked, skewed, or actually two subgroups combined, show the shape and the raw points, not just the box.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add the raw points to the boxplot so you can see the two clusters in Group B directly. Use <code>geom_jitter()</code> with a small width on top of the existing boxplot.</p>
+<div class="webr-container" data-block-title="Your turn: add jittered points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add jittered points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(scores, aes(x = group, y = score)) +
+  geom_boxplot(fill = &quot;grey85&quot;) +
+  # add a jittered points layer here
+  labs(x = NULL, y = &quot;Score&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Boxplot with jittered points solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxplot with jittered points solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(scores, aes(x = group, y = score)) +
+  geom_boxplot(fill = &quot;grey85&quot;) +
+  geom_jitter(width = 0.15, alpha = 0.3) +
+  labs(x = NULL, y = &quot;Score&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_jitter()</code> scatters each point a little sideways so they do not stack into one line. Even with the box on top, Group B's two clouds of points are now visible. <code>width = 0.15</code> keeps the scatter narrow, and <code>alpha = 0.3</code> makes overlapping points readable.</p>
+
+</details>
+</section>
+
+<h2>What are the three layers of a raincloud plot?</h2>
+
+<p>A raincloud plot is not a special chart type with its own function. It is three ordinary <a class="auto-link" href="ggplot2-Grammar-of-Graphics.html" title="ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click">ggplot2 layers</a> stacked in one panel, each showing the same numbers a different way.</p>
+
+<ul>
+
+<li><strong>The cloud:</strong> a half-violin (a density curve) that shows the distribution's shape.</li>
+
+<li><strong>The summary:</strong> a narrow boxplot that shows the median and quartiles.</li>
+
+<li><strong>The rain:</strong> jittered points that show every individual value.</li>
+
+</ul>
+
+<p><img src="screenshots/Raincloud-Plots-in-R-anatomy.webp" alt="Anatomy of a raincloud plot" class="img-responsive img-zoomable" loading="lazy" width="854" height="986" /></p>
+
+<p><em>Figure 2: The three layers of a raincloud plot: half-violin cloud, boxplot summary, and jittered rain.</em></p>
+
+<p>Before we build the polished half-violin version, let's assemble a rough draft using only stock <a class="auto-link" href="ggplot2-Cheat-Sheet.html" title="ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More">ggplot2 geoms</a>, so the three-layer idea is concrete. We will use the built-in <code>iris</code> dataset and plot sepal length for each of its three species.</p>
+
+<div class="webr-container" data-block-title="Stack a violin, boxplot, and jitter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stack a violin, boxplot, and jitter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+  geom_violin(fill = &quot;grey85&quot;) +
+  geom_boxplot(width = 0.12, outlier.shape = NA) +
+  geom_jitter(width = 0.08, alpha = 0.4) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the layers from the code, bottom of the list to top of the chart. <code>geom_violin()</code> draws the grey density shape. <code>geom_boxplot(width = 0.12)</code> draws a slim box inside it, with <code>outlier.shape = NA</code> so <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> dots are not drawn twice (the jitter layer already shows every point). <code>geom_jitter(width = 0.08)</code> sprinkles the raw points on top. The order matters: later layers draw on top of earlier ones.</p>
+
+<p>This already shows all three views together. So what is wrong with it? Look closely: the violin is a full, mirrored shape, and the points sit right on top of it. The two halves of the violin are redundant (a mirror image adds no information), and the points and box are crammed into the same space as the density. A true raincloud fixes this by using only half of the violin, freeing up the other side for the box and the rain.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A violin plot is a density curve mirrored around a center line, so both halves carry the same information.</strong> A raincloud keeps just one half and spends the reclaimed space on the boxplot and the raw points, which is why it looks cleaner and less crowded.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The points above are a little faint and tightly packed. Make them easier to see by widening the jitter slightly and raising the opacity.</p>
+<div class="webr-container" data-block-title="Your turn: adjust the rain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: adjust the rain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+  geom_violin(fill = &quot;grey85&quot;) +
+  geom_boxplot(width = 0.12, outlier.shape = NA) +
+  geom_jitter(width = 0.08, alpha = 0.4) +   # change width and alpha
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wider, clearer jitter solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wider, clearer jitter solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+  geom_violin(fill = &quot;grey85&quot;) +
+  geom_boxplot(width = 0.12, outlier.shape = NA) +
+  geom_jitter(width = 0.12, alpha = 0.7) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Raising <code>width</code> to <code>0.12</code> spreads the points wider so fewer overlap, and <code>alpha = 0.7</code> makes each point more solid. There is a trade-off: too much width and the points drift away from their group; too little and they merge into a bar.</p>
+
+</details>
+</section>
+
+<h2>How do you draw the half-violin cloud from scratch?</h2>
+
+<p>The cloud is the only piece core ggplot2 does not give you directly. There is no built-in "half-violin" geom. But a violin is just a density curve, and a density curve is something we can compute ourselves with base R's <code>density()</code> function. Once we have the curve, we draw one side of it as a filled shape.</p>
+
+<p>Start by looking at what <code>density()</code> returns for a single group.</p>
+
+<div class="webr-container" data-block-title="Inspect a density curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect a density curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setosa_len &lt;- iris$Sepal.Length[iris$Species == &quot;setosa&quot;]
+d &lt;- density(setosa_len)
+
+length(d$x)                                    # points along the value axis
+#&gt; [1] 512
+head(data.frame(value = d$x, density = d$y), 4)
+#&gt;      value      density
+#&gt; 1 3.931426 0.0008607633
+#&gt; 2 3.935804 0.0009639698
+#&gt; 3 3.940182 0.0010760612
+#&gt; 4 3.944560 0.0011972881</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>density()</code> returns two matched vectors of 512 points. <code>d$x</code> is a fine grid of values along the measurement axis (sepal length), and <code>d$y</code> is how dense the data is at each of those values. Where <code>d$y</code> is large, many observations pile up; where it is small, the data thins out. That pair of vectors traces the outline of one side of a violin.</p>
+
+<p>To turn that outline into a filled half-violin, we anchor it against a vertical baseline. The plan for each group is: place the group at an integer position on the x-axis (group 1 at x = 1, group 2 at x = 2, and so on), push the density outward from that baseline to form the curved edge, then close the shape back along the baseline. Here is a small helper that does exactly that for every group in a dataset.</p>
+
+<div class="webr-container" data-block-title="Define the build_cloud helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the build_cloud helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">build_cloud &lt;- function(data, group_col, value_col, width = 0.4) {
+  groups &lt;- levels(factor(data[[group_col]]))
+  parts &lt;- list()
+  for (i in seq_along(groups)) {
+    vals &lt;- data[[value_col]][data[[group_col]] == groups[i]]
+    d &lt;- density(vals)
+    scaled &lt;- d$y / max(d$y) * width              # scale density to a fixed width
+    parts[[i]] &lt;- data.frame(
+      grp = groups[i],
+      x = c(i + scaled, rep(i, length(scaled))),  # curve outward, then back to baseline
+      y = c(d$x, rev(d$x))
+    )
+  }
+  do.call(rbind, parts)
+}
+
+cloud &lt;- build_cloud(iris, &quot;Species&quot;, &quot;Sepal.Length&quot;)
+head(cloud, 4)
+#&gt;      grp        x        y
+#&gt; 1 setosa 1.000278 3.931426
+#&gt; 2 setosa 1.000311 3.935804
+#&gt; 3 setosa 1.000347 3.940182
+#&gt; 4 setosa 1.000387 3.944560</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what the helper builds. For each group <code>i</code>, it computes the density, then rescales <code>d$y</code> so the widest part of the curve sticks out by <code>width</code> (0.4 by default). The <code>x</code> column holds the curve going outward (<code>i + scaled</code>) followed by the flat baseline coming back (<code>rep(i, ...)</code>), and the <code>y</code> column holds the value grid out and then in reverse. Reading <code>head(cloud, 4)</code>, you can see setosa's shape starts at x just above the baseline of 1.0 and y near 3.93 cm, which is the low end of setosa's sepal lengths. Chaining outward-curve plus return-baseline gives <code>geom_polygon()</code> a closed outline it can fill.</p>
+
+<p>Now draw the clouds on their own with <code>geom_polygon()</code>. We relabel the integer x positions with the species names so the axis reads normally.</p>
+
+<div class="webr-container" data-block-title="Draw the half-violin clouds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the half-violin clouds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cloud, aes(x = x, y = y, group = grp, fill = grp)) +
+  geom_polygon(alpha = 0.8, color = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;, fill = &quot;Species&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each species now has a one-sided violin: a filled shape that bulges where its sepal lengths are common and tapers where they are rare. <code>group = grp</code> keeps the three polygons separate so ggplot2 does not try to connect them into one blob, and <code>scale_x_continuous()</code> swaps the numbers 1, 2, 3 for the species names. This is the cloud. Next we hang the box and the rain off the same baseline.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Control the smoothness of the cloud with the adjust argument of density().</strong> Pass <code>density(vals, adjust = 0.5)</code> for a bumpier curve that follows the data closely, or <code>adjust = 2</code> for a smoother one. Add an <code>adjust</code> argument to <code>build_cloud()</code> if you want to tune it per plot.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The clouds are a little wide. Rebuild them at half the width so they take up less room, then redraw.</p>
+<div class="webr-container" data-block-title="Your turn: narrow the clouds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: narrow the clouds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cloud &lt;- build_cloud(iris, &quot;Species&quot;, &quot;Sepal.Length&quot;, width = 0.4)  # change width
+ggplot(ex_cloud, aes(x = x, y = y, group = grp, fill = grp)) +
+  geom_polygon(alpha = 0.8, color = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;, fill = &quot;Species&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Narrower clouds solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Narrower clouds solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cloud &lt;- build_cloud(iris, &quot;Species&quot;, &quot;Sepal.Length&quot;, width = 0.2)
+ggplot(ex_cloud, aes(x = x, y = y, group = grp, fill = grp)) +
+  geom_polygon(alpha = 0.8, color = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;, fill = &quot;Species&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>width</code> argument sets how far the widest part of each cloud reaches from its baseline. Dropping it from 0.4 to 0.2 halves the horizontal spread, which is handy when you have many groups packed close together.</p>
+
+</details>
+</section>
+
+<h2>How do you assemble and compare groups with a raincloud plot?</h2>
+
+<p>Now we combine all three layers. The trick is positioning: the cloud sits to the right of each group's baseline, the box sits just left of it, and the rain sits further left still. We shift the box and points with small offsets from the integer positions, and we jitter the points with a touch of randomness so they do not stack.</p>
+
+<div class="webr-container" data-block-title="Assemble the full raincloud">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assemble the full raincloud</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+rain &lt;- iris
+rain$x_rain &lt;- as.integer(rain$Species) - 0.22 +
+               runif(nrow(rain), -0.06, 0.06)      # points, jittered, on the left
+
+ggplot() +
+  geom_polygon(data = cloud,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = iris,
+               aes(x = as.integer(Species) - 0.08, y = Sepal.Length,
+                   group = Species),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = rain,
+             aes(x = x_rain, y = Sepal.Length, color = Species),
+             size = 1.2, alpha = 0.5) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each layer gets its own horizontal slot around the group's integer position. The cloud (<code>geom_polygon</code>) uses the <code>cloud</code> data we built, which already reaches to the right. The box (<code>geom_boxplot</code>) is nudged to <code>position - 0.08</code> and kept slim with <code>width = 0.06</code>. The rain (<code>geom_point</code>) is nudged furthest left to about <code>position - 0.22</code>, with <code>runif()</code> adding a small random wobble so points do not line up. <code>set.seed(11)</code> makes that wobble reproducible. The result is a full raincloud for all three species, built entirely from parts you now understand.</p>
+
+<p>Reading it, setosa (left) has short sepals in a tight cloud, while virginica (right) has longer sepals and a wider spread. The three species separate cleanly, which is exactly the kind of comparison a raincloud is built for.</p>
+
+<p>Speaking of comparison, the order of the groups matters. When groups sit in a meaningful order, differences pop out. Let's compare fuel economy across engine sizes in the built-in <code>mtcars</code> data and order the cylinder groups by their median miles per gallon.</p>
+
+<div class="webr-container" data-block-title="Order groups by median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Order groups by median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars &lt;- mtcars
+cars$cyl &lt;- factor(cars$cyl)
+
+med &lt;- tapply(cars$mpg, cars$cyl, median)          # median mpg per group
+med
+#&gt;    4    6    8 
+#&gt; 26.0 19.7 15.2
+cars$cyl &lt;- factor(cars$cyl, levels = names(sort(med)))   # reorder low to high</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tapply()</code> computes the median mpg for each cylinder count: 26.0 for four-cylinder cars, 19.7 for six, and 15.2 for eight. We then rebuild the <code>cyl</code> factor with its levels sorted by those medians, so the plot lays the groups out from lowest median to highest instead of in numeric order. Reordering a factor is the single most useful move for making a group comparison readable.</p>
+
+<div class="webr-container" data-block-title="Raincloud comparison across groups">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raincloud comparison across groups</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cloud_c &lt;- build_cloud(cars, &quot;cyl&quot;, &quot;mpg&quot;, width = 0.35)
+set.seed(3)
+cars$x_rain &lt;- as.integer(cars$cyl) - 0.22 + runif(nrow(cars), -0.05, 0.05)
+
+ggplot() +
+  geom_polygon(data = cloud_c,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = cars,
+               aes(x = as.integer(cyl) - 0.08, y = mpg, group = cyl),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = cars,
+             aes(x = x_rain, y = mpg, color = cyl),
+             size = 1.4, alpha = 0.6) +
+  scale_x_continuous(breaks = 1:3, labels = levels(cars$cyl)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Miles per gallon&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same <code>build_cloud()</code> helper works on any dataset: here we pass <code>cars</code>, the <code>cyl</code> column, and <code>mpg</code>. Because we ordered the factor by median, the clouds climb steadily from eight cylinders (thirsty, low mpg) on the left to four cylinders (efficient, high mpg) on the right. The eight-cylinder cloud even hints at two sub-groups, which the handful of raw points confirm. That is a story the ordered raincloud tells at a glance.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Order your groups by a summary statistic, usually the median, before you plot.</strong> A raincloud sorted from lowest to highest turns a jumble of shapes into a clear trend, and readers can spot the outlier group instantly instead of hunting for it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Give each cloud a fill color driven by the cylinder group and see how color reinforces the grouping. Map <code>fill = grp</code> is already there; add <code>scale_fill_manual()</code> with three colors of your choice.</p>
+<div class="webr-container" data-block-title="Your turn: recolor the clouds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recolor the clouds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud_c,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.8, color = NA) +
+  # add a scale_fill_manual() with three colors here
+  geom_boxplot(data = cars,
+               aes(x = as.integer(cyl) - 0.08, y = mpg, group = cyl),
+               width = 0.06, outlier.shape = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(cars$cyl)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Miles per gallon&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Custom cloud colors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom cloud colors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud_c,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.8, color = NA) +
+  scale_fill_manual(values = c(&quot;#d73027&quot;, &quot;#fc8d59&quot;, &quot;#4575b4&quot;)) +
+  geom_boxplot(data = cars,
+               aes(x = as.integer(cyl) - 0.08, y = mpg, group = cyl),
+               width = 0.06, outlier.shape = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(cars$cyl)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Miles per gallon&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_fill_manual()</code> assigns a specific color to each level of the fill variable, in level order. Here the three hex codes color the three cylinder groups in order. Custom fills let you match a brand palette or use color to signal meaning (for example, red for the worst group).</p>
+
+</details>
+</section>
+
+<h2>How do you make horizontal and faceted rainclouds?</h2>
+
+<p>Vertical rainclouds work, but horizontal ones are often easier to read, especially when group names are long. Turning the plot on its side is a one-line change: add <code>coord_flip()</code>. We also swap in a cleaner theme.</p>
+
+<div class="webr-container" data-block-title="Flip the raincloud horizontal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the raincloud horizontal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud_c,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = cars,
+               aes(x = as.integer(cyl) - 0.08, y = mpg, group = cyl),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = cars,
+             aes(x = x_rain, y = mpg, color = cyl),
+             size = 1.4, alpha = 0.6) +
+  scale_x_continuous(breaks = 1:3, labels = levels(cars$cyl)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Miles per gallon&quot;) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>coord_flip()</code> swaps the axes so the clouds now lie on their backs, growing upward, with the box and rain below each one. Nothing else about the code changes: the positioning logic still works because we only flipped the finished plot. <code>theme_minimal()</code> strips the grey background for a lighter look. Horizontal rainclouds read top to bottom like a list, which suits reports and slides.</p>
+
+<p>To split a raincloud by a second variable (say, comparing the same groups across two conditions), add <code>facet_wrap(~ condition)</code> so ggplot2 draws one panel per condition. Because the package geoms recompute their statistics per panel, faceting works out of the box with <code>ggdist</code> or <code>ggrain</code>. The from-scratch cloud is precomputed for the whole dataset, so to facet it you build the cloud within each condition first, then the same positioning logic works inside every panel.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Keep the box narrow and the jitter modest when you flip or facet a raincloud.</strong> Because the box, cloud, and rain all share one group slot, a wide box (<code>width</code> above about 0.1) or a broad jitter will overlap the cloud and turn the panel into a smear. Start small and widen only if there is room.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Give the horizontal plot a colorblind-friendly palette using <code>scale_fill_brewer()</code>. The ColorBrewer "Set2" palette is a safe default.</p>
+<div class="webr-container" data-block-title="Your turn: apply a Brewer palette">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: apply a Brewer palette</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud_c,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  # add scale_fill_brewer() here
+  geom_boxplot(data = cars,
+               aes(x = as.integer(cyl) - 0.08, y = mpg, group = cyl),
+               width = 0.06, outlier.shape = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(cars$cyl)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Miles per gallon&quot;) +
+  coord_flip() + theme_minimal() + theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Brewer palette solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Brewer palette solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud_c,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  geom_boxplot(data = cars,
+               aes(x = as.integer(cyl) - 0.08, y = mpg, group = cyl),
+               width = 0.06, outlier.shape = NA) +
+  scale_x_continuous(breaks = 1:3, labels = levels(cars$cyl)) +
+  labs(x = &quot;Cylinders&quot;, y = &quot;Miles per gallon&quot;) +
+  coord_flip() + theme_minimal() + theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_fill_brewer(palette = &quot;Set2&quot;)</code> applies a ready-made <a class="auto-link" href="ggplot2-Colours.html" title="ggplot2 Colours: Choose Palettes That Are Beautiful, Accessible, and Honest">ColorBrewer palette</a> designed to stay distinguishable for colorblind readers. ggplot2 ships many Brewer palettes; "Set2", "Dark2", and "Paired" are good qualitative choices for group fills.</p>
+
+</details>
+</section>
+
+<h2>Which R packages make raincloud plots easier?</h2>
+
+<p>Now that you understand the layers, you can appreciate the packages that automate them. They do exactly what you just did by hand, wrapped in a single call. Two are worth knowing.</p>
+
+<p>The <code>ggdist</code> package is the most popular. Its <code>stat_halfeye()</code> draws the half-violin cloud, and <code>stat_dots()</code> draws the rain as a neat dot cloud instead of jittered points, so nothing overlaps.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The two blocks below use add-on packages, so run them in a local R session (for example, RStudio) rather than in the browser here.</strong> The from-scratch versions above run anywhere because they only use core ggplot2. Install the packages once with <code>install.packages(c(&quot;ggdist&quot;, &quot;ggrain&quot;))</code>.</div></div>
+
+<pre><code class="language-r">library(ggdist)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, justification = -0.2,
+               .width = 0, point_colour = NA) +
+  geom_boxplot(width = 0.12, outlier.shape = NA, alpha = 0.5) +
+  stat_dots(side = &quot;left&quot;, justification = 1.1, dotsize = 0.4) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;) +
+  theme(legend.position = &quot;none&quot;)</code></pre>
+
+<p><code>stat_halfeye()</code> builds the cloud and nudges it to the right with <code>justification = -0.2</code>, <code>geom_boxplot()</code> adds the slim box, and <code>stat_dots()</code> piles the raw points to the left with <code>side = &quot;left&quot;</code>. Setting <code>.width = 0</code> and <code>point_colour = NA</code> hides the small interval marker that <code>stat_halfeye()</code> draws by default, leaving a clean half-violin. The output looks like the raincloud you built by hand, with tidier dot stacking.</p>
+
+<p>The newer <code>ggrain</code> package goes further: <code>geom_rain()</code> draws the whole raincloud in one layer.</p>
+
+<pre><code class="language-r">library(ggrain)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_rain() +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;) +
+  theme(legend.position = &quot;none&quot;)</code></pre>
+
+<p><code>geom_rain()</code> places the cloud, box, and rain automatically, and it can even connect points across conditions for repeated-measures data. It is the quickest way to a raincloud once the packages are installed. Another option you may see in older tutorials is <code>gghalves</code>, which supplies <code>geom_half_violin()</code> and matching half-geoms; it works the same way by giving you one-sided layers to stack.</p>
+
+<p>For a deeper walkthrough of the <code>ggdist</code> approach and its uncertainty features, see our <a href="ggdist-Package-in-R.html">ggdist package tutorial</a>. The from-scratch method in this post and the package method produce the same picture: use whichever fits your project.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You do not need a package to restyle your raincloud. Take the from-scratch iris raincloud and give it a soft, publication-ready look with a Brewer palette and a minimal theme.</p>
+<div class="webr-container" data-block-title="Your turn: restyle the from-scratch raincloud">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: restyle the from-scratch raincloud</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud, aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = iris,
+               aes(x = as.integer(Species) - 0.08, y = Sepal.Length, group = Species),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = rain, aes(x = x_rain, y = Sepal.Length),
+             size = 1.1, alpha = 0.5) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  # add scale_fill_brewer() and theme_minimal() here
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Restyled from-scratch raincloud solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restyled from-scratch raincloud solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot() +
+  geom_polygon(data = cloud, aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = iris,
+               aes(x = as.integer(Species) - 0.08, y = Sepal.Length, group = Species),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = rain, aes(x = x_rain, y = Sepal.Length),
+             size = 1.1, alpha = 0.5) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> No package is needed to polish a raincloud. <code>scale_fill_brewer()</code> recolors the clouds, <code>theme_minimal()</code> lightens the background, and dropping the legend removes redundancy since the axis already labels each group.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's put every step together on a fresh dataset. The built-in <code>chickwts</code> data records the weights of chicks fed six different diets. We want to compare the weight distributions across feeds and see which diet produces the heaviest, most consistent chicks. This is a textbook raincloud job: six groups, and we care about both the typical value and the spread.</p>
+
+<p>The preparation step is the one that makes or breaks the comparison: order the feeds by their median weight so the plot reads as a ranking.</p>
+
+<div class="webr-container" data-block-title="Order feeds by median weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Order feeds by median weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(chickwts)
+
+med_feed &lt;- tapply(chickwts$weight, chickwts$feed, median)
+round(sort(med_feed))
+#&gt; horsebean   linseed   soybean  meatmeal sunflower    casein 
+#&gt;       152       221       248       263       328       342
+cw &lt;- chickwts
+cw$feed &lt;- factor(cw$feed, levels = names(sort(med_feed)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tapply()</code> gives the median weight for each feed, and sorting shows the ranking: horsebean chicks are lightest at a median of 152 grams, while casein-fed chicks are heaviest at 342 grams. We rebuild the <code>feed</code> factor with its levels in that sorted order, so the raincloud will stack from lightest at the bottom to heaviest at the top.</p>
+
+<div class="webr-container" data-block-title="Build the polished comparison raincloud">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the polished comparison raincloud</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cloud_w &lt;- build_cloud(cw, &quot;feed&quot;, &quot;weight&quot;, width = 0.4)
+set.seed(9)
+cw$x_rain &lt;- as.integer(cw$feed) - 0.22 + runif(nrow(cw), -0.05, 0.05)
+
+ggplot() +
+  geom_polygon(data = cloud_w,
+               aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = cw,
+               aes(x = as.integer(feed) - 0.08, y = weight, group = feed),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = cw,
+             aes(x = x_rain, y = weight),
+             size = 1.2, alpha = 0.45) +
+  scale_x_continuous(breaks = 1:6, labels = levels(cw$feed)) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  labs(title = &quot;Chick weight by feed type&quot;,
+       x = &quot;Feed&quot;, y = &quot;Weight (grams)&quot;) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This reuses the exact same <code>build_cloud()</code> helper and positioning pattern from earlier, now on six groups. Reading the finished plot from bottom to top, horsebean produces light chicks with a tight cloud, casein and sunflower produce the heaviest, and sunflower's cloud is noticeably wider, meaning its results are less consistent. A single chart answers both questions we started with: which feed is best on average, and which is most reliable. That is the payoff of a raincloud: it shows the group ranking and the full spread at once, with every raw point still visible.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the pieces from the whole tutorial. Each solution runs in the browser, and all reuse the <code>build_cloud()</code> helper you defined earlier on this page.</p>
+
+<h3>Exercise 1: A single-group raincloud for skew</h3>
+
+<p>The <code>airquality</code> dataset has an <code>Ozone</code> column with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>. Drop the missing rows, then draw a single raincloud for <code>Ozone</code>. Because there is only one group, place it at x = 1. Look at the finished cloud: is ozone symmetric, or skewed?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air &lt;- airquality[!is.na(airquality$Ozone), ]
+air$all &lt;- &quot;Ozone&quot;
+# Hint: build_cloud needs a grouping column; use &quot;all&quot;.
+# Place the box at x = 0.92 and jitter the rain around x = 0.78.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air &lt;- airquality[!is.na(airquality$Ozone), ]
+air$all &lt;- &quot;Ozone&quot;
+ex1_cloud &lt;- build_cloud(air, &quot;all&quot;, &quot;Ozone&quot;, width = 0.4)
+
+set.seed(4)
+air$x_rain &lt;- 1 - 0.22 + runif(nrow(air), -0.05, 0.05)
+
+ggplot() +
+  geom_polygon(data = ex1_cloud, aes(x = x, y = y, group = grp),
+               fill = &quot;skyblue&quot;, alpha = 0.7) +
+  geom_boxplot(data = air, aes(x = 0.92, y = Ozone),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = air, aes(x = x_rain, y = Ozone), alpha = 0.4) +
+  scale_x_continuous(breaks = 1, labels = &quot;Ozone&quot;) +
+  labs(x = NULL, y = &quot;Ozone (ppb)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With one group, everything centers on x = 1. The cloud is clearly right-skewed: it bunches up at low ozone values and stretches a long tail toward high ones. A boxplot would show the same skew only faintly through an off-center median; the cloud makes it unmistakable.</p>
+
+</details>
+
+<h3>Exercise 2: Compare two transmissions, ordered by median</h3>
+
+<p>Using <code>mtcars</code>, compare miles per gallon between automatic and manual cars. The <code>am</code> column is 0 for automatic and 1 for manual. Turn it into a readable factor, order the two groups by median mpg, and draw a raincloud comparing them.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt &lt;- mtcars
+mt$trans &lt;- factor(ifelse(mt$am == 0, &quot;Automatic&quot;, &quot;Manual&quot;))
+# Hint: order the factor by median mpg, then build_cloud + assemble.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt &lt;- mtcars
+mt$trans &lt;- factor(ifelse(mt$am == 0, &quot;Automatic&quot;, &quot;Manual&quot;))
+
+mmed &lt;- tapply(mt$mpg, mt$trans, median)
+mmed
+#&gt; Automatic    Manual 
+#&gt;      17.3      22.8
+mt$trans &lt;- factor(mt$trans, levels = names(sort(mmed)))
+
+ex2_cloud &lt;- build_cloud(mt, &quot;trans&quot;, &quot;mpg&quot;, width = 0.35)
+set.seed(5)
+mt$x_rain &lt;- as.integer(mt$trans) - 0.22 + runif(nrow(mt), -0.05, 0.05)
+
+ggplot() +
+  geom_polygon(data = ex2_cloud, aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = mt, aes(x = as.integer(trans) - 0.08, y = mpg, group = trans),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = mt, aes(x = x_rain, y = mpg, color = trans), alpha = 0.6) +
+  scale_x_continuous(breaks = 1:2, labels = levels(mt$trans)) +
+  labs(x = &quot;Transmission&quot;, y = &quot;Miles per gallon&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Automatic cars have a median of 17.3 mpg and manual cars 22.8, so sorting puts automatic first. The rainclouds show manual cars are not just higher on average but also more spread out, a difference the medians alone would not reveal.</p>
+
+</details>
+
+<h3>Exercise 3: Add a mean marker to each group</h3>
+
+<p>Means and medians can differ, and showing both is a nice touch. Take the from-scratch iris raincloud and add a white diamond at each species' mean sepal length, sitting at the box position. Use <code>aggregate()</code> to compute the means.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">means &lt;- aggregate(Sepal.Length ~ Species, data = iris, FUN = mean)
+# Hint: add a column x = as.integer(Species) - 0.08 to place the diamond on the box.
+# Add a geom_point layer with shape = 23 (a diamond) and fill = &quot;white&quot;.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">means &lt;- aggregate(Sepal.Length ~ Species, data = iris, FUN = mean)
+means$x &lt;- as.integer(means$Species) - 0.08
+means
+#&gt;      Species Sepal.Length    x
+#&gt; 1     setosa        5.006 0.92
+#&gt; 2 versicolor        5.936 1.92
+#&gt; 3  virginica        6.588 2.92
+
+ggplot() +
+  geom_polygon(data = cloud, aes(x = x, y = y, group = grp, fill = grp),
+               alpha = 0.7, color = NA) +
+  geom_boxplot(data = iris,
+               aes(x = as.integer(Species) - 0.08, y = Sepal.Length, group = Species),
+               width = 0.06, outlier.shape = NA) +
+  geom_point(data = rain, aes(x = x_rain, y = Sepal.Length, color = Species),
+             size = 1.2, alpha = 0.5) +
+  geom_point(data = means, aes(x = x, y = Sepal.Length),
+             shape = 23, size = 3, fill = &quot;white&quot;) +
+  scale_x_continuous(breaks = 1:3, labels = levels(iris$Species)) +
+  labs(x = &quot;Species&quot;, y = &quot;Sepal length (cm)&quot;) +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>aggregate()</code> returns one mean per species, and we add an <code>x</code> column to line the diamonds up with the boxes. <code>shape = 23</code> is a filled diamond, and drawing it last puts it on top of the box. Because iris sepal lengths are fairly symmetric, the white mean diamonds sit close to the median lines; on skewed data they would pull toward the long tail.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use a raincloud plot instead of a boxplot?</h3>
+
+<p>Use a raincloud whenever the shape of the distribution matters, not just its median and quartiles. A boxplot hides whether a group is bimodal, skewed, or clustered, while a raincloud shows the density curve and every raw point. For a quick five-number comparison a boxplot is still fine; reach for a raincloud when a hidden pattern would change your conclusion.</p>
+
+<h3>Do I need a special package to make a raincloud plot in R?</h3>
+
+<p>No. A raincloud is three ordinary ggplot2 layers stacked in one panel (a half-violin, a boxplot, and jittered raw points), and this tutorial builds one with core ggplot2 alone. Packages such as <code>ggdist</code> and <code>ggrain</code> automate the assembly and add polish, but they do the same job you can do by hand.</p>
+
+<h3>Why is it called a raincloud plot?</h3>
+
+<p>The half-violin density sits to one side like a cloud, and the jittered raw points scatter beside it like falling rain. The name is a description of the picture: a cloud of density with the individual observations shown as rain below it.</p>
+
+<h3>How much data do I need for a raincloud plot?</h3>
+
+<p>The cloud is a kernel density estimate, so it needs enough points to mean something. With fewer than about ten values in a group, the smooth curve can look more confident than the data warrants, so lean on the raw points for very small groups. A few dozen observations per group or more gives a cloud you can trust.</p>
+
+<h3>How do I make a raincloud plot horizontal?</h3>
+
+<p>Add <code>coord_flip()</code> to the finished plot, as the horizontal section above shows. It swaps the axes so the clouds lie sideways, which reads well when group labels are long or you have many groups. Keep the box narrow and the jitter modest so the flipped layers do not overlap.</p>
+
+<h2>Summary</h2>
+
+<p>A raincloud plot is three ggplot2 layers on one baseline: a half-violin cloud, a slim boxplot, and jittered raw points. Building it by hand, you learned that the cloud is just a density curve drawn on one side, and that clever x-axis positioning is what keeps the three layers from colliding.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Layer</th>
+<th>What draws it (from scratch)</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cloud</td>
+<td><code>geom_polygon()</code> on a <code>density()</code> outline</td>
+<td>The distribution's shape (peaks, gaps, skew)</td>
+</tr>
+<tr>
+<td>Summary</td>
+<td><code>geom_boxplot()</code> nudged left, narrow</td>
+<td>Median and quartiles</td>
+</tr>
+<tr>
+<td>Rain</td>
+<td><code>geom_point()</code> jittered, furthest left</td>
+<td>Every individual observation</td>
+</tr>
+<tr>
+<td>Order</td>
+<td><code>factor(levels = names(sort(medians)))</code></td>
+<td>A readable ranking of groups</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Raincloud-Plots-in-R-overview.webp" alt="Raincloud plots overview" class="img-responsive img-zoomable" loading="lazy" width="1788" height="968" /></p>
+
+<p><em>Figure 3: An overview of raincloud plots: their layers, why they help, how to build them, and shortcut packages.</em></p>
+
+<p>Reach for a raincloud whenever you would have drawn a boxplot but the shape matters: when a group might be skewed or bimodal rather than a single smooth hump. Order the groups by median, flip to horizontal for long labels, and once you are comfortable, let <code>ggdist</code> or <code>ggrain</code> do the assembly for you.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Allen, M., Poggiali, D., Whitaker, K., Marshall, T. R., & Kievit, R. A. (2019). Raincloud plots: a multi-platform tool for robust data visualization. <em>Wellcome Open Research</em>, 4:63. <a href="https://wellcomeopenresearch.org/articles/4-63">Link</a> - the paper that introduced and named the raincloud plot.</li>
+
+<li>ggplot2 reference: <code>geom_violin()</code>. <a href="https://ggplot2.tidyverse.org/reference/geom_violin.html">Link</a> - the density layer the cloud is built from, with every argument documented.</li>
+
+<li>ggplot2 reference: <code>geom_boxplot()</code>. <a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html">Link</a> - options for the summary layer, including <code>outlier.shape</code> and <code>width</code>.</li>
+
+<li>R documentation: <code>density()</code> kernel density estimation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/density.html">Link</a> - how the cloud's curve is computed and what <code>adjust</code> and <code>bw</code> control.</li>
+
+<li>ggdist: Visualizations of Distributions and Uncertainty. <a href="https://mjskay.github.io/ggdist/">Link</a> - the package way to draw the cloud, plus uncertainty and interval geoms.</li>
+
+<li>ggrain: A Rainclouds Geom for ggplot2. <a href="https://github.com/njudd/ggrain">Link</a> - a one-call <code>geom_rain()</code>, including connected points for repeated measures.</li>
+
+<li>Scherer, C. Raincloud Plots with ggplot2. <a href="https://z3tt.github.io/Rainclouds/">Link</a> - a widely cited walkthrough with polished styling ideas.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Violin-Plot-in-R.html">Violin Plot in R</a>: the full-density cousin of the cloud, and where the raincloud's shape layer comes from.</li>
+
+<li><a href="ggdist-Package-in-R.html">ggdist Package in R</a>: the package way to build rainclouds, plus uncertainty and interval visualizations.</li>
+
+<li><a href="ggplot2-geom_boxplot-in-R.html">ggplot2 geom_boxplot in R</a>: master the boxplot layer that forms a raincloud's summary.</li>
+
+</ul>
+
+{% endraw %}
