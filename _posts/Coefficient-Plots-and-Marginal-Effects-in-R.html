@@ -1,0 +1,993 @@
+---
+title: "Coefficient Plots and Marginal Effects in R with broom"
+description: "Build coefficient plots with broom and ggplot2, then read marginal effects that show each predictor's effect on the outcome. A runnable, from-scratch guide."
+keywords: "coefficient plot in R, marginal effects in R, broom tidy, ggplot2 coefficient plot, marginaleffects, dot-and-whisker plot, adjusted predictions, geom_pointrange, logistic regression marginal effects"
+mathjax: true
+webr: true
+curriculum_id: "GG2-10.3"
+post_type: "C"
+auto_link_terms: "coefficient plot|coefficient plots|marginal effects|marginal effect|dot-and-whisker plot|adjusted predictions|average marginal effect|geom_pointrange()|avg_slopes()|broom tidy|coefficient plot in R|marginal effects in R"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Coefficient Plots"
+sidebar_order: "62"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A coefficient plot turns a regression's numbers into a picture: a dot for each predictor's estimated effect and a line for its confidence interval, so you can see at a glance which predictors matter and how sure you are. <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">Marginal effects</a> go one step further, translating those coefficients into the real change they cause in the outcome, which is what you need the moment the model is nonlinear.</p>
+
+<p>This guide builds both from scratch. We use base R and the tidyverse together: the broom package to reshape models and ggplot2 to draw them, plus plain <code>predict()</code> to compute effects by hand so you can see exactly what is happening. The first several sections run right here in your browser, so you can execute every line as you read. The final package section, which uses marginaleffects, you run in your own R session. No prior knowledge of regression interpretation is assumed; every idea is explained before we use it.</p>
+
+<h2>How do you turn a regression into a coefficient plot?</h2>
+
+<p>A regression <code>summary()</code> dumps a wall of numbers. To compare predictors you squint across rows of estimates and standard errors. A coefficient plot fixes that: it draws each estimate as a dot and its uncertainty as a line, so the whole model reads in one glance. The fastest route there is the broom package, which reshapes any model into a tidy table that pipes straight into ggplot2. Let's build one.</p>
+
+<p>We start with a linear model on the <code>mtcars</code> dataset, which ships with R. We predict fuel economy (<code>mpg</code>) from three things: weight (<code>wt</code>, in thousands of pounds), horsepower (<code>hp</code>), and quarter-mile time (<code>qsec</code>, seconds to cover a quarter mile). The <code>tidy()</code> function from broom takes the fitted model and hands back a neat table, one row per coefficient. Setting <code>conf.int = TRUE</code> adds a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>.</p>
+
+<div class="webr-container" data-block-title="Fit a model and tidy it with broom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a model and tidy it with broom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(ggplot2)
+library(dplyr)
+
+model &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars)
+
+coefs &lt;- tidy(model, conf.int = TRUE)
+coefs
+#&gt; # A tibble: 4 × 7
+#&gt;   term        estimate std.error statistic    p.value conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;      &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  27.6       8.42        3.28 0.00278     10.4      44.9   
+#&gt; 2 wt           -4.36      0.753      -5.79 0.00000322  -5.90     -2.82  
+#&gt; 3 hp           -0.0178    0.0150     -1.19 0.244       -0.0485    0.0129
+#&gt; 4 qsec          0.511     0.439       1.16 0.255       -0.389     1.41  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single table is the payoff. Each row is one term in the model, and the columns give you everything you need to plot it. <code>estimate</code> is the coefficient itself, the model's best guess for that predictor's effect. <code>std.error</code> measures how precise that guess is. <code>conf.low</code> and <code>conf.high</code> are the two ends of the 95% confidence interval, the range of values consistent with the data. <code>p.value</code> is the classic significance number. Everything you need for a plot is now in tidy columns, which is exactly what ggplot2 wants.</p>
+
+<p>Now let's draw it. We drop the intercept (it is just the baseline, not usually interesting to compare), put the coefficient estimate on the x-axis and the term names on the y-axis, and use <code>geom_pointrange()</code> to draw a dot at the estimate with a horizontal line spanning the confidence interval. A dashed vertical line at zero gives the eye a reference.</p>
+
+<div class="webr-container" data-block-title="Draw a first coefficient plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a first coefficient plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot_df &lt;- coefs |&gt; filter(term != &quot;(Intercept)&quot;)
+
+ggplot(plot_df, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, colour = &quot;red&quot;) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that block and you get three rows, one per predictor. Each has a dot (the estimate) and a whisker (the confidence interval). The <code>wt</code> dot sits well to the left of zero with a whisker that never touches the dashed line, so heavier cars clearly get worse mileage. The <code>hp</code> and <code>qsec</code> whiskers straddle zero, meaning we cannot be sure their effects are anything other than noise. You just read three coefficients and their uncertainty in one look, something the raw table makes you work for.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add the rear axle ratio <code>drat</code> as a fourth predictor, re-tidy the model, and look at the new coefficient table. Does <code>drat</code> land clearly on one side of zero?</p>
+<div class="webr-container" data-block-title="Your turn: add drat to the model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add drat to the model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model &lt;- lm(mpg ~ wt + hp + qsec + drat, data = mtcars)
+ex_coefs &lt;- tidy(ex_model, conf.int = TRUE)
+
+# Show term, estimate, and the interval:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Add drat solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add drat solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model &lt;- lm(mpg ~ wt + hp + qsec + drat, data = mtcars)
+ex_coefs &lt;- tidy(ex_model, conf.int = TRUE)
+ex_coefs |&gt; select(term, estimate, conf.low, conf.high)
+#&gt; # A tibble: 5 × 4
+#&gt;   term        estimate conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  19.3     -1.91     40.4   
+#&gt; 2 wt           -3.71    -5.52     -1.90  
+#&gt; 3 hp           -0.0178  -0.0481    0.0124
+#&gt; 4 qsec          0.528   -0.361     1.42  
+#&gt; 5 drat          1.66    -0.840     4.15  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>drat</code> has a positive estimate (1.66), but its interval runs from -0.84 to 4.15, straddling zero. On a coefficient plot its whisker would cross the zero line, so the data do not pin down its direction.</p>
+
+</details>
+</section>
+
+<h2>How do you read the dots and whiskers?</h2>
+
+<p>The plot only helps if you know how to read it, so let's slow down on the three things every coefficient plot shows. Getting these straight turns the picture from decoration into a decision tool.</p>
+
+<ul>
+
+<li><strong>The dot is the point estimate.</strong> It is the model's single best guess for that coefficient. Further from zero means a larger estimated effect.</li>
+
+<li><strong>The whisker is the confidence interval.</strong> It shows the range of coefficient values consistent with the data. A short whisker means a precise estimate; a long whisker means the data leave a lot of room.</li>
+
+<li><strong>The zero line is the "no effect" mark.</strong> If a predictor had no relationship with the outcome, its coefficient would be zero. So the position of the whisker relative to that line is what matters most.</li>
+
+</ul>
+
+<p>Here is the rule that ties them together. When a whisker crosses the zero line, the data cannot rule out zero, so you treat that predictor as not statistically significant at the 95% level. When the whole whisker sits to one side, the effect has a clear direction you can trust.</p>
+
+<p>Let's make the plot easier to read. We reorder the terms so the largest effect sits at the top using <code>fct_reorder()</code> from the <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">forcats</a> package, add clear axis labels, and switch to a clean theme.</p>
+
+<div class="webr-container" data-block-title="Polish the coefficient plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Polish the coefficient plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forcats)
+
+coefs |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  mutate(term = fct_reorder(term, estimate)) |&gt;
+  ggplot(aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, colour = &quot;grey50&quot;) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  labs(x = &quot;Coefficient estimate (95% CI)&quot;, y = NULL) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and the story jumps out. The <code>wt</code> dot is far to the left, near -4.4, with a whisker that stays entirely below zero, so weight has a strong, reliable negative effect on mileage. The <code>hp</code> and <code>qsec</code> dots hug the zero line with whiskers that cross it, so on this evidence we cannot say they matter. Reordering by estimate and dropping the intercept turns a raw model into something a reader grasps in seconds.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A whisker that crosses the zero line means you cannot rule out "no effect."</strong> The dot is the best guess, but the whisker is the honest part: it shows how much that guess could move, and whether zero is still on the table.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reorder the terms by the <em>size</em> of the effect regardless of direction, so the biggest mover sits on top. Use <code>abs()</code> inside <code>fct_reorder()</code>, then check the factor order.</p>
+<div class="webr-container" data-block-title="Your turn: order terms by absolute size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: order terms by absolute size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ord &lt;- coefs |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  mutate(term = fct_reorder(term, abs(estimate)))
+
+# Check the order the levels ended up in:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Absolute-size order solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Absolute-size order solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ord &lt;- coefs |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  mutate(term = fct_reorder(term, abs(estimate)))
+levels(ex_ord$term)
+#&gt; [1] &quot;hp&quot;   &quot;qsec&quot; &quot;wt&quot;  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fct_reorder(term, abs(estimate))</code> sorts the factor by absolute value, smallest first, so <code>wt</code> (the largest effect) becomes the last level and plots at the top of a ggplot y-axis.</p>
+
+</details>
+</section>
+
+<h2>Why can't you compare coefficients on different scales?</h2>
+
+<p>Look again at the last plot and a tempting thought appears: <code>wt</code> has a coefficient near -4.4 while <code>hp</code> is near -0.02, so weight must matter roughly two hundred times more than horsepower. That reasoning is wrong, and the reason why is the single most common mistake people make when reading coefficients.</p>
+
+<p>A coefficient answers "how much does the outcome change when this predictor goes up by one of its units?" But the units are wildly different. Let's line up the raw magnitudes to see the trap.</p>
+
+<div class="webr-container" data-block-title="Compare raw coefficient magnitudes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare raw coefficient magnitudes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coefs |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  select(term, estimate) |&gt;
+  arrange(desc(abs(estimate)))
+#&gt; # A tibble: 3 × 2
+#&gt;   term  estimate
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 wt     -4.36  
+#&gt; 2 qsec    0.511 
+#&gt; 3 hp     -0.0178</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>hp</code> coefficient looks tiny only because one unit of horsepower is a tiny step. Cars in this data range over almost 300 horsepower, so moving "one hp" barely registers. Weight spans only about 3.9 units (thousands of pounds), so "one unit of weight" is a huge fraction of the range. The coefficients are measured in different currencies, and you cannot compare prices across currencies without an exchange rate.</p>
+
+<p>The fix is to standardize the predictors: rescale each one so it is measured in standard deviations rather than its native units. R's <code>scale()</code> function subtracts the mean and divides by the standard deviation. Now a coefficient means "the change in mpg per one standard deviation of this predictor," and every predictor is on the same footing.</p>
+
+<div class="webr-container" data-block-title="Standardize predictors and refit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize predictors and refit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_std &lt;- lm(mpg ~ scale(wt) + scale(hp) + scale(qsec), data = mtcars)
+
+tidy(model_std, conf.int = TRUE) |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  select(term, estimate, conf.low, conf.high)
+#&gt; # A tibble: 3 × 4
+#&gt;   term        estimate conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 scale(wt)     -4.26    -5.77     -2.76 
+#&gt; 2 scale(hp)     -1.22    -3.33      0.882
+#&gt; 3 scale(qsec)    0.913   -0.695     2.52 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The picture changes completely. Weight still leads at -4.26, but horsepower is now -1.22, not a rounding error. Per standard deviation, a typical swing in horsepower moves mileage by more than a full mpg. The raw coefficient of -0.0178 hid that entirely. Standardizing put every predictor in the same units so the coefficient plot finally shows relative importance, not an accident of measurement.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Standardize predictors when you want a coefficient plot to show relative importance.</strong> Wrapping each numeric predictor in <code>scale()</code> puts them all in standard-deviation units, so the length of each bar reflects real influence rather than the size of its measurement unit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Standardize a two-predictor model of <code>mpg</code> on <code>hp</code> and <code>drat</code>, then read off which predictor moves mileage more per standard deviation.</p>
+<div class="webr-container" data-block-title="Your turn: standardize a two-predictor model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: standardize a two-predictor model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_std &lt;- lm(mpg ~ scale(hp) + scale(drat), data = mtcars)
+
+# Show the standardized coefficients:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standardized two-predictor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardized two-predictor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_std &lt;- lm(mpg ~ scale(hp) + scale(drat), data = mtcars)
+tidy(ex_std) |&gt; select(term, estimate)
+#&gt; # A tibble: 3 × 2
+#&gt;   term        estimate
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 (Intercept)    20.1 
+#&gt; 2 scale(hp)      -3.55
+#&gt; 3 scale(drat)     2.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On the standardized scale, horsepower (-3.55) moves mileage more per standard deviation than the axle ratio (2.51), and the two now sit in comparable units.</p>
+
+</details>
+</section>
+
+<h2>What are marginal effects, and why do coefficients mislead?</h2>
+
+<p>So far a coefficient plot has been enough, and for a plain linear model that is no accident. In a model like <code>mpg ~ wt</code>, the coefficient of <code>wt</code> already answers the question you care about: "if weight goes up by one unit, how much does mpg change?" That change is called the <strong>marginal effect</strong>, and for ordinary linear regression the coefficient and the marginal effect are the same number.</p>
+
+<p><img src="screenshots/Coefficient-Plots-and-Marginal-Effects-in-R-workflow.webp" alt="Two ways to read a fitted model: coefficients for the table, marginal effects for the real-world change." class="img-responsive img-zoomable" loading="lazy" width="1658" height="690" /></p>
+
+<p><em>Figure 1: Two ways to read a fitted model. Coefficients <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> the fit; marginal effects translate it into the outcome's own units.</em></p>
+
+<p>The trouble starts when the model is not a straight line. The most common case is logistic regression, which predicts a yes/no outcome. Let's model whether a car has a manual transmission (<code>am</code>, where 1 means manual) from its horsepower and weight. We fit it with <code>glm()</code> and the <code>binomial</code> family, then tidy it.</p>
+
+<div class="webr-container" data-block-title="Fit a logistic model and tidy it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a logistic model and tidy it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">logit_model &lt;- glm(am ~ hp + wt, family = binomial, data = mtcars)
+
+tidy(logit_model) |&gt;
+  select(term, estimate, std.error, p.value)
+#&gt; # A tibble: 3 × 4
+#&gt;   term        estimate std.error p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept)  18.9       7.44   0.0113 
+#&gt; 2 hp            0.0363    0.0177 0.0409 
+#&gt; 3 wt           -8.08      3.07   0.00843</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is the problem. The <code>wt</code> coefficient is -8.08, but -8.08 of <em>what</em>? Not miles per gallon, and not a probability. Logistic regression works on the log-odds scale, so the coefficient says "each extra 1000 pounds lowers the log-odds of a manual transmission by 8.08." Almost nobody thinks in log-odds. The number tells you the direction (negative, so heavier cars are less likely to be manual) and, through its <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>, that the effect is real. It does not tell you the size of the change in plain probability.</p>
+
+<p>A common half-fix is to exponentiate the coefficients into odds ratios. broom does this with <code>exponentiate = TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="Convert log-odds to odds ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert log-odds to odds ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(logit_model, exponentiate = TRUE) |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  select(term, estimate, p.value)
+#&gt; # A tibble: 2 × 3
+#&gt;   term  estimate p.value
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 hp    1.04     0.0409 
+#&gt; 2 wt    0.000309 0.00843</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Odds ratios are multiplicative: an <code>hp</code> <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a> of 1.04 means each extra horsepower multiplies the odds of a manual transmission by 1.04. That is better than log-odds, but still awkward. The <code>wt</code> odds ratio of 0.000309 is technically correct and almost impossible to explain to a stakeholder. We need the effect stated the way people actually think: as a change in probability. That is what marginal effects deliver.</p>
+
+<p>If you want the math behind why a logistic coefficient is not a probability change, here it is. The model says the probability is</p>
+
+<p>$$P(y=1) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x_1 + \beta_2 x_2)}}$$</p>
+
+<p>and the marginal effect of a predictor is the derivative of that probability, which works out to</p>
+
+<p>$$\frac{\partial P}{\partial x_1} = \beta_1 \cdot P (1 - P)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\beta_1$ is the log-odds coefficient (the -8.08 for weight)</li>
+
+<li>$P$ is the predicted probability at the point you are standing on</li>
+
+</ul>
+
+<p>Because $P$ appears in the formula, the marginal effect depends on where you are along the curve. That single fact is why one coefficient cannot summarise the effect. If the math is not your thing, skip it: the code in the next section shows the same idea by measuring the curve directly.</p>
+
+<p><img src="screenshots/Coefficient-Plots-and-Marginal-Effects-in-R-decision.webp" alt="When a coefficient already is the effect, and when you need marginal effects." class="img-responsive img-zoomable" loading="lazy" width="1062" height="1664" /></p>
+
+<p><em>Figure 2: A quick decision guide. Straight-line models hand you the effect directly; nonlinear links and interactions need marginal effects.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A logistic coefficient tells you direction and significance, not the size of the probability change.</strong> The sign and p-value are trustworthy, but the magnitude lives on the log-odds scale, so you translate it into a probability change before reporting it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a logistic model for whether a car has a straight engine (<code>vs</code>) from its mileage (<code>mpg</code>), and read the coefficients as odds ratios.</p>
+<div class="webr-container" data-block-title="Your turn: a logistic model for vs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a logistic model for vs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_logit &lt;- glm(vs ~ mpg, family = binomial, data = mtcars)
+
+# Tidy it as odds ratios:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Logistic vs solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logistic vs solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_logit &lt;- glm(vs ~ mpg, family = binomial, data = mtcars)
+tidy(ex_logit, exponentiate = TRUE) |&gt; select(term, estimate)
+#&gt; # A tibble: 2 × 2
+#&gt;   term        estimate
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 (Intercept) 0.000146
+#&gt; 2 mpg         1.54    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>mpg</code> odds ratio of 1.54 means each extra mile per gallon multiplies the odds of a straight engine by about 1.5. Useful, but still an odds ratio, not a probability, which is exactly the gap marginal effects close.</p>
+
+</details>
+</section>
+
+<h2>How do you compute marginal effects from scratch?</h2>
+
+<p>The cleanest way to understand marginal effects is to build one by hand, and it takes only <code>predict()</code>. The plan has two steps: first get the model's predicted probability across a range of one predictor, then measure how fast that probability changes.</p>
+
+<p>Start with <strong>adjusted predictions</strong>: the predicted outcome as one predictor varies while the others are held fixed. We build a small grid of weights from the lightest to the heaviest car, hold horsepower at its average, and ask the model for the probability of a manual transmission at each point. One subtlety: to get a confidence band that stays between 0 and 1, we predict on the model's internal log-odds scale (<code>type = &quot;link&quot;</code>), add and subtract the error there, and only then convert back to probability with <code>plogis()</code>.</p>
+
+<div class="webr-container" data-block-title="Adjusted predictions across a weight grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjusted predictions across a weight grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid &lt;- data.frame(
+  wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 50),
+  hp = mean(mtcars$hp)
+)
+
+link &lt;- predict(logit_model, newdata = grid, type = &quot;link&quot;, se.fit = TRUE)
+grid$prob  &lt;- plogis(link$fit)
+grid$lower &lt;- plogis(link$fit - 1.96 * link$se.fit)
+grid$upper &lt;- plogis(link$fit + 1.96 * link$se.fit)
+
+head(grid, 4)
+#&gt;         wt       hp      prob     lower upper
+#&gt; 1 1.513000 146.6875 0.9999936 0.9481844     1
+#&gt; 2 1.592816 146.6875 0.9999877 0.9389557     1
+#&gt; 3 1.672633 146.6875 0.9999766 0.9281408     1
+#&gt; 4 1.752449 146.6875 0.9999554 0.9154901     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first rows show that the lightest cars are predicted to be manual with near-certainty. Now plot the whole grid. <code>geom_line()</code> draws the probability curve and <code>geom_ribbon()</code> shades the confidence band around it.</p>
+
+<div class="webr-container" data-block-title="Plot the predicted probability curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the predicted probability curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(grid, aes(x = wt, y = prob)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+  geom_line(linewidth = 1) +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;P(manual transmission)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and you get the classic S-shape. The probability sits near 1 for light cars, drops steeply through the middle around 3000 pounds, and flattens near 0 for heavy cars. The marginal effect of weight is simply the steepness of this curve, and you can already see it is not one number: the curve is nearly flat at the ends and plunges in the middle.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Build <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">confidence bands</a> on the link scale, then transform.</strong> If you add and subtract error directly on the probability scale, the band can spill below 0 or above 1. Predicting with <code>type = &quot;link&quot;</code>, widening there, and converting with <code>plogis()</code> keeps the band inside its valid range.</div></div>
+
+<p>Let's measure that steepness directly. We nudge weight up by a tiny amount <code>h</code>, see how much the predicted probability moves, and divide. That slope is the marginal effect at a given weight. We compute it at three weights to prove the point.</p>
+
+<div class="webr-container" data-block-title="Measure the slope at three weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the slope at three weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h &lt;- 0.001
+avg_hp &lt;- mean(mtcars$hp)
+
+slope_at &lt;- function(w) {
+  p0 &lt;- predict(logit_model, data.frame(wt = w,     hp = avg_hp), type = &quot;response&quot;)
+  p1 &lt;- predict(logit_model, data.frame(wt = w + h, hp = avg_hp), type = &quot;response&quot;)
+  (p1 - p0) / h
+}
+
+data.frame(
+  wt    = c(2, 3, 4),
+  prob  = round(predict(logit_model,
+                        data.frame(wt = c(2, 3, 4), hp = avg_hp),
+                        type = &quot;response&quot;), 3),
+  slope = round(sapply(c(2, 3, 4), slope_at), 3)
+)
+#&gt;   wt  prob  slope
+#&gt; 1  2 1.000 -0.003
+#&gt; 2  3 0.484 -2.018
+#&gt; 3  4 0.000 -0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two right-hand columns together. At <code>wt = 2</code> the car is almost certainly manual (probability 1.00), so nudging its weight barely changes an already-settled outcome and the slope is a flat -0.003. At <code>wt = 3</code> the outcome is a genuine coin-flip (probability 0.48), and here weight has its largest effect, a slope of -2.018. At <code>wt = 4</code> the car is almost certainly automatic (probability 0.00), so again the slope is nearly flat. The marginal effect is strongest exactly where the outcome is most uncertain.</p>
+
+<p>So which single number do you report? The usual choice is the <strong>average marginal effect (AME)</strong>: compute the slope for every car in the data, at its own real values, then average. Let's do exactly that by hand.</p>
+
+<div class="webr-container" data-block-title="Average marginal effect of weight by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average marginal effect of weight by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h &lt;- 0.001
+base_p &lt;- predict(logit_model, type = &quot;response&quot;)
+
+bumped &lt;- mtcars
+bumped$wt &lt;- bumped$wt + h
+bump_p &lt;- predict(logit_model, newdata = bumped, type = &quot;response&quot;)
+
+ame_wt &lt;- mean((bump_p - base_p) / h)
+round(ame_wt, 4)
+#&gt; [1] -0.3596</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Averaged across all 32 cars, adding 1000 pounds lowers the probability of a manual transmission by about 0.36, or 36 percentage points. That is a sentence anyone understands, and we got it with nothing but <code>predict()</code> and <code>mean()</code>. Hold onto the number -0.3596: in the next section a package reproduces it exactly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The average marginal effect averages the slope over everyone; the effect at a point is the local slope.</strong> For a curved model these differ, so always say which one you mean: the effect for a typical case, or the effect at one specific setting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the adjusted prediction (the probability itself, not the slope) for a single car weighing 3.5 with 150 horsepower.</p>
+<div class="webr-container" data-block-title="Your turn: one adjusted prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one adjusted prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_new &lt;- data.frame(wt = 3.5, hp = 150)
+
+# Predict the probability of a manual transmission:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Single adjusted prediction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single adjusted prediction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_new &lt;- data.frame(wt = 3.5, hp = 150)
+predict(logit_model, ex_new, type = &quot;response&quot;)
+#&gt;          1 
+#&gt; 0.01820788</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>type = &quot;response&quot;</code> returns the probability directly. A 3.5-ton car with 150 hp has only about a 1.8% chance of being manual, according to the model.</p>
+
+</details>
+</section>
+
+<h2>How do you get marginal effects the easy way with marginaleffects?</h2>
+
+<p>Computing marginal effects by hand is the right way to learn them, but for daily work you want a package that handles the grids, the averaging, and the standard errors for you. The <strong>marginaleffects</strong> package is the modern standard, and its function names map directly onto what we just did by hand.</p>
+
+<p><strong>The marginaleffects examples below run in your own R session.</strong> The package is not part of the in-page runner, so copy these blocks into RStudio or an R console. Each block shows the real output it produces, so you can check your results against it.</p>
+
+<p>The headline function is <code>avg_slopes()</code>, which computes the average marginal effect for every predictor, the exact calculation we did by hand for weight.</p>
+
+<pre><code class="language-r">library(marginaleffects)
+
+avg_slopes(logit_model)
+#&gt;  Term Estimate Std. Error     z Pr(&gt;|z|)    S     2.5 %   97.5 %
+#&gt;    hp  0.00161   0.000572  2.82  0.00483  7.7  0.000491  0.00273
+#&gt;    wt -0.35960   0.057146 -6.29  &lt; 0.001 31.6 -0.471601 -0.24759
+#&gt;
+#&gt; Type: response
+#&gt; Comparison: dY/dX</code></pre>
+
+<p>Look at the <code>wt</code> row: the estimate is -0.3596, the same number we computed by hand, now with a standard error and confidence interval attached for free. The <code>hp</code> row tells you each extra horsepower raises the probability of a manual transmission by about 0.0016 on average. The label <code>Comparison: dY/dX</code> confirms these are slopes, the change in the outcome per unit change in the predictor.</p>
+
+<p>To get adjusted predictions instead of slopes, use <code>predictions()</code> with <code>datagrid()</code> to specify exactly where you want them evaluated. This mirrors the prediction grid we built by hand.</p>
+
+<pre><code class="language-r">predictions(logit_model,
+            newdata = datagrid(wt = c(2, 3, 4), hp = mean(mtcars$hp))) |&gt;
+  as.data.frame() |&gt;
+  select(wt, estimate, conf.low, conf.high) |&gt;
+  mutate(across(estimate:conf.high, \(x) round(x, 3)))
+#&gt;   wt estimate conf.low conf.high
+#&gt; 1  2    1.000    0.861     1.000
+#&gt; 2  3    0.484    0.152     0.831
+#&gt; 3  4    0.000    0.000     0.134</code></pre>
+
+<p>Those are the same probabilities we saw at weights 2, 3 and 4, now with confidence intervals. And because everything the package returns is a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame, plotting is one call. <code>plot_predictions()</code> draws the probability curve we built by hand, and <code>plot_slopes()</code> draws how the slope itself changes across weight.</p>
+
+<pre><code class="language-r"># The probability curve (same S-shape as before):
+plot_predictions(logit_model, condition = &quot;wt&quot;)
+
+# How the marginal effect of weight changes across weight:
+plot_slopes(logit_model, variables = &quot;wt&quot;, condition = &quot;wt&quot;)</code></pre>
+
+<p>Both return ordinary ggplot2 objects, so you can restyle them with your own labels and themes just as you would any plot. <code>plot_predictions()</code> reproduces the S-curve, and <code>plot_slopes()</code> shows the marginal effect dipping most sharply through the middle weights, the same story our three-point slope table told.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>marginaleffects works on more than 100 model classes.</strong> The same <code>avg_slopes()</code> and <code>predictions()</code> calls work for linear models, mixed models, and most regressions you will meet. The ggeffects and modelbased packages cover similar ground if you prefer their style.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>avg_slopes()</code> to get the average marginal effect of horsepower alone, and confirm it matches the 0.0016 we saw by hand.</p>
+<pre><code class="language-r"># Restrict avg_slopes() to just the hp variable:
+# your code here</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">avg_slopes(logit_model, variables = &quot;hp&quot;)
+#&gt;  Estimate Std. Error    z Pr(&gt;|z|)   S    2.5 %  97.5 %
+#&gt;   0.00161   0.000572 2.82  0.00483 7.7 0.000491 0.00273
+#&gt;
+#&gt; Term: hp
+#&gt; Type: response
+#&gt; Comparison: dY/dX</code></pre>
+
+<p><strong>Explanation:</strong> The <code>variables</code> argument narrows the output to one predictor. The estimate, 0.00161, matches the by-hand average marginal effect exactly.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: from model to coefficient plot to marginal effects</h2>
+
+<p>Let's tie the whole workflow together on one clean linear model and prove the central lesson: for a straight-line model, the coefficient and the marginal effect are the same number. We predict mileage from weight and horsepower, tidy it, and plot the coefficients.</p>
+
+<div class="webr-container" data-block-title="Fit, tidy, and plot a linear model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit, tidy, and plot a linear model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lin &lt;- lm(mpg ~ wt + hp, data = mtcars)
+
+lin_coefs &lt;- tidy(lin, conf.int = TRUE)
+lin_coefs |&gt; select(term, estimate, conf.low, conf.high)
+#&gt; # A tibble: 3 × 4
+#&gt;   term        estimate conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  37.2     34.0      40.5   
+#&gt; 2 wt           -3.88    -5.17     -2.58  
+#&gt; 3 hp           -0.0318  -0.0502   -0.0133</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Draw the coefficient plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the coefficient plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lin_coefs |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  mutate(term = fct_reorder(term, estimate)) |&gt;
+  ggplot(aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, colour = &quot;grey50&quot;) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  labs(x = &quot;Coefficient estimate (95% CI)&quot;, y = NULL) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both whiskers sit clearly to the left of zero, so weight and horsepower both reliably lower mileage. Now confirm the promise: we compute horsepower's marginal effect by hand, the same nudge-and-average trick from the logistic section, and check it against the coefficient of -0.0318.</p>
+
+<div class="webr-container" data-block-title="Confirm coefficient equals marginal effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm coefficient equals marginal effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h &lt;- 0.001
+base_mpg &lt;- predict(lin, type = &quot;response&quot;)
+
+bumped &lt;- mtcars
+bumped$hp &lt;- bumped$hp + h
+bump_mpg &lt;- predict(lin, newdata = bumped, type = &quot;response&quot;)
+
+round(mean((bump_mpg - base_mpg) / h), 4)
+#&gt; [1] -0.0318</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The by-hand marginal effect is -0.0318, identical to the coefficient. That is the whole point of this tutorial in one line: for a linear model the coefficient plot already shows the marginal effects, so you are done. The moment you switch to logistic regression, interactions, or any nonlinear term, the coefficient and the marginal effect part ways, and the tools in the last two sections are how you recover the plain-language answer.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. They use distinct variable names so they will not clash with the objects above.</p>
+
+<h3>Exercise 1: Colour a coefficient plot by significance</h3>
+
+<p>Take the logistic model <code>logit_model</code> and build a coefficient plot where significant predictors (interval excludes zero) are one colour and non-significant ones another. Build the interval yourself as estimate plus or minus 1.96 standard errors so you avoid the slow profiling step, then map colour to a significance flag.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: tidy(logit_model), then mutate() a conf.low, conf.high, and a
+# significant flag, then map colour = significant in ggplot.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_coefs &lt;- tidy(logit_model) |&gt;
+  filter(term != &quot;(Intercept)&quot;) |&gt;
+  mutate(
+    conf.low    = estimate - 1.96 * std.error,
+    conf.high   = estimate + 1.96 * std.error,
+    significant = p.value &lt; 0.05
+  )
+
+my_coefs |&gt; select(term, estimate, conf.low, conf.high, significant)
+#&gt; # A tibble: 2 × 5
+#&gt;   term  estimate  conf.low conf.high significant
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt; &lt;lgl&gt;      
+#&gt; 1 hp      0.0363   0.00150    0.0710 TRUE       
+#&gt; 2 wt     -8.08   -14.1       -2.07   TRUE       
+
+ggplot(my_coefs, aes(x = estimate, y = term, colour = significant)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, colour = &quot;grey50&quot;) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both predictors are significant here, so both intervals exclude zero and both dots take the "TRUE" colour. Building the Wald interval by hand, estimate plus or minus 1.96 standard errors, keeps the code fast and warning-free.</p>
+
+</details>
+
+<h3>Exercise 2: Compute an average marginal effect by hand</h3>
+
+<p>Without using marginaleffects, compute the average marginal effect of horsepower for <code>logit_model</code>. Nudge <code>hp</code> by a tiny amount for every car, measure the change in predicted probability, and average. Confirm the sign and that it lands near 0.0016.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: predict(type = &quot;response&quot;) for the base probabilities, then
+# add a small h to hp, predict again, take the mean of the differences / h.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h &lt;- 0.001
+base_p &lt;- predict(logit_model, type = &quot;response&quot;)
+
+bumped &lt;- mtcars
+bumped$hp &lt;- bumped$hp + h
+bump_p &lt;- predict(logit_model, newdata = bumped, type = &quot;response&quot;)
+
+round(mean((bump_p - base_p) / h), 4)
+#&gt; [1] 0.0016</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The average marginal effect of horsepower is +0.0016: each extra horsepower raises the average probability of a manual transmission by about 0.16 percentage points. It matches the <code>avg_slopes()</code> value exactly, because that is precisely the calculation the package runs.</p>
+
+</details>
+
+<h3>Exercise 3: Show a marginal effect that depends on another predictor</h3>
+
+<p>Fit a model with an interaction, <code>mpg ~ wt * hp</code>, and use marginaleffects to show that the marginal effect of weight is different at low horsepower (100) versus high horsepower (200). This runs in your local R session.</p>
+
+<pre><code class="language-r"># Hint: avg_slopes(model, variables = &quot;wt&quot;, by = &quot;hp&quot;,
+#                  newdata = datagrid(hp = c(100, 200)))
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">inter &lt;- lm(mpg ~ wt * hp, data = mtcars)
+
+avg_slopes(inter, variables = &quot;wt&quot;, by = &quot;hp&quot;,
+           newdata = datagrid(hp = c(100, 200)))
+#&gt;   hp Estimate Std. Error     z Pr(&gt;|z|)    S 2.5 % 97.5 %
+#&gt;  100    -5.43      0.669 -8.12   &lt;0.001 50.9 -6.74  -4.12
+#&gt;  200    -2.65      0.619 -4.28   &lt;0.001 15.7 -3.86  -1.43
+#&gt;
+#&gt; Term: wt
+#&gt; Type: response
+#&gt; Comparison: dY/dX</code></pre>
+
+<p><strong>Explanation:</strong> With the interaction, weight costs 5.43 mpg per 1000 pounds at 100 hp but only 2.65 mpg at 200 hp. A single coefficient could never show that; the marginal effect depends on where you evaluate it, which is exactly when these tools earn their keep.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Coefficient plots and marginal effects are two views of the same fitted model. The coefficient plot summarises the fit; marginal effects translate it into the outcome's own units. Here is the toolkit at a glance.</p>
+
+<p><img src="screenshots/Coefficient-Plots-and-Marginal-Effects-in-R-overview.webp" alt="The full toolkit for reading a model visually." class="img-responsive img-zoomable" loading="lazy" width="1354" height="948" /></p>
+
+<p><em>Figure 3: The two halves of reading a model, from tidy coefficients to plain-language marginal effects.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Tool</th>
+<th>Key idea</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reshape a model into a table</td>
+<td><code>broom::tidy(model, conf.int = TRUE)</code></td>
+<td>One tidy row per coefficient, ready for ggplot2</td>
+</tr>
+<tr>
+<td>Draw a coefficient plot</td>
+<td><code>geom_pointrange()</code> + a zero line</td>
+<td>Dot is the estimate, whisker is the 95% interval</td>
+</tr>
+<tr>
+<td>Compare predictors fairly</td>
+<td><code>scale()</code> each predictor</td>
+<td>Puts everything in standard-deviation units</td>
+</tr>
+<tr>
+<td>Read a nonlinear model</td>
+<td>Marginal effects, not raw coefficients</td>
+<td>Logistic coefficients are log-odds, not probabilities</td>
+</tr>
+<tr>
+<td>Get the effect by hand</td>
+<td><code>predict()</code> over a grid, then a slope</td>
+<td>Adjusted predictions and finite-difference slopes</td>
+</tr>
+<tr>
+<td>Get the effect the easy way</td>
+<td><code>marginaleffects::avg_slopes()</code></td>
+<td>Average marginal effect with standard errors</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one rule to carry away: a coefficient plot is enough when the model is a straight line, because then the coefficient is the marginal effect. As soon as the model bends, through a logistic link or an interaction, the coefficient and the real-world effect diverge, and marginal effects are how you report what actually happens.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between a coefficient and a marginal effect?</h3>
+
+<p>For an ordinary linear model they are the same number: the change in the outcome per one-unit change in the predictor. They only split apart once the model is nonlinear. In a logistic regression the coefficient lives on the log-odds scale, while the marginal effect is the change in plain probability, and that change depends on where along the curve you measure it. So the rule is short: linear model, read the coefficient; nonlinear model, compute the marginal effect.</p>
+
+<h3>Should I include the intercept in a coefficient plot?</h3>
+
+<p>Usually not. The intercept is the model's baseline, the predicted outcome when every predictor is zero, so it is not an effect you compare against the predictors. It is also often far larger than the real coefficients, which squashes them into an unreadable cluster. Drop it with <code>filter(term != &quot;(Intercept)&quot;)</code> before plotting, as every plot in this guide does.</p>
+
+<h3>How do I make a coefficient plot for a logistic regression?</h3>
+
+<p>The same way as for a linear model: <code>tidy()</code> the <code>glm</code>, drop the intercept, then draw <code>geom_pointrange()</code> with a zero line. Just remember the dots are log-odds coefficients rather than probabilities, so pass <code>exponentiate = TRUE</code> for odds ratios, or compute marginal effects when you need a probability-scale answer. One practical note: <code>conf.int = TRUE</code> on a <code>glm</code> uses profiled intervals that can be slow, so for a quick plot build a Wald interval by hand with the estimate plus or minus 1.96 standard errors, the trick used in Exercise 1.</p>
+
+<h3>Do I have to standardize my predictors before plotting?</h3>
+
+<p>Only when you want to compare predictors by importance. On their raw scales a coefficient's size reflects the size of its measurement unit as much as its influence, so a predictor measured in small steps (like horsepower) looks tiny even when it matters. Wrapping each numeric predictor in <code>scale()</code> puts them all in standard-deviation units, so the length of each bar reflects real influence. If you only care about each predictor's effect in its own natural units, leave them as they are.</p>
+
+<h3>How do I show a categorical predictor in a coefficient plot?</h3>
+
+<p>A factor predictor gives one coefficient per level relative to a reference level, so <code>tidy()</code> returns a separate row for each non-reference level rather than a single row. For example, <code>lm(mpg ~ factor(cyl))</code> on <code>mtcars</code> produces a <code>factor(cyl)6</code> row and a <code>factor(cyl)8</code> row, each the effect of that cylinder count against the 4-cylinder reference. Those rows plot as ordinary dots and whiskers, and standardizing does not apply to them, since a 0/1 indicator is already on a fixed scale.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Robinson, D., Hayes, A., & Couch, S. broom: Convert Statistical Objects into Tidy Tibbles. <a href="https://broom.tidymodels.org/">Link</a></li>
+
+<li>broom reference: tidy an lm object. <a href="https://broom.tidymodels.org/reference/tidy.lm.html">Link</a></li>
+
+<li>Arel-Bundock, V. marginaleffects: Predictions, Comparisons, Slopes, Marginal Means, and Hypothesis Tests. <a href="https://marginaleffects.com/">Link</a></li>
+
+<li>Arel-Bundock, V., Greifer, N., & Heiss, A. How to Interpret Statistical Models Using marginaleffects for R and Python. <em>Journal of Statistical Software</em> (2024). <a href="https://www.jstatsoft.org/article/view/v111i09">Link</a></li>
+
+<li>Solt, F., & Hu, Y. dotwhisker: Dot-and-Whisker Plots of Regression Results. <a href="https://cran.r-project.org/web/packages/dotwhisker/vignettes/dotwhisker-vignette.html">Link</a></li>
+
+<li>Lüdecke, D. ggeffects: Create Tidy Data Frames of Marginal Effects for ggplot. <a href="https://strengejacke.github.io/ggeffects/">Link</a></li>
+
+<li>Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. <em>R for Data Science</em>, 2nd Edition, Chapter on model basics. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>Wickham, H. <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition. <a href="https://ggplot2-book.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a>: The full mechanics of the yes/no model whose coefficients we translated into probabilities here.</li>
+
+<li><a href="Visualizing-Uncertainty-in-R.html">Visualizing Uncertainty in R</a>: More ways to draw confidence intervals and bands, the same intervals your coefficient plot whiskers show.</li>
+
+<li><a href="Linear-Regression.html">Linear Regression</a>: The foundation model whose coefficients a coefficient plot summarises, explained from the ground up.</li>
+
+</ul>
+
+{% endraw %}
