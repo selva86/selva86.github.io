@@ -4,9 +4,14 @@
 
 import manifestJson from "../_data/exercise-manifest.json";
 import hubTracksJson from "../_data/hub-tracks.json";
+import proLessonsJson from "../_data/pro-lessons.json";
 
 const manifest = manifestJson as { hubs: Record<string, Record<string, string>> };
 const hubTracks = hubTracksJson as Record<string, string>;
+// The daily set only ever draws from free hubs: a Pro-walled task would make
+// the set uncompletable for a free account (402 on attempt), and the bonus
+// unreachable. Pro users lose nothing; the free pool is thousands deep.
+const proHubs = proLessonsJson as Record<string, string>;
 
 export const DAILY_BONUS_XP = 15;
 
@@ -43,24 +48,33 @@ export async function computeDailySet(DB: D1Database, userId: string): Promise<D
   const dayStart = Math.floor(Date.parse(today + "T00:00:00Z") / 1000);
   const since30 = now - 30 * 86400;
 
+  // Every selection input is frozen at UTC day start (attempts made today are
+  // excluded from pools, track stats, and recency). Without this, passing a
+  // task removes it from the pool and the deterministic pick DRIFTS mid-day:
+  // solved tasks vanish from the set instead of flipping to done, and the
+  // completion bonus can never fire.
   const [solvedRows, recentRows, todayRows] = await Promise.all([
     DB.prepare(
-      "SELECT hub_slug, exercise_id, MAX(submitted_at) AS last_pass FROM exercise_attempts " +
+      "SELECT hub_slug, exercise_id, " +
+      "MAX(CASE WHEN submitted_at < ?2 THEN submitted_at END) AS last_before " +
+      "FROM exercise_attempts " +
       "WHERE user_id = ?1 AND passed = 1 GROUP BY hub_slug, exercise_id LIMIT 3000"
-    ).bind(userId).all<{ hub_slug: string; exercise_id: string; last_pass: number }>(),
+    ).bind(userId, dayStart).all<{ hub_slug: string; exercise_id: string; last_before: number | null }>(),
     DB.prepare(
       "SELECT hub_slug, COUNT(*) AS n FROM exercise_attempts " +
-      "WHERE user_id = ?1 AND submitted_at >= ?2 GROUP BY hub_slug ORDER BY n DESC LIMIT 20"
-    ).bind(userId, since30).all<{ hub_slug: string; n: number }>(),
+      "WHERE user_id = ?1 AND submitted_at >= ?2 AND submitted_at < ?3 " +
+      "GROUP BY hub_slug ORDER BY n DESC LIMIT 20"
+    ).bind(userId, since30, dayStart).all<{ hub_slug: string; n: number }>(),
     DB.prepare(
       "SELECT DISTINCT hub_slug, exercise_id FROM exercise_attempts " +
       "WHERE user_id = ?1 AND passed = 1 AND submitted_at >= ?2"
     ).bind(userId, dayStart).all<{ hub_slug: string; exercise_id: string }>(),
   ]);
 
-  const solved = new Set((solvedRows.results ?? []).map((r) => r.hub_slug + "|" + r.exercise_id));
+  const beforeRows = (solvedRows.results ?? []).filter((r) => r.last_before != null);
+  const solved = new Set(beforeRows.map((r) => r.hub_slug + "|" + r.exercise_id));
   const solvedByTrack = new Map<string, number>();
-  for (const r of solvedRows.results ?? []) {
+  for (const r of beforeRows) {
     const t = hubTracks[r.hub_slug];
     if (t) solvedByTrack.set(t, (solvedByTrack.get(t) || 0) + 1);
   }
@@ -91,6 +105,7 @@ export async function computeDailySet(DB: D1Database, userId: string): Promise<D
   const unsolvedIn = (track: string | null): Array<[string, string, string]> => {
     const pool: Array<[string, string, string]> = [];
     for (const [hub, exs] of Object.entries(manifest.hubs)) {
+      if (proHubs[hub]) continue;
       if (track && hubTracks[hub] !== track) continue;
       for (const [ex, diff] of Object.entries(exs)) {
         if (!solved.has(hub + "|" + ex)) pool.push([hub, ex, diff]);
@@ -128,8 +143,9 @@ export async function computeDailySet(DB: D1Database, userId: string): Promise<D
     || push(pick(unsolvedIn(null), 2), null, "broaden the base");
   {
     const reviewPool: Array<[string, string, string]> = [];
-    for (const r of solvedRows.results ?? []) {
-      if (Number(r.last_pass) < since30) {
+    for (const r of beforeRows) {
+      if (proHubs[r.hub_slug]) continue;
+      if (Number(r.last_before) < since30) {
         const diff = manifest.hubs[r.hub_slug]?.[r.exercise_id] || "beginner";
         reviewPool.push([r.hub_slug, r.exercise_id, diff]);
       }
