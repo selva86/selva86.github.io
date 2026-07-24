@@ -227,6 +227,32 @@ function ownerScript(pageHandle: string): string {
   return `<script>
 (function(){
   'use strict';
+  // Count-up on the hero numbers. Pure decoration: static text is the
+  // fallback for reduced-motion, old browsers, and any parse miss.
+  try {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var els = document.querySelectorAll('.hstat b, .bignum');
+      els.forEach(function(el){
+        var raw = (el.textContent || '').trim();
+        if (!/^[\\d,]+$/.test(raw)) return;
+        var target = parseInt(raw.replace(/,/g, ''), 10);
+        if (!isFinite(target) || target <= 0) return;
+        var hasComma = raw.indexOf(',') >= 0;
+        var t0 = null;
+        var DUR = 700;
+        el.textContent = '0';
+        function step(ts){
+          if (t0 === null) t0 = ts;
+          var p = Math.min(1, (ts - t0) / DUR);
+          var eased = 1 - Math.pow(1 - p, 3);
+          var v = Math.round(target * eased);
+          el.textContent = hasComma ? v.toLocaleString('en-US') : String(v);
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+    }
+  } catch (e) {}
   var tok = null;
   try {
     for (var i = 0; i < localStorage.length; i++) {
@@ -557,10 +583,16 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   }).join("");
 
   // skills matrix: per-track difficulty chips need pairs by track+difficulty
-  const skillRows = stats.by_track.map((t) =>
-    `<div class="skillrow"><div class="nm">${escHtml(t.track)}</div>
-      <div class="mchips"><span class="mchip"><b>${t.solved}</b> graded exercise${t.solved === 1 ? "" : "s"} solved</span></div>
-      <div class="tot">${t.solved}<span>solved</span></div></div>`).join("");
+  const skillRows = stats.by_track.map((t) => {
+    const parts: string[] = [];
+    if (t.beginner) parts.push(`<span class="mchip">${t.beginner} beginner</span>`);
+    if (t.intermediate) parts.push(`<span class="mchip">${t.intermediate} intermediate</span>`);
+    if (t.advanced) parts.push(`<span class="mchip">${t.advanced} advanced</span>`);
+    const chips = parts.join("") || `<span class="mchip"><b>${t.solved}</b> graded exercise${t.solved === 1 ? "" : "s"} solved</span>`;
+    return `<div class="skillrow"><div class="nm">${escHtml(t.track)}</div>
+      <div class="mchips">${chips}</div>
+      <div class="tot">${t.solved}<span>solved</span></div></div>`;
+  }).join("");
 
   // badges: earned first (by award date), then locked with progress
   const rarLine = (id: string) => {
@@ -603,10 +635,42 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
       </div>
     </div>`).join("");
 
-  const recentRows = stats.recent.map((r) => {
-    const col = r.action === "cert.earned" ? "#a16207" : r.action === "streak.day" ? "#a16207" : "#2056d2";
-    return `<tr><td class="ic"><span class="dot" style="background:${col}"></span></td><td>${escHtml(describeAction(r.action, r.ref))}</td>` +
-      `<td class="xp">+${r.xp} XP</td>` +
+  // Timeline: collapse same-day runs of solves in one hub into a single row,
+  // then interleave badge awards; newest first, capped at 12 rows.
+  type FeedRow = { at: number; col: string; text: string; xp: number | null };
+  const feed: FeedRow[] = [];
+  for (const r of stats.recent) {
+    const day = new Date(r.at * 1000).toISOString().slice(0, 10);
+    const hub = (r.ref || "").split("|")[0];
+    const prev = feed[feed.length - 1] as (FeedRow & { _day?: string; _hub?: string; _n?: number }) | undefined;
+    if (r.action === "exercise.passed" && prev && (prev as { _day?: string })._day === day && (prev as { _hub?: string })._hub === hub) {
+      const px = prev as FeedRow & { _day: string; _hub: string; _n: number };
+      px._n += 1;
+      px.xp = (px.xp || 0) + r.xp;
+      px.text = `Solved ${px._n} exercises in ${hub.replace(/-/g, " ")}`;
+      continue;
+    }
+    const row: FeedRow & { _day?: string; _hub?: string; _n?: number } = {
+      at: r.at,
+      col: r.action === "cert.earned" ? "#a16207" : r.action === "streak.day" ? "#a16207" : r.action === "daily.bonus" ? "#0f7a52" : "#2056d2",
+      text: r.action === "daily.bonus" ? "Completed the daily set" : describeAction(r.action, r.ref),
+      xp: r.xp,
+    };
+    if (r.action === "exercise.passed") { row._day = day; row._hub = hub; row._n = 1; }
+    feed.push(row);
+  }
+  {
+    const names = new Map(BADGE_DEFS.map((d) => [d.id, d.name]));
+    const badgeEvents = Array.from(owned, ([id, at]) => ({ id, at }))
+      .filter((b) => names.has(b.id)).sort((a, b) => b.at - a.at).slice(0, 5);
+    for (const b of badgeEvents) {
+      feed.push({ at: b.at, col: "#7c3aed", text: `Earned the ${names.get(b.id)} badge`, xp: null });
+    }
+  }
+  feed.sort((a, b) => b.at - a.at);
+  const recentRows = feed.slice(0, 12).map((r) => {
+    return `<tr><td class="ic"><span class="dot" style="background:${r.col}"></span></td><td>${escHtml(r.text)}</td>` +
+      `<td class="xp">${r.xp ? `+${r.xp} XP` : ""}</td>` +
       `<td class="when">${new Date(r.at * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td></tr>`;
   }).join("");
 

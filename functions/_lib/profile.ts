@@ -292,7 +292,7 @@ export interface ProfileStats {
   rank: number | null;            // 1-based by total_xp; null when base < 100
   learners_total: number;
   by_difficulty: Record<string, number>;
-  by_track: Array<{ track: string; solved: number }>;
+  by_track: Array<{ track: string; solved: number; beginner: number; intermediate: number; advanced: number }>;
   currently_learning: string | null;   // top track of the last 30 days
   certificates: Array<{ public_id: string; track_name: string; issued_at: number }>;
   top_hubs: Array<{ hub_slug: string; solved: number }>;
@@ -335,7 +335,7 @@ export async function loadProfileStats(DB: D1Database, userId: string, totalXp: 
       ).bind(userId, since52).all<{ day: string; n: number }>()
         .catch(() => ({ results: [] as Array<{ day: string; n: number }> })),
       DB.prepare(
-        "SELECT action, ref, xp, at FROM xp_ledger WHERE user_id = ?1 ORDER BY at DESC LIMIT 8"
+        "SELECT action, ref, xp, at FROM xp_ledger WHERE user_id = ?1 ORDER BY at DESC LIMIT 30"
       ).bind(userId).all<{ action: string; ref: string | null; xp: number; at: number }>(),
       DB.prepare(
         "SELECT COUNT(*) AS n FROM reading_progress WHERE user_id = ?1"
@@ -374,14 +374,19 @@ export async function loadProfileStats(DB: D1Database, userId: string, totalXp: 
 
   // difficulty + track breakdowns from the solved pairs
   const byDifficulty: Record<string, number> = {};
-  const trackCount = new Map<string, number>();
+  const trackCount = new Map<string, { solved: number; beginner: number; intermediate: number; advanced: number }>();
   for (const p of pairs.results ?? []) {
     const d = (lookupDifficulty(p.hub_slug, p.exercise_id) || "other").toLowerCase();
     byDifficulty[d] = (byDifficulty[d] || 0) + 1;
     const track = hubTracks[p.hub_slug];
-    if (track) trackCount.set(track, (trackCount.get(track) || 0) + 1);
+    if (track) {
+      const c = trackCount.get(track) || { solved: 0, beginner: 0, intermediate: 0, advanced: 0 };
+      c.solved++;
+      if (d === "beginner" || d === "intermediate" || d === "advanced") c[d]++;
+      trackCount.set(track, c);
+    }
   }
-  const byTrack = Array.from(trackCount, ([track, solved]) => ({ track, solved }))
+  const byTrack = Array.from(trackCount, ([track, c]) => ({ track, ...c }))
     .sort((a, b) => b.solved - a.solved).slice(0, 8);
 
   // currently learning: dominant track of the last 30 days' graded activity
