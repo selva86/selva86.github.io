@@ -76,7 +76,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
       updatedPublic = body.public;
     }
 
-    const extraKeys = ["bio", "website", "resume", "github", "projects", "open_to_work", "role", "work_pref", "snippet", "theme"];
+    const extraKeys = ["bio", "website", "resume", "github", "projects", "open_to_work", "role", "work_pref", "snippet", "pinned", "theme"];
     if (extraKeys.some((k) => k in body)) {
       const cur = parseProfileJson((u as { profile_json?: string }).profile_json);
       const merged = mergeProfileExtras(cur, body);

@@ -180,6 +180,7 @@ export interface ProfileExtras {
   role?: string;             // target role, <= 60 chars
   work_pref?: string;        // remote | hybrid | onsite | any
   snippet?: { title?: string; code?: string };  // pinned runnable R snippet
+  pinned?: Array<{ title: string; code: string; note?: string }>;  // up to 3 runnable pieces
   theme?: string;            // profile accent theme (THEME_IDS)
 }
 
@@ -285,6 +286,27 @@ export function mergeProfileExtras(
       const title = cleanText(s.title, 80) || "Pinned snippet";
       out.snippet = { title, code };
     }
+  }
+  if ("pinned" in body) {
+    if (body.pinned == null) delete out.pinned;
+    else {
+      if (!Array.isArray(body.pinned) || body.pinned.length > 3) {
+        return { ok: false, error: "pinned must be a list of at most 3 items" };
+      }
+      const cleaned: Array<{ title: string; code: string; note?: string }> = [];
+      for (const it of body.pinned) {
+        const o = it as { title?: unknown; code?: unknown; note?: unknown };
+        const codeRaw = typeof o.code === "string" ? o.code.replace(/\r\n/g, "\n").slice(0, 2000) : "";
+        if (!codeRaw.trim()) return { ok: false, error: "each pinned item needs non-empty R code (max 2000 chars)" };
+        const title = cleanText(o.title, 80) || "Pinned work";
+        const note = cleanText(o.note, 140);
+        cleaned.push(note ? { title, code: codeRaw, note } : { title, code: codeRaw });
+      }
+      if (cleaned.length) out.pinned = cleaned; else delete out.pinned;
+    }
+  }
+  if (JSON.stringify(out).length > 12 * 1024) {
+    return { ok: false, error: "profile data is too large; trim the pinned code blocks" };
   }
   return { ok: true, extras: out };
 }
