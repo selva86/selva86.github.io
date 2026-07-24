@@ -168,6 +168,27 @@
   fetch('/www/sidebar.json').then(function(r){return r.ok?r.json():null;}).then(function(sb){if(!sb)return;sb.forEach(function(sec){(sec.items||[]).forEach(function(it){if(it.href&&it.text)sbTitle[String(it.href).replace(/^\//,'')]=it.text;});});}).catch(function(){});
 
   // "Your courses" runs off /courses.json + localStorage, independent of /api/me (so it also renders in ?demo).
+  // Today's set (profile v3 pass 2): three picked problems + completion state.
+  function renderDaily(d){
+    var sec=$('dh-daily'),host=$('dh-daily-list'),sub=$('dh-daily-sub');
+    if(!sec||!host||!d||!d.tasks||!d.tasks.length)return;
+    sub.textContent=d.all_done?(d.bonus_awarded?'done, +'+d.bonus_xp+' XP banked':'done for today'):'finish all three for +'+d.bonus_xp+' XP';
+    host.innerHTML=d.tasks.map(function(t){
+      var lab=(t.track?t.track+' · ':'')+t.reason;
+      return '<a class="dh-daily-task'+(t.done?' done':'')+'" href="'+t.href+'">'+
+        '<span class="tick">'+(t.done?'&#10003;':'')+'</span>'+
+        '<span class="tt"><b>'+(t.hub||'').replace(/-/g,' ').replace(/\.html$/,'')+'</b><i>'+lab+'</i></span>'+
+        '<span class="dh-diff">'+(t.difficulty||'')+'</span></a>';
+    }).join('');
+    sec.hidden=false;
+  }
+  (function(){
+    var tk=readToken();if(!tk)return;
+    fetch('/api/me/daily',{headers:{'Authorization':'Bearer '+tk}})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d){if(d)renderDaily(d);}).catch(function(){});
+  })();
+
   fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(d&&d.courses)renderCourses(d.courses);}).catch(function(){});
 
   // review-only fixtures (auth does not complete on the pages.dev subdomain). ?demo=1 | ?demo=pro
