@@ -1,0 +1,991 @@
+---
+title: "Error Bars in ggplot2: geom_errorbar, pointrange, crossbar"
+description: "Add error bars in ggplot2 with geom_errorbar, geom_pointrange, and geom_crossbar. Compute SD, SE, and confidence intervals, then dodge grouped bars correctly."
+keywords: "error bars ggplot2, geom_errorbar, geom_pointrange, geom_crossbar, geom_linerange, ggplot2 confidence interval, standard error bars R, grouped error bars, position_dodge error bars"
+mathjax: true
+webr: true
+curriculum_id: "GG2-2.8"
+post_type: "C"
+auto_link_terms: "error bars in ggplot2|ggplot2 error bars|geom_errorbar()|geom_pointrange()|geom_crossbar()|geom_linerange()|error bars in R|add error bars in ggplot2|confidence interval error bars|standard error bars|dodged error bars"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Error Bars"
+sidebar_order: "46"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Error bars show the uncertainty around a summary value such as a group mean. In ggplot2 you draw them by computing the interval yourself, then mapping <code>ymin</code> and <code>ymax</code> to a geom like <code>geom_errorbar()</code>, <code>geom_pointrange()</code>, or <code>geom_crossbar()</code>.</p>
+
+<h2>How do you add error bars to a ggplot2 chart?</h2>
+
+<p>Here is the one thing that trips up nearly every beginner: ggplot2 never calculates the error interval for you. Unlike a bar height, which <code>geom_bar()</code> can count on its own, an error bar needs two numbers you supply, a lower bound and an upper bound. So every error bar chart starts the same way, by boiling raw data down to a small summary table of means and spreads.</p>
+
+<p>Let's do exactly that with <code>ToothGrowth</code>, a built-in dataset that records the tooth length of 60 guinea pigs given vitamin C at three doses. We use <code>dplyr</code> to compute, for each dose, the <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a>, the mean length, the standard deviation, and the standard error (more on that last one shortly). This tutorial uses base ggplot2 and dplyr throughout, both run directly in your browser.</p>
+
+<div class="webr-container" data-block-title="Summarise before you plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise before you plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+tg_summary &lt;- ToothGrowth |&gt;
+  group_by(dose) |&gt;
+  summarise(
+    n    = n(),
+    mean = mean(len),
+    sd   = sd(len),
+    .groups = &quot;drop&quot;
+  ) |&gt;
+  mutate(se = sd / sqrt(n))
+
+tg_summary
+#&gt; # A tibble: 3 × 5
+#&gt;    dose     n  mean    sd    se
+#&gt;   &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1   0.5    20  10.6  4.50 1.01 
+#&gt; 2   1      20  19.7  4.42 0.987
+#&gt; 3   2      20  26.1  3.77 0.844</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table one row at a time. At a dose of 0.5 mg/day, the 20 guinea pigs in that group had a mean tooth length of 10.6, and the values spread out with a standard deviation of 4.50. The <code>se</code> column, the standard error, is just <code>sd / sqrt(n)</code>. (The <code>.groups = &quot;drop&quot;</code> argument just returns a plain, ungrouped table, so later steps treat the result as ordinary data.) Those <code>mean</code> and <code>se</code> columns are the raw material for every chart in this tutorial. This is the recipe in miniature: <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> first, plot second.</p>
+
+<p><img src="screenshots/ggplot2-Error-Bars-in-R-recipe-flow.webp" alt="The two-step recipe: summarise your data, then map the interval to a geom." class="img-responsive img-zoomable" loading="lazy" width="2014" height="394" /></p>
+
+<p><em>Figure 1: The two-step recipe: summarise your data, then map the interval to a geom.</em></p>
+
+<p>Now we hand those numbers to ggplot2. We plot the mean at each dose and draw an error bar reaching one standard error above and below it. <code>geom_pointrange()</code> is the tidiest way to show this: it draws the point (the mean) and the interval (the bar) in a single layer.</p>
+
+<div class="webr-container" data-block-title="Draw the payoff error bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the payoff error bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = dose, y = mean)) +
+  geom_line(color = &quot;grey60&quot;) +
+  geom_pointrange(aes(ymin = mean - se, ymax = mean + se),
+                  color = &quot;steelblue&quot;, linewidth = 0.8) +
+  labs(
+    title    = &quot;Tooth growth increases with vitamin C dose&quot;,
+    subtitle = &quot;Point = mean, bar = plus or minus one standard error&quot;,
+    x = &quot;Dose (mg/day)&quot;, y = &quot;Tooth length&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice how the interval is built inside <code>aes()</code>: <code>ymin = mean - se</code> and <code>ymax = mean + se</code>. You are doing the arithmetic, and ggplot2 is just drawing the lines you asked for. The mean climbs from about 10 to 26 as the dose rises, and the short bars tell you each mean is measured fairly precisely. That combination, a clear trend plus a sense of confidence in it, is exactly what an error bar is for.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>You always supply ymin and ymax yourself.</strong> Every error bar geom needs a lower and upper bound as aesthetics. These geoms never compute a standard deviation or confidence interval on your behalf, so a summarise step comes first.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a summary table like <code>tg_summary</code>, but group by <code>supp</code> (the supplement type, OJ or VC) instead of <code>dose</code>. You should end up with two rows.</p>
+<div class="webr-container" data-block-title="Your turn: summarise by supplement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: summarise by supplement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: one row per supp (OJ, VC), with columns mean and se.
+# Start from ToothGrowth, group_by(supp), then summarise() + mutate().
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Summarise by supplement solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise by supplement solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_summary &lt;- ToothGrowth |&gt;
+  group_by(supp) |&gt;
+  summarise(
+    n    = n(),
+    mean = mean(len),
+    sd   = sd(len),
+    .groups = &quot;drop&quot;
+  ) |&gt;
+  mutate(se = sd / sqrt(n))
+
+ex_summary
+#&gt; # A tibble: 2 × 5
+#&gt;   supp      n  mean    sd    se
+#&gt;   &lt;fct&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 OJ       30  20.7  6.61  1.21
+#&gt; 2 VC       30  17.0  8.27  1.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Swapping <code>dose</code> for <code>supp</code> in <code>group_by()</code> regroups the same 60 rows into two supplement groups of 30 each. The recipe does not change, only the grouping variable does.</p>
+
+</details>
+</section>
+
+<h2>What is the geom_errorbar() function and how does it work?</h2>
+
+<p><code>geom_errorbar()</code> draws the classic "I-beam", a vertical line with a small horizontal cap at each end. It is the most recognisable error bar style and the one people usually mean when they say "add error bars". It needs three aesthetics: an <code>x</code> position, a <code>ymin</code>, and a <code>ymax</code>.</p>
+
+<p>The most common pattern is a bar chart with error bars on top. We map <code>dose</code> to the x axis (wrapped in <code>factor()</code> so it is treated as three distinct categories, not a continuous number), draw the bars with <code>geom_col()</code>, then overlay <code>geom_errorbar()</code>.</p>
+
+<div class="webr-container" data-block-title="Add error bars to a bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add error bars to a bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = factor(dose), y = mean)) +
+  geom_col(fill = &quot;grey80&quot;) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>width = 0.2</code> argument controls how wide the end caps are, as a fraction of the space between categories. Two arguments are easy to confuse here, so it is worth pinning them down. <code>width</code> sets the horizontal size of the caps, while <code>linewidth</code> sets how thick the drawn line is. Let's change both, and the colour, to see the difference.</p>
+
+<div class="webr-container" data-block-title="Style the error bar width and thickness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Style the error bar width and thickness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = factor(dose), y = mean)) +
+  geom_col(fill = &quot;grey80&quot;) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.15, linewidth = 0.9, color = &quot;firebrick&quot;) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The caps are now narrower (<code>width = 0.15</code>) and the line is heavier and red. Adjust <code>width</code> for readability: very wide caps clutter a crowded chart, while very narrow caps can be hard to see.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Keep width and linewidth straight.</strong> The <code>width</code> argument changes the horizontal cap size, and <code>linewidth</code> changes the thickness of the line. If your caps look wrong, you are almost always reaching for the wrong one of these two.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Copy the bar chart above and shrink the caps to almost nothing with <code>width = 0.05</code>. Notice how the error bars start to look like plain vertical lines.</p>
+<div class="webr-container" data-block-title="Your turn: narrower caps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: narrower caps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Take the geom_col + geom_errorbar chart above.
+# Change the geom_errorbar width to 0.05 and rerun.
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Narrower caps solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Narrower caps solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = factor(dose), y = mean)) +
+  geom_col(fill = &quot;grey80&quot;) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.05) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>width = 0.05</code> the horizontal caps almost disappear, leaving thin vertical strokes. This is effectively what <code>geom_linerange()</code> draws, which is the next geom we will meet.</p>
+
+</details>
+</section>
+
+<h2>How do you use geom_pointrange, geom_linerange, and geom_crossbar?</h2>
+
+<p><code>geom_errorbar()</code> is not your only option. ggplot2 ships four interval geoms, and they all read the same <code>ymin</code> and <code>ymax</code> aesthetics. They differ only in what they draw, so choosing between them is a matter of taste and emphasis, not new data.</p>
+
+<p><img src="screenshots/ggplot2-Error-Bars-in-R-geom-decision.webp" alt="The four interval geoms and what each one draws." class="img-responsive img-zoomable" loading="lazy" width="1974" height="710" /></p>
+
+<p><em>Figure 2: The four interval geoms and what each one draws.</em></p>
+
+<p><code>geom_linerange()</code> is the simplest: a plain vertical line from <code>ymin</code> to <code>ymax</code>, with no cap and no centre marker. It is often paired with <code>geom_point()</code> so the mean is still visible.</p>
+
+<div class="webr-container" data-block-title="Draw a plain interval with geom_linerange">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a plain interval with geom_linerange</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = factor(dose), y = mean)) +
+  geom_linerange(aes(ymin = mean - se, ymax = mean + se)) +
+  geom_point(size = 2, color = &quot;steelblue&quot;) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The line shows the interval and the blue dot marks the mean. <code>geom_pointrange()</code>, which we used at the very start, does both of these in one layer, so it is usually the cleaner choice when you want a point plus its interval.</p>
+
+<p><code>geom_crossbar()</code> takes a different approach. Instead of a thin line, it draws a hollow box spanning <code>ymin</code> to <code>ymax</code>, with a horizontal line marking the mean. It reads well when the interval itself is the focus, for example a range of plausible values rather than a precise estimate.</p>
+
+<div class="webr-container" data-block-title="Show the mean as a crossbar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the mean as a crossbar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = factor(dose), y = mean)) +
+  geom_crossbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.5, fill = &quot;lightblue&quot;) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each box now spans one standard error either side of the mean, and the horizontal line inside marks the mean itself. Here is a quick guide to picking the right geom.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geom</th>
+<th>What it draws</th>
+<th>Centre marker</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_errorbar()</code></td>
+<td>Vertical line with end caps</td>
+<td>No</td>
+<td>Bars and points, the familiar I-beam</td>
+</tr>
+<tr>
+<td><code>geom_pointrange()</code></td>
+<td>Line plus a point</td>
+<td>Yes, a point</td>
+<td>A mean with its interval, one clean layer</td>
+</tr>
+<tr>
+<td><code>geom_linerange()</code></td>
+<td>Plain line only</td>
+<td>No</td>
+<td>Minimal look, or pairing with your own point</td>
+</tr>
+<tr>
+<td><code>geom_crossbar()</code></td>
+<td>Hollow box with a middle line</td>
+<td>Yes, a line</td>
+<td>Emphasising the range as a band</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use middle.linewidth to thicken a crossbar's centre line.</strong> Older tutorials use a <code>fatten</code> argument for this, but <code>fatten</code> was deprecated in ggplot2 4.0. The current argument is <code>middle.linewidth</code>, which sets the thickness of the horizontal line marking the mean.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the <code>geom_linerange()</code> chart above and replace <code>geom_linerange()</code> with <code>geom_pointrange()</code>. You can delete the separate <code>geom_point()</code> line, since pointrange draws the point for you.</p>
+<div class="webr-container" data-block-title="Your turn: switch to pointrange">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: switch to pointrange</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Start from the geom_linerange + geom_point chart.
+# Replace both layers with a single geom_pointrange().
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Switch to pointrange solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch to pointrange solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = factor(dose), y = mean)) +
+  geom_pointrange(aes(ymin = mean - se, ymax = mean + se)) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_pointrange()</code> combines the line and the point into one layer, so it replaces the <code>geom_linerange()</code> and <code>geom_point()</code> pair with a single, tidier call.</p>
+
+</details>
+</section>
+
+<h2>Should you use standard deviation, standard error, or a confidence interval?</h2>
+
+<p>This is the question that matters most, and the one most tutorials skip. The three most common error bars, standard deviation (SD), standard error (SE), and confidence interval (CI), are computed differently and answer different questions. Picking the wrong one can badly mislead your reader.</p>
+
+<p><img src="screenshots/ggplot2-Error-Bars-in-R-sd-se-ci.webp" alt="SD, SE, and CI each answer a different question." class="img-responsive img-zoomable" loading="lazy" width="998" height="986" /></p>
+
+<p><em>Figure 3: SD, SE, and CI each answer a different question.</em></p>
+
+<p>Here is the plain-language version. <strong>Standard deviation</strong> measures how spread out the individual data points are; it answers "how different are the guinea pigs from each other?". <strong>Standard error</strong> measures how precisely you have pinned down the mean; it answers "if I repeated this study, how much would the mean bounce around?". A <strong>confidence interval</strong> turns that precision into a range, typically 95%, that plausibly contains the true mean.</p>
+
+<p>SE and CI are built from SD, so let's compute all three side by side. We already have <code>sd</code> and <code>se</code> in <code>tg_summary</code>. A <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> extends the mean by a t-multiplier times the standard error, so we add that column with <code>qt()</code>. We pass <code>0.975</code> to <code>qt()</code> because a 95% interval leaves 2.5% in each tail of the distribution (2.5% + 95% + 2.5% = 100%).</p>
+
+<div class="webr-container" data-block-title="Compute standard error and a confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute standard error and a confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tg_ci &lt;- tg_summary |&gt;
+  mutate(ci = qt(0.975, df = n - 1) * se)
+
+tg_ci
+#&gt; # A tibble: 3 × 6
+#&gt;    dose     n  mean    sd    se    ci
+#&gt;   &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1   0.5    20  10.6  4.50 1.01   2.11
+#&gt; 2   1      20  19.7  4.42 0.987  2.07
+#&gt; 3   2      20  26.1  3.77 0.844  1.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the first row. The standard deviation is 4.50, the standard error is 1.01, and the 95% confidence margin is 2.11. Same data, three very different bar lengths. An SD bar would stretch about 4.5 units either side of the mean, an SE bar only about 1, and a CI bar about 2.1. If you drew SD bars but told the reader they were standard errors, you would overstate the uncertainty in the mean more than fourfold.</p>
+
+<p>If you like the underlying formulas, here they are. The standard error scales the spread of the data by the square root of the sample size:</p>
+
+<p>$$SE = \frac{s}{\sqrt{n}}$$</p>
+
+<p>And the confidence interval widens the mean by a critical t-value times that standard error:</p>
+
+<p>$$\bar{x} \pm t_{(1 - \alpha/2,\; n-1)} \times SE$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$s$ = the sample standard deviation</li>
+
+<li>$n$ = the number of observations in the group</li>
+
+<li>$\bar{x}$ = the group mean</li>
+
+<li>$t_{(1 - \alpha/2,\; n-1)}$ = the critical value from the t-distribution (about 2.09 for a 95% interval with 19 degrees of freedom)</li>
+
+</ul>
+
+<p>If formulas are not your thing, skip them; the code above computes everything you need. Now let's plot the confidence interval so you can see it directly.</p>
+
+<div class="webr-container" data-block-title="Plot the 95% confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the 95% confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_ci, aes(x = factor(dose), y = mean)) +
+  geom_pointrange(aes(ymin = mean - ci, ymax = mean + ci),
+                  color = &quot;darkgreen&quot;) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length (95% CI)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because none of the three intervals overlap between doses, you can be confident the doses really do differ. That is the practical payoff of a confidence interval: non-overlapping bars are a quick visual signal of a real difference.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Standard error and confidence intervals shrink as your sample grows, but standard deviation does not.</strong> SE divides by the square root of n, so more data means tighter SE and CI bars. SD describes the spread of the population itself, so collecting more guinea pigs does not make it smaller. Always label which one you are showing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confidence intervals do not have to be 95%. Add a <code>ci90</code> column to <code>tg_summary</code> for a 90% interval. Hint: a 90% interval uses <code>qt(0.95, ...)</code> instead of <code>qt(0.975, ...)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: a 90% confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a 90% confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add a column ci90 to tg_summary using qt(0.95, df = n - 1) * se.
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A 90% confidence interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A 90% confidence interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci &lt;- tg_summary |&gt;
+  mutate(ci90 = qt(0.95, df = n - 1) * se)
+
+ex_ci
+#&gt; # A tibble: 3 × 6
+#&gt;    dose     n  mean    sd    se  ci90
+#&gt;   &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1   0.5    20  10.6  4.50 1.01   1.74
+#&gt; 2   1      20  19.7  4.42 0.987  1.71
+#&gt; 3   2      20  26.1  3.77 0.844  1.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 90% interval leaves 5% in each tail, so you pass <code>0.95</code> to <code>qt()</code>. The margins (1.74, 1.71, 1.46) are smaller than the 95% margins because a lower confidence level needs a narrower interval to cover the middle.</p>
+
+</details>
+</section>
+
+<h2>How do you add error bars to grouped and dodged charts?</h2>
+
+<p>Real comparisons usually have two grouping variables, not one. In <code>ToothGrowth</code> each dose was delivered by two supplements, orange juice (OJ) and ascorbic acid (VC). To compare them we summarise by both variables, then place the two supplement bars side by side within each dose. Side-by-side placement is called "dodging".</p>
+
+<p>First, the summary. We group by <code>supp</code> and <code>dose</code> together, which gives six rows, one per supplement-and-dose combination.</p>
+
+<div class="webr-container" data-block-title="Summarise by two grouping variables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise by two grouping variables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tg_grouped &lt;- ToothGrowth |&gt;
+  group_by(supp, dose) |&gt;
+  summarise(
+    n    = n(),
+    mean = mean(len),
+    sd   = sd(len),
+    .groups = &quot;drop&quot;
+  ) |&gt;
+  mutate(se = sd / sqrt(n))
+
+tg_grouped
+#&gt; # A tibble: 6 × 6
+#&gt;   supp   dose     n  mean    sd    se
+#&gt;   &lt;fct&gt; &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 OJ      0.5    10 13.2   4.46 1.41 
+#&gt; 2 OJ      1      10 22.7   3.91 1.24 
+#&gt; 3 OJ      2      10 26.1   2.66 0.840
+#&gt; 4 VC      0.5    10  7.98  2.75 0.869
+#&gt; 5 VC      1      10 16.8   2.52 0.795
+#&gt; 6 VC      2      10 26.1   4.80 1.52 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the trap that catches everyone. When you dodge bars, the error bars must be dodged by the <em>same amount</em>, or they will float off to the side and sit over the wrong bar. The fix is to define one <code>position_dodge()</code> object and hand it to both <code>geom_col()</code> and <code>geom_errorbar()</code>.</p>
+
+<div class="webr-container" data-block-title="Dodge grouped bars and their error bars together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dodge grouped bars and their error bars together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pd &lt;- position_dodge(width = 0.9)
+
+ggplot(tg_grouped, aes(x = factor(dose), y = mean, fill = supp)) +
+  geom_col(position = pd, width = 0.9) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                position = pd, width = 0.2) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;, fill = &quot;Supplement&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both layers share the same <code>pd</code>, so every error bar lands squarely on its own bar. Notice we also match the <code>width = 0.9</code> on <code>geom_col()</code> to the dodge width, which keeps the bars snug within each dose group.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Mismatched dodge widths misalign the bars.</strong> If <code>geom_col()</code> and <code>geom_errorbar()</code> use different <code>position_dodge()</code> widths, the error bars drift away from the bars they belong to. Define one dodge object and pass it to every layer that needs to line up.</div></div>
+
+<p>Bar charts with error bars are common, but they have a downside: the solid bar hides everything except its top, and the "dynamite plot" look is often criticised for that reason. A dodged <code>geom_pointrange()</code> shows the same comparison with less ink and no misleading bars.</p>
+
+<div class="webr-container" data-block-title="A cleaner grouped view with pointrange">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A cleaner grouped view with pointrange</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_grouped, aes(x = factor(dose), y = mean, color = supp)) +
+  geom_pointrange(aes(ymin = mean - se, ymax = mean + se),
+                  position = position_dodge(width = 0.4)) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;, color = &quot;Supplement&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each dose now shows two points with their intervals, and the OJ-versus-VC gap is easy to read at a glance, especially at the lower doses where the supplements differ most.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the dodged bar chart, but change the shared dodge width to <code>0.5</code> on both layers. Keep the two geoms in sync.</p>
+<div class="webr-container" data-block-title="Your turn: a tighter dodge">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a tighter dodge</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Define pd5 &lt;- position_dodge(width = 0.5).
+# Pass pd5 to BOTH geom_col(position = ...) and geom_errorbar(position = ...).
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A tighter dodge solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A tighter dodge solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pd5 &lt;- position_dodge(width = 0.5)
+
+ggplot(tg_grouped, aes(x = factor(dose), y = mean, fill = supp)) +
+  geom_col(position = pd5, width = 0.5) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                position = pd5, width = 0.2) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> As long as both layers reference the same <code>pd5</code>, the bars and their error bars move together. Matching the <code>geom_col()</code> <code>width</code> to the dodge width keeps the paired bars from overlapping.</p>
+
+</details>
+</section>
+
+<h2>How do you make horizontal error bars?</h2>
+
+<p>Sometimes horizontal bars read better, especially with long category labels. The modern way to flip an error bar is the <code>orientation</code> argument. You map your value to <code>x</code> and your category to <code>y</code>, then supply <code>xmin</code> and <code>xmax</code> (instead of <code>ymin</code> and <code>ymax</code>) and set <code>orientation = &quot;y&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Flip error bars to horizontal with orientation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip error bars to horizontal with orientation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = mean, y = factor(dose))) +
+  geom_point(size = 2, color = &quot;steelblue&quot;) +
+  geom_errorbar(aes(xmin = mean - se, xmax = mean + se),
+                orientation = &quot;y&quot;, width = 0.2) +
+  labs(x = &quot;Mean tooth length&quot;, y = &quot;Dose (mg/day)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The error bars now run left to right, and the dose categories stack vertically. The <code>orientation = &quot;y&quot;</code> argument tells ggplot2 that the intervals live along the x axis for each y group.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>geom_errorbarh() is deprecated, use orientation instead.</strong> Older code drew horizontal error bars with a separate <code>geom_errorbarh()</code> function, but ggplot2 4.0 deprecated it. The current approach is <code>geom_errorbar()</code> with <code>xmin</code>, <code>xmax</code>, and <code>orientation = &quot;y&quot;</code>, which keeps everything in one consistent geom.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Redraw the horizontal chart using <code>geom_pointrange()</code> instead of the separate point and error bar. Pointrange also accepts <code>orientation = &quot;y&quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: horizontal pointrange">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: horizontal pointrange</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Map x = mean, y = factor(dose).
+# Use geom_pointrange with xmin/xmax and orientation = &quot;y&quot;.
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Horizontal pointrange solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Horizontal pointrange solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg_summary, aes(x = mean, y = factor(dose))) +
+  geom_pointrange(aes(xmin = mean - se, xmax = mean + se),
+                  orientation = &quot;y&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_pointrange()</code> understands <code>orientation = &quot;y&quot;</code> just like <code>geom_errorbar()</code> does, so one layer draws the horizontal interval and its centre point together.</p>
+
+</details>
+</section>
+
+<h2>Putting it all together: a publication-ready error bar chart</h2>
+
+<p>Let's combine everything into one chart you would be happy to put in a report. We summarise <code>ToothGrowth</code> by supplement and dose, compute the standard error, then draw a dodged line-and-pointrange chart with a clear title, custom colours, and a clean theme. This single block runs the whole recipe from raw data to finished figure.</p>
+
+<div class="webr-container" data-block-title="Assemble a publication-ready error bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assemble a publication-ready error bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tg_pub &lt;- ToothGrowth |&gt;
+  group_by(supp, dose) |&gt;
+  summarise(
+    mean = mean(len),
+    se   = sd(len) / sqrt(n()),
+    .groups = &quot;drop&quot;
+  )
+
+ggplot(tg_pub, aes(x = factor(dose), y = mean, color = supp, group = supp)) +
+  geom_line(position = position_dodge(width = 0.3)) +
+  geom_pointrange(aes(ymin = mean - se, ymax = mean + se),
+                  position = position_dodge(width = 0.3)) +
+  scale_color_manual(values = c(OJ = &quot;#D55E00&quot;, VC = &quot;#0072B2&quot;)) +
+  labs(
+    title    = &quot;Vitamin C boosts tooth growth at every dose&quot;,
+    subtitle = &quot;Orange juice leads ascorbic acid at low doses&quot;,
+    x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;,
+    color = &quot;Supplement&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every technique from this tutorial is in that chart. We summarised first, mapped <code>ymin</code> and <code>ymax</code> from the mean and standard error, used <code>geom_pointrange()</code> for a clean interval, dodged both the line and the pointrange by a matching width, and finished with manual colours and a title. That is the full workflow, start to end.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Colour-blind-safe palettes make error bar charts clearer.</strong> The hex codes used above (<code>#D55E00</code> orange and <code>#0072B2</code> blue) come from a colour-blind-friendly palette. When two groups sit side by side, a high-contrast pair keeps the comparison readable for every reader.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine several ideas from the tutorial. Try each one before opening the solution. They use fresh variable names (prefixed <code>my_</code> or <code>iris_</code>) so they will not overwrite the tutorial's objects.</p>
+
+<h3>Exercise 1: Error bars on the iris dataset</h3>
+
+<p>Summarise the <code>iris</code> dataset to get the mean and standard error of <code>Sepal.Length</code> for each <code>Species</code>, then draw a bar chart with error bars. Save the summary to <code>iris_summary</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. group_by(Species), summarise mean and se of Sepal.Length
+# 2. geom_col + geom_errorbar with width around 0.2
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_summary &lt;- iris |&gt;
+  group_by(Species) |&gt;
+  summarise(
+    mean = mean(Sepal.Length),
+    se   = sd(Sepal.Length) / sqrt(n()),
+    .groups = &quot;drop&quot;
+  )
+
+ggplot(iris_summary, aes(x = Species, y = mean)) +
+  geom_col(fill = &quot;grey80&quot;) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+  labs(x = &quot;Species&quot;, y = &quot;Mean sepal length&quot;) +
+  theme_minimal()
+
+iris_summary
+#&gt; # A tibble: 3 × 3
+#&gt;   Species     mean     se
+#&gt;   &lt;fct&gt;      &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 setosa      5.01 0.0498
+#&gt; 2 versicolor  5.94 0.0730
+#&gt; 3 virginica   6.59 0.0899</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The same recipe transfers straight to a new dataset: group, summarise mean and se, then map <code>ymin</code> and <code>ymax</code>. The three species have tight error bars because each has 50 observations.</p>
+
+</details>
+
+<h3>Exercise 2: Grouped confidence intervals with pointrange</h3>
+
+<p>Using <code>ToothGrowth</code>, build a grouped <code>geom_pointrange()</code> chart of mean tooth length by dose, coloured by supplement, with 95% confidence interval bars. Dodge the two supplements so they do not overlap. Save your summary to <code>my_tg</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. group_by(supp, dose), summarise mean, se, and n
+# 2. add a ci column with qt(0.975, df = n - 1) * se
+# 3. geom_pointrange with position_dodge, color = supp
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_tg &lt;- ToothGrowth |&gt;
+  group_by(supp, dose) |&gt;
+  summarise(
+    mean = mean(len),
+    se   = sd(len) / sqrt(n()),
+    n    = n(),
+    .groups = &quot;drop&quot;
+  ) |&gt;
+  mutate(ci = qt(0.975, df = n - 1) * se)
+
+ggplot(my_tg, aes(x = factor(dose), y = mean, color = supp)) +
+  geom_pointrange(aes(ymin = mean - ci, ymax = mean + ci),
+                  position = position_dodge(width = 0.5)) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length (95% CI)&quot;,
+       color = &quot;Supplement&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The confidence margin uses the group's own sample size through <code>df = n - 1</code>. Dodging by 0.5 separates the OJ and VC intervals at each dose so the comparison stays readable.</p>
+
+</details>
+
+<h3>Exercise 3: A line chart with error bars</h3>
+
+<p>Draw a line chart of mean tooth length across dose, with one line per supplement and an error bar at every point. Reuse the <code>tg_grouped</code> summary from earlier. Add points on top so each mean is marked, and dodge all three layers by the same small amount.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse tg_grouped (supp, dose, mean, se).
+# Layer geom_line + geom_errorbar + geom_point, all sharing one position_dodge.
+# color = supp, group = supp
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pd3 &lt;- position_dodge(width = 0.2)
+
+ggplot(tg_grouped, aes(x = factor(dose), y = mean, color = supp, group = supp)) +
+  geom_line(position = pd3) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                position = pd3, width = 0.15) +
+  geom_point(position = pd3, size = 2) +
+  labs(x = &quot;Dose (mg/day)&quot;, y = &quot;Mean tooth length&quot;, color = &quot;Supplement&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three layers share <code>pd3</code>, so the lines, error bars, and points stay locked together within each dose. The <code>group = supp</code> aesthetic tells <code>geom_line()</code> to connect points within a supplement rather than across supplements.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Error bars in ggplot2 come down to one rule and one choice. The rule: compute your interval first, then map <code>ymin</code> and <code>ymax</code> to a geom. The choice: which geom and which interval fit your message.</p>
+
+<p><img src="screenshots/ggplot2-Error-Bars-in-R-overview.webp" alt="Overview of the error-bar workflow in ggplot2." class="img-responsive img-zoomable" loading="lazy" width="1592" height="908" /></p>
+
+<p><em>Figure 4: Overview of the error-bar workflow in ggplot2.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Key takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The recipe</td>
+<td>Summarise to means and spreads first; ggplot2 never computes the interval for you</td>
+</tr>
+<tr>
+<td><code>geom_errorbar()</code></td>
+<td>The classic I-beam; <code>width</code> sets cap size, <code>linewidth</code> sets line thickness</td>
+</tr>
+<tr>
+<td><code>geom_pointrange()</code></td>
+<td>Point plus interval in one layer, the tidiest default</td>
+</tr>
+<tr>
+<td><code>geom_linerange()</code> / <code>geom_crossbar()</code></td>
+<td>Plain line, or a box with a centre line for range emphasis</td>
+</tr>
+<tr>
+<td>SD vs SE vs CI</td>
+<td>SD is data spread, SE is mean precision, CI is a plausible range for the true mean</td>
+</tr>
+<tr>
+<td>Grouped charts</td>
+<td>Give one <code>position_dodge()</code> to every layer so bars and error bars stay aligned</td>
+</tr>
+<tr>
+<td>Horizontal bars</td>
+<td>Use <code>xmin</code>, <code>xmax</code>, and <code>orientation = &quot;y&quot;</code>; <code>geom_errorbarh()</code> is deprecated</td>
+</tr>
+</tbody>
+</table>
+
+<p>With the summarise-then-map recipe in hand, you can add honest, well-labelled uncertainty to any ggplot2 chart.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why don't my error bars line up with my bars?</strong></p>
+
+<p>Almost always a dodge mismatch. When you place grouped bars side by side, <code>geom_col()</code> and <code>geom_errorbar()</code> must use the same <code>position_dodge()</code> width. Define one dodge object, such as <code>pd &lt;- position_dodge(width = 0.9)</code>, and pass it to both layers so each error bar sits on its own bar.</p>
+
+<p><strong>Should I use standard deviation or standard error for my error bars?</strong></p>
+
+<p>It depends on your message. Use standard deviation to show how spread out the raw data is, and standard error (or a confidence interval) to show how precisely you have estimated the mean. Whichever you pick, label it clearly, because the three produce very different bar lengths from the same data.</p>
+
+<p><strong>How do I add error bars to a plot without bars?</strong></p>
+
+<p>Use <code>geom_pointrange()</code> or <code>geom_linerange()</code> on a point plot. They read the same <code>ymin</code> and <code>ymax</code> aesthetics as <code>geom_errorbar()</code>, so you get an interval around each mean without drawing any bars. Many people prefer this because solid bars can hide the underlying data.</p>
+
+<p><strong>Why doesn't ggplot2 calculate error bars for me automatically?</strong></p>
+
+<p>Because there is no single correct interval. Standard deviation, standard error, and confidence intervals all answer different questions, so ggplot2 leaves the choice to you. You compute the interval in a summarise step, then map <code>ymin</code> and <code>ymax</code> to a geom. There is one shortcut: <code>stat_summary(fun.data = mean_se)</code> will add mean plus or minus one standard error straight from the raw data, but it offers only a few built-in intervals and less control, so precomputing stays the clearer default.</p>
+
+<p><strong>How do I make horizontal error bars in ggplot2?</strong></p>
+
+<p>Map your value to <code>x</code> and your category to <code>y</code>, then use <code>xmin</code> and <code>xmax</code> with <code>orientation = &quot;y&quot;</code>. The old <code>geom_errorbarh()</code> function still exists but is deprecated, so <code>geom_errorbar(orientation = &quot;y&quot;)</code> is the current approach.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 reference. <em>Vertical intervals: lines, crossbars and errorbars.</em> The canonical argument list for all four interval geoms used here. <a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html">Link</a></li>
+
+<li>ggplot2 reference. <em>position_dodge: Dodge overlapping objects side-to-side.</em> Explains the dodge argument behind the grouped-chart alignment fix. <a href="https://ggplot2.tidyverse.org/reference/position_dodge.html">Link</a></li>
+
+<li>Wickham, H., Navarro, D., and Pedersen, T. L. <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition. The book-length treatment of layers, aesthetics, and positions. <a href="https://ggplot2-book.org/">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., and Grolemund, G. <em>R for Data Science</em>, 2nd Edition. Background on the dplyr group-and-summarise step every chart starts from. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>Cumming, G., Fidler, F., and Vaux, D. L. <em>Error bars in experimental biology.</em> Journal of Cell Biology (2007). Why SD, SE, and CI bars mean different things and how they are misread. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2064100/">Link</a></li>
+
+<li>R documentation. <em>The ToothGrowth dataset.</em> Details of the built-in dataset used throughout this tutorial. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/ToothGrowth.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Bar-Charts.html">ggplot2 Bar Charts: geom_bar() and geom_col()</a> - the foundation for the bar-plus-error-bar charts in this tutorial.</li>
+
+<li><a href="ggplot2-Line-Charts.html">ggplot2 Line Charts</a> - build the line layer that error bars sit on top of in time-series and dose-response plots.</li>
+
+<li><a href="Error-Bars-in-R.html">Error Bars in R: SD, SE, or CI, Done Right</a> - a deeper look at choosing and computing the right uncertainty measure.</li>
+
+<li><a href="ggplot2-Area-Charts-and-Ribbons-in-R.html">ggplot2 Area Charts and Ribbons</a> - use <a class="auto-link" href="ggplot2-geom_ribbon-in-R.html" title="ggplot2 geom_ribbon() in R: Filled Area Between Two Lines">geom_ribbon()</a> to show a continuous uncertainty band instead of discrete bars.</li>
+
+</ul>
+
+{% endraw %}
