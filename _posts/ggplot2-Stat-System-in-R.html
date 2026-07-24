@@ -1,0 +1,1004 @@
+---
+title: "The ggplot2 stat System: What Every Geom Computes"
+description: "Every ggplot2 geom quietly runs a stat that reshapes your data before drawing. See what stats compute with layer_data(), and remap results using after_stat()."
+keywords: "ggplot2 stat, ggplot2 statistical transformations, after_stat, computed variables ggplot2, stat_bin, stat_count, stat vs geom, stat_summary, layer_data, ggplot2 stats"
+mathjax: false
+webr: true
+curriculum_id: "GG2-3.2"
+post_type: "C"
+auto_link_terms: "ggplot2 stat system|statistical transformations|computed variables|after_stat()|stat_count()|stat_bin()|stat_summary()|stat_identity()|stat vs geom|layer_data()"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "The stat System"
+sidebar_order: "9"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">In ggplot2, every layer runs a hidden step called a <b>stat</b> that reshapes your data before a geom draws it. That stat is why <code>geom_bar()</code> can show bar heights you never calculated, and why a boxplot knows your quartiles. Once you can see what each stat computes, ggplot2 stops feeling like magic and starts feeling like a pipeline you control.</p>
+
+<h2>What does a ggplot2 geom actually do before it draws?</h2>
+
+<p>Here is a small mystery that trips up almost everyone. You hand <code>geom_bar()</code> a single categorical column, no y values at all, and it draws bars with different heights. Nobody typed those heights. So where did the numbers come from? The answer is a quiet computation step, run automatically inside the layer, called a statistical transformation, or "stat" for short.</p>
+
+<p>Let's see the mystery and solve it in the same breath. We use <code>mpg</code>, a built-in dataset of 234 car models that ships with ggplot2, and look at how many cars fall into each drive train category (<code>drv</code> is <code>4</code> for four-wheel drive, <code>f</code> for front-wheel, <code>r</code> for rear-wheel). This tutorial uses base ggplot2 plus dplyr for the occasional cross-check, and everything runs directly in your browser. The tool that solves the mystery is <code>layer_data()</code>: it returns the exact table the geom received after the stat finished, so we can read what the stat computed.</p>
+
+<div class="webr-container" data-block-title="Draw a bare bar chart, then read what the stat computed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a bare bar chart, then read what the stat computed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+p_bar &lt;- ggplot(mpg, aes(x = drv)) +
+  geom_bar()
+
+p_bar
+
+# layer_data() returns the table geom_bar() actually drew:
+layer_data(p_bar)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;, &quot;width&quot;)]
+#&gt;   x count prop width
+#&gt; 1 1   103    1   0.9
+#&gt; 2 2   106    1   0.9
+#&gt; 3 3    25    1   0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We gave the plot an x aesthetic and nothing else, yet three bars appear at different heights (the tallest is front-wheel drive), and <code>layer_data()</code> shows why. The stat created a <code>count</code> column (103, 106, 25) that was never in your raw data, and that column became each bar's height. It also created <code>prop</code> (the proportion within a group) and <code>width</code>. The x values show as 1, 2, 3 because ggplot2 places the three categories at those axis positions.</p>
+
+<p>Every ggplot2 layer is built from four parts working in order: your <strong>data</strong>, a <strong>stat</strong> that transforms it, a <strong>geom</strong> that draws the transformed result, and a <strong>position</strong> adjustment that nudges overlapping shapes apart. The part beginners miss is the stat, because it usually runs silently. <code>geom_bar()</code> quietly attaches a counting stat, and that stat turns your 234 raw rows into a tiny three-row table of counts before a single rectangle is drawn.</p>
+
+<p><img src="screenshots/ggplot2-Stat-System-in-R-layer-pipeline.webp" alt="Inside a ggplot2 layer, the stat transforms your data before the geom draws it." class="img-responsive img-zoomable" loading="lazy" width="2248" height="316" /></p>
+
+<p><em>Figure 1: Inside every layer the stat transforms your data before the geom draws it.</em></p>
+
+<p>We can confirm those counts are real by computing them the plain dplyr way. If the numbers match, we have proven the stat is just doing a <code>count()</code> for us behind the scenes.</p>
+
+<div class="webr-container" data-block-title="Cross-check the counts with dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross-check the counts with dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">count(mpg, drv)
+#&gt; # A tibble: 3 × 2
+#&gt;   drv       n
+#&gt;   &lt;chr&gt; &lt;int&gt;
+#&gt; 1 4       103
+#&gt; 2 f       106
+#&gt; 3 r        25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical: 103, 106, and 25. The bar chart's heights are exactly <code>count(mpg, drv)</code>, produced automatically by the stat attached to <code>geom_bar()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The stat runs first, the geom only draws.</strong> A geom never sees your raw data directly. It receives the table the stat produces, which is why a bar chart can show counts, a boxplot can show quartiles, and a histogram can show frequencies without you calculating any of them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a bar chart of the <code>class</code> column from <code>mpg</code> (car type: compact, suv, and so on), then use <code>layer_data()</code> to read the count the stat computed for each class. There are seven classes.</p>
+<div class="webr-container" data-block-title="Your turn: count cars by class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count cars by class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: build a bar chart of class, then read its computed counts.
+# Step 1: ggplot(mpg, aes(x = class)) + geom_bar()  -&gt; save it to p_class
+# Step 2: pass p_class to layer_data() and look at the count column
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count cars by class solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count cars by class solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_class &lt;- ggplot(mpg, aes(x = class)) + geom_bar()
+count(mpg, class)
+#&gt; # A tibble: 7 × 2
+#&gt;   class          n
+#&gt;   &lt;chr&gt;      &lt;int&gt;
+#&gt; 1 2seater        5
+#&gt; 2 compact       47
+#&gt; 3 midsize       41
+#&gt; 4 minivan       11
+#&gt; 5 pickup        33
+#&gt; 6 subcompact    35
+#&gt; 7 suv           62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_bar()</code> attaches the counting stat, which turns the seven class groups into the seven counts above. <code>count(mpg, class)</code> reproduces the same numbers, confirming the bar heights came from a stat.</p>
+
+</details>
+</section>
+
+<h2>How can you see what a stat computed? (layer_data)</h2>
+
+<p>You just met <code>layer_data()</code>, and it is the single most useful tool for understanding stats. Think of it as an x-ray: it shows you the finished layer, meaning the data table exactly as the geom received it after the stat ran. Any time you are unsure what a geom is drawing, x-ray it.</p>
+
+<p>A boxplot is the perfect example, because it looks simple but hides a lot of arithmetic. When you draw a boxplot, a stat computes a five-number summary for each group: the lower whisker, the lower hinge (25th percentile), the median, the upper hinge (75th percentile), and the upper whisker. Let's build one for highway mileage by drive train, then x-ray it.</p>
+
+<div class="webr-container" data-block-title="Build a boxplot of mileage by drive train">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a boxplot of mileage by drive train</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_box &lt;- ggplot(mpg, aes(x = drv, y = hwy)) +
+  geom_boxplot()
+
+p_box</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows three boxes. Now let's see the numbers the stat calculated to draw them. We pick the columns that map to the visible parts of each box.</p>
+
+<div class="webr-container" data-block-title="X-ray the boxplot statistics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">X-ray the boxplot statistics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">layer_data(p_box)[, c(&quot;x&quot;, &quot;ymin&quot;, &quot;lower&quot;, &quot;middle&quot;, &quot;upper&quot;, &quot;ymax&quot;)]
+#&gt;   x ymin lower middle upper ymax
+#&gt; 1 1   12    17     18    22   28
+#&gt; 2 2   22    26     28    29   33
+#&gt; 3 3   15    17     21    24   26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the first row, drive train <code>4</code> (four-wheel drive). Its box stretches from a lower hinge of 17 to an upper hinge of 22, with a median line at 18, and whiskers reaching down to 12 and up to 28. Every one of those numbers was computed by the boxplot's stat from the raw <code>hwy</code> values. The geom just drew rectangles and lines at the positions the stat handed it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>layer_data() takes a layer number as its second argument.</strong> When a plot has several layers, call layer_data(plot, 1) for the first layer, layer_data(plot, 2) for the second, and so on. With one layer you can leave it off, as we did here.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the boxplot <code>p_box</code> you just built, read off which drive train has the highest median highway mileage. Print just the <code>x</code> and <code>middle</code> columns to make it easy.</p>
+<div class="webr-container" data-block-title="Your turn: find the highest median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the highest median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: show only the x and middle columns from the boxplot's layer_data.
+# Then read which drive train (x = 1 is '4', 2 is 'f', 3 is 'r') has the top median.
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find the highest median solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the highest median solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">layer_data(p_box)[, c(&quot;x&quot;, &quot;middle&quot;)]
+#&gt;   x middle
+#&gt; 1 1     18
+#&gt; 2 2     28
+#&gt; 3 3     21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>middle</code> column is the computed median for each group. Row 2 (<code>x = 2</code>, which is front-wheel drive <code>f</code>) has the highest median at 28 mpg. The stat computed each median; you only read it back.</p>
+
+</details>
+</section>
+
+<h2>Which stat does each geom use by default?</h2>
+
+<p>Every geom ships with a <strong>default stat</strong>, and every stat ships with a default geom. That pairing is what makes ggplot2 feel effortless: you call <code>geom_bar()</code> and the right computation just happens. Understanding these defaults is the key to predicting what any geom will draw.</p>
+
+<p>Here are the most common pairings. Each geom in this table runs its default stat automatically unless you tell it otherwise.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Geom</th>
+<th>Default stat</th>
+<th>What the stat computes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_point()</code></td>
+<td><code>stat_identity</code></td>
+<td>Nothing, draws x and y as given</td>
+</tr>
+<tr>
+<td><code>geom_line()</code></td>
+<td><code>stat_identity</code></td>
+<td>Nothing, connects x and y as given</td>
+</tr>
+<tr>
+<td><code>geom_col()</code></td>
+<td><code>stat_identity</code></td>
+<td>Nothing, you supply the bar heights</td>
+</tr>
+<tr>
+<td><code>geom_bar()</code></td>
+<td><code>stat_count</code></td>
+<td>Count of rows per x category</td>
+</tr>
+<tr>
+<td><code>geom_histogram()</code></td>
+<td><code>stat_bin</code></td>
+<td>Count of rows per x bin</td>
+</tr>
+<tr>
+<td><code>geom_freqpoly()</code></td>
+<td><code>stat_bin</code></td>
+<td>Same bins as a histogram, drawn as a line</td>
+</tr>
+<tr>
+<td><code>geom_boxplot()</code></td>
+<td><code>stat_boxplot</code></td>
+<td>Five-number summary plus outliers</td>
+</tr>
+<tr>
+<td><code>geom_violin()</code></td>
+<td><code>stat_ydensity</code></td>
+<td>Kernel density per group</td>
+</tr>
+<tr>
+<td><code>geom_density()</code></td>
+<td><code>stat_density</code></td>
+<td>Smoothed density curve</td>
+</tr>
+<tr>
+<td><code>geom_smooth()</code></td>
+<td><code>stat_smooth</code></td>
+<td>Fitted trend line and <a class="auto-link" href="ggplot2-geom_ribbon-in-R.html" title="ggplot2 geom_ribbon() in R: Filled Area Between Two Lines">confidence band</a></td>
+</tr>
+<tr>
+<td><code>geom_count()</code></td>
+<td><code>stat_sum</code></td>
+<td>Number of points at each location</td>
+</tr>
+</tbody>
+</table>
+
+<p>Notice that several geoms default to <code>stat_identity</code>. That is the "do nothing" stat: it passes your data straight through without changing it. When you use <code>geom_point()</code>, the x and y you mapped are the x and y that get drawn, untouched.</p>
+
+<p><img src="screenshots/ggplot2-Stat-System-in-R-default-stats.webp" alt="Each geom ships with a default stat that runs unless you override it." class="img-responsive img-zoomable" loading="lazy" width="1022" height="1090" /></p>
+
+<p><em>Figure 2: Each geom ships with a default stat that runs unless you override it.</em></p>
+
+<p>You can override any geom's default stat with the <code>stat</code> argument. The most famous case is turning <code>geom_bar()</code> off its counting behavior. If you already have summarised heights, you set <code>stat = &quot;identity&quot;</code> so the geom draws them as-is instead of counting. Let's prove that <code>geom_bar(stat = &quot;identity&quot;)</code> and <code>geom_col()</code> are two names for the same thing.</p>
+
+<div class="webr-container" data-block-title="Draw pre-summarised heights two ways">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw pre-summarised heights two ways</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">drv_counts &lt;- count(mpg, drv)
+
+# Two ways to draw the same bars:
+plot_identity &lt;- ggplot(drv_counts, aes(x = drv, y = n)) +
+  geom_bar(stat = &quot;identity&quot;)
+
+plot_col &lt;- ggplot(drv_counts, aes(x = drv, y = n)) +
+  geom_col()
+
+plot_col</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both charts are identical. <code>geom_col()</code> is simply a convenient shortcut for <code>geom_bar(stat = &quot;identity&quot;)</code>. The moment you switch the stat to identity, the geom stops counting and just draws the <code>n</code> column you gave it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="ggplot2-Recreation-Challenge.html" title="ggplot2 Recreation Challenge: 12 Plots to Rebuild from Scratch">geom_bar</a> counts, geom_col draws heights you supply.</strong> Reach for geom_bar when you want ggplot2 to <a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> for you, and geom_col (or geom_bar with stat set to identity) when your data already holds the numbers you want as bar heights. Choosing the wrong one is the most common bar-chart mistake in ggplot2.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>mpg</code> dataset has a <code>cyl</code> column (number of cylinders). Count how many cars have each cylinder value, then draw those counts as bars using an identity stat so ggplot2 does not count again.</p>
+<div class="webr-container" data-block-title="Your turn: draw counts with an identity stat">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: draw counts with an identity stat</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: summarise first, then draw with stat = &quot;identity&quot;.
+# Step 1: cyl_counts &lt;- count(mpg, cyl)
+# Step 2: ggplot(cyl_counts, aes(x = cyl, y = n)) + geom_bar(stat = &quot;identity&quot;)
+# Print cyl_counts so you can see the numbers.
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Draw counts with an identity stat solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw counts with an identity stat solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cyl_counts &lt;- count(mpg, cyl)
+cyl_counts
+#&gt; # A tibble: 4 × 2
+#&gt;     cyl     n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     4    81
+#&gt; 2     5     4
+#&gt; 3     6    79
+#&gt; 4     8    70
+
+ggplot(cyl_counts, aes(x = cyl, y = n)) +
+  geom_bar(stat = &quot;identity&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because <code>cyl_counts</code> already holds the heights in column <code>n</code>, we switch off counting with <code>stat = &quot;identity&quot;</code>. If we had used a plain <code>geom_bar()</code> here, it would have counted the four summary rows and drawn four bars of height 1.</p>
+
+</details>
+</section>
+
+<h2>What does stat_bin compute for a histogram?</h2>
+
+<p>A histogram is the clearest case of a geom that is almost entirely stat. There is nothing to draw until the stat slices the x axis into equal-width bins and counts how many observations fall into each one. The geom then draws one rectangle per bin. That slicing-and-counting is the job of <code>stat_bin</code>.</p>
+
+<p>Let's build a histogram of highway mileage. We set <code>binwidth = 5</code>, meaning each bar spans a 5-mpg range, so the bins are easy to read.</p>
+
+<div class="webr-container" data-block-title="Build a histogram with fixed bin width">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a histogram with fixed bin width</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_h &lt;- ggplot(mpg, aes(x = hwy)) +
+  geom_histogram(binwidth = 5)
+
+p_h</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now x-ray it. The bin stat produces a rich table: for each bin it reports the center (<code>x</code>), the edges (<code>xmin</code>, <code>xmax</code>), the <code>count</code> of observations, and the <code>density</code> (count rescaled so the bars would integrate to 1).</p>
+
+<div class="webr-container" data-block-title="X-ray the histogram bins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">X-ray the histogram bins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">layer_data(p_h)[, c(&quot;x&quot;, &quot;xmin&quot;, &quot;xmax&quot;, &quot;count&quot;, &quot;density&quot;)]
+#&gt;    x xmin xmax count      density
+#&gt; 1 10  7.5 12.5     5 0.0042735043
+#&gt; 2 15 12.5 17.5    50 0.0427350427
+#&gt; 3 20 17.5 22.5    43 0.0367521368
+#&gt; 4 25 22.5 27.5    81 0.0692307692
+#&gt; 5 30 27.5 32.5    44 0.0376068376
+#&gt; 6 35 32.5 37.5     8 0.0068376068
+#&gt; 7 40 37.5 42.5     1 0.0008547009
+#&gt; 8 45 42.5 47.5     2 0.0017094017</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the fourth row: the bin from 22.5 to 27.5 mpg is centered at 25 and holds 81 cars, the busiest range in the data. Every bar's height in the plot is one of these <code>count</code> values. The bin stat also computed a <code>density</code> column for each bin, which we will put to use in the next section.</p>
+
+<p>The <code>stat_bin</code> transformation exposes several <strong>computed variables</strong> you can tap into: <code>count</code> (observations per bin), <code>density</code> (count scaled to a probability density), <code>ncount</code> (count scaled so the tallest bar is 1), and <code>ndensity</code> (density scaled the same way). By default the geom uses <code>count</code> for the bar heights, because raw counts are the most natural thing to read.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A histogram with no binwidth defaults to 30 bins and warns you.</strong> If you write <a class="auto-link" href="ggplot2-Getting-Started.html" title="ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed">geom_histogram()</a> with no binwidth or bins argument, ggplot2 uses 30 bins and prints a message asking you to pick a better value. Always set binwidth or bins so your bins match the scale of your data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the highway-mileage histogram with a wider <code>binwidth</code> of 10, then use <code>layer_data()</code> to see how many bins you end up with. Wider bins mean fewer bars.</p>
+<div class="webr-container" data-block-title="Your turn: widen the bins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: widen the bins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: change binwidth to 10 and inspect the resulting bins.
+# Step 1: p_wide &lt;- ggplot(mpg, aes(x = hwy)) + geom_histogram(binwidth = 10)
+# Step 2: layer_data(p_wide)[, c(&quot;x&quot;, &quot;xmin&quot;, &quot;xmax&quot;, &quot;count&quot;)]
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Widen the bins solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Widen the bins solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_wide &lt;- ggplot(mpg, aes(x = hwy)) + geom_histogram(binwidth = 10)
+layer_data(p_wide)[, c(&quot;x&quot;, &quot;xmin&quot;, &quot;xmax&quot;, &quot;count&quot;)]
+#&gt;    x xmin xmax count
+#&gt; 1 10    5   15    17
+#&gt; 2 20   15   25   116
+#&gt; 3 30   25   35    95
+#&gt; 4 40   35   45     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Doubling the bin width from 5 to 10 collapses the data into just four bins instead of eight. The stat recomputed everything: the busiest bin now spans 15 to 25 mpg and holds 116 cars. Bin width is the single most important choice you make with a histogram, because it changes what the stat computes.</p>
+
+</details>
+</section>
+
+<h2>How do you use a stat's other outputs? (after_stat)</h2>
+
+<p>So far we have let each geom use its stat's default output: <code>geom_bar()</code> used <code>count</code>, the histogram used <code>count</code>. But you saw that stats compute several variables, not just one. What if you want the geom to draw a different one, like proportions instead of raw counts? That is exactly what <code>after_stat()</code> is for.</p>
+
+<p>Picture the layer as a two-stage pipeline. In the first stage, before the stat runs, your <code>aes()</code> mapping picks which raw columns to feed in. In the second stage, after the stat runs, its computed variables become available, and <code>after_stat()</code> reaches into that second stage to grab one. The name is literal: it means "map this aesthetic using a value computed after the stat has run".</p>
+
+<p><img src="screenshots/ggplot2-Stat-System-in-R-after-stat-flow.webp" alt="after_stat picks a variable the stat computed and hands it to the geom." class="img-responsive img-zoomable" loading="lazy" width="2248" height="310" /></p>
+
+<p><em>Figure 3: after_stat() reaches back for a variable the stat computed and hands it to the geom.</em></p>
+
+<p>Let's turn our count bar chart into a proportion bar chart. We map the y aesthetic to <code>after_stat(prop)</code>, telling the bar to use the computed proportion for its height instead of the count. We also set <code>group = 1</code>, and you will see in a moment why that matters.</p>
+
+<div class="webr-container" data-block-title="Draw a proportion bar chart with after_stat">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a proportion bar chart with after_stat</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_prop &lt;- ggplot(mpg, aes(x = drv, y = after_stat(prop), group = 1)) +
+  geom_bar()
+
+p_prop</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the bars sum to 1 instead of showing raw counts. Let's x-ray the layer to see the proportions the stat computed.</p>
+
+<div class="webr-container" data-block-title="X-ray the computed proportions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">X-ray the computed proportions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">layer_data(p_prop)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;)]
+#&gt;   x count      prop
+#&gt; 1 1   103 0.4401709
+#&gt; 2 2   106 0.4529915
+#&gt; 3 3    25 0.1068376</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>prop</code> column now reads 0.44, 0.45, and 0.11: front-wheel drive makes up about 45 percent of the cars. Compare this to the very first x-ray in this tutorial, where <code>prop</code> was 1 for every bar. The difference is <code>group = 1</code>. Without it, ggplot2 treats each bar as its own group, so each bar is 100 percent of itself and every proportion is 1. Setting <code>group = 1</code> tells ggplot2 to treat all bars as one group, so the proportions are computed across the whole dataset.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The old dot-dot notation is deprecated in favor of after_stat().</strong> You will see older tutorials write aes(y = ..prop..) or aes(y = ..count..) with two dots on each side. That syntax still works but is retired. Write after_stat(prop) and after_stat(count) instead, which read far more clearly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make a bar chart showing the proportion of cars in each <code>class</code>, using <code>after_stat(prop)</code>. Remember the <code>group = 1</code> trick so the proportions are computed across all classes.</p>
+<div class="webr-container" data-block-title="Your turn: proportion by class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: proportion by class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: a bar chart of class where bar height is the proportion of all cars.
+# Map y = after_stat(prop) and set group = 1 inside aes().
+# Then x-ray with layer_data(...)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;)]
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Proportion by class solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportion by class solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_class_prop &lt;- ggplot(mpg, aes(x = class, y = after_stat(prop), group = 1)) +
+  geom_bar()
+layer_data(p_class_prop)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;)]
+#&gt;   x count       prop
+#&gt; 1 1     5 0.02136752
+#&gt; 2 2    47 0.20085470
+#&gt; 3 3    41 0.17521368
+#&gt; 4 4    11 0.04700855
+#&gt; 5 5    33 0.14102564
+#&gt; 6 6    35 0.14957265
+#&gt; 7 7    62 0.26495726</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The proportions now sum to 1 across the seven classes. SUV (<code>x = 7</code>) is the largest group at about 26 percent, while the 2-seater (<code>x = 1</code>) is just 2 percent. <code>after_stat(prop)</code> pulled the computed proportion out of the counting stat, and <code>group = 1</code> made those proportions relative to the whole dataset.</p>
+
+</details>
+</section>
+
+<h2>Can you run your own function as a stat? (stat_summary)</h2>
+
+<p>The built-in stats cover counting, binning, and density, but sometimes you want a summary they do not offer, like the mean of each group. Rather than <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> your data by hand first, you can hand ggplot2 a function and let it run as the stat. That is what <code>stat_summary()</code> does: it is the bring-your-own-function escape hatch of the stat system.</p>
+
+<p>Let's plot the mean highway mileage for each drive train. We pass <code>fun = mean</code> so the stat applies <code>mean()</code> to the <code>hwy</code> values in each group, and <code>geom = &quot;point&quot;</code> so it draws the result as a dot.</p>
+
+<div class="webr-container" data-block-title="Plot group means with stat_summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot group means with stat_summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_sum &lt;- ggplot(mpg, aes(x = drv, y = hwy)) +
+  stat_summary(fun = mean, geom = &quot;point&quot;)
+
+p_sum</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three dots appear, one per drive train, each sitting at that group's mean mileage. Let's x-ray the layer and confirm those means with a plain dplyr calculation side by side.</p>
+
+<div class="webr-container" data-block-title="X-ray the summary and cross-check with dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">X-ray the summary and cross-check with dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">layer_data(p_sum)[, c(&quot;x&quot;, &quot;y&quot;)]
+#&gt;   x        y
+#&gt; 1 1 19.17476
+#&gt; 2 2 28.16038
+#&gt; 3 3 21.00000
+
+mpg |&gt;
+  group_by(drv) |&gt;
+  summarise(mean_hwy = mean(hwy), .groups = &quot;drop&quot;)
+#&gt; # A tibble: 3 × 2
+#&gt;   drv   mean_hwy
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 4         19.2
+#&gt; 2 f         28.2
+#&gt; 3 r         21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The stat's <code>y</code> values (19.17, 28.16, 21.00) match dplyr's group means exactly. <code>stat_summary()</code> ran <code>mean()</code> for us, grouped by <code>drv</code>, without a separate summarise step.</p>
+
+<p>You are not limited to a single number per group. If your function returns three values (a center plus a lower and upper bound), the stat can draw an interval. The built-in helper <code>mean_se</code> does exactly this: it returns the mean and the mean plus or minus one standard error (a small number that says how precisely the group mean is estimated). Paired with a pointrange geom, it draws a dot with a whisker.</p>
+
+<div class="webr-container" data-block-title="Draw means with error whiskers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw means with error whiskers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_se &lt;- ggplot(mpg, aes(x = drv, y = hwy)) +
+  stat_summary(fun.data = mean_se, geom = &quot;pointrange&quot;)
+
+layer_data(p_se)[, c(&quot;x&quot;, &quot;y&quot;, &quot;ymin&quot;, &quot;ymax&quot;)]
+#&gt;   x        y     ymin     ymax
+#&gt; 1 1 19.17476 18.77287 19.57664
+#&gt; 2 2 28.16038 27.75177 28.56899
+#&gt; 3 3 21.00000 20.26742 21.73258</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now each row carries a <code>y</code> (the mean) plus a <code>ymin</code> and <code>ymax</code> (the standard-error interval). The pointrange geom draws a dot at <code>y</code> with a line from <code>ymin</code> to <code>ymax</code>. The stat did the arithmetic; the geom drew the shape.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use fun for one value, fun.data for three.</strong> Pass fun a function that returns a single number (like mean or median) when you only need a center. Pass fun.data a function that returns y, ymin, and ymax when you want an interval. Mixing them up is the usual reason a stat_summary call fails to draw what you expected.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Plot the <strong>median</strong> highway mileage per drive train as points, using <code>stat_summary()</code> with <code>fun = median</code>. It is the same pattern as the mean example, with one word changed.</p>
+<div class="webr-container" data-block-title="Your turn: plot group medians">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: plot group medians</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: a point at the median hwy of each drv.
+# Use stat_summary(fun = median, geom = &quot;point&quot;).
+# X-ray it with layer_data(...)[, c(&quot;x&quot;, &quot;y&quot;)]
+# Your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Plot group medians solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot group medians solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_med &lt;- ggplot(mpg, aes(x = drv, y = hwy)) +
+  stat_summary(fun = median, geom = &quot;point&quot;)
+layer_data(p_med)[, c(&quot;x&quot;, &quot;y&quot;)]
+#&gt;   x  y
+#&gt; 1 1 18
+#&gt; 2 2 28
+#&gt; 3 3 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Swapping <code>mean</code> for <code>median</code> is the only change. The stat now runs <code>median()</code> on each group's <code>hwy</code> values. Notice the medians (18, 28, 21) differ slightly from the means (19.17, 28.16, 21.00), which tells you the distributions are a little skewed.</p>
+
+</details>
+</section>
+
+<h2>Putting It All Together: A Complete Example</h2>
+
+<p>Let's finish with a chart that uses three ideas from this tutorial at once: a counting stat for bar heights, <code>after_stat()</code> to convert those counts to proportions, and a second geom that reuses the same stat to add percentage labels. The goal is a clean, labelled proportion bar chart of drive trains.</p>
+
+<p>The trick to the labels is that <code>geom_text()</code> can run the same counting stat as the bars. We set <code>stat = &quot;count&quot;</code> on the text layer and map its label to <code>after_stat(prop)</code>, formatted as a percentage. Both layers compute the same proportions independently, so the labels always sit at the right height.</p>
+
+<div class="webr-container" data-block-title="Build a labelled proportion bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a labelled proportion bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = drv)) +
+  geom_bar(aes(y = after_stat(prop), group = 1), fill = &quot;steelblue&quot;) +
+  geom_text(
+    aes(y = after_stat(prop),
+        label = paste0(round(after_stat(prop) * 100), &quot;%&quot;),
+        group = 1),
+    stat = &quot;count&quot;,
+    vjust = -0.5
+  ) +
+  labs(
+    title = &quot;Front and four-wheel drive dominate the mpg data&quot;,
+    x = &quot;Drive train&quot;,
+    y = &quot;Proportion of cars&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result reads at a glance: front-wheel drive is 45 percent of the cars, four-wheel drive 44 percent, and rear-wheel drive just 11 percent. No summarise step, no manual math. Two geoms shared one counting stat, and <code>after_stat(prop)</code> turned raw counts into the proportions and the labels. That is the stat system doing the heavy lifting for you.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine several ideas from the tutorial. Try each one before opening the solution. To avoid overwriting the variables above, the solutions use fresh names.</p>
+
+<h3>Exercise 1: Summarise, then draw with an identity stat</h3>
+
+<p>Compute the mean highway mileage for each <code>class</code> in <code>mpg</code> with dplyr, save it to <code>class_hwy</code>, then draw those means as a bar chart. Because you already have the heights, you must switch the bar geom off its default counting stat.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: class_hwy &lt;- mpg |&gt; group_by(class) |&gt; summarise(mean_hwy = mean(hwy), .groups = &quot;drop&quot;)
+# Step 2: draw class_hwy as bars using an identity stat (or geom_col)
+# Print class_hwy so you can see the numbers.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class_hwy &lt;- mpg |&gt;
+  group_by(class) |&gt;
+  summarise(mean_hwy = mean(hwy), .groups = &quot;drop&quot;)
+
+class_hwy
+#&gt; # A tibble: 7 × 2
+#&gt;   class      mean_hwy
+#&gt;   &lt;chr&gt;         &lt;dbl&gt;
+#&gt; 1 2seater        24.8
+#&gt; 2 compact        28.3
+#&gt; 3 midsize        27.3
+#&gt; 4 minivan        22.4
+#&gt; 5 pickup         16.9
+#&gt; 6 subcompact     28.1
+#&gt; 7 suv            18.1
+
+ggplot(class_hwy, aes(x = class, y = mean_hwy)) +
+  geom_bar(stat = &quot;identity&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The summarise step produces the seven mean values. Because <code>class_hwy</code> already holds heights in <code>mean_hwy</code>, we set <code>stat = &quot;identity&quot;</code> so the geom draws them directly. A plain <code>geom_bar()</code> would have counted the seven summary rows and drawn seven bars of height 1.</p>
+
+</details>
+
+<h3>Exercise 2: A percentage bar chart with after_stat</h3>
+
+<p>Draw a bar chart where each drive train's bar height is its share of all cars, expressed as a proportion. Do not summarise the data first. Instead, map the y aesthetic to a variable the counting stat computes, and remember the group trick so the proportions are relative to the whole dataset.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: bar height = proportion of all cars in each drv.
+# Hint: map y = after_stat(prop) and set group = 1.
+# Verify with layer_data(...)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;)]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_share &lt;- ggplot(mpg, aes(x = drv, y = after_stat(prop), group = 1)) +
+  geom_bar()
+
+layer_data(p_share)[, c(&quot;x&quot;, &quot;count&quot;, &quot;prop&quot;)]
+#&gt;   x count      prop
+#&gt; 1 1   103 0.4401709
+#&gt; 2 2   106 0.4529915
+#&gt; 3 3    25 0.1068376</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>after_stat(prop)</code> pulls the proportion out of the counting stat, and <code>group = 1</code> makes it relative to all 234 cars. The three proportions (0.44, 0.45, 0.11) sum to 1. This is the standard recipe for a relative-frequency bar chart in ggplot2.</p>
+
+</details>
+
+<h3>Exercise 3: Bring your own summary function</h3>
+
+<p>Write a function that takes a numeric vector and returns a one-row data frame with <code>y</code> (the mean), <code>ymin</code> (mean minus one standard deviation), and <code>ymax</code> (mean plus one standard deviation). Then feed it to <code>stat_summary()</code> with <code>fun.data</code> to draw a pointrange of highway mileage by drive train.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: write mean_sd(x) returning data.frame(y = mean, ymin = mean - sd, ymax = mean + sd)
+# Step 2: stat_summary(fun.data = mean_sd, geom = &quot;pointrange&quot;) on hwy by drv
+# Verify with layer_data(...)[, c(&quot;x&quot;, &quot;y&quot;, &quot;ymin&quot;, &quot;ymax&quot;)]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean_sd &lt;- function(x) {
+  m &lt;- mean(x)
+  s &lt;- sd(x)
+  data.frame(y = m, ymin = m - s, ymax = m + s)
+}
+
+p_sd &lt;- ggplot(mpg, aes(x = drv, y = hwy)) +
+  stat_summary(fun.data = mean_sd, geom = &quot;pointrange&quot;)
+
+layer_data(p_sd)[, c(&quot;x&quot;, &quot;y&quot;, &quot;ymin&quot;, &quot;ymax&quot;)]
+#&gt;   x        y     ymin     ymax
+#&gt; 1 1 19.17476 15.09605 23.25346
+#&gt; 2 2 28.16038 23.95350 32.36726
+#&gt; 3 3 21.00000 17.33712 24.66288</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Your <code>mean_sd</code> function returns three numbers per group, which is exactly the shape <code>fun.data</code> expects. The stat runs it on each drive train's <code>hwy</code> values, and the pointrange geom draws a dot at <code>y</code> with a line spanning <code>ymin</code> to <code>ymax</code>. You just built a custom stat without writing any ggplot2 internals.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between a stat and a geom in ggplot2?</h3>
+
+<p>A geom is the shape that gets drawn: a bar, a point, a line. A stat is the computation that runs first and decides what numbers those shapes represent. <code>geom_bar()</code> draws rectangles, but its stat (<code>stat_count</code>) is what counts the rows to set each rectangle's height. Every layer has both: the stat transforms your data, then the geom draws the result.</p>
+
+<h3>Why are all my proportion bars showing a height of 1 (100 percent)?</h3>
+
+<p>This is the most common <code>after_stat(prop)</code> surprise. By default ggplot2 treats each bar as its own group, and each bar is 100 percent of itself, so every proportion comes out as 1. Add <code>group = 1</code> inside <code>aes()</code> to tell ggplot2 to treat all the bars as a single group. The proportions are then computed across the whole dataset, so they sum to 1.</p>
+
+<h3>How do I find out which computed variables a stat provides?</h3>
+
+<p>Two ways. Open the stat's help page (for example <code>?stat_bin</code>) and read its "Computed variables" section, which lists every column the stat makes. Or call <code>layer_data()</code> on a finished plot and look at the column names: every computed variable is a column in that table, so you can discover them by inspection.</p>
+
+<h3>When should I use geom_bar() versus geom_col()?</h3>
+
+<p>Use <code>geom_bar()</code> when you want ggplot2 to count rows for you: one categorical column goes in, bar heights come out. Use <code>geom_col()</code> when your data already holds the heights you want, in a numeric column. <code>geom_col()</code> is exactly <code>geom_bar(stat = &quot;identity&quot;)</code>, which switches off the counting stat so the geom draws the numbers you supply.</p>
+
+<h3>What replaced the old ..count.. and ..prop.. notation?</h3>
+
+<p>Older ggplot2 code wrote <code>aes(y = ..count..)</code> or <code>aes(y = ..prop..)</code>, with two dots on each side, to reach a computed variable. That syntax still runs but is retired. Write <code>after_stat(count)</code> and <code>after_stat(prop)</code> instead, which say plainly that the value comes from after the stat has run.</p>
+
+<h2>Summary</h2>
+
+<p>The stat system is the computation step that turns raw rows into the shapes you see. Once you know it is there, every geom becomes predictable: ask what its stat computes, and you know what it will draw.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stat</td>
+<td>The computation step that runs inside every layer before the geom draws</td>
+</tr>
+<tr>
+<td>Default stat</td>
+<td>Each geom has one: <code>geom_bar</code> counts, <code>geom_histogram</code> bins, <code>geom_point</code> does nothing</td>
+</tr>
+<tr>
+<td><code>stat_identity</code></td>
+<td>The "do nothing" stat, used by <code>geom_point</code>, <code>geom_line</code>, and <code>geom_col</code></td>
+</tr>
+<tr>
+<td><code>layer_data()</code></td>
+<td>X-rays a finished layer to reveal the exact table the geom received</td>
+</tr>
+<tr>
+<td>Computed variables</td>
+<td>Extra columns a stat makes, such as <code>count</code>, <code>prop</code>, <code>density</code></td>
+</tr>
+<tr>
+<td><code>after_stat()</code></td>
+<td>Maps an aesthetic to a computed variable, like <code>y = after_stat(prop)</code></td>
+</tr>
+<tr>
+<td><code>stat = &quot;identity&quot;</code></td>
+<td>Overrides a geom's default stat so it draws values you supply</td>
+</tr>
+<tr>
+<td><code>stat_summary()</code></td>
+<td>Runs your own function as a stat, using <code>fun</code> or <code>fun.data</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/ggplot2-Stat-System-in-R-overview-mindmap.webp" alt="The ggplot2 stat system at a glance." class="img-responsive img-zoomable" loading="lazy" width="1806" height="920" /></p>
+
+<p><em>Figure 4: The ggplot2 stat system at a glance.</em></p>
+
+<p>The next time a geom surprises you, do not guess. Call <code>layer_data()</code> and read exactly what its stat computed. That single habit will make ggplot2 feel transparent instead of magical.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H., Navarro, D., & Pedersen, T. L., <em>ggplot2: Elegant Graphics for Data Analysis (3e)</em>, Chapter 13: Build a plot layer by layer. <a href="https://ggplot2-book.org/layers.html">Link</a></li>
+
+<li>Wickham, H., Navarro, D., & Pedersen, T. L., <em>ggplot2: Elegant Graphics for Data Analysis (3e)</em>, Chapter 5: Statistical summaries. <a href="https://ggplot2-book.org/statistical-summaries.html">Link</a></li>
+
+<li>ggplot2 documentation, Layer statistical transformations (stat reference index). <a href="https://ggplot2.tidyverse.org/reference/layer_stats.html">Link</a></li>
+
+<li>ggplot2 documentation, <code>after_stat()</code>, <code>after_scale()</code>, and <code>stage()</code>. <a href="https://ggplot2.tidyverse.org/reference/aes_eval.html">Link</a></li>
+
+<li>ggplot2 documentation, <code>stat_bin()</code> computed variables reference. <a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html">Link</a></li>
+
+<li>ggplot2 documentation, <code>stat_summary()</code> reference. <a href="https://ggplot2.tidyverse.org/reference/stat_summary.html">Link</a></li>
+
+<li>R Core Team & ggplot2, <code>mpg</code> dataset documentation. <a href="https://ggplot2.tidyverse.org/reference/mpg.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Grammar-of-Graphics.html">The Grammar of Graphics</a>, the layered theory behind ggplot2, and where the stat fits among data, aesthetics, geoms, and scales.</li>
+
+<li><a href="ggplot2-geom_smooth-in-R.html">geom_smooth() in ggplot2</a>, a close look at one specific stat, <code>stat_smooth</code>, which fits a trend line and confidence band.</li>
+
+<li><a href="ggplot2-Distribution-Charts.html">Distribution Charts in ggplot2</a>, histograms, density curves, and boxplots in practice, all powered by the stats you met here.</li>
+
+</ul>
+
+{% endraw %}
