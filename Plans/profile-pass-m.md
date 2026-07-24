@@ -92,3 +92,9 @@ After each: local-rig checks above. After all: full Playwright pass on the CF pr
 (public profile, own view via forged token, mobile 390px, dark mode), then the pass-2
 regression trio (daily API, attempt contract fields, badge-card 404s) to prove no
 regressions, then merge decision to owner.
+
+## Flagged follow-up (owner, 2026-07-24)
+certifications.html needs a complete redo (owner: "we need to completely redo that url").
+Interim: homepage hellobar points at /roadmap/new-to-r.html instead. Scope the redesign
+after pass M ships: the page should sell the credential (proof artifacts, free-vs-Pro
+tracks, verify flow) rather than list tracks.
