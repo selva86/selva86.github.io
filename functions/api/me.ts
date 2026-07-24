@@ -16,7 +16,7 @@ import { json } from "../_lib/errors";
 import { getUserById, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
 import { resolvePro } from "../_lib/entitlement";
 import { notifyNewSignup, flushPendingSignup } from "../_lib/notify";
-import { ensureHandle } from "../_lib/profile";
+import { ensureHandle, ensureProfileColumns } from "../_lib/profile";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   let u = context.data.user;
@@ -65,6 +65,27 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   if (u.created_at && Date.now() / 1000 - u.created_at < 48 * 3600) {
     const uid = u.id;
     context.waitUntil(flushPendingSignup(context.env, uid));
+  }
+
+  // Verified GitHub link for the learner profile: users who authenticated via
+  // GitHub carry their login in the JWT metadata. Written once (column NULL),
+  // so this costs nothing at steady state.
+  if (!(u as { github_login?: string }).github_login && payload) {
+    const app = (payload.app_metadata ?? {}) as { provider?: string; providers?: string[] };
+    const viaGithub = app.provider === "github" || (app.providers || []).includes("github");
+    const meta3 = (payload.user_metadata ?? {}) as { user_name?: string; preferred_username?: string };
+    const login = viaGithub ? (meta3.user_name || meta3.preferred_username || "").trim() : "";
+    if (login && /^[a-zA-Z0-9-]{1,39}$/.test(login)) {
+      const uid2 = u.id;
+      context.waitUntil((async () => {
+        try {
+          await ensureProfileColumns(context.env.DB);
+          await context.env.DB.prepare(
+            "UPDATE users SET github_login = ?1 WHERE id = ?2 AND github_login IS NULL"
+          ).bind(login, uid2).run();
+        } catch { /* best effort */ }
+      })());
+    }
   }
 
   // Newsletter consent sync, self-healing (Phase 6/A): if signup metadata
