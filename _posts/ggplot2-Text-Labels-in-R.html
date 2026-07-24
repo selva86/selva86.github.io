@@ -1,0 +1,938 @@
+---
+title: "Text Labels in ggplot2: geom_text, geom_label and ggrepel"
+description: "Add text labels to ggplot2 charts in R. Use geom_text() and geom_label() to label points, then ggrepel to stop labels overlapping with tidy leader lines."
+keywords: "geom_text in R, geom_label in R, ggrepel, ggplot2 text labels, label points ggplot2, geom_text_repel, avoid overlapping labels ggplot2, aes label ggplot2"
+mathjax: false
+webr: true
+curriculum_id: "GG2-2.6"
+post_type: "C"
+auto_link_terms: "geom_text|geom_label|geom_text_repel|geom_label_repel|ggrepel|text labels in ggplot2|label points in ggplot2|repel labels|overlapping labels|check_overlap|nudge_x|nudge_y|labelling points"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Text Labels in ggplot2"
+sidebar_order: "17"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A text label prints a data point's name right on the chart, so the reader sees <em>which</em> point is which without hunting through a legend. In ggplot2 you make one by mapping a column to the <code>label</code> aesthetic, then adding <code>geom_text()</code> for plain words, <code>geom_label()</code> for words in a tidy box, or a <code>ggrepel</code> geom when the labels start to collide.</p>
+
+<p>This tutorial builds all three from scratch. You will label a handful of points, box those labels for busy backgrounds, style and nudge them into place, thin out a crowded chart, and finally let the <code>ggrepel</code> package space every label apart automatically with neat leader lines. Everything uses the tidyverse (<code>ggplot2</code> with a little <code>dplyr</code>, plus <code>ggrepel</code> at the end), the code runs right here in your browser, and every output you see is the real result of running the block. If you can read a scatter plot, you already know enough to begin.</p>
+
+<h2>How do you add a text label with geom_text()?</h2>
+
+<p>A labelled point needs two things: a place to sit and a word to show. The place comes from the same <code>x</code> and <code>y</code> you already give every ggplot. The word comes from a new mapping, <code>aes(label = ...)</code>, which hands one piece of text to each row of your data. That single idea is the whole foundation, so let's see it work before we pick it apart.</p>
+
+<p>We will use <code>mtcars</code>, a small dataset of 32 cars that ships with R, so there is nothing to download. The car names live in the row names rather than in a normal column, so our first job is to copy them into a real column called <code>car</code> that ggplot can map to. Let's do that and look at the result.</p>
+
+<div class="webr-container" data-block-title="Load libraries and build a labelled dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and build a labelled dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+# mtcars keeps the car names as row names; copy them into a real column
+cars &lt;- mtcars |&gt;
+  mutate(car = rownames(mtcars)) |&gt;
+  select(car, mpg, wt, hp, cyl)
+
+head(cars)
+#&gt;                                 car  mpg    wt  hp cyl
+#&gt; Mazda RX4                 Mazda RX4 21.0 2.620 110   6
+#&gt; Mazda RX4 Wag         Mazda RX4 Wag 21.0 2.875 110   6
+#&gt; Datsun 710               Datsun 710 22.8 2.320  93   4
+#&gt; Hornet 4 Drive       Hornet 4 Drive 21.4 3.215 110   6
+#&gt; Hornet Sportabout Hornet Sportabout 18.7 3.440 175   8
+#&gt; Valiant                     Valiant 18.1 3.460 105   6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one car, with its miles per gallon (<code>mpg</code>), weight in thousands of pounds (<code>wt</code>), horsepower (<code>hp</code>), and cylinder count (<code>cyl</code>). The new <code>car</code> column holds the name we want to print on the chart.</p>
+
+<p>Labelling all 32 cars at once would be a mess, and later we will fix exactly that mess. For now, let's start clean with just the six most fuel-efficient cars so the idea is easy to see. We sort by <code>mpg</code> in descending order and keep the top six.</p>
+
+<div class="webr-container" data-block-title="Keep the six most efficient cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the six most efficient cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top_cars &lt;- cars |&gt;
+  arrange(desc(mpg)) |&gt;
+  head(6)
+
+top_cars
+#&gt;                           car  mpg    wt  hp cyl
+#&gt; Toyota Corolla Toyota Corolla 33.9 1.835  65   4
+#&gt; Fiat 128             Fiat 128 32.4 2.200  66   4
+#&gt; Honda Civic       Honda Civic 30.4 1.615  52   4
+#&gt; Lotus Europa     Lotus Europa 30.4 1.513 113   4
+#&gt; Fiat X1-9           Fiat X1-9 27.3 1.935  66   4
+#&gt; Porsche 914-2   Porsche 914-2 26.0 2.140  91   4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the payoff. We plot weight against fuel economy with <code>geom_point()</code>, then add a <code>geom_text()</code> layer whose only new job is to map <code>car</code> to the <code>label</code> aesthetic. Watch how each point gains its own name.</p>
+
+<div class="webr-container" data-block-title="Add point labels with geom_text">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add point labels with geom_text</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and every point now carries the car's name printed on top of it. The <code>geom_point()</code> layer draws the dots, and <code>geom_text()</code> draws the words at the exact same <code>wt</code> and <code>mpg</code> coordinates. The one line that matters is <code>aes(label = car)</code>: it tells ggplot to read the <code>car</code> column and stamp each row's value at that row's position.</p>
+
+<p><img src="screenshots/ggplot2-Text-Labels-in-R-label-aesthetic.webp" alt="Mapping a column to the label aesthetic gives one label per row, drawn at each point" class="img-responsive img-zoomable" loading="lazy" width="1930" height="394" /></p>
+
+<p><em>Figure 1: Mapping a column to the label aesthetic gives one label per row, drawn at each point.</em></p>
+
+<p>You can see the catch already: the text sits right on top of the dots, centred over each point, so the words and the markers overlap and both get harder to read. Fixing that placement is the next few sections. But the mechanism is now yours, and it never changes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The label aesthetic is the whole trick: one column in, one label per row out.</strong> Map a column to <code>label</code> and ggplot draws that row's text at that row's x and y. Every function in this tutorial, boxes and repelling included, is just a different way of drawing those same mapped labels.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The labels sit centred on the points. Add <code>vjust = -0.6</code> to the <code>geom_text()</code> call to lift every label just above its dot, so the words and points stop overlapping.</p>
+<div class="webr-container" data-block-title="Your turn: lift the labels above the points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lift the labels above the points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add vjust = -0.6 inside geom_text() and run it.
+ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Labels lifted above each point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Labels lifted above each point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car), vjust = -0.6)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>vjust</code> sets the vertical anchor of the text. A negative value pushes the label upward, off the dot, so the point stays visible underneath. We will unpack <code>vjust</code> properly in the styling section.</p>
+
+</details>
+</section>
+
+<h2>What is the difference between geom_text() and geom_label()?</h2>
+
+<p><code>geom_text()</code> prints bare words. That is perfect on a plain white background, but the moment your labels sit over gridlines, other points, or a coloured fill, they get hard to read. <code>geom_label()</code> solves this by drawing each label inside a small rounded rectangle, a little card that separates the text from whatever is behind it.</p>
+
+<p>The swap is a one-word change: replace <code>geom_text</code> with <code>geom_label</code> and keep the exact same <code>aes(label = car)</code> mapping. Let's see the same six cars again, now boxed.</p>
+
+<div class="webr-container" data-block-title="Swap geom_text for geom_label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Swap geom_text for geom_label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_label(aes(label = car), vjust = -0.4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each name now sits in its own white card with a thin border. The card gives the text a solid backing, which is exactly what you want when the plot behind it is busy. The trade is space: boxes are bigger than bare words, so they crowd faster.</p>
+
+<p><img src="screenshots/ggplot2-Text-Labels-in-R-geom-family.webp" alt="geom_text draws plain text, geom_label boxes it, and ggrepel spaces labels apart" class="img-responsive img-zoomable" loading="lazy" width="816" height="986" /></p>
+
+<p><em>Figure 2: geom_text draws plain text, geom_label boxes it, and ggrepel spaces labels apart.</em></p>
+
+<p>The card itself is stylable. A handful of arguments unique to <code>geom_label()</code> control how it looks, and the most useful ones are worth knowing.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fill</code></td>
+<td>The background colour of the box</td>
+</tr>
+<tr>
+<td><code>colour</code></td>
+<td>The colour of the text (and border)</td>
+</tr>
+<tr>
+<td><code>label.padding</code></td>
+<td>The space between the text and the box edge</td>
+</tr>
+<tr>
+<td><code>label.r</code></td>
+<td>The corner radius (how rounded the box is)</td>
+</tr>
+<tr>
+<td><code>alpha</code></td>
+<td>The box transparency, from 0 (clear) to 1 (solid)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's tune all of them at once so you can see each effect. We give the box a soft blue fill, dark blue text, a touch more padding, gently rounded corners, and a hint of transparency so anything behind it is not fully hidden.</p>
+
+<div class="webr-container" data-block-title="Style the label box">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Style the label box</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_label(aes(label = car),
+             vjust = -0.4,
+             fill = &quot;#eaf3fb&quot;,
+             colour = &quot;#12507b&quot;,
+             label.padding = unit(0.3, &quot;lines&quot;),
+             label.r = unit(0.4, &quot;lines&quot;),
+             alpha = 0.9)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a set of clean, readable cards that would survive being dropped onto a coloured or cluttered plot. Notice that <code>fill</code>, <code>label.padding</code>, and <code>label.r</code> sit outside <code>aes()</code>: they are fixed styling for every box, not values read from a column, so they go straight into the <code>geom_label()</code> call as plain arguments.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <a class="auto-link" href="ggplot2-Labels-and-Annotations.html" title="ggplot2 Labels and Annotations: Add Context Without Cluttering Your Chart">geom_label()</a> when the background is busy, and <a class="auto-link" href="ggplot2-geom_text-in-R.html" title="ggplot2 geom_text() in R: Add Text Labels to a Plot">geom_text()</a> when it is not.</strong> The box buys readability at the cost of ink and space. On a plain plot with room to breathe, bare <code>geom_text()</code> is cleaner; over gridlines, dense points, or a fill, the boxed <code>geom_label()</code> wins.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Give the box a soft yellow fill (<code>#fff3cd</code>) and make it slightly see-through with <code>alpha = 0.85</code>, so the gridlines faintly show through.</p>
+<div class="webr-container" data-block-title="Your turn: recolour and soften the box">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recolour and soften the box</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set fill = &quot;#fff3cd&quot; and alpha = 0.85 inside geom_label().
+ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_label(aes(label = car), vjust = -0.4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Soft yellow, semi-transparent box">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Soft yellow, semi-transparent box</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_label(aes(label = car), vjust = -0.4,
+             fill = &quot;#fff3cd&quot;, alpha = 0.85)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fill</code> sets the card colour and <code>alpha</code> sets how solid it is. A value near 0.85 keeps the text legible while letting the plot faintly through, which stops the boxes from feeling like opaque stickers.</p>
+
+</details>
+</section>
+
+<h2>How do you style and position label text?</h2>
+
+<p>Text labels take the same styling arguments whether they are boxed or bare. Three cover almost everything: <code>size</code> sets the text size, <code>colour</code> sets its colour, and <code>fontface</code> picks the weight, one of <code>&quot;plain&quot;</code>, <code>&quot;bold&quot;</code>, <code>&quot;italic&quot;</code>, or <code>&quot;bold.italic&quot;</code>. Because these are fixed styles rather than data, they go outside <code>aes()</code>. Let's make the labels bold, red, and a little larger.</p>
+
+<div class="webr-container" data-block-title="Style the text: size, colour, and weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Style the text: size, colour, and weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car),
+            size = 3.2,
+            colour = &quot;#c0392b&quot;,
+            fontface = &quot;bold&quot;,
+            vjust = -0.6)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every name is now bold red and sits just above its point. That handles how the text looks. The harder question is where it sits, and for that you need <code>hjust</code> and <code>vjust</code>.</p>
+
+<p>Think of every label as pinned to its point by an anchor. <code>hjust</code> slides the text left or right relative to that anchor, and <code>vjust</code> slides it up or down. Both take a number from 0 to 1, and it helps to read them as "which part of the text sits on the point."</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Value</th>
+<th><code>hjust</code> (horizontal)</th>
+<th><code>vjust</code> (vertical)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Left edge on the point (text runs right)</td>
+<td>Bottom on the point (text runs up)</td>
+</tr>
+<tr>
+<td>0.5</td>
+<td>Centred on the point</td>
+<td>Centred on the point</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Right edge on the point (text runs left)</td>
+<td>Top on the point (text runs down)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Values just outside 0 to 1, like the <code>-0.6</code> we used earlier, push the text a little further off the point in that direction. That is why <code>vjust = -0.6</code> lifts a label clear of its dot. Let's use <code>hjust = 0</code> to left-anchor the labels so they run rightward, then add a small <code>nudge_x</code> so they start a hair to the right of each point instead of on top of it.</p>
+
+<div class="webr-container" data-block-title="Left-anchor labels and nudge them right">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Left-anchor labels and nudge them right</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car), hjust = 0, nudge_x = 0.08) +
+  xlim(1.5, 3.2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The labels now sit to the right of their points and read cleanly outward. Two different tools did two different jobs here, and the distinction matters. <code>hjust = 0</code> changed how the text is anchored to its point, and <code>nudge_x = 0.08</code> shifted the whole label a fixed distance across the x axis. The <code>xlim(1.5, 3.2)</code> call simply widens the plot so the rightmost labels do not run off the edge.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use nudge_x and nudge_y to move a label, and hjust and vjust to re-anchor it.</strong> Nudging shifts the whole label by a fixed amount in data units while keeping its shape; justification changes which part of the text lands on the point. Reaching for the right one saves a lot of fiddling.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Lift every label a fixed amount above its point using <code>nudge_y = 1.2</code> instead of <code>vjust</code>. Notice how the labels move up together by the same distance.</p>
+<div class="webr-container" data-block-title="Your turn: nudge every label upward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: nudge every label upward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add nudge_y = 1.2 inside geom_text() and run it.
+ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Labels nudged up by a fixed amount">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Labels nudged up by a fixed amount</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(top_cars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car), nudge_y = 1.2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nudge_y</code> shifts every label up the y axis by 1.2 units (here, 1.2 miles per gallon). Because it moves all labels by the same fixed amount, the spacing between them and their points stays even.</p>
+
+</details>
+</section>
+
+<h2>How do you stop labels from piling up?</h2>
+
+<p>Everything so far used six carefully chosen cars. Real charts are rarely that kind. The instant you try to label all 32 cars, the names overlap so heavily that the chart becomes unreadable. There are two cheap fixes to try before reaching for a package, and it is worth seeing both.</p>
+
+<p>The first is <code>check_overlap = TRUE</code>, a built-in argument of <code>geom_text()</code>. It walks through the labels and skips drawing any that would collide with one already placed. Let's throw the full dataset at it.</p>
+
+<div class="webr-container" data-block-title="Thin overlapping labels with check_overlap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Thin overlapping labels with check_overlap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey40&quot;) +
+  geom_text(aes(label = car), check_overlap = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot is readable, but look closely and many cars have no label at all. That is <code>check_overlap</code> doing its job: when two labels would touch, it keeps the first and quietly drops the second.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>check_overlap silently drops labels, and you do not choose which ones survive.</strong> It keeps whichever label it reached first and discards the collider, with no warning and no say from you. That is fine for a rough look, but dangerous if the label that vanishes is the one your reader most needed to see.</div></div>
+
+<p>The second fix puts you back in control: only label the points that matter. Most of the time you do not want all 32 names, you want the interesting few. The pattern is to filter your data down to those rows, then add a <code>geom_text()</code> layer that reads from that smaller table using its own <code>data =</code> argument. Let's pick out the genuinely thrifty cars, those above 28 miles per gallon.</p>
+
+<div class="webr-container" data-block-title="Filter to the points worth labelling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter to the points worth labelling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">to_label &lt;- cars |&gt; filter(mpg &gt; 28)
+to_label
+#&gt;                           car  mpg    wt  hp cyl
+#&gt; Fiat 128             Fiat 128 32.4 2.200  66   4
+#&gt; Honda Civic       Honda Civic 30.4 1.615  52   4
+#&gt; Toyota Corolla Toyota Corolla 33.9 1.835  65   4
+#&gt; Lotus Europa     Lotus Europa 30.4 1.513 113   4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four cars clear the bar. Now we draw all 32 points in grey for context, then label only those four by pointing a second <code>geom_text()</code> layer at the <code>to_label</code> table. The base layer uses the full <code>cars</code> data; the text layer overrides it with <code>data = to_label</code>.</p>
+
+<div class="webr-container" data-block-title="Label only the filtered points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label only the filtered points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey60&quot;) +
+  geom_text(data = to_label, aes(label = car), vjust = -0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chart stays uncluttered, every point is still visible for context, and the four names you care about stand out. This layered approach, a full background plus a labelled subset, is the single most useful labelling habit you can build. It is how most polished, real-world charts get made.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make the four labelled cars pop by also drawing them as larger red points. Add a second <code>geom_point()</code> layer that reads from <code>to_label</code>, with <code>colour = &quot;#c0392b&quot;</code> and <code>size = 2.5</code>, before the text layer.</p>
+<div class="webr-container" data-block-title="Your turn: highlight the labelled points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: highlight the labelled points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add geom_point(data = to_label, colour = &quot;#c0392b&quot;, size = 2.5)
+ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey60&quot;) +
+  geom_text(data = to_label, aes(label = car), colour = &quot;#c0392b&quot;, vjust = -0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Highlighted points plus matching labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Highlighted points plus matching labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey60&quot;) +
+  geom_point(data = to_label, colour = &quot;#c0392b&quot;, size = 2.5) +
+  geom_text(data = to_label, aes(label = car), colour = &quot;#c0392b&quot;, vjust = -0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The second <code>geom_point()</code> layer redraws just the four filtered cars in red on top of the grey base, and the matching red text ties name to marker. Layering separate <code>data =</code> subsets like this is how you direct the reader's eye.</p>
+
+</details>
+</section>
+
+<h2>How does ggrepel space labels out automatically?</h2>
+
+<p>Filtering and <code>check_overlap</code> only go so far. When you truly need many labels on one plot and cannot afford to lose any, the answer is the <code>ggrepel</code> package. It adds two drop-in replacements, <code>geom_text_repel()</code> and <code>geom_label_repel()</code>, that nudge every label away from its neighbours and from the points, then draw a thin leader line connecting each label back to where it belongs.</p>
+
+<p>Load the package once, then use <code>geom_text_repel()</code> exactly like <code>geom_text()</code>. One extra step matters: <code>ggrepel</code> uses a dash of randomness to search for a non-overlapping arrangement, so calling <code>set.seed()</code> first locks in the same layout every time you run the code.</p>
+
+<div class="webr-container" data-block-title="Space labels apart with ggrepel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Space labels apart with ggrepel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggrepel)
+
+set.seed(42)
+ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;grey40&quot;) +
+  geom_text_repel(aes(label = car), size = 3, max.overlaps = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All 32 names now sit in clear space, each tethered to its point by a faint line. No label lands on another, and nothing was silently dropped. This is the payoff <code>check_overlap</code> could not give you: every label kept, every one readable.</p>
+
+<p>A few arguments control how hard <code>ggrepel</code> pushes and how the leader lines look. These are the ones you will actually reach for.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>box.padding</code></td>
+<td>How much empty space to keep around each label</td>
+</tr>
+<tr>
+<td><code>point.padding</code></td>
+<td>How far to keep labels from the points themselves</td>
+</tr>
+<tr>
+<td><code>min.segment.length</code></td>
+<td>Shortest leader line to draw (set to 0 to always draw one)</td>
+</tr>
+<tr>
+<td><code>segment.color</code></td>
+<td>Colour of the leader lines</td>
+</tr>
+<tr>
+<td><code>max.overlaps</code></td>
+<td>How many labels to allow before dropping the rest</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td>Fixes the layout, an alternative to a separate <code>set.seed()</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Set a seed before any repel geom, or your chart reshuffles every render.</strong> ggrepel searches for a tidy arrangement using randomness, so the same code can place labels differently on each run. Calling <code>set.seed()</code> first, or passing <code>seed =</code> to the geom, freezes one good layout so your figure is reproducible.</div></div>
+
+<p>Boxed repelling works the same way through <code>geom_label_repel()</code>. Let's combine it with the subset trick from the last section: draw all points, but repel-label only the four efficient cars, with padded boxes and a visible leader line to each.</p>
+
+<div class="webr-container" data-block-title="Boxed, repelled labels on a subset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxed, repelled labels on a subset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(colour = &quot;#2c7fb8&quot;) +
+  geom_label_repel(data = to_label, aes(label = car),
+                   box.padding = 0.5,
+                   point.padding = 0.3,
+                   segment.color = &quot;grey50&quot;,
+                   min.segment.length = 0,
+                   fill = &quot;#eaf3fb&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each of the four cars gets a soft blue card, pushed clear of its point and joined to it by a short grey line. Because we set <code>min.segment.length = 0</code>, every label draws a connector even when it sits close to its point, which removes any doubt about which label belongs to which dot.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>max.overlaps defaults to 10, so extra labels are dropped past that.</strong> If ggrepel prints a note about unlabelled points, it hit that ceiling. Raise <code>max.overlaps</code> (we used 12 above) or, better, filter to fewer labels. A chart that needs 30 repelled labels usually needs a different design, not a higher limit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> On a horsepower versus fuel-economy plot, repel-label only the muscle cars with more than 200 horsepower. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> inside the layer with <code>data = filter(cars, hp &gt; 200)</code> and remember to set a seed.</p>
+<div class="webr-container" data-block-title="Your turn: repel-label the powerful cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: repel-label the powerful cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set a seed, then label only cars where hp &gt; 200 using geom_text_repel().
+set.seed(1)
+ggplot(cars, aes(x = hp, y = mpg)) +
+  geom_point(colour = &quot;grey40&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Repelled labels for high-horsepower cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repelled labels for high-horsepower cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ggplot(cars, aes(x = hp, y = mpg)) +
+  geom_point(colour = &quot;grey40&quot;) +
+  geom_text_repel(data = filter(cars, hp &gt; 200),
+                  aes(label = car), size = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Filtering inside the layer's <code>data =</code> keeps the base scatter intact while labelling only the high-horsepower cars. <code>geom_text_repel()</code> then spaces those few names apart and links each to its point, no manual nudging required.</p>
+
+</details>
+</section>
+
+<h2>Putting It All Together: A Highlighted, Labelled Scatter</h2>
+
+<p>Let's combine every idea into one publication-style chart: a full scatter for context, the standout cars picked out in red and sized by horsepower, boxed repelled labels for just those standouts, and a clean theme. First we choose the cars to highlight, the very efficient or the very powerful, then build the plot in layers.</p>
+
+<div class="webr-container" data-block-title="Select the cars worth highlighting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Select the cars worth highlighting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">highlight &lt;- cars |&gt; filter(mpg &gt; 30 | hp &gt; 250)
+highlight
+#&gt;                           car  mpg    wt  hp cyl
+#&gt; Fiat 128             Fiat 128 32.4 2.200  66   4
+#&gt; Honda Civic       Honda Civic 30.4 1.615  52   4
+#&gt; Toyota Corolla Toyota Corolla 33.9 1.835  65   4
+#&gt; Lotus Europa     Lotus Europa 30.4 1.513 113   4
+#&gt; Ford Pantera L Ford Pantera L 15.8 3.170 264   8
+#&gt; Maserati Bora   Maserati Bora 15.0 3.570 335   8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six cars make the cut: four thrifty ones and two powerful ones. Now we assemble the final figure. Every technique from this tutorial appears here, layered from background to foreground.</p>
+
+<div class="webr-container" data-block-title="Assemble the final labelled chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assemble the final labelled chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+ggplot(cars, aes(x = wt, y = mpg)) +
+  geom_point(aes(size = hp), colour = &quot;grey65&quot;, alpha = 0.8) +
+  geom_point(data = highlight, aes(size = hp), colour = &quot;#c0392b&quot;) +
+  geom_label_repel(data = highlight, aes(label = car),
+                   box.padding = 0.6,
+                   min.segment.length = 0,
+                   segment.color = &quot;grey50&quot;,
+                   fill = &quot;#fff5f5&quot;,
+                   colour = &quot;#c0392b&quot;,
+                   size = 3.2) +
+  labs(title = &quot;Fuel economy vs weight, standouts labelled&quot;,
+       x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;, size = &quot;Horsepower&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chart reads at a glance: grey dots give the full picture, red dots mark the cars that matter, their sizes encode horsepower, and the repelled red cards name each one without a single collision. That is the whole workflow, a grey base plus a labelled, highlighted subset, which is how most finished charts with labels are actually built.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These pull together the pieces above. Each starter block runs as-is so you can build up from it. Distinct variable names keep your work from clashing with the tutorial's.</p>
+
+<h3>Exercise 1: Label the three heaviest cars</h3>
+
+<p>On a scatter of weight (<code>wt</code>) against horsepower (<code>hp</code>) for all cars, label only the three heaviest cars using boxed labels. Sort by <code>wt</code>, keep the top three in a table called <code>heaviest</code>, then add a <code>geom_label()</code> layer that reads from it.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: label the heaviest three">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: label the heaviest three</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: heaviest &lt;- cars |&gt; arrange(desc(wt)) |&gt; head(3)
+# Then geom_label(data = heaviest, aes(label = car), ...)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">heaviest &lt;- cars |&gt; arrange(desc(wt)) |&gt; head(3)
+heaviest
+#&gt;                                     car  mpg    wt  hp cyl
+#&gt; Lincoln Continental Lincoln Continental 10.4 5.424 215   8
+#&gt; Chrysler Imperial     Chrysler Imperial 14.7 5.345 230   8
+#&gt; Cadillac Fleetwood   Cadillac Fleetwood 10.4 5.250 205   8
+
+ggplot(cars, aes(x = wt, y = hp)) +
+  geom_point(colour = &quot;grey60&quot;) +
+  geom_label(data = heaviest, aes(label = car), vjust = -0.4, fill = &quot;#eaf3fb&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>arrange(desc(wt)) |&gt; head(3)</code> grabs the three heaviest cars. Pointing <code>geom_label()</code> at that subset with <code>data = heaviest</code> labels only those three while the full scatter stays as grey context.</p>
+
+</details>
+
+<h3>Exercise 2: Space out the muscle cars with ggrepel</h3>
+
+<p>Plot horsepower against fuel economy for all cars, then use <code>geom_text_repel()</code> to label every car with more than 200 horsepower. Give the labels breathing room with <code>box.padding = 0.5</code>, always draw a leader line with <code>min.segment.length = 0</code>, and set a seed so the layout is reproducible.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: repel the high-horsepower cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: repel the high-horsepower cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter first, then geom_text_repel(data = powerful, aes(label = car), ...)
+set.seed(99)
+ggplot(cars, aes(x = hp, y = mpg)) +
+  geom_point(colour = &quot;grey55&quot;)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+powerful &lt;- cars |&gt; filter(hp &gt; 200)
+powerful
+#&gt;                                     car  mpg    wt  hp cyl
+#&gt; Duster 360                   Duster 360 14.3 3.570 245   8
+#&gt; Cadillac Fleetwood   Cadillac Fleetwood 10.4 5.250 205   8
+#&gt; Lincoln Continental Lincoln Continental 10.4 5.424 215   8
+#&gt; Chrysler Imperial     Chrysler Imperial 14.7 5.345 230   8
+#&gt; Camaro Z28                   Camaro Z28 13.3 3.840 245   8
+#&gt; Ford Pantera L           Ford Pantera L 15.8 3.170 264   8
+#&gt; Maserati Bora             Maserati Bora 15.0 3.570 335   8
+
+ggplot(cars, aes(x = hp, y = mpg)) +
+  geom_point(colour = &quot;grey55&quot;) +
+  geom_text_repel(data = powerful, aes(label = car),
+                  box.padding = 0.5, min.segment.length = 0,
+                  segment.color = &quot;grey60&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Seven cars clear 200 horsepower. <code>geom_text_repel()</code> spreads their names into open space and draws a connector to each point, while <code>box.padding</code> keeps the labels from crowding. The seed guarantees the same tidy arrangement on every run.</p>
+
+</details>
+
+<h3>Exercise 3: Colour and label the efficient cars</h3>
+
+<p>Colour every point by whether its <code>mpg</code> is above 25, then repel-label only the efficient cars in a matching green. Build a helper column with <code>mutate(efficient = mpg &gt; 25)</code>, map <code>colour = efficient</code>, and label the efficient subset with <code>geom_text_repel()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: colour by group and label one group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: colour by group and label one group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: cars2 &lt;- cars |&gt; mutate(efficient = mpg &gt; 25)
+# Map colour = efficient, then label filter(cars2, efficient)
+set.seed(303)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+cars2 &lt;- cars |&gt; mutate(efficient = mpg &gt; 25)
+
+ggplot(cars2, aes(x = wt, y = mpg, colour = efficient)) +
+  geom_point(size = 2) +
+  geom_text_repel(data = filter(cars2, efficient),
+                  aes(label = car), colour = &quot;#1a7f37&quot;, size = 3) +
+  scale_colour_manual(values = c(&quot;FALSE&quot; = &quot;grey65&quot;, &quot;TRUE&quot; = &quot;#1a7f37&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>efficient</code> column splits the cars into two colour groups, <code>scale_colour_manual()</code> paints the inefficient ones grey and the efficient ones green, and <code>geom_text_repel()</code> labels only the green group. Setting the label <code>colour</code> outside <code>aes()</code> keeps the text green to match its points.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use annotate() instead of geom_text()?</h3>
+
+<p>Use <code>geom_text()</code> when the labels come from your data, one per row. Use <code>annotate(&quot;text&quot;, x = ..., y = ..., label = &quot;...&quot;)</code> when you want to place a single fixed piece of text, like a caption or a note, at a specific spot. The giveaway is the source: a column means <code>geom_text()</code>, a hand-typed string at a chosen position means <code>annotate()</code>.</p>
+
+<h3>Why does every label show the same text?</h3>
+
+<p>Almost always because the <code>label</code> argument sits outside <code>aes()</code>. Writing <code>geom_text(label = car)</code> treats <code>car</code> as one fixed value, so every point gets the same thing. It must be <code>geom_text(aes(label = car))</code> so ggplot reads the column row by row.</p>
+
+<h3>How do I label points with formatted numbers, like percentages?</h3>
+
+<p>Build the label text inside the <code>aes()</code> mapping. For example, <code>aes(label = paste0(mpg, &quot; mpg&quot;))</code> prints "21 mpg" at each point, and the <code>scales</code> package helps for money or percentages, as in <code>aes(label = scales::dollar(price))</code>. Any expression that returns one string per row works as a label.</p>
+
+<h3>My labels get cut off at the plot edge. How do I fix it?</h3>
+
+<p>The label extends past the panel because the axis stops right at the point. Widen the axis with <code>xlim()</code> or <code>ylim()</code>, or add breathing room with <code>scale_x_continuous(expand = expansion(mult = 0.1))</code>. The <code>ggrepel</code> geoms also pull labels inward automatically, which sidesteps the problem entirely.</p>
+
+<h2>Summary</h2>
+
+<p>Text labels turn anonymous points into a chart your reader can name at a glance. The mechanism never changes, <code>aes(label = column)</code>, and the three geoms simply draw those mapped labels in different ways.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it adds</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_text()</code></td>
+<td>Plain text at each point</td>
+<td>The background is clean and simple</td>
+</tr>
+<tr>
+<td><code>geom_label()</code></td>
+<td>Text inside a filled box</td>
+<td>The background is busy and text needs backing</td>
+</tr>
+<tr>
+<td><code>geom_text_repel()</code></td>
+<td>Plain text, auto-spaced with leader lines</td>
+<td>Many labels would otherwise overlap</td>
+</tr>
+<tr>
+<td><code>geom_label_repel()</code></td>
+<td>Boxed text, auto-spaced with leader lines</td>
+<td>Overlapping labels also need a solid backing</td>
+</tr>
+</tbody>
+</table>
+
+<p>The habits that make labels look professional are the same across all four: label a filtered subset rather than every point, move labels off their markers with <code>nudge_x</code>, <code>nudge_y</code>, <code>hjust</code>, and <code>vjust</code>, and set a seed before any repel geom so the layout stays put.</p>
+
+<p><img src="screenshots/ggplot2-Text-Labels-in-R-decision.webp" alt="A quick decision guide for choosing between the three labelling geoms" class="img-responsive img-zoomable" loading="lazy" width="1086" height="1438" /></p>
+
+<p><em>Figure 3: A quick decision guide for choosing between the three labelling geoms.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation. <em>geom_text() and geom_label() reference.</em> <a href="https://ggplot2.tidyverse.org/reference/geom_text.html">Link</a></li>
+
+<li>Slowikowski, K. <em>ggrepel: Examples vignette.</em> <a href="https://ggrepel.slowkow.com/articles/examples.html">Link</a></li>
+
+<li>Slowikowski, K. <em>ggrepel package source and documentation (GitHub).</em> <a href="https://github.com/slowkow/ggrepel">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., & Grolemund, G. <em>R for Data Science, 2nd Edition. Communication chapter (annotations).</em> <a href="https://r4ds.hadley.nz/communication">Link</a></li>
+
+<li>Wickham, H. <em>ggplot2: Elegant Graphics for Data Analysis. Annotations.</em> <a href="https://ggplot2-book.org/annotations.html">Link</a></li>
+
+<li>r-charts. <em>Text annotations in ggplot2.</em> <a href="https://r-charts.com/ggplot2/text-annotations/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Labels-and-Annotations.html">ggplot2 Labels and Annotations</a> - Add titles, subtitles, axis labels, and one-off annotations to round out your charts.</li>
+
+<li><a href="ggplot2-Scatter-Plots.html">ggplot2 Scatter Plots</a> - Master the point layer that these labels sit on, including colour, size, and shape mappings.</li>
+
+<li><a href="ggplot2-Aesthetics-aes-Map-Data.html">ggplot2 Aesthetics: Map Data to Visuals</a> - Go deeper on <code>aes()</code>, the mapping engine behind the <code>label</code> aesthetic you used throughout this tutorial.</li>
+
+</ul>
+
+{% endraw %}
