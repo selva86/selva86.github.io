@@ -191,17 +191,23 @@ pass 2 hooks into; every hook is additive and flag-gated.
   modal + LinkedIn add make this the fast-fill + conversion rung.
 
 ## Pass 2 verification checklist (preview + seeded dev D1)
-[ ] Freeze transitions: yesterday->+1 unchanged; same-day no-op unchanged;
+VERIFIED 2026-07-24: 37/37 green on a local wrangler-pages-dev rig (forged
+HS256 tokens via .dev.vars-only secret, seeded local D1, KV flags toggled
+live). Found + fixed in the run: daily-set pool drifted as tasks were
+passed (selection inputs now frozen at UTC day start) and free users could
+be dealt Pro-walled tasks (pools now exclude pro-lesson hubs). Recap cohort
+filter observed exact (1 send attempt for 1 eligible of 4 seeded).
+[x] Freeze transitions: yesterday->+1 unchanged; same-day no-op unchanged;
     2-day gap with freeze -> streak continues, freezes-1; 2-day gap without
     freeze -> reset; 3-day gap with 2 freezes -> reset (single-day rule);
     freeze floor 0 / cap 2 enforced under concurrent attempts
-[ ] Earn: streak 7 -> +1 freeze (cap 2); no double-earn same day
-[ ] Daily set: deterministic for fixed (user,date); changes at UTC midnight;
+[x] Earn: streak 7 -> +1 freeze (cap 2); no double-earn same day
+[x] Daily set: deterministic for fixed (user,date); changes at UTC midnight;
     tasks unsolved-only; review task older than 30d; done-detection flips on
     pass; bonus exactly once; flag off = no bonus, API still renders set
-[ ] attempt.ts: grading result identical with flags off (regression: XP,
+[x] attempt.ts: grading result identical with flags off (regression: XP,
     first_pass, streak fields byte-equal on old paths); nudge line present
     on passes; new_badges only at boundary crossings
-[ ] Recap: flag off = zero sends; one send per user-week; opt-out link works
+[x] Recap: flag off = zero sends; one send per user-week; opt-out link works
     unauthenticated; cohort filter excludes non-opted users
-[ ] badge-card.svg: public-only, escaped, 404 on foreign/unknown badge
+[x] badge-card.svg: public-only, escaped, 404 on foreign/unknown badge
