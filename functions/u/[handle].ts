@@ -178,6 +178,8 @@ const CSS = `
   .private-card{max-width:520px;margin:60px auto;text-align:center;background:#fff;border:1px solid #e6e8ee;border-radius:16px;padding:26px}
   .report{color:#9aa0ab;font-size:11.5px;margin-top:8px}
   button:focus-visible,a:focus-visible{outline:2px solid #2056d2;outline-offset:2px}
+  @media(max-width:560px){.masthead nav{display:none}.masthead{gap:12px}}
+  @media(max-width:560px){.hid h1{font-size:27px}.hstats{gap:8px 22px}.hstat b{font-size:24px}}
 `;
 
 function shell(title: string, body: string, extraHead = ""): string {
@@ -481,7 +483,8 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
 
   const yearParam = Number(new URL(context.request.url).searchParams.get("year")) || 0;
   const thisYear = new Date().getUTCFullYear();
-  const year = yearParam >= 2024 && yearParam <= thisYear ? yearParam : thisYear;
+  const minYear = Math.max(2025, new Date(u.created_at * 1000).getUTCFullYear());
+  const year = yearParam >= minYear && yearParam <= thisYear ? yearParam : thisYear;
 
   const [stats, deltas] = await Promise.all([
     loadProfileStats(DB, u.id, u.total_xp || 0),
@@ -535,7 +538,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
 
   const board = renderBoardHtml(boardRows, year);
   const years: number[] = [];
-  for (let y = thisYear; y >= Math.max(2025, new Date(u.created_at * 1000).getUTCFullYear()); y--) years.push(y);
+  for (let y = thisYear; y >= minYear; y--) years.push(y);
   const yearTabs = years.map((y) =>
     `<a href="/u/${escHtml(raw)}?year=${y}#activity" class="${y === year ? "on" : ""}">${y}</a>`).join("");
 
