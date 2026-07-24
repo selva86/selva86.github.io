@@ -29,6 +29,7 @@ export async function ensureProfileColumns(DB: D1Database): Promise<void> {
     "ALTER TABLE users ADD COLUMN profile_json TEXT",
     "ALTER TABLE users ADD COLUMN github_login TEXT",
     "ALTER TABLE users ADD COLUMN prev_handle TEXT",
+    "ALTER TABLE users ADD COLUMN recap_opt_out INTEGER DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle)",
     "CREATE INDEX IF NOT EXISTS idx_users_prev_handle ON users(prev_handle)",
     "CREATE TABLE IF NOT EXISTS profile_views (" +

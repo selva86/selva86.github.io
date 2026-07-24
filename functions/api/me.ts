@@ -17,6 +17,7 @@ import { getUserById, recordNewsletterOptIn, upsertUserFromSupabase, type User }
 import { resolvePro } from "../_lib/entitlement";
 import { notifyNewSignup, flushPendingSignup } from "../_lib/notify";
 import { ensureHandle, ensureProfileColumns } from "../_lib/profile";
+import { sweepRecapEmails } from "../_lib/recap";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   let u = context.data.user;
@@ -57,6 +58,12 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   }
 
   if (!u) return json({ user: null, pro: false });
+
+  // Weekly recap sweep, traffic-piggybacked: ~5% of authenticated hydrations
+  // attempt it; the sweep itself is flag-gated and once-per-week via KV.
+  if (Math.random() < 0.05) {
+    try { context.waitUntil(sweepRecapEmails(context.env)); } catch { /* never blocks */ }
+  }
 
   // Fresh-user fallback: if the webhook parked a source-less signup
   // notification and the client never posted attribution (closed the tab
