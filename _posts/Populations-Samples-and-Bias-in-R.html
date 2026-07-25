@@ -1,0 +1,949 @@
+---
+title: "Populations, Samples and Sampling Bias in R"
+description: "Learn populations vs samples and parameters vs statistics, and watch how sampling bias distorts estimates, with runnable R code you run in your browser."
+keywords: "population vs sample, sampling bias, parameter vs statistic, simple random sample in R, sample function in R, representative sample, selection bias, nonresponse bias, sampling error"
+mathjax: true
+webr: true
+curriculum_id: "ST2-1.3"
+post_type: "C"
+auto_link_terms: "population vs sample|sampling bias|population parameter|sample statistic|representative sample|simple random sample|selection bias|nonresponse bias|convenience sampling|voluntary response bias|sampling error|target population|census"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Populations & Sampling Bias"
+sidebar_order: "3"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A population is the whole group you want to draw a conclusion about, and a sample is the smaller slice you actually measure. Sampling bias is when the way you pick that slice systematically pushes your answer away from the truth, and unlike ordinary random noise, collecting more data does not fix it.</p>
+
+<p>Almost every number you read, from an election forecast to a drug's success rate, comes from a sample, not from measuring everyone. That makes one question the quiet foundation of all of statistics: does the slice you measured actually stand in for the whole group? This lesson answers it from scratch. We will build a whole make-believe town in R so we know the real answer, take samples from it, and watch exactly when a sample reflects the town and when it misses. We use plain base R throughout, so there is nothing to install.</p>
+
+<h2>What is the difference between a population and a sample?</h2>
+
+<p>You almost never get to measure everyone. To learn the average height of a city, you do not line up two million people, you measure a few hundred and generalize from them. The whole group you care about is the <strong>population</strong>, and the handful you measure is the <strong>sample</strong>. Let's make this concrete by inventing a town where we secretly know every single height, then taking a sample and seeing how close it lands.</p>
+
+<p>We will create 50,000 residents, each with a gender and a height in centimeters. Because we build every resident ourselves, we can compute the town's true average height, the number a real researcher could never see. Then we draw 100 people at random and average just them. Run the block and compare the two numbers.</p>
+
+<div class="webr-container" data-block-title="Build a population and take one sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a population and take one sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+N &lt;- 50000
+gender &lt;- sample(c(&quot;men&quot;, &quot;women&quot;), N, replace = TRUE)
+height &lt;- ifelse(gender == &quot;men&quot;,
+                 rnorm(N, mean = 175, sd = 7),
+                 rnorm(N, mean = 162, sd = 6))
+population &lt;- data.frame(gender = gender, height = round(height, 1))
+
+# The true average height of everyone (this is the population's real answer)
+mean(population$height)
+
+# Now take a random sample of 100 people and average only them
+set.seed(1)
+sample_100 &lt;- population[sample(nrow(population), 100), ]
+mean(sample_100$height)
+#&gt; [1] 168.4489
+#&gt; [1] 169.069</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the two lines from top to bottom, the true average height across all 50,000 residents is <code>168.45</code> cm. The average of a random 100-person sample is <code>169.07</code> cm. They are not identical, but they are strikingly close, and we got the second number by measuring only 1 person in 500.</p>
+
+<p>That gap of about half a centimeter is the price of not measuring everyone, and it is small precisely because we chose the 100 people at random. This is the core promise of sampling: a well-chosen sample stands in for the population well enough to answer the question. The diagram below is the mental model for the rest of the lesson.</p>
+
+<p><img src="screenshots/Populations-Samples-and-Bias-in-R-population-sample-flow.webp" alt="From a population we take a random sample and use its statistic to estimate the population parameter" class="img-responsive img-zoomable" loading="lazy" width="1860" height="394" /></p>
+
+<p><em>Figure 1: A statistic from a random sample is our best guess at the population parameter we cannot measure directly.</em></p>
+
+<p>Before going further, it helps to name the pieces. Let's peek at the raw data so the words attach to something you can see.</p>
+
+<div class="webr-container" data-block-title="Look at the population data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at the population data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(population)
+nrow(population)
+#&gt;   gender height
+#&gt; 1    men  174.4
+#&gt; 2    men  174.9
+#&gt; 3    men  180.1
+#&gt; 4  women  161.6
+#&gt; 5    men  175.2
+#&gt; 6    men  177.8
+#&gt; [1] 50000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one resident, our <strong>sampling unit</strong>, and there are 50,000 of them in total. The full set of 50,000 rows is the population. A sample is any subset of those rows, like the 100 we drew above. In a real study you would never hold this whole table, you would only ever see the sampled rows and have to reason back to the town.</p>
+
+<p>Two more terms make the picture complete. The <strong>target population</strong> is the group you actually want to conclude about, here every adult in the town. The <strong>sampling frame</strong> is the list you draw from in practice, like a phone directory or a customer database. When the frame leaves people out, trouble starts, and we will return to exactly that later.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The target population and the sampling frame are not always the same list.</strong> Your target might be all adults in a city, but if you sample from a list of registered voters you have quietly swapped in a different, smaller group. Half of good sampling is noticing that gap before you collect a single data point.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take your own random sample of 30 residents from <code>population</code> and compute their average height. It should land near the true 168.45 cm.</p>
+<div class="webr-container" data-block-title="Your turn: sample 30 residents">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sample 30 residents</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 'population' is already available from the block above.
+# Goal: draw 30 random rows, then average their height column.
+set.seed(42)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sample 30 residents and average them">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample 30 residents and average them</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_sample &lt;- population[sample(nrow(population), 30), ]
+mean(ex_sample$height)
+#&gt; [1] 170.5667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sample(nrow(population), 30)</code> picks 30 random row numbers, and we average the height column of just those rows. The result, <code>170.57</code> cm, is close to the true 168.45 cm but a bit further off than the 100-person sample was. Smaller samples wobble more, an idea we make precise soon.</p>
+
+</details>
+</section>
+
+<h2>What is the difference between a parameter and a statistic?</h2>
+
+<p>Now that you can tell a population from a sample, there is a matching pair of words for the numbers you compute from each. A number that describes the whole population is a <strong>parameter</strong>. A number computed from a sample is a <strong>statistic</strong>. The average height of all 50,000 residents is a parameter; the average of your 100-person sample is a statistic.</p>
+
+<p>The distinction matters because of one asymmetry: a parameter is a fixed fact about the population that you usually cannot see, while a statistic is something you can always compute from your data. Statistics exist to estimate parameters. Let's compute the town's parameters first, since we are lucky enough to have the whole population.</p>
+
+<div class="webr-container" data-block-title="Compute the population parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the population parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">N &lt;- nrow(population)                              # population size
+mu &lt;- mean(population$height)                      # population mean (the parameter)
+sigma &lt;- sqrt(mean((population$height - mu)^2))    # population standard deviation
+c(N = N, mu = round(mu, 2), sigma = round(sigma, 2))
+#&gt;        N       mu    sigma 
+#&gt; 50000.00   168.45     9.17 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The population has <code>50000</code> members, a mean height of <code>168.45</code> cm, and a standard deviation of <code>9.17</code> cm, which measures how spread out the heights are. These three numbers are parameters: they describe the entire town and they never change, because the town never changes. In statistics we give them Greek letters, \(N\) for the size, \(\mu\) (mu) for the mean, and \(\sigma\) (sigma) for the standard deviation.</p>
+
+<p>Now the same summaries computed from a single 100-person sample. These are statistics, and we mark them with ordinary Roman letters to keep them straight.</p>
+
+<div class="webr-container" data-block-title="Compute the sample statistics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the sample statistics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+s &lt;- population[sample(nrow(population), 100), &quot;height&quot;]
+c(n = length(s), xbar = round(mean(s), 2), s = round(sd(s), 2))
+#&gt;      n   xbar      s 
+#&gt; 100.00 168.55   9.82 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This sample has \(n = 100\) people, a sample mean of <code>168.55</code> cm, written \(\bar{x}\) (x-bar), and a sample standard deviation of <code>9.82</code>, written \(s\). Each statistic sits close to its matching parameter: <code>168.55</code> estimates the true <code>168.45</code>, and <code>9.82</code> estimates the true <code>9.17</code>. That is a statistic doing its job, standing in for a parameter it cannot see directly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>R's <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">sd()</a> function divides by n minus 1, not n.</strong> That small correction makes the sample standard deviation a fairer estimate of the population's spread. It is why the manual population sigma above uses the raw formula but the sample uses <code>sd()</code>. The two nearly agree once the sample is large.</div></div>
+
+<p>Here is the full notation you will meet everywhere in statistics. Greek letters are the hidden truths; Roman letters are what you compute from data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Population parameter</th>
+<th>Sample statistic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Size</td>
+<td>\(N\) (everyone)</td>
+<td>\(n\) (how many you measured)</td>
+</tr>
+<tr>
+<td>Mean</td>
+<td>\(\mu\) (mu)</td>
+<td>\(\bar{x}\) (x-bar)</td>
+</tr>
+<tr>
+<td>Standard deviation</td>
+<td>\(\sigma\) (sigma)</td>
+<td>\(s\)</td>
+</tr>
+<tr>
+<td>Proportion</td>
+<td>\(P\)</td>
+<td>\(\hat{p}\) (p-hat)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parameter is a single fixed number; a statistic is a moving target.</strong> The town's true mean of 168.45 never budges, but the sample mean changes every time you draw a new sample. All of inference is the art of guessing the fixed number from the moving one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Roughly half the town is men. Compute the population proportion of men (the parameter \(P\)), then the proportion of men in a random 200-person sample (the statistic \(\hat{p}\)).</p>
+<div class="webr-container" data-block-title="Your turn: population vs sample proportion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: population vs sample proportion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 'population' is available. The gender column holds &quot;men&quot; / &quot;women&quot;.
+# mean(population$gender == &quot;men&quot;) gives the proportion of men.
+set.seed(5)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare a proportion parameter and statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare a proportion parameter and statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_P &lt;- mean(population$gender == &quot;men&quot;)
+set.seed(5)
+ex_draw &lt;- population[sample(nrow(population), 200), ]
+ex_phat &lt;- mean(ex_draw$gender == &quot;men&quot;)
+c(P = round(ex_P, 3), phat = round(ex_phat, 3))
+#&gt;     P  phat 
+#&gt; 0.499 0.515 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A logical test like <code>gender == &quot;men&quot;</code> becomes <code>TRUE</code>/<code>FALSE</code>, and averaging it gives the fraction that are <code>TRUE</code>. The true proportion \(P\) is <code>0.499</code>, and the sample estimate \(\hat{p}\) is <code>0.515</code>, close but not exact, just like the mean.</p>
+
+</details>
+</section>
+
+<h2>Why does a random sample represent the population?</h2>
+
+<p>You have now seen a few samples land near the truth, but why should you trust that to keep happening? The honest answer is that any single sample can miss. What saves us is the pattern across many samples. Let's draw not one sample but a thousand, record each one's mean, and study the whole collection.</p>
+
+<p>We repeat the same action a thousand times: pick 100 residents at random and store their mean height. This gives us 1,000 sample means to look at together. The <code>replicate()</code> function does the repeating for us.</p>
+
+<div class="webr-container" data-block-title="Take 1000 random samples and average each">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Take 1000 random samples and average each</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+sample_means &lt;- replicate(1000, mean(population$height[sample(N, 100)]))
+c(true_mu = round(mu, 2),
+  mean_of_sample_means = round(mean(sample_means), 2),
+  spread_of_sample_means = round(sd(sample_means), 2))
+#&gt;                true_mu   mean_of_sample_means spread_of_sample_means 
+#&gt;                 168.45                 168.47                   0.97 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the first two numbers. The true population mean is <code>168.45</code>, and the average of our 1,000 sample means is <code>168.47</code>, almost exactly the same. Individual samples scatter, but they scatter evenly around the truth, so their average lands right on it. This is what we mean when we say random sampling is <strong>unbiased</strong>: it has no built-in tendency to run high or low.</p>
+
+<p>The third number, <code>0.97</code>, is the standard deviation of those sample means, a measure of how much a typical sample mean strays from the truth. That spread is exactly the <strong>sampling error</strong>: the ordinary, expected wobble that comes from measuring a sample instead of everyone. A picture makes the pattern obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the sampling distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the sampling distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(sample_means, breaks = 30, col = &quot;#b7a4e0&quot;, border = &quot;white&quot;,
+     main = &quot;1000 sample means cluster around the true average&quot;,
+     xlab = &quot;Sample mean height (cm)&quot;)
+abline(v = mu, col = &quot;red&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The histogram is a tidy mound centered on the red line, which marks the true mean. Most sample means fall within about a centimeter of the truth, and extreme misses are rare. This mound shape, called the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a>, is why a single random sample is usually a safe bet.</p>
+
+<p>If sampling error is just random wobble, then a bigger sample should wobble less. Let's test that by repeating the experiment with 400 people per sample instead of 100.</p>
+
+<div class="webr-container" data-block-title="A bigger sample shrinks the spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A bigger sample shrinks the spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+means_n400 &lt;- replicate(1000, mean(population$height[sample(N, 400)]))
+c(spread_at_n100 = round(sd(sample_means), 2),
+  spread_at_n400 = round(sd(means_n400), 2))
+#&gt; spread_at_n100 spread_at_n400 
+#&gt;           0.97           0.47 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The spread drops from <code>0.97</code> at 100 people to <code>0.47</code> at 400 people, roughly cut in half. Quadrupling the <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a> halved the error, which is the general rule for sampling error. Bigger samples buy you tighter, more reliable estimates.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Random sampling misses in both directions equally, so its errors cancel out on average.</strong> No single sample is perfect, but the method has no favorite direction. That evenness is the whole reason a random sample can be trusted to represent the population.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the thousand-sample experiment with a tiny sample size of 25 and report the spread. It should be larger than the 0.97 you saw at size 100.</p>
+<div class="webr-container" data-block-title="Your turn: spread at n = 25">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: spread at n = 25</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse the replicate() pattern, but sample 25 people each time.
+# Then report the standard deviation of the 1000 means.
+set.seed(321)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Measure the spread at n = 25">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the spread at n = 25</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(321)
+ex_means25 &lt;- replicate(1000, mean(population$height[sample(N, 25)]))
+round(sd(ex_means25), 2)
+#&gt; [1] 1.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only 25 people per sample, the spread jumps to <code>1.8</code>, nearly double the <code>0.97</code> we got at 100. Smaller samples carry more sampling error, which is the flip side of the rule that bigger samples carry less.</p>
+
+</details>
+</section>
+
+<h2>What is sampling bias, and how is it different from sampling error?</h2>
+
+<p>So far every sample has centered on the truth, because we always chose people at random. Now we break that. Suppose you collect heights at a men's sports club, so every person you measure happens to be a man. Your method is no longer neutral, and this is where <strong>sampling bias</strong> enters. Let's run the thousand-sample experiment again, but draw only from men.</p>
+
+<p>The code mirrors the earlier simulation, with one change: we first find the row numbers of all the men, then sample only from them. Everything else is the same, so any difference in the result comes purely from the biased selection.</p>
+
+<div class="webr-container" data-block-title="A biased sample of men only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A biased sample of men only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">men_idx &lt;- which(population$gender == &quot;men&quot;)
+set.seed(55)
+biased_means &lt;- replicate(1000, mean(population$height[sample(men_idx, 100)]))
+c(true_mu = round(mu, 2),
+  random_estimate = round(mean(sample_means), 2),
+  biased_estimate = round(mean(biased_means), 2))
+#&gt;         true_mu random_estimate biased_estimate 
+#&gt;          168.45          168.47          174.89 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three numbers tell the whole story. The truth is <code>168.45</code>. Our earlier random method estimated <code>168.47</code>, essentially perfect. The men-only method estimates <code>174.89</code>, more than 6 cm too high, every single time. That consistent overshoot in one direction is bias, and it is a completely different animal from the random wobble of sampling error.</p>
+
+<p>Here is the part that surprises people. With random sampling, more data fixed the error. Does more data fix bias too? Let's rerun the biased method with 1,000 people per sample instead of 100.</p>
+
+<div class="webr-container" data-block-title="More data does not remove the bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More data does not remove the bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(55)
+biased_big &lt;- replicate(1000, mean(population$height[sample(men_idx, 1000)]))
+c(biased_at_n100 = round(mean(biased_means), 2),
+  biased_at_n1000 = round(mean(biased_big), 2),
+  true_mu = round(mu, 2))
+#&gt;  biased_at_n100 biased_at_n1000         true_mu 
+#&gt;          174.89          174.91          168.45 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Growing the sample tenfold changed the biased estimate from <code>174.89</code> to <code>174.91</code>. It did not move toward the truth at all; it just became a more precise wrong answer. This is the single most important idea in the lesson: sampling error shrinks as your sample grows, but sampling bias does not. The figure below contrasts the two.</p>
+
+<p><img src="screenshots/Populations-Samples-and-Bias-in-R-error-vs-bias.webp" alt="Random error scatters around the truth and shrinks with sample size, while bias sits to one side and stays" class="img-responsive img-zoomable" loading="lazy" width="1292" height="690" /></p>
+
+<p><em>Figure 2: Random error scatters around the truth and shrinks with n; bias sits off to one side and stays.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>More data cannot rescue a biased sampling method.</strong> A huge sample drawn the wrong way gives you a very confident wrong answer, which is more dangerous than an honest small one. The fix is never more rows, it is a better way of choosing them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Push the biased sample size even higher, to 2,000 men per sample, and confirm the estimate is still stuck near 175, nowhere near the true 168.45.</p>
+<div class="webr-container" data-block-title="Your turn: bias at n = 2000">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bias at n = 2000</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 'men_idx' is available from the block above.
+# Average 2000 randomly chosen men, repeated 500 times, then take the mean.
+set.seed(55)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Confirm the bias persists at n = 2000">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the bias persists at n = 2000</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(55)
+ex_big &lt;- replicate(500, mean(population$height[sample(men_idx, 2000)]))
+c(biased_n2000 = round(mean(ex_big), 2), true_mu = round(mu, 2))
+#&gt; biased_n2000      true_mu 
+#&gt;       174.91       168.45 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even at 2,000 people per sample, the biased estimate holds at <code>174.91</code>, still about 6 cm above the true <code>168.45</code>. The bias is baked into the selection method, so no sample size can wash it out.</p>
+
+</details>
+</section>
+
+<h2>What are the common types of sampling bias?</h2>
+
+<p>Sampling bias is not one thing, it is a family of ways your selection can systematically miss. Knowing the named types helps you spot them before they wreck a study. The table lists the five you will meet most often, each with a plain-English mechanism and an everyday example.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Type of bias</th>
+<th>What goes wrong</th>
+<th>Everyday example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Selection (convenience)</td>
+<td>You sample whoever is easy to reach</td>
+<td>Surveying shoppers at one upscale mall</td>
+</tr>
+<tr>
+<td>Voluntary response</td>
+<td>Only people who opt in are counted</td>
+<td>An online poll only strong opinions answer</td>
+</tr>
+<tr>
+<td>Undercoverage</td>
+<td>The frame leaves out a whole group</td>
+<td>A phone survey that misses people without phones</td>
+</tr>
+<tr>
+<td>Nonresponse</td>
+<td>Those who refuse differ from those who answer</td>
+<td>A health survey the sick skip</td>
+</tr>
+<tr>
+<td>Survivorship</td>
+<td>You only see the ones that made it</td>
+<td>Rating a strategy using only funds that still exist</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's implement two of these in real code, so you can see the distortion, not just read about it. First, <strong>voluntary response bias</strong>. Imagine a "height study" people opt into, where taller people are prouder of their height and more likely to volunteer. We model that by making the chance of responding rise with height.</p>
+
+<div class="webr-container" data-block-title="Voluntary response bias in code">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Voluntary response bias in code</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(88)
+span &lt;- max(population$height) - min(population$height)
+p_respond &lt;- 0.2 * (population$height - min(population$height)) / span
+volunteers &lt;- population[runif(N) &lt; p_respond, ]
+c(true_mu = round(mu, 2),
+  volunteer_mean = round(mean(volunteers$height), 2),
+  n_volunteers = nrow(volunteers))
+#&gt;        true_mu volunteer_mean   n_volunteers 
+#&gt;        168.45         171.26        4547.00 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We gave each resident a response chance that climbs with their height, then kept only the <code>4547</code> who volunteered. The last line does the selecting: <code>runif(N)</code> draws a random number between 0 and 1 for each resident, and keeping those below <code>p_respond</code> admits each person with exactly their own response chance. Their average height is <code>171.26</code> cm, nearly 3 cm above the true <code>168.45</code>. Nobody lied and nothing was mismeasured; the sample tilted high simply because taller people were likelier to raise their hands.</p>
+
+<p>Now <strong>survivorship bias</strong>, the easiest of the five to overlook. Suppose you study "the height of professional models" and only the very tall ever make the cut, so shorter people never appear in your data at all. We mimic that by keeping only residents above 178 cm.</p>
+
+<div class="webr-container" data-block-title="Survivorship bias in code">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Survivorship bias in code</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">observed &lt;- population[population$height &gt; 178, ]
+c(true_mu = round(mu, 2),
+  survivor_mean = round(mean(observed$height), 2),
+  n_observed = nrow(observed))
+#&gt;       true_mu survivor_mean    n_observed 
+#&gt;        168.45        182.60       8244.00 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By looking only at the <code>8244</code> residents who cleared the 178 cm bar, the average shoots up to <code>182.60</code> cm, a full 14 cm above the truth. The people who did not "survive" the selection are invisible, so they cannot pull the average back down. The mindmap gathers all five types in one view.</p>
+
+<p><img src="screenshots/Populations-Samples-and-Bias-in-R-bias-types.webp" alt="Five common types of sampling bias: selection, voluntary response, undercoverage, nonresponse, and survivorship" class="img-responsive img-zoomable" loading="lazy" width="1120" height="650" /></p>
+
+<p><em>Figure 3: Five common ways a sample stops representing its population.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Selection and undercoverage are close cousins worth separating.</strong> <a class="auto-link" href="Bias-in-Data-and-Models.html" title="Bias in Data & Models: How to Detect & Reduce It in R">Selection bias</a> is about how you pick from the list you have, while undercoverage is about who never made the list in the first place. Both shrink your real population, just at different stages.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Model <strong>nonresponse bias</strong>. Give residents taller than the mean a 0.9 chance of responding and shorter ones only 0.3, then compare the respondents' average height to the truth.</p>
+<div class="webr-container" data-block-title="Your turn: nonresponse bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: nonresponse bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 'population' and 'mu' are available.
+# Build a response probability: 0.9 if height &gt; mu, else 0.3.
+# Keep residents where runif(N) &lt; that probability, then average their height.
+set.seed(11)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Model nonresponse bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Model nonresponse bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_prob &lt;- ifelse(population$height &gt; mu, 0.9, 0.3)
+ex_resp &lt;- population[runif(N) &lt; ex_prob, ]
+c(true_mu = round(mu, 2), respondent_mean = round(mean(ex_resp$height), 2))
+#&gt;         true_mu respondent_mean 
+#&gt;          168.45          172.25 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because taller residents answered far more often, the respondent average climbs to <code>172.25</code> cm, well above the true <code>168.45</code>. Nonresponse bites whenever the people who skip your survey differ from the people who answer it.</p>
+
+</details>
+</section>
+
+<h2>How can you reduce sampling bias in practice?</h2>
+
+<p>The good news is that bias is a property of your method, so a better method removes it. The single most powerful fix is <strong>probability sampling</strong>: give every member of the population a known, non-zero chance of being picked, most simply an equal chance for everyone. That is a <strong>simple random sample</strong>, and R's <code>sample()</code> function does it directly.</p>
+
+<p>A quick way to check whether a sampling method is fair is to compare a known feature of your sample against the same feature in the population. We know the town is about half men, so a fair 500-person sample should be too. Let's verify.</p>
+
+<div class="webr-container" data-block-title="Check a random sample against the population">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check a random sample against the population</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+srs &lt;- population[sample(nrow(population), 500), ]
+rbind(
+  population = round(prop.table(table(population$gender)), 3),
+  sample     = round(prop.table(table(srs$gender)), 3)
+)
+#&gt;              men women
+#&gt; population 0.499 0.501
+#&gt; sample     0.512 0.488</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The population is <code>0.499</code> men and <code>0.501</code> women, and our random sample is <code>0.512</code> men and <code>0.488</code> women, a near-perfect match. Because we selected at random, the sample inherited the town's makeup automatically. Contrast that with the men-only method from before, which would have shown <code>1.000</code> men, an instant red flag that the sample does not represent the town.</p>
+
+<p>Beyond random selection, three habits keep bias low in real studies. Define your target population and sampling frame carefully so no group is quietly excluded. Chase down nonrespondents with reminders, since the people who skip surveys are usually the ones who differ most. And benchmark your sample against facts you already know, like census age or gender splits, to catch a lopsided sample early. For the deeper toolkit of stratified, cluster, and systematic designs, see the companion tutorial on sampling methods.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set a seed with set.seed() before any random draw so your work is reproducible.</strong> Anyone who runs your script then gets the exact same sample and the exact same numbers. It does not reduce bias, but it makes honest, checkable analysis possible.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw your own random 500-person sample and confirm its mean height lands close to the true 168.45 cm, the sign of an unbiased method.</p>
+<div class="webr-container" data-block-title="Your turn: verify an unbiased sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify an unbiased sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw 500 random residents and compare their mean height to the population mean.
+set.seed(808)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Confirm a random sample is representative">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm a random sample is representative</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+ex_srs &lt;- population[sample(nrow(population), 500), ]
+c(pop_mean = round(mean(population$height), 2),
+  sample_mean = round(mean(ex_srs$height), 2))
+#&gt;    pop_mean sample_mean 
+#&gt;      168.45      168.02 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The random sample mean of <code>168.02</code> sits right next to the true <code>168.45</code>. Random selection delivered a representative sample with no special effort, which is exactly the guarantee that probability sampling gives you.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the ideas above. Each uses fresh variable names beginning with <code>my_</code> so your work never overwrites the tutorial's objects. The population, <code>N</code>, and <code>mu</code> are all still available.</p>
+
+<h3>Exercise 1: Estimate a parameter you cannot see</h3>
+
+<p>A real researcher never knows the true mean, only sample estimates. Simulate that: draw 200 separate random samples of size 50, compute each sample's mean, and report the average of those 200 estimates alongside the true <code>mu</code>. They should nearly match, showing the method is unbiased.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: replicate(200, mean of a size-50 sample), then average the results.
+set.seed(2025)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2025)
+my_means &lt;- replicate(200, mean(population$height[sample(N, 50)]))
+c(true_mu = round(mu, 2),
+  mean_of_estimates = round(mean(my_means), 2),
+  spread = round(sd(my_means), 2))
+#&gt;           true_mu mean_of_estimates            spread 
+#&gt;            168.45            168.48              1.28 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The average of the 200 sample means is <code>168.48</code>, right on top of the true <code>168.45</code>. Any one sample is off by a bit (the spread is <code>1.28</code>), but the method as a whole aims straight at the parameter.</p>
+
+</details>
+
+<h3>Exercise 2: Show that bias ignores sample size</h3>
+
+<p>Build a convenience sample of women only, the mirror image of the men-only example. Estimate the mean height using 50 women per sample and again using 500 women per sample. Show that both miss the true <code>mu</code> in the same direction, proving the bias does not shrink with size.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: get the row indices of women with which(), then sample only those.
+# Compare the estimate at size 50 versus size 500.
+set.seed(303)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">women_idx &lt;- which(population$gender == &quot;women&quot;)
+set.seed(303)
+my_n50  &lt;- replicate(500, mean(population$height[sample(women_idx, 50)]))
+my_n500 &lt;- replicate(500, mean(population$height[sample(women_idx, 500)]))
+c(true_mu = round(mu, 2),
+  women_n50 = round(mean(my_n50), 2),
+  women_n500 = round(mean(my_n500), 2))
+#&gt;    true_mu  women_n50 women_n500 
+#&gt;     168.45     162.01     162.03 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The women-only estimate is <code>162.01</code> at size 50 and <code>162.03</code> at size 500, both about 6 cm below the truth. Growing the sample tenfold did nothing to the bias, exactly as with the men-only case, just in the opposite direction.</p>
+
+</details>
+
+<h3>Exercise 3: Diagnose an undercoverage problem</h3>
+
+<p>A gym runs a height survey, but its membership list is lopsided: it holds 90 percent of the town's men and only 40 percent of its women. Draw a random 500-person sample from that membership list and compare its mean height to the true <code>mu</code>. Because the list leaves out most women, who are shorter on average, the estimate should run high even though the 500 people were picked at random.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build a list-membership chance with ifelse() (0.9 for men, 0.4 for
+# women), keep rows where runif(N) falls below it to form the list, then take
+# a 500-person random sample from that list.
+set.seed(404)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+my_in_frame &lt;- ifelse(population$gender == &quot;men&quot;, 0.9, 0.4)
+my_frame &lt;- population[runif(N) &lt; my_in_frame, ]
+my_frame_sample &lt;- my_frame[sample(nrow(my_frame), 500), ]
+c(true_mu = round(mu, 2),
+  frame_sample_mean = round(mean(my_frame_sample$height), 2),
+  pct_men_in_frame = round(mean(my_frame$gender == &quot;men&quot;), 3))
+#&gt;           true_mu frame_sample_mean  pct_men_in_frame 
+#&gt;           168.450           171.540             0.694 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 500 people were drawn at random, yet the estimate still misses. The membership list itself is <code>0.694</code> men instead of the town's true half, because women were left out before any sampling happened. That skew pushes the sample mean to <code>171.54</code>, about 3 cm high. Undercoverage is a group the sampling frame never included, so no fair draw from that frame can put them back.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Here are the ideas to carry forward from this lesson.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it means</th>
+<th>The one-line takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Population vs sample</td>
+<td>The whole group vs the slice you measure</td>
+<td>You study a sample to learn about a population</td>
+</tr>
+<tr>
+<td>Parameter vs statistic</td>
+<td>A fixed population number vs a computed sample number</td>
+<td>A statistic like \(\bar{x}\) estimates a parameter like \(\mu\)</td>
+</tr>
+<tr>
+<td>Sampling error</td>
+<td>The random wobble from not measuring everyone</td>
+<td>It shrinks as the sample grows</td>
+</tr>
+<tr>
+<td>Sampling bias</td>
+<td>A systematic tilt built into how you select</td>
+<td>It does not shrink with more data; fix the method</td>
+</tr>
+<tr>
+<td>Types of bias</td>
+<td>Selection, voluntary response, undercoverage, nonresponse, survivorship</td>
+<td>Each is a different way a group gets over- or under-counted</td>
+</tr>
+<tr>
+<td>Reducing bias</td>
+<td>Random selection, chasing nonresponse, benchmarking</td>
+<td>Give everyone a known chance of being picked</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one line to remember above all: sampling error is the honest cost of sampling and gets smaller with effort, while sampling bias is a flaw in your method that no amount of data will repair.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Is a sample always smaller than the population?</h3>
+
+<p>Yes, a sample is a subset of the population, so it is smaller by definition. The one case where you measure every member is called a census, and even then you often treat it as one snapshot of an ongoing process. In practice, cost and time mean you almost always work with a sample.</p>
+
+<h3>Does collecting more data reduce sampling bias?</h3>
+
+<p>No, and this trips up a lot of people. A bigger sample reduces sampling error, the random wobble, but bias comes from how you select people, so it stays no matter how large the sample grows. As you saw, a men-only sample of 1,000 was just as wrong as one of 100. The fix is a better selection method, not more rows.</p>
+
+<h3>What is the difference between a parameter and a statistic?</h3>
+
+<p>A parameter is a number that describes the whole population, like the true mean \(\mu\), and it is usually fixed and unknown. A statistic is a number you compute from a sample, like the sample mean \(\bar{x}\), and it changes from sample to sample. Statistics exist to estimate parameters you cannot measure directly.</p>
+
+<h3>What is the easiest way to avoid sampling bias?</h3>
+
+<p>Use probability sampling, which means giving every member of the population a known, non-zero chance of being selected. The simplest version is a simple random sample where everyone has an equal chance, which R's <code>sample()</code> function produces directly. This is what makes a sample representative without any extra effort.</p>
+
+<h3>Is sampling error the same as making a mistake?</h3>
+
+<p>No, sampling error is the normal, expected variation that comes from measuring a sample instead of the whole population. It is not a blunder, and it shrinks predictably as your sample grows. Bias, by contrast, is a genuine flaw in the method that data volume cannot fix.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cetinkaya-Rundel, M. and Hardin, J. <em>Introduction to Modern Statistics</em>. Chapter on study design and sampling. <a href="https://openintro-ims.netlify.app/">Link</a></li>
+
+<li>Wikipedia. <em>Sampling bias</em>. <a href="https://en.wikipedia.org/wiki/Sampling_bias">Link</a></li>
+
+<li>Wikipedia. <em>Sampling (statistics)</em>. <a href="https://en.wikipedia.org/wiki/Sampling_%28statistics%29">Link</a></li>
+
+<li>R Core Team. <em>sample: Random Samples and Permutations</em> (base R reference). <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html">Link</a></li>
+
+<li>Wikipedia. <em>Selection bias</em>. <a href="https://en.wikipedia.org/wiki/Selection_bias">Link</a></li>
+
+<li>R Core Team. <em>An Introduction to R</em>. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., and Grolemund, G. <em>R for Data Science</em>, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Types-of-Data-in-Statistics.html">Types of Data in Statistics: Categorical to Continuous</a> - the variable types you sample, and which summaries each one allows.</li>
+
+<li><a href="Sampling-Distributions-in-R.html">Sampling Distributions in R</a> - a closer look at how sample statistics vary from sample to sample.</li>
+
+<li><a href="Central-Limit-Theorem-in-R.html">Central Limit Theorem in R</a> - why those sample means pile up into the bell-shaped mound you saw here.</li>
+
+</ul>
+
+{% endraw %}
