@@ -1,0 +1,1074 @@
+---
+title: "Sampling Methods in R: Random, Stratified, Cluster"
+description: "Learn simple random, systematic, stratified, and cluster sampling in R with runnable code, and see how stratifying makes your sample estimates more precise."
+keywords: "sampling methods in R, simple random sampling, stratified sampling in R, cluster sampling, systematic sampling, slice_sample, probability sampling, proportional allocation, multistage sampling"
+mathjax: true
+webr: true
+curriculum_id: "ST2-1.4"
+post_type: "C"
+auto_link_terms: "sampling methods in R|simple random sampling|stratified sampling|stratified random sample|cluster sampling|systematic sampling|probability sampling|multistage sampling|proportional allocation|slice_sample()"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Sampling Methods"
+sidebar_order: "4"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Sampling means measuring a small group so you can learn about a much larger group without surveying everyone. A sampling method is the rule you use to pick that small group. This guide covers the four methods you meet most often, simple random, systematic, stratified, and cluster, and shows you how to run each one in R, when to reach for it, and why the choice changes how good your answer is.</p>
+
+<p>Everything below runs on a small employee population we build in the first code block, using base R and the <code>dplyr</code> package. You can run every block right here in the page and change the numbers to experiment. No files to download.</p>
+
+<h2>How do you draw a simple random sample in R?</h2>
+
+<p>The simplest fair way to pick a sample is to give every member of the group the same chance of being chosen. That is a <a class="auto-link" href="Populations-Samples-and-Bias-in-R.html" title="Populations, Samples and Sampling Bias in R">simple random sample</a>, and it is the baseline every other method is measured against. Let's build a small population of employees and draw one, so you can see the whole move in code before we name any of the parts.</p>
+
+<p>The code below creates a data frame called <code>company</code> with 1000 employees. Each employee has a region, a team, and a satisfaction score from a survey. Then <code>slice_sample()</code> from dplyr picks 5 employees at random. Watch the output: it is 5 rows pulled from the 1000, with no pattern to who got picked.</p>
+
+<div class="webr-container" data-block-title="Build a population and take a random sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a population and take a random sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(dplyr))
+
+# Build a population of 1000 employees across three regions of unequal size
+set.seed(2026)
+region &lt;- rep(c(&quot;East&quot;, &quot;Central&quot;, &quot;West&quot;), times = c(500, 300, 200))
+team   &lt;- paste0(&quot;T&quot;, sprintf(&quot;%02d&quot;, rep(1:50, each = 20)))
+region_mean  &lt;- c(East = 70, Central = 60, West = 50)
+satisfaction &lt;- round(rnorm(1000, mean = region_mean[region], sd = 8))
+company &lt;- tibble(id = 1:1000, region = region, team = team, satisfaction = satisfaction)
+
+# Draw a simple random sample of 5 employees
+set.seed(1)
+slice_sample(company, n = 5)
+#&gt; # A tibble: 5 × 4
+#&gt;      id region  team  satisfaction
+#&gt;   &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1   836 West    T42             27
+#&gt; 2   679 Central T34             51
+#&gt; 3   129 East    T07             74
+#&gt; 4   930 West    T47             61
+#&gt; 5   509 Central T26             60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what just happened, line by line. <code>set.seed(2026)</code> fixes the random number generator so the population comes out the same for you as it did for me. <code>rep()</code> builds the region column: 500 in East, 300 in Central, 200 in West. <code>rnorm()</code> gives each person a satisfaction score that depends on their region. Then <code>set.seed(1)</code> resets the generator again, and <code>slice_sample(company, n = 5)</code> returns 5 randomly chosen rows.</p>
+
+<p>The practical takeaway is that those 5 employees were chosen by pure chance. Nobody's satisfaction score, region, or team made them more or less likely to appear. That is the defining feature of a simple random sample, and it is why the sample tends to look like the population in miniature.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Equal chance is what buys representativeness on average.</strong> Because every employee is equally likely to be picked, high and low scores get pulled in at the same rate they occur in the population, so the sample average lands near the true average without you having to steer it.</div></div>
+
+<p>Base R has done this since long before dplyr existed. The <code>sample()</code> function picks random positions without replacement (no employee is picked twice), and you use those positions to subset the data. It gives you the same kind of result.</p>
+
+<div class="webr-container" data-block-title="Draw the same sample with base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the same sample with base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Base R: sample 5 row positions without replacement, then subset those rows
+set.seed(1)
+idx &lt;- sample(nrow(company), size = 5)
+company[idx, ]
+#&gt; # A tibble: 5 × 4
+#&gt;      id region  team  satisfaction
+#&gt;   &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1   836 West    T42             27
+#&gt; 2   679 Central T34             51
+#&gt; 3   129 East    T07             74
+#&gt; 4   930 West    T47             61
+#&gt; 5   509 Central T26             60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the rows are identical to the dplyr version. That is not a coincidence. <code>slice_sample()</code> is a tidy wrapper around the same idea: pick random row positions, then return those rows. Use whichever style fits the rest of your code. We will lean on <code>slice_sample()</code> from here because it drops straight into a dplyr pipeline.</p>
+
+<p>Often you want a fraction of the data rather than a fixed count. The <code>prop</code> argument does that. Here we take 10 percent of the 1000 employees, which is 100 people.</p>
+
+<div class="webr-container" data-block-title="Sample a fixed fraction of rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample a fixed fraction of rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Take 10 percent of the population instead of a fixed count
+set.seed(3)
+srs_frac &lt;- slice_sample(company, prop = 0.10)
+nrow(srs_frac)
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>prop = 0.10</code> argument means "give me 10 percent of the rows," so <code>nrow()</code> confirms 100 employees came back. Fixed count with <code>n</code> or a fraction with <code>prop</code>, both are simple random sampling. You just picked the size differently.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a simple random sample of 8 employees from <code>company</code> and confirm the size with <code>nrow()</code>. Use <code>slice_sample()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: draw 8 employees at random">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: draw 8 employees at random</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the sample size, then run.
+# ex_srs &lt;- slice_sample(company, n = ___)
+# nrow(ex_srs)
+# Expected: 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Simple random sample of 8 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simple random sample of 8 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(8)
+ex_srs &lt;- slice_sample(company, n = 8)
+nrow(ex_srs)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>slice_sample(company, n = 8)</code> returns 8 randomly chosen rows, and <code>nrow()</code> counts them. The <code>set.seed()</code> line just makes the draw repeatable.</p>
+
+</details>
+</section>
+
+<h2>What is systematic sampling, and how do you do it in R?</h2>
+
+<p>Simple random sampling needs a random draw for every unit you pick. Systematic sampling is a lighter-weight cousin: you line the population up in some order, pick one random starting point, then take every k-th unit from there. It is popular when items arrive in a stream, like every 20th product off a line or every 10th visitor through a door.</p>
+
+<p>The step size <code>k</code> is the population size divided by the <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a>. For 1000 employees and a target of 50, <code>k</code> is 20. You then pick a random start between 1 and 20 and grab positions like 10, 30, 50, and so on. The code computes the step, picks the start, and builds the row positions with <code>seq()</code>.</p>
+
+<div class="webr-container" data-block-title="Draw a systematic sample every k-th row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a systematic sample every k-th row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Systematic sample: N = 1000, we want n = 50, so the step k = N / n = 20
+N &lt;- nrow(company); n &lt;- 50
+k &lt;- N %/% n
+set.seed(7)
+start &lt;- sample(1:k, 1)
+idx_sys &lt;- seq(from = start, by = k, length.out = n)
+sys_sample &lt;- company[idx_sys, ]
+c(start = start, step = k, rows = nrow(sys_sample))
+#&gt; start  step  rows 
+#&gt;    10    20    50 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the output: the random start landed on position 10, so with a step of 20 we collected 50 rows. So this sample is employees at positions 10, 30, 50, and onward to 990. The only randomness was choosing where to start; everything after that is mechanical.</p>
+
+<p>Because our population is ordered by region, taking every 20th person spreads the sample evenly across the whole ordered list. Let's check how the regions came out.</p>
+
+<div class="webr-container" data-block-title="Check the systematic sample&#x27;s region mix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the systematic sample&#x27;s region mix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">count(sys_sample, region)
+#&gt; # A tibble: 3 × 2
+#&gt;   region      n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 Central    15
+#&gt; 2 East       25
+#&gt; 3 West       10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The systematic sample landed 25 East, 15 Central, 10 West employees. That matches the population split of 500, 300, 200 almost perfectly. When the ordering has no hidden pattern, systematic sampling behaves a lot like simple random sampling and costs less effort.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Systematic sampling breaks when the list has a repeating cycle that matches your step.</strong> If employees were sorted so that every 20th one is a team lead, a step of 20 would hand you a sample of all leads or no leads. Shuffle the order first, or use simple random sampling, whenever the sort order might line up with your step.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a systematic sample of 100 employees. Work out the step <code>k</code> as <code>nrow(company) %/% 100</code>, pick a random start, then take every k-th row. Report the step and the number of rows.</p>
+<div class="webr-container" data-block-title="Your turn: systematic sample of 100">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: systematic sample of 100</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_k &lt;- nrow(company) %/% 100        # work out the step
+# set.seed(11)
+# ex_start &lt;- sample(1:ex_k, 1)        # random start in 1..k
+# ex_sys &lt;- company[seq(ex_start, by = ex_k, length.out = 100), ]
+# c(step = ex_k, rows = nrow(ex_sys))
+# Expected: step 10, rows 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Systematic sample of 100 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Systematic sample of 100 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- 100
+ex_k &lt;- nrow(company) %/% ex_n
+set.seed(11)
+ex_start &lt;- sample(1:ex_k, 1)
+ex_sys &lt;- company[seq(ex_start, by = ex_k, length.out = ex_n), ]
+c(step = ex_k, rows = nrow(ex_sys))
+#&gt; step rows 
+#&gt;   10  100 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A bigger sample means a smaller step. For 100 out of 1000 the step drops to 10, so you take every 10th employee.</p>
+
+</details>
+</section>
+
+<h2>How does stratified sampling work in R?</h2>
+
+<p>Sometimes you have subgroups you must represent no matter what, like regions or age bands. Stratified sampling guarantees it. You split the population into groups called strata, then draw a random sample inside each stratum. No stratum can be missed, because you sample from every one.</p>
+
+<p>In dplyr this is a two-verb move. <code>group_by(region)</code> tells dplyr to treat each region separately, and <code>slice_sample()</code> then draws inside each group. The <code>|&gt;</code> between the lines is the pipe: it feeds the result of each line into the next, so you read the steps top to bottom. The <code>ungroup()</code> at the end clears the grouping so later steps behave normally. Here we take 10 percent of each region.</p>
+
+<div class="webr-container" data-block-title="Draw a proportional stratified sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a proportional stratified sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+strat_prop &lt;- company |&gt;
+  group_by(region) |&gt;
+  slice_sample(prop = 0.10) |&gt;
+  ungroup()
+count(strat_prop, region)
+#&gt; # A tibble: 3 × 2
+#&gt;   region      n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 Central    30
+#&gt; 2 East       50
+#&gt; 3 West       20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten percent of each region gives 50 from East, 30 from Central, and 20 from West, for 100 in total. Because each region contributes the same fraction, the big regions send more people and the small ones send fewer. This is called proportional allocation, and it keeps the sample's group sizes in step with the population's.</p>
+
+<p>Does the sample really mirror the population? Let's put the two side by side. <code>prop.table(table(...))</code> turns raw counts into shares that add to 1.</p>
+
+<div class="webr-container" data-block-title="Compare sample and population proportions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare sample and population proportions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Population share of each region vs the stratified sample's share
+pop_share    &lt;- prop.table(table(company$region))
+sample_share &lt;- prop.table(table(strat_prop$region))
+round(rbind(population = pop_share, sample = sample_share), 3)
+#&gt;            Central East West
+#&gt; population     0.3  0.5  0.2
+#&gt; sample         0.3  0.5  0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two rows are identical: 30 percent Central, 50 percent East, 20 percent West, in both the population and the sample. Proportional stratified sampling locks the group shares in place. A simple random sample would land close to these shares but wobble a little from draw to draw; stratifying removes that wobble.</p>
+
+<p>You do not have to match the population shares. Sometimes you want the same number from each group, for example to compare regions on equal footing. That is equal allocation: just pass a fixed <code>n</code> instead of <code>prop</code>.</p>
+
+<div class="webr-container" data-block-title="Draw an equal-size stratified sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw an equal-size stratified sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+strat_equal &lt;- company |&gt;
+  group_by(region) |&gt;
+  slice_sample(n = 30) |&gt;
+  ungroup()
+count(strat_equal, region)
+#&gt; # A tibble: 3 × 2
+#&gt;   region      n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 Central    30
+#&gt; 2 East       30
+#&gt; 3 West       30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now every region contributes exactly 30 people, even though West has far fewer employees than East. Equal allocation is great for comparing groups, but the sample no longer mirrors the population, so you would need to weight the groups back to their true sizes before making a population-wide estimate.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always <a class="auto-link" href="dplyr-ungroup-in-R.html" title="dplyr ungroup() in R: Remove Grouping Before Next Step">ungroup()</a> after a grouped slice_sample().</strong> If you forget, later verbs like <code>mutate()</code> or <code>summarise()</code> silently keep running per region, which can produce puzzling results three steps downstream.</div></div>
+
+<p>The formula behind proportional allocation is short. If you want stratum <code>h</code> to get its fair share, set its sample size to the total sample size times the stratum's share of the population.</p>
+
+<p>$$n_h = n \times \frac{N_h}{N}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$n_h$ = how many to sample from stratum $h$</li>
+
+<li>$n$ = total sample size you want</li>
+
+<li>$N_h$ = number of people in stratum $h$ in the population</li>
+
+<li>$N$ = total population size</li>
+
+</ul>
+
+<p>If you are not interested in the formula, skip it. Passing <code>prop</code> to <code>slice_sample()</code> does this arithmetic for you.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a proportional <a class="auto-link" href="dplyr-slice_sample-in-R.html" title="dplyr slice_sample() in R: Random Rows From a Tibble">stratified sample</a> of 5 percent from each region and count how many came from each. Use <code>group_by()</code> and <code>slice_sample(prop = ...)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 5 percent from each region">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 5 percent from each region</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_strat &lt;- company |&gt;
+#   group_by(region) |&gt;
+#   slice_sample(prop = ___) |&gt;
+#   ungroup()
+# count(ex_strat, region)
+# Expected: Central 15, East 25, West 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Proportional 5 percent solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportional 5 percent solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_strat &lt;- company |&gt; group_by(region) |&gt; slice_sample(prop = 0.05) |&gt; ungroup()
+count(ex_strat, region)
+#&gt; # A tibble: 3 × 2
+#&gt;   region      n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 Central    15
+#&gt; 2 East       25
+#&gt; 3 West       10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five percent of 300, 500, and 200 is 15, 25, and 10, so the sample keeps the region proportions exactly.</p>
+
+</details>
+</section>
+
+<h2>Why does stratified sampling give more precise estimates?</h2>
+
+<p>We keep saying stratified sampling is "more precise." Rather than assert it, let's measure it. Precision here means how much your estimate jumps around if you were to repeat the whole sampling process many times. A precise method gives nearly the same answer every time; a noisy one swings widely.</p>
+
+<p>First, the target. The whole point of a sample is to estimate something about the population, so let's compute the true average satisfaction we are trying to hit.</p>
+
+<div class="webr-container" data-block-title="Find the true population mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the true population mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The true population mean we are trying to estimate
+mu &lt;- mean(company$satisfaction)
+round(mu, 2)
+#&gt; [1] 63.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The true average is 63.12. In real life you never get to see this number, which is exactly why you sample. Now we run a fair race. We draw 1000 simple random samples of 100 people, and 1000 proportional stratified samples of 100 people, and record the mean satisfaction each time. Then we compare how much each method's estimates spread out.</p>
+
+<div class="webr-container" data-block-title="Compare SRS and stratified over 1000 samples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare SRS and stratified over 1000 samples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+reps &lt;- 1000
+srs_means &lt;- replicate(reps, mean(slice_sample(company, n = 100)$satisfaction))
+strat_means &lt;- replicate(reps, {
+  s &lt;- company |&gt; group_by(region) |&gt; slice_sample(prop = 0.10) |&gt; ungroup()
+  mean(s$satisfaction)
+})
+round(c(srs_sd = sd(srs_means), strat_sd = sd(strat_means)), 3)
+#&gt;   srs_sd strat_sd 
+#&gt;    1.073    0.762 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard deviation of the 1000 estimates is the spread we care about. Simple random sampling scattered its estimates with a standard deviation of 1.073, while stratified sampling scattered its estimates by only 0.762. A smaller number means the estimates cluster tighter around the truth. Let's express that as a percentage.</p>
+
+<div class="webr-container" data-block-title="How much does stratifying reduce the spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How much does stratifying reduce the spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fraction by which stratifying shrinks the spread of the estimate
+round(1 - sd(strat_means) / sd(srs_means), 3)
+#&gt; [1] 0.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Stratifying cut the spread of the estimate by 29 percent, using the exact same sample size of 100. That is a free precision gain, bought only by organizing the draw by region instead of ignoring region.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Stratifying pays off exactly when the strata averages differ.</strong> Our regions have very different satisfaction levels, so pinning down each region's share removes a big source of variation from the overall estimate. If every region had the same average, stratifying would buy you almost nothing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The spread also shows up in the range. Compute the range (max minus min) of <code>srs_means</code> and of <code>strat_means</code> and compare. Use <code>diff(range(...))</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compare the range of estimates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare the range of estimates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_ranges &lt;- c(srs = diff(range(srs_means)), strat = diff(range(strat_means)))
+# round(ex_ranges, 3)
+# Expected: srs range wider than strat range</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Range of estimates solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Range of estimates solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ranges &lt;- c(srs = diff(range(srs_means)), strat = diff(range(strat_means)))
+round(ex_ranges, 3)
+#&gt;   srs strat 
+#&gt;  6.55  4.99 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Across 1000 samples, the simple random estimates spanned 6.55 points while the stratified estimates spanned only 4.99. The stratified method is steadier by every measure of spread.</p>
+
+</details>
+</section>
+
+<h2>What is cluster sampling, and how is it different from stratified?</h2>
+
+<p>Stratified and cluster sampling both start by splitting the population into groups, which makes them easy to confuse. The difference is what you do next. Stratified sampling draws a few units from every group. Cluster sampling picks a few whole groups at random and takes everyone inside them.</p>
+
+<p><img src="screenshots/Sampling-Methods-in-R-stratified-vs-cluster.webp" alt="Stratified sampling draws from every group; cluster sampling picks whole groups and takes everyone in them." class="img-responsive img-zoomable" loading="lazy" width="1470" height="786" /></p>
+
+<p><em>Figure 1: Stratified sampling draws from every group; cluster sampling picks whole groups and takes everyone in them.</em></p>
+
+<p>You reach for cluster sampling when the groups are natural units that are expensive or slow to reach one by one, like schools or city blocks. It is far cheaper to visit 10 schools and survey everyone there than to chase 300 students scattered across 200 schools. In our data, teams are natural clusters. Let's pick 10 of the 50 teams at random and take every employee in them.</p>
+
+<div class="webr-container" data-block-title="Draw a one-stage cluster sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a one-stage cluster sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Teams are natural clusters. Pick 10 of the 50 teams, then take everyone in them.
+set.seed(123)
+chosen_teams &lt;- sample(unique(company$team), size = 10)
+cluster_sample &lt;- company |&gt; filter(team %in% chosen_teams)
+c(teams = length(chosen_teams), people = nrow(cluster_sample))
+#&gt;  teams people 
+#&gt;     10    200 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We selected 10 teams, and because every team has 20 people, that gave us 200 employees. The random draw was over teams, not people. Once a team was chosen, all 20 of its members came along automatically.</p>
+
+<p>There is a catch, and it is the whole reason cluster sampling is different from stratified. Because we only visited 10 of the 50 teams, the regions can come out lopsided. Let's look.</p>
+
+<div class="webr-container" data-block-title="See which regions the clusters landed in">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See which regions the clusters landed in</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">count(cluster_sample, region)
+#&gt; # A tibble: 3 × 2
+#&gt;   region      n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 Central    60
+#&gt; 2 East       80
+#&gt; 3 West       60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare this to the population shares of 30 percent Central, 50 percent East, 20 percent West. The cluster sample came out 30, 40, 30 percent instead, over-representing West and under-representing East. Cluster sampling gives no guarantee that subgroups stay balanced, which is the opposite of what stratified sampling promises.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Cluster sampling trades precision for cost.</strong> People in the same team tend to resemble each other, so each extra person from a chosen team adds less new information than a fresh random person would. You save money and effort, but your estimate is usually noisier for the same number of responses. We measure exactly how much noisier in the practice exercises.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a cluster sample of 5 teams and count how many people it contains. Use <code>sample()</code> to pick the teams, then <code>filter()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cluster sample of 5 teams">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cluster sample of 5 teams</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># set.seed(21)
+# ex_teams &lt;- sample(unique(company$team), size = 5)
+# ex_cluster &lt;- company |&gt; filter(team %in% ex_teams)
+# c(teams = length(ex_teams), people = nrow(ex_cluster))
+# Expected: 5 teams, 100 people</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cluster sample of 5 teams solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cluster sample of 5 teams solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+ex_teams &lt;- sample(unique(company$team), size = 5)
+ex_cluster &lt;- company |&gt; filter(team %in% ex_teams)
+c(teams = length(ex_teams), people = nrow(ex_cluster))
+#&gt;  teams people 
+#&gt;      5    100 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five teams of 20 give exactly 100 people. You chose 5 clusters at random and took all their members.</p>
+
+</details>
+</section>
+
+<h2>How do you choose the right sampling method?</h2>
+
+<p>You now have four tools. Picking between them comes down to two questions: are your natural groups costly to reach, and do you have subgroups you must represent? The guide below walks you through it.</p>
+
+<p><img src="screenshots/Sampling-Methods-in-R-decision-guide.webp" alt="A quick decision guide for picking a sampling method." class="img-responsive img-zoomable" loading="lazy" width="2018" height="850" /></p>
+
+<p><em>Figure 2: A quick decision guide for picking a sampling method.</em></p>
+
+<p>Here is the same advice as a table you can scan, with the trade-off each method makes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>How it picks</th>
+<th>Best when</th>
+<th>Precision</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple random</td>
+<td>Every unit an equal chance</td>
+<td>You have a clean list of everyone</td>
+<td>Good</td>
+<td>Higher</td>
+</tr>
+<tr>
+<td>Systematic</td>
+<td>Every k-th unit after a random start</td>
+<td>Units arrive in a stream</td>
+<td>Good, if no cycle</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>Stratified</td>
+<td>Sample within every subgroup</td>
+<td>Subgroups differ and must be shown</td>
+<td>Best</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Cluster</td>
+<td>Take whole groups at random</td>
+<td>Groups are costly or scattered to reach</td>
+<td>Lower</td>
+<td>Lowest</td>
+</tr>
+</tbody>
+</table>
+
+<p>Real surveys often combine these into multistage sampling. You cluster first to save travel, then sample inside each chosen cluster instead of surveying everyone, which cuts cost twice. The code below does two stages: pick 8 teams, then sample 5 people from each of those teams.</p>
+
+<div class="webr-container" data-block-title="Draw a two-stage (multistage) sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a two-stage (multistage) sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Stage 1: pick 8 teams at random. Stage 2: sample 5 people inside each chosen team.
+set.seed(2025)
+stage1 &lt;- sample(unique(company$team), size = 8)
+multistage &lt;- company |&gt;
+  filter(team %in% stage1) |&gt;
+  group_by(team) |&gt;
+  slice_sample(n = 5) |&gt;
+  ungroup()
+c(teams = length(stage1), people = nrow(multistage))
+#&gt;  teams people 
+#&gt;      8     40 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Stage 1 chose 8 teams with <code>sample()</code>. Stage 2 grouped by team and drew 5 people from each with <code>slice_sample(n = 5)</code>, for 40 people in all. You visit only 8 teams instead of all 50, and within each you talk to 5 people instead of all 20. That is a large saving in effort.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Stratified versus cluster, in one line: strata mean you sample within all groups for balance, clusters mean you sample whole groups for cheapness.</strong> Multistage sampling is just cluster sampling with a second random draw inside each chosen cluster.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a two-stage sample that picks 6 teams and then 4 people from each. Report the number of teams and total people.</p>
+<div class="webr-container" data-block-title="Your turn: two-stage sample, 6 teams x 4 people">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two-stage sample, 6 teams x 4 people</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># set.seed(31)
+# ex_stage1 &lt;- sample(unique(company$team), size = 6)
+# ex_multi &lt;- company |&gt; filter(team %in% ex_stage1) |&gt;
+#   group_by(team) |&gt; slice_sample(n = 4) |&gt; ungroup()
+# c(teams = length(ex_stage1), people = nrow(ex_multi))
+# Expected: 6 teams, 24 people</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-stage 6 by 4 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-stage 6 by 4 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+ex_stage1 &lt;- sample(unique(company$team), size = 6)
+ex_multi &lt;- company |&gt; filter(team %in% ex_stage1) |&gt; group_by(team) |&gt; slice_sample(n = 4) |&gt; ungroup()
+c(teams = length(ex_stage1), people = nrow(ex_multi))
+#&gt;  teams people 
+#&gt;      6     24 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six teams times 4 people each is 24 responses, gathered from only 6 site visits.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's put the pieces together in a task you might actually get: survey 100 of the 1000 employees, and make sure each region is represented in proportion to its size. This is proportional stratified sampling from start to finish.</p>
+
+<p>First, plan the allocation. We count how many employees are in each region, then work out each region's share of 100.</p>
+
+<div class="webr-container" data-block-title="Plan a proportional stratified survey of 100 employees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plan a proportional stratified survey of 100 employees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: survey 100 of the 1000 employees, allocated proportional to region size
+alloc &lt;- company |&gt;
+  count(region, name = &quot;N_h&quot;) |&gt;
+  mutate(n_h = round(100 * N_h / sum(N_h)))
+alloc
+#&gt; # A tibble: 3 × 3
+#&gt;   region    N_h   n_h
+#&gt;   &lt;chr&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 Central   300    30
+#&gt; 2 East      500    50
+#&gt; 3 West      200    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plan says survey 50 from East, 30 from Central, 20 from West. Since those are exactly 10 percent of each region, we can draw the survey by taking <code>prop = 0.10</code> within each region, and the counts will match the plan.</p>
+
+<div class="webr-container" data-block-title="Draw the survey sample using the plan">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the survey sample using the plan</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+survey &lt;- company |&gt;
+  group_by(region) |&gt;
+  slice_sample(prop = 0.10) |&gt;
+  ungroup()
+count(survey, region)
+#&gt; # A tibble: 3 × 2
+#&gt;   region      n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 Central    30
+#&gt; 2 East       50
+#&gt; 3 West       20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The drawn sample matches the plan exactly: 50 East, 30 Central, 20 West. Now we use the survey to estimate the population's average satisfaction and attach a rough standard error, which measures how far off the estimate might be.</p>
+
+<div class="webr-container" data-block-title="Estimate mean satisfaction from the survey">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate mean satisfaction from the survey</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Estimate the population mean and a rough standard error from the survey
+est &lt;- mean(survey$satisfaction)
+se  &lt;- sd(survey$satisfaction) / sqrt(nrow(survey))
+round(c(estimate = est, std_error = se, truth = mean(company$satisfaction)), 2)
+#&gt;  estimate std_error     truth 
+#&gt;     62.15      1.19     63.12 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The survey estimated average satisfaction at 62.15, and the truth is 63.12. The estimate is within about one standard error of the real value, which is exactly the kind of accuracy a well-designed sample of 100 should give you. You learned the whole population's satisfaction by measuring one in ten employees, with the regions kept in balance the entire way.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. The code uses <code>my_</code> names so it will not clash with the tutorial's variables.</p>
+
+<h3>Exercise 1: Verify a stratified sample matches the population</h3>
+
+<p>Draw a proportional stratified sample of 15 percent from each region, then prove the sample's region shares match the population's shares. Build a two-row table of shares, one row for the population and one for the sample.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: slice_sample(prop = 0.15) inside group_by(region), then
+# compare prop.table(table(...)) for company and for your sample.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+my_strat &lt;- company |&gt; group_by(region) |&gt; slice_sample(prop = 0.15) |&gt; ungroup()
+my_check &lt;- rbind(
+  population = round(prop.table(table(company$region)), 3),
+  sample     = round(prop.table(table(my_strat$region)), 3)
+)
+my_check
+#&gt;            Central East West
+#&gt; population     0.3  0.5  0.2
+#&gt; sample         0.3  0.5  0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Proportional allocation forces the sample shares to equal the population shares, so both rows read 0.3, 0.5, 0.2. This is the guarantee stratified sampling gives you and simple random sampling does not.</p>
+
+</details>
+
+<h3>Exercise 2: Measure the precision cost of cluster sampling</h3>
+
+<p>Run a small simulation to compare precision. Over 500 repeats, draw a simple random sample of 100 people and a cluster sample of 5 teams (also 100 people), record the mean satisfaction each time, and compare the standard deviation of the two sets of estimates. Which method is noisier?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use replicate(500, ...). For the cluster arm, sample 5 teams then
+# average satisfaction over everyone in those teams.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+sim &lt;- 500
+srs_est &lt;- replicate(sim, mean(slice_sample(company, n = 100)$satisfaction))
+clus_est &lt;- replicate(sim, {
+  tms &lt;- sample(unique(company$team), size = 5)   # 5 teams x 20 = 100 people
+  mean(company$satisfaction[company$team %in% tms])
+})
+round(c(srs_sd = sd(srs_est), cluster_sd = sd(clus_est)), 3)
+#&gt;     srs_sd cluster_sd 
+#&gt;      1.050      3.485 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With the same 100 people, cluster sampling scattered its estimates more than three times as widely as simple random sampling (3.485 versus 1.050). That is the precision you pay for the convenience of visiting only 5 teams.</p>
+
+</details>
+
+<h3>Exercise 3: Estimate from a multistage sample</h3>
+
+<p>Draw a two-stage sample: pick 6 teams, then 8 people from each. Estimate the population's mean satisfaction from your 48 responses and compare it to the true mean of 63.12. Do not be surprised if it is off by a few points.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter to 6 sampled teams, group_by(team), slice_sample(n = 8),
+# then mean() the satisfaction column.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(505)
+stage1_c &lt;- sample(unique(company$team), size = 6)
+my_multi &lt;- company |&gt; filter(team %in% stage1_c) |&gt; group_by(team) |&gt; slice_sample(n = 8) |&gt; ungroup()
+round(c(estimate = mean(my_multi$satisfaction), truth = mean(company$satisfaction), people = nrow(my_multi)), 2)
+#&gt; estimate    truth   people 
+#&gt;    67.79    63.12    48.00 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> This draw estimated 67.79 against a truth of 63.12, a miss of about 4.7 points from just 48 people spread over 6 teams. That gap is the precision cost from Exercise 2 showing up in a single sample: fewer clusters means a noisier answer. More teams, or a larger sample, would tighten it.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between stratified and cluster sampling?</strong> Stratified sampling draws a few units from every group, so all groups are represented. Cluster sampling picks a few whole groups at random and takes everyone in them, so some groups are left out entirely. Use strata for balance and precision, clusters to save cost when groups are hard to reach.</p>
+
+<p><strong>Should I use slice_sample() or sample_n() and sample_frac()?</strong> Use <code>slice_sample()</code>. The older <code>sample_n()</code> and <code>sample_frac()</code> still work but have been superseded in modern dplyr, and <code>slice_sample()</code> covers both with the <code>n</code> and <code>prop</code> arguments.</p>
+
+<p><strong>Is systematic sampling a probability sample?</strong> Yes, as long as the starting point is chosen at random, every unit has a known chance of selection. The one thing to watch is periodicity: if the list repeats on a cycle equal to your step size, the sample can be biased, so shuffle the order when in doubt.</p>
+
+<p><strong>Do I always need set.seed()?</strong> Only when you want the exact same random draw again, which is useful for reproducible reports and for debugging. Set a seed before any random step. In a real one-off survey you can skip it, since you draw the sample once.</p>
+
+<p><strong>Does stratified sampling always beat simple random sampling?</strong> It helps most when the strata have different averages, as our regions do. If the groups are nearly identical on the thing you are measuring, stratifying adds effort for little precision gain. It never hurts precision, though, so it is a safe default when you have meaningful subgroups.</p>
+
+<p><strong>How large should my sample be?</strong> That depends on how precise you need the answer and how much the population varies. Sample size planning is its own topic, but the pattern you saw holds: bigger samples and smarter designs like stratification both shrink the spread of your estimate.</p>
+
+<h2>Summary</h2>
+
+<p>Sampling lets you answer questions about a large population by measuring a small slice of it. The method you pick decides how representative and how precise that slice is.</p>
+
+<p><img src="screenshots/Sampling-Methods-in-R-methods-overview.webp" alt="The four sampling methods at a glance, all starting from one population." class="img-responsive img-zoomable" loading="lazy" width="984" height="1426" /></p>
+
+<p><em>Figure 3: The four sampling methods at a glance, all starting from one population.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>One-line how</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple random</td>
+<td><code>slice_sample(n =)</code> or <code>sample()</code> picks at random</td>
+<td>You have a full list and want a fair baseline</td>
+</tr>
+<tr>
+<td>Systematic</td>
+<td>Every k-th unit after a random start</td>
+<td>Units stream past in some order</td>
+</tr>
+<tr>
+<td>Stratified</td>
+<td><code>group_by()</code> then <code>slice_sample()</code> inside each group</td>
+<td>You must represent subgroups and want precision</td>
+</tr>
+<tr>
+<td>Cluster</td>
+<td><code>sample()</code> whole groups, then <code>filter()</code> to them</td>
+<td>Groups are costly or scattered to reach</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key things to carry forward:</p>
+
+<ul>
+
+<li>Simple random sampling gives every unit an equal chance and is the baseline for everything else.</li>
+
+<li>Systematic sampling is cheaper but assumes the ordering has no hidden cycle.</li>
+
+<li>Stratified sampling represents every subgroup and tightened our estimate by 29 percent for free.</li>
+
+<li>Cluster sampling saves cost by taking whole groups, at the price of lower precision.</li>
+
+<li>Multistage sampling chains these together, most often <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> first, then sampling inside each cluster.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>dplyr documentation. slice_sample() and the slice family reference. The canonical docs for slice_sample() and its <code>n</code>, <code>prop</code>, and <code>weight_by</code> arguments. <a href="https://dplyr.tidyverse.org/reference/slice.html">Link</a></li>
+
+<li>dplyr documentation. group_by() reference. Explains how grouping makes slice_sample() draw within each stratum. <a href="https://dplyr.tidyverse.org/reference/group_by.html">Link</a></li>
+
+<li>R Core Team. An Introduction to R, section on the sample() function. The base R sample() function used here for row positions and for picking clusters. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., and Grolemund, G. R for Data Science, 2nd Edition. A practical, beginner-friendly introduction to dplyr and the tidyverse workflow. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>Simple random sample. Wikipedia. A plain-language definition of simple random sampling and its properties. <a href="https://en.wikipedia.org/wiki/Simple_random_sample">Link</a></li>
+
+<li>Stratified sampling. Wikipedia. Background on strata, proportional versus equal allocation, and the variance reduction. <a href="https://en.wikipedia.org/wiki/Stratified_sampling">Link</a></li>
+
+<li>Cluster sampling. Wikipedia. More depth on the cost-precision trade-off and the design effect. <a href="https://en.wikipedia.org/wiki/Cluster_sampling">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Populations-Samples-and-Bias-in-R.html">Populations, Samples and Sampling Bias in R</a>: the why behind sampling, and how a bad sampling method quietly distorts your answer.</li>
+
+<li><a href="Types-of-Data-in-Statistics.html">Types of Data in Statistics: Categorical to Continuous</a>: what kind of variable you are sampling shapes how you <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> it.</li>
+
+<li><a href="What-Statistics-Is-For.html">What Statistics Is For: Questions, Evidence, Decisions</a>: where sampling fits in the bigger job of learning from data.</li>
+
+</ul>
+
+{% endraw %}
