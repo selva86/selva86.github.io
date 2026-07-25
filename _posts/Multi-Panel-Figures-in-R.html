@@ -1,0 +1,879 @@
+---
+title: "Multi-Panel Figures in R: a One-Page Brief in ggplot2"
+description: "Build multi-panel figures in R with ggplot2 and patchwork. Learn to compose several plots into one publication-ready page with a shared legend and panel tags."
+keywords: "multi-panel figures in R, combine plots ggplot2, patchwork R, arrange multiple ggplots, one-page figure R, panel labels ggplot2, shared legend ggplot2, plot_layout, plot_annotation"
+mathjax: false
+webr: true
+curriculum_id: "GG2-8.3"
+post_type: "C"
+auto_link_terms: "multi-panel figure|multi-panel figures|multi panel figure|one-page brief|compose multiple plots|combine ggplots into a figure|arrange multiple ggplots|multi-panel layout|panel hierarchy|composed figure|figure panels"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Multi-Panel Figures"
+sidebar_order: "78"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A <b><a class="auto-link" href="patchwork-Package.html" title="patchwork in R: Combine Multiple ggplot2 Plots With Aligned Axes and Shared Legends">multi-panel figure</a></b> places several separate plots inside one figure. A <b>one-page brief</b> is a multi-panel figure designed so a reader gets the whole story from a single page. This tutorial builds one end to end in ggplot2, using the <code>patchwork</code> companion package to <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> the panels.</p>
+
+<h2>What is a multi-panel figure, and how is it different from faceting?</h2>
+
+<p>A single chart answers one question well. A brief has to answer several at once: what is the trend, which groups lead, how does the split look. A multi-panel figure lays those answers side by side on one page so a reader takes them in together. Before we design one, we settle the fork that every multi-panel job starts with.</p>
+
+<p>We will build everything on one dataset so the ideas stack instead of resetting. The <code>mpg</code> dataset ships with ggplot2 and records fuel economy for 234 car models. Let's load our two packages and peek at the four columns we care about.</p>
+
+<div class="webr-container" data-block-title="Load packages and peek at the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and peek at the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(patchwork)
+
+# mpg ships with ggplot2: 234 car models, fuel economy data
+head(mpg[, c(&quot;class&quot;, &quot;displ&quot;, &quot;hwy&quot;, &quot;drv&quot;)], 3)
+#&gt; # A tibble: 3 × 4
+#&gt;   class   displ   hwy drv  
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;
+#&gt; 1 compact   1.8    29 f    
+#&gt; 2 compact   1.8    29 f    
+#&gt; 3 compact   2      31 f    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one car. <code>displ</code> is the engine size in litres, <code>hwy</code> is highway miles per gallon, <code>class</code> is the body type, and <code>drv</code> is the drivetrain (<code>f</code> for front-wheel, <code>r</code> for rear-wheel, <code>4</code> for four-wheel). Those are the ingredients for a small brief about fuel economy.</p>
+
+<p>Now the payoff. Let's build two different views of this data, then join them into one figure with a single plus sign. The first plot relates engine size to mileage, and the second ranks body types by mileage.</p>
+
+<div class="webr-container" data-block-title="Combine two plots with a plus sign">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine two plots with a plus sign</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_scatter &lt;- ggplot(mpg, aes(displ, hwy, color = drv)) +
+  geom_point(alpha = 0.7) +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway mpg&quot;, color = &quot;Drive&quot;)
+
+p_box &lt;- ggplot(mpg, aes(reorder(class, hwy, median), hwy)) +
+  geom_boxplot(fill = &quot;grey85&quot;) +
+  labs(x = NULL, y = &quot;Highway mpg&quot;) +
+  coord_flip()
+
+p_scatter + p_box</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>+</code> operator comes from patchwork, and it places the two plots side by side in one figure. Inside <code>p_box</code>, <code>reorder(class, hwy, median)</code> sorts the body types by their median mileage so the boxes climb in order, and <code>coord_flip()</code> turns the chart on its side so the long class names sit on the readable vertical axis. You now have two distinct views living in a single figure.</p>
+
+<p>That combined figure holds two different plots. Faceting does something that looks similar but is fundamentally different: it takes one plot and repeats it once per subset of the data. Here is the same scatter, split into one panel per drivetrain.</p>
+
+<div class="webr-container" data-block-title="Faceting repeats one plot across subsets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Faceting repeats one plot across subsets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point(alpha = 0.6) +
+  facet_wrap(~ drv)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three panels appear, but they share the same axes and the same geom, and only the data subset changes from panel to panel. That is faceting: one plot, many slices. Composition is the opposite: many different plots, one figure. The diagram below draws the fork.</p>
+
+<p><img src="screenshots/Multi-Panel-Figures-in-R-facet-vs-compose.webp" alt="Two routes to multiple panels: facet one plot, or compose several" class="img-responsive img-zoomable" loading="lazy" width="2248" height="670" /></p>
+
+<p><em>Figure 1: Two routes to multiple panels: facet one plot, or compose several.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>When the panels are the same plot over different slices of data, facet; when they are different plots, compose.</strong> Faceting gives you shared axes and one legend for free, while composing with patchwork gives you full control over what goes in each panel and how each one is sized.</div></div>
+
+<p>This tutorial is about the second route. Faceting has its own dedicated guide, so here we focus on composing several distinct plots into a single designed page, the kind you would hand to a manager or drop into a report.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The plus sign packs plots into a grid. The slash operator stacks them vertically instead. Stack <code>p_scatter</code> on top of <code>p_box</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stack the two plots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stack the two plots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Combine with + (grid); change it to / (stack)
+p_scatter + p_box</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stacked layout solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stacked layout solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_scatter / p_box</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>/</code> operator places the second plot beneath the first, giving a tall two-row figure instead of a wide two-column one.</p>
+
+</details>
+</section>
+
+<h2>How do you combine plots into panels with patchwork?</h2>
+
+<p>patchwork gives you three small operators, and they are all you need for most layouts. The <code>+</code> operator packs plots into a grid that fills automatically, <code>|</code> places plots side by side in a row, and <code>/</code> stacks them in a column. With two plots, <code>+</code> and <code>|</code> produce the same side-by-side result, which is what you saw above; the difference shows once you have three or more, where <code>+</code> wraps them into a grid while <code>|</code> keeps them all in one row. Wrapping a group in parentheses lets you nest these, so you can build a row inside a column.</p>
+
+<p>A good brief has a third view that quantifies what the first two suggest. The scatter hints that drivetrain matters, so let's check the actual average mileage for each drivetrain before we draw it.</p>
+
+<div class="webr-container" data-block-title="Average highway mileage by drivetrain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average highway mileage by drivetrain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aggregate(hwy ~ drv, data = mpg, FUN = function(x) round(mean(x), 1))
+#&gt;   drv  hwy
+#&gt; 1   4 19.2
+#&gt; 2   f 28.2
+#&gt; 3   r 21.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gap is large. Front-wheel-drive cars average 28.2 highway mpg, well above four-wheel drive at 19.2. A number that clear deserves its own panel, so let's turn it into a bar chart and then nest all three plots together.</p>
+
+<div class="webr-container" data-block-title="Build a third panel and nest the layout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a third panel and nest the layout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_bar &lt;- ggplot(mpg, aes(drv, hwy, fill = drv)) +
+  stat_summary(fun = mean, geom = &quot;col&quot;) +
+  labs(x = &quot;Drive&quot;, y = &quot;Mean highway mpg&quot;) +
+  guides(fill = &quot;none&quot;)
+
+(p_scatter | p_box) / p_bar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The parentheses group <code>p_scatter | p_box</code> into one row, and the <code>/ p_bar</code> places the bar chart in a second row that spans the full width beneath them. Inside <code>p_bar</code>, <code>stat_summary(fun = mean, geom = &quot;col&quot;)</code> computes the mean of <code>hwy</code> for each drivetrain and draws it as a column, and <code>guides(fill = &quot;none&quot;)</code> hides the colour key we do not need here. Three panels, one figure, arranged exactly how we asked.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Build each panel as its own named object before you compose.</strong> Naming plots like p_scatter and p_bar keeps each panel simple to edit on its own, and the composition line stays short and readable instead of becoming a wall of nested ggplot calls.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Place the boxplot and the bar panel side by side in a single row using the beside operator.</p>
+<div class="webr-container" data-block-title="Your turn: put two panels in a row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: put two panels in a row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Stack them with / ; change it to a side-by-side row
+p_box / p_bar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Side-by-side solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Side-by-side solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_box | p_bar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>|</code> operator lays the two panels out in one row instead of a column, so they share the figure's height and split its width.</p>
+
+</details>
+</section>
+
+<h2>How do you give one panel top billing in the layout?</h2>
+
+<p>A grid of equal panels has no focal point, so the reader does not know where to look first. A brief fixes this by giving one panel top billing: the single most important view gets the most space, and the supporting panels shrink around it. patchwork controls size two ways.</p>
+
+<p>The simple way is <code>plot_layout()</code> with relative <code>widths</code> or <code>heights</code>. Passing <code>widths = c(2, 1)</code> makes the first column twice as wide as the second, so the scatter dominates and the boxplot rides alongside it.</p>
+
+<div class="webr-container" data-block-title="Make one panel wider with relative widths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Make one panel wider with relative widths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_scatter + p_box + plot_layout(widths = c(2, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two numbers are ratios, not inches, so <code>c(2, 1)</code> just means "twice as wide". The scatter now clearly leads, and the boxplot reads as support. That is enough for a two-panel figure, but a real brief usually has a hero panel next to two smaller ones.</p>
+
+<p>For that, a <code>design</code> string draws the grid as text. Each letter is a panel, letters are assigned to plots in the order you add them, and repeating a letter makes that panel span more cells. Here <code>A</code> is the scatter and fills a two-by-two block, while <code>B</code> and <code>C</code> stack down the right-hand column.</p>
+
+<div class="webr-container" data-block-title="Lay out a hero panel with a design string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lay out a hero panel with a design string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">design &lt;- &quot;AAB
+AAC&quot;
+
+p_scatter + p_box + p_bar + plot_layout(design = design)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the string like a grid: the top row is <code>AAB</code> and the bottom row is <code>AAC</code>. <code>A</code> occupies four cells, so the scatter becomes a large square hero, while <code>B</code> (the boxplot) and <code>C</code> (the bar) each take a single cell on the right. The figure now has an obvious reading order, which is exactly how a reader moves through a brief.</p>
+
+<p><img src="screenshots/Multi-Panel-Figures-in-R-brief-anatomy.webp" alt="A reader scans a brief from headline to hero panel to supports" class="img-responsive img-zoomable" loading="lazy" width="2248" height="326" /></p>
+
+<p><em>Figure 2: A reader scans a brief from the headline, to the hero panel, to the supporting panels and legend.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Layout is hierarchy: the biggest panel is read first.</strong> Sizing is not only about fitting plots on a page, it is how you tell the reader which view is the headline and which are the supporting evidence.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rewrite the design string so the boxplot becomes the hero panel. Remember that <code>B</code> is the boxplot, because it was the second plot added.</p>
+<div class="webr-container" data-block-title="Your turn: make the boxplot the hero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: make the boxplot the hero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A (the scatter) is the hero here; make B (the boxplot) the hero instead
+hero_box &lt;- &quot;AAB
+AAC&quot;
+p_scatter + p_box + p_bar + plot_layout(design = hero_box)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Boxplot-as-hero solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxplot-as-hero solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hero_box &lt;- &quot;BBA
+BBC&quot;
+p_scatter + p_box + p_bar + plot_layout(design = hero_box)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Making <code>B</code> fill the two-by-two block gives the boxplot the hero slot, while <code>A</code> (scatter) and <code>C</code> (bar) shrink into the right-hand column.</p>
+
+</details>
+</section>
+
+<h2>How do you make separate panels look like one figure?</h2>
+
+<p>Compose three plots that were built separately and you can end up with a subtle collage: slightly different grey levels, different text sizes, three visual styles sharing one page. A brief should read as one designed thing, which means every panel speaks the same visual language. The fastest way to enforce that is a house theme, set once for the whole session.</p>
+
+<p><code>theme_set()</code> makes a theme the default for every plot you draw afterwards, so you set the look once instead of adding it to each panel by hand.</p>
+
+<div class="webr-container" data-block-title="Set a house theme for every panel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a house theme for every panel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theme_set(theme_minimal(base_size = 11))
+
+(p_scatter | p_box) / p_bar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every panel now wears <code>theme_minimal</code>, the same clean white background and light grid, because ggplot applies the current default theme each time a plot is drawn. Even though we built the plots earlier, redrawing them picks up the new default, so the figure reads as one coherent page.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>theme_set changes the default for the rest of your session, not just one figure.</strong> If later plots look unexpectedly minimal, that is why; reset the default at any time with theme_set(<a class="auto-link" href="ggplot2-theme_bw-in-R.html" title="ggplot2 theme_bw() in R: White Theme With Panel Border">theme_grey()</a>), which is ggplot2's original look.</div></div>
+
+<p>Setting a default covers the whole session. To adjust just the panels of one composition, use the <code>&amp;</code> operator. It sends a theme change to every panel in that figure at once, which is ideal for a one-off tweak.</p>
+
+<div class="webr-container" data-block-title="Tweak every panel at once with the &amp; operator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tweak every panel at once with the &amp; operator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">(p_scatter + p_box + p_bar) &amp;
+  theme(axis.title = element_text(face = &quot;bold&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&amp;</code> applies the <code>theme()</code> to each of the three panels, so all their axis titles turn bold in a single line. Without it you would have to add the same <code>theme()</code> call to <code>p_scatter</code>, <code>p_box</code>, and <code>p_bar</code> separately. One operator, one consistent change across the whole figure.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the <code>&amp;</code> operator to remove the faint minor gridlines from every panel at once.</p>
+<div class="webr-container" data-block-title="Your turn: restyle all panels with &amp;">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: restyle all panels with &amp;</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bold the axis titles; instead, blank the minor gridlines
+(p_scatter + p_box + p_bar) &amp; theme(axis.title = element_text(face = &quot;bold&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Blank minor gridlines solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Blank minor gridlines solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">(p_scatter + p_box + p_bar) &amp; theme(panel.grid.minor = element_blank())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>&amp;</code> operator passes <code>theme(panel.grid.minor = element_blank())</code> to each panel, so one line strips the minor gridlines from the whole figure.</p>
+
+</details>
+</section>
+
+<h2>How do you add one title, one legend, and panel tags?</h2>
+
+<p>A finished brief follows a simple discipline: one headline, one legend, one caption. Two of those need patchwork's help. Start with the legend. When several panels use the same colour scale, patchwork can merge their legends into a single shared one with <code>guides = &quot;collect&quot;</code> inside <code>plot_layout()</code>.</p>
+
+<div class="webr-container" data-block-title="Collect duplicate legends into one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collect duplicate legends into one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">(p_scatter + p_box + p_bar) +
+  plot_layout(design = &quot;AAB\nAAC&quot;, guides = &quot;collect&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In our brief only the scatter carries a colour legend, so <code>collect</code> lifts that one legend out to the margin of the whole figure instead of cramping it inside the scatter panel. The real payoff comes when two panels share the same colour mapping: <code>collect</code> is what stops the legend from being drawn twice.</p>
+
+<p>Now the headline and the panel tags. <code>plot_annotation()</code> adds a figure-level title, subtitle, and caption, and <code>tag_levels = &quot;A&quot;</code> labels the panels <code>A</code>, <code>B</code>, <code>C</code> so the text can refer to them. Let's assemble the full brief and save it to <code>brief</code>.</p>
+
+<div class="webr-container" data-block-title="Add a headline and panel tags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a headline and panel tags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">brief &lt;- (p_scatter + p_box + p_bar) +
+  plot_layout(design = &quot;AAB\nAAC&quot;, guides = &quot;collect&quot;) +
+  plot_annotation(
+    title = &quot;Fuel economy brief: bigger engines, fewer miles&quot;,
+    subtitle = &quot;Highway mileage for 234 car models&quot;,
+    caption = &quot;Source: EPA, via the ggplot2 mpg dataset&quot;,
+    tag_levels = &quot;A&quot;)
+
+brief</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The title and subtitle sit above the panels as a headline, the caption credits the source underneath, and each panel now carries an <code>A</code>, <code>B</code>, or <code>C</code> tag in its corner. The <code>tag_levels = &quot;A&quot;</code> argument does the labelling automatically, counting through the panels in the order they were added.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>guides = "collect" only merges legends that are genuinely identical.</strong> patchwork combines two colour legends into one when they map the same variable through the same scale; if the scales differ, you get two legends, which is usually a sign the panels should not share one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> By default the collected legend sits on the right. Move it to the bottom of the figure with the <code>&amp;</code> operator and a <code>legend.position</code> theme setting.</p>
+<div class="webr-container" data-block-title="Your turn: move the shared legend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move the shared legend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The legend is on the right; move it to the bottom
+brief</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bottom legend solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom legend solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">brief &amp; theme(legend.position = &quot;bottom&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>&amp;</code> sends the <code>legend.position</code> setting to every panel, and because the legend is collected, the one shared legend moves to the bottom of the whole figure.</p>
+
+</details>
+</section>
+
+<h2>How do you export a brief, and what about other packages?</h2>
+
+<p>A brief usually leaves R as a file for a slide or a report. <code>ggsave()</code> writes a plot to disk at a size you choose, measured in inches, at a resolution you set with <code>dpi</code>. The width-to-height ratio matters as much as the size, because a hero layout needs a landscape shape so the big panel has room to breathe.</p>
+
+<div class="webr-container" data-block-title="Save the brief at a page size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save the brief at a page size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggsave(&quot;fuel-brief.png&quot;, brief, width = 10, height = 6.5, dpi = 300)
+
+file.exists(&quot;fuel-brief.png&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ggsave()</code> takes a filename, the plot object, and the dimensions. Here 10 by 6.5 inches at 300 dots per inch produces a crisp landscape image sized for a report page, and <code>file.exists()</code> confirms the file was written. Because the whole composition is a single plot object, saving it is no different from saving one chart.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match the ggsave width-to-height ratio to your layout.</strong> A wide hero layout squeezed into a square file will cramp the big panel and stretch the small ones, so pick dimensions that mirror the shape of your design and every panel keeps its intended proportions.</div></div>
+
+<p>patchwork is not the only way to compose plots. Three other packages solve the same job with a single function, and you will meet them in other people's code. The table shows how they line up.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Package</th>
+<th>Function</th>
+<th>Panel labels</th>
+<th>Shared legend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>patchwork</td>
+<td><code>+</code> and <code>/</code> operators</td>
+<td><code>tag_levels</code></td>
+<td><code>guides = &quot;collect&quot;</code></td>
+</tr>
+<tr>
+<td>gridExtra</td>
+<td><code>grid.arrange()</code></td>
+<td>manual</td>
+<td>manual</td>
+</tr>
+<tr>
+<td>cowplot</td>
+<td><code>plot_grid()</code></td>
+<td><code>labels =</code></td>
+<td><code>get_legend()</code></td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Statistical-Significance-on-Plots-in-R.html" title="Significance Brackets on ggplot2 Charts: ggsignif, ggpubr">ggpubr</a></td>
+<td><code>ggarrange()</code></td>
+<td><code>labels =</code></td>
+<td><code>common.legend = TRUE</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The gridExtra, cowplot, and ggpubr packages are not on the interactive engine's supported list, so the block below is marked to run locally in RStudio.</strong> Everything else in this tutorial uses only ggplot2 and patchwork and runs right here in your browser.</div></div>
+
+<pre><code class="language-r">library(gridExtra)
+library(cowplot)
+library(ggpubr)
+
+# gridExtra: arrange on a grid
+grid.arrange(p_scatter, p_box, ncol = 2)
+
+# cowplot: grid with panel labels
+plot_grid(p_scatter, p_box, labels = c(&quot;A&quot;, &quot;B&quot;))
+
+# ggpubr: one shared legend at the bottom
+ggarrange(p_scatter, p_box, common.legend = TRUE, legend = &quot;bottom&quot;)</code></pre>
+
+<p>Each one-liner arranges the two plots in its own style. Pick whichever tool your team already uses, because the ideas here, hierarchy, a shared look, and one legend, transfer directly to all of them.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-save the brief in a tall portrait shape, 7 inches wide by 9 tall, for a document that reads top to bottom.</p>
+<div class="webr-container" data-block-title="Your turn: save a portrait version">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: save a portrait version</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Landscape 10 x 6.5; make it portrait 7 x 9
+ggsave(&quot;fuel-brief.png&quot;, brief, width = 10, height = 6.5, dpi = 300)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Portrait export solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Portrait export solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggsave(&quot;fuel-brief-portrait.png&quot;, brief, width = 7, height = 9, dpi = 300)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Swapping to a taller-than-wide shape suits a portrait page, and the panels reflow to fill the new dimensions.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's put every idea into one self-contained block you could drop into a report. It builds three panels of the <code>mpg</code> data, gives them a shared theme, arranges them with a hero layout, collects the legend, and adds a headline with panel tags, all at once.</p>
+
+<div class="webr-container" data-block-title="A complete one-page fuel economy brief">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A complete one-page fuel economy brief</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three panels, one dataset
+fe_scatter &lt;- ggplot(mpg, aes(displ, hwy, color = drv)) +
+  geom_point(alpha = 0.7) +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway mpg&quot;, color = &quot;Drive&quot;)
+
+fe_box &lt;- ggplot(mpg, aes(reorder(class, hwy, median), hwy)) +
+  geom_boxplot(fill = &quot;grey85&quot;) +
+  labs(x = NULL, y = &quot;Highway mpg&quot;) +
+  coord_flip()
+
+fe_bar &lt;- ggplot(mpg, aes(drv, hwy, fill = drv)) +
+  stat_summary(fun = mean, geom = &quot;col&quot;) +
+  labs(x = &quot;Drive&quot;, y = &quot;Mean highway mpg&quot;) +
+  guides(fill = &quot;none&quot;)
+
+# Compose: hero scatter, supporting box and bar, one legend, one headline
+fe_brief &lt;- (fe_scatter + fe_box + fe_bar) +
+  plot_layout(design = &quot;AAB\nAAC&quot;, guides = &quot;collect&quot;) +
+  plot_annotation(
+    title = &quot;Fuel economy brief: bigger engines, fewer miles&quot;,
+    subtitle = &quot;Highway mileage for 234 car models&quot;,
+    caption = &quot;Source: EPA, via the ggplot2 mpg dataset&quot;,
+    tag_levels = &quot;A&quot;) &amp;
+  theme_minimal(base_size = 11)
+
+fe_brief</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This figure tells the whole story at a glance. The reader lands on the headline, reads the hero scatter to see that bigger engines mean fewer miles, then confirms the pattern with the ranked boxplot and the drivetrain bar, all sharing one clean theme and one legend. Note the trailing <code>&amp; theme_minimal(base_size = 11)</code>, which applies the house theme to every panel so the block stands on its own. To ship it, a single <code>ggsave()</code> line writes it to disk.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine the ideas above. Each uses fresh variable names beginning with <code>my_</code> so your work never overwrites the tutorial plots.</p>
+
+<h3>Exercise 1: A two-panel diamond price brief</h3>
+
+<p>Build a side-by-side brief from the <code>diamonds</code> dataset: a scatter of <code>price</code> against <code>carat</code> next to a boxplot of <code>price</code> by <code>cut</code>. Sample 2,000 rows first so the scatter stays light, then add one shared title with <code>plot_annotation()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: two-panel diamond brief">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: two-panel diamond brief</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build my_scatter and my_box, combine with |, add plot_annotation()
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_d &lt;- diamonds[sample(nrow(diamonds), 2000), ]
+
+my_scatter &lt;- ggplot(my_d, aes(carat, price)) + geom_point(alpha = 0.3)
+my_box &lt;- ggplot(my_d, aes(cut, price)) + geom_boxplot(fill = &quot;grey85&quot;)
+
+(my_scatter | my_box) +
+  plot_annotation(title = &quot;Diamond price brief&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>|</code> operator sets the two panels side by side, and <code>plot_annotation(title = ...)</code> adds a single headline above the whole figure rather than one per panel.</p>
+
+</details>
+
+<h3>Exercise 2: An iris brief with a hero panel</h3>
+
+<p>Compose three views of the <code>iris</code> data into a brief with a hero panel: a <code>Petal.Length</code> against <code>Petal.Width</code> scatter coloured by <code>Species</code> as the hero, a <code>Sepal.Length</code> boxplot by <code>Species</code>, and a <code>Sepal.Width</code> histogram. Use a design string for the hero layout, collect the legend, and add <code>A</code>, <code>B</code>, <code>C</code> tags.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: iris hero-panel brief">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: iris hero-panel brief</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: three plots, then plot_layout(design = &quot;AAB\nAAC&quot;, guides = &quot;collect&quot;)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_p1 &lt;- ggplot(iris, aes(Petal.Length, Petal.Width, color = Species)) +
+  geom_point()
+my_p2 &lt;- ggplot(iris, aes(Species, Sepal.Length, fill = Species)) +
+  geom_boxplot() + guides(fill = &quot;none&quot;)
+my_p3 &lt;- ggplot(iris, aes(Sepal.Width)) + geom_histogram(bins = 20)
+
+(my_p1 + my_p2 + my_p3) +
+  plot_layout(design = &quot;AAB\nAAC&quot;, guides = &quot;collect&quot;) +
+  plot_annotation(tag_levels = &quot;A&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The scatter (<code>A</code>) fills the hero block, the boxplot (<code>B</code>) and histogram (<code>C</code>) stack beside it, <code>guides = &quot;collect&quot;</code> pulls the single Species legend out to the margin, and <code>tag_levels = &quot;A&quot;</code> labels the panels.</p>
+
+</details>
+
+<h3>Exercise 3: Turn a faceted plot into composed panels</h3>
+
+<p>A faceted plot forces every panel to share one title and one set of axes. Rebuild <code>facet_wrap(~ drv)</code> on <code>mpg</code> as three composed panels instead, so each drivetrain panel can carry its own title. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> the data three times and give each plot its own <code>labs(title = ...)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: faceting rebuilt as composition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: faceting rebuilt as composition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: subset(mpg, drv == &quot;4&quot;) and friends, each its own titled plot, then +
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_4 &lt;- ggplot(subset(mpg, drv == &quot;4&quot;), aes(displ, hwy)) +
+  geom_point() + labs(title = &quot;Four-wheel drive&quot;)
+my_f &lt;- ggplot(subset(mpg, drv == &quot;f&quot;), aes(displ, hwy)) +
+  geom_point() + labs(title = &quot;Front-wheel drive&quot;)
+my_r &lt;- ggplot(subset(mpg, drv == &quot;r&quot;), aes(displ, hwy)) +
+  geom_point() + labs(title = &quot;Rear-wheel drive&quot;)
+
+my_4 + my_f + my_r</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Composing three separate plots lets each panel carry its own title, something <code>facet_wrap()</code> cannot do because it draws one title for the whole strip. That freedom is the reason to choose composition when panels need to differ.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use patchwork instead of facet_wrap()?</h3>
+
+<p>Use <code>facet_wrap()</code> when every panel is the same plot drawn on a different slice of one dataset, because it shares axes and legends automatically. Reach for patchwork when the panels are genuinely different plots, or when you want different sizes, titles, or scales for each panel.</p>
+
+<h3>How do I stop the legend appearing on every panel?</h3>
+
+<p>Add <code>plot_layout(guides = &quot;collect&quot;)</code> to merge identical legends into a single shared one. If one panel's legend is redundant, suppress it on that panel with <code>guides(color = &quot;none&quot;)</code> or <code>guides(fill = &quot;none&quot;)</code> before you compose.</p>
+
+<h3>Why are my panels not lining up along their axes?</h3>
+
+<p>patchwork aligns panels by default, but a long axis label or a legend on one panel can push its plotting area out of step. Give the panels matching axis titles, collect the legends into one, or use patchwork's <code>free()</code> function to release a panel from strict alignment.</p>
+
+<h3>Can a panel hold a table or plain text instead of a plot?</h3>
+
+<p>Yes. patchwork can add text or a table as a panel alongside your charts, and many briefs pair a chart with a small text or number panel this way. The composition operators treat that panel like any other.</p>
+
+<h3>Does the composed figure save with ggsave() like a normal plot?</h3>
+
+<p>It does. A patchwork composition is still a single plot object, so <code>ggsave()</code> writes it out normally. Just give it a <code>width</code> and <code>height</code> that match the layout so the panels stay legible at the final size.</p>
+
+<h2>Summary</h2>
+
+<p>A one-page brief is a designed page, not a pile of plots. The table sums up which tool does each job, and the diagram recaps the workflow from blank page to finished file.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Job</th>
+<th>Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Put plots in a grid or a stack</td>
+<td><code>+</code> and <code>/</code> operators</td>
+</tr>
+<tr>
+<td>Give one panel top billing</td>
+<td><code>plot_layout(design = ...)</code></td>
+</tr>
+<tr>
+<td>Make every panel share a look</td>
+<td><code>theme_set()</code> and the <code>&amp;</code> operator</td>
+</tr>
+<tr>
+<td>Merge repeated legends into one</td>
+<td><code>plot_layout(guides = &quot;collect&quot;)</code></td>
+</tr>
+<tr>
+<td>Add a headline and A, B, C tags</td>
+<td><code>plot_annotation()</code></td>
+</tr>
+<tr>
+<td>Export at a page size</td>
+<td><code>ggsave()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Multi-Panel-Figures-in-R-workflow.webp" alt="The five steps to a finished one-page brief" class="img-responsive img-zoomable" loading="lazy" width="2248" height="330" /></p>
+
+<p><em>Figure 3: The five steps to a finished one-page brief.</em></p>
+
+<p>The mental model is simple: decide facet or compose, build your panels in a shared theme, give one of them top billing, then unify the figure with a single title, legend, and set of tags. Get those habits right and your multi-panel figures will read as one clear page every time.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>patchwork documentation. <em>Plot layout (plot_layout)</em>. <a href="https://patchwork.data-imaginist.com/reference/plot_layout.html">Link</a></li>
+
+<li>patchwork documentation. <em>Annotate the final patchwork (plot_annotation)</em>. <a href="https://patchwork.data-imaginist.com/reference/plot_annotation.html">Link</a></li>
+
+<li>Wickham, H., Navarro, D., Pedersen, T. L. <em>ggplot2: Elegant Graphics for Data Analysis</em>, Chapter: Arranging plots. <a href="https://ggplot2-book.org/arranging-plots">Link</a></li>
+
+<li>ggplot2 documentation. <em>Wrap a 1d ribbon of panels into 2d (facet_wrap)</em>. <a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html">Link</a></li>
+
+<li>ggplot2 documentation. <em>Save a ggplot (ggsave)</em>. <a href="https://ggplot2.tidyverse.org/reference/ggsave.html">Link</a></li>
+
+<li>cowplot documentation. <em>Arrange plots in a grid (plot_grid)</em>. <a href="https://wilkelab.org/cowplot/reference/plot_grid.html">Link</a></li>
+
+<li>Chang, W. <em>R Graphics Cookbook</em>, 2nd Edition. <a href="https://r-graphics.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="patchwork-Package.html">patchwork in R: Combine ggplot2 Plots Cleanly</a> - the full composition toolkit this brief workflow draws on, including nesting and spacers.</li>
+
+<li><a href="ggplot2-Facets.html">ggplot2 Facets</a> - the other route to multiple panels, for when every panel is the same plot on a different subset.</li>
+
+<li><a href="Small-Multiples-in-R.html">Small Multiples in R</a> - scaling faceting up to dozens of tiny panels in one figure.</li>
+
+<li><a href="Publication-Quality-Figures-in-R.html">Publication-Quality Figures in R</a> - polish, sizing, and export for figures headed to print.</li>
+
+</ul>
+
+{% endraw %}
