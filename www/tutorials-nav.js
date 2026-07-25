@@ -97,7 +97,7 @@
     window.__tnBooks = FALLBACK_BOOKS;
     wrap.appendChild(drop);
 
-    fetch('/www/curricula.json?v=1').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+    fetch('/www/curricula.json?v=3').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
       if (!data || !data.books || !data.books.length) return;
       var rows = data.books.map(function (b) {
         return { href: b.index, name: b.title, meta: b.tagline || '' };
