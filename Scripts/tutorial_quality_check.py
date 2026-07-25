@@ -283,6 +283,17 @@ def main():
             fail('diagram file(s) missing: %s' % ', '.join(missing_f)) if missing_f \
                 else ok('%d diagram(s) referenced and present' % len(figs))
 
+    # 9b. EVERY referenced image exists on disk, any extension (png plot
+    # figures included - a reference to a file that never ships renders a
+    # blank on prod; see Visualizing-Uncertainty 2026-07-25)
+    all_imgs = re.findall(r'!\[[^\]]*\]\((screenshots/[^)]+)\)', body)
+    if all_imgs:
+        gone = sorted(set(f for f in all_imgs if not os.path.exists(os.path.join(ROOT, f))))
+        if gone:
+            fail('referenced image(s) not on disk: %s' % ', '.join(gone))
+        else:
+            ok('%d referenced image(s) all present on disk' % len(set(all_imgs)))
+
     # 10. references resolve
     refm = re.search(r'^## +.*Reference.*$', body, re.M)
     if refm:
