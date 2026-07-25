@@ -1,0 +1,865 @@
+---
+title: "ggiraph in R: Hoverable Interactive ggplot2 for the Web"
+description: "Learn ggiraph in R to turn any ggplot2 chart into an interactive graphic with hover tooltips, linked highlighting and clickable points, all step by step."
+keywords: "ggiraph, ggiraph in R, interactive ggplot2, girafe, geom_point_interactive, interactive charts in R, hover tooltip ggplot, data_id, onclick ggiraph"
+mathjax: false
+webr: true
+curriculum_id: "GG2-11.3"
+post_type: "C"
+auto_link_terms: "ggiraph|ggiraph in R|interactive ggplot2|girafe()|geom_point_interactive|geom_col_interactive|interactive charts in R|hover tooltip|data_id|opts_hover|interactive R charts|make ggplot interactive"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "ggiraph: Interactive Charts"
+sidebar_order: "72"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">ggiraph is an R package that turns a normal ggplot2 chart into an interactive web graphic. Readers hover over a point to read its exact value in a tooltip, hovering one element highlights every related element, and a click can run JavaScript. You keep writing ordinary <a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html">ggplot2</a> code, swap in special <code>*_interactive</code> geoms, and wrap the result in <code>girafe()</code>.</p>
+
+<p>This tutorial assumes you can already make a basic ggplot2 chart. If you can write <code>ggplot(data, aes(x, y)) + geom_point()</code>, you know enough to follow along. Every ggiraph idea is explained from the ground up, and all the plain ggplot2 code runs right here in your browser so you can experiment as you read. The ggiraph pieces themselves produce a live interactive widget, so those blocks are marked to run in your own R session, where you can hover and click for real.</p>
+
+<h2>What is ggiraph, and how does it turn a ggplot into an interactive chart?</h2>
+
+<p>A static chart shows you the shape of your data, but it cannot answer "what is the exact value of that bar?" without you squinting at the axis. ggiraph fixes that. It takes a ggplot2 chart you already know how to build and layers interactivity on top, so the answer appears the moment a reader points at an element. You do not learn a new plotting system, and you do not write a line of JavaScript by hand.</p>
+
+<p>Let's start with a plain chart so you have something to make interactive. We'll use the built-in <code>mpg</code> dataset, which records details like engine size and highway mileage for 234 car models across seven body classes. First, count how many cars fall in each class.</p>
+
+<div class="webr-container" data-block-title="Count cars per class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count cars per class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+car_counts &lt;- mpg |&gt; count(class, name = &quot;n&quot;)
+car_counts
+#&gt; # A tibble: 7 × 2
+#&gt;   class          n
+#&gt;   &lt;chr&gt;      &lt;int&gt;
+#&gt; 1 2seater        5
+#&gt; 2 compact       47
+#&gt; 3 midsize       41
+#&gt; 4 minivan       11
+#&gt; 5 pickup        33
+#&gt; 6 subcompact    35
+#&gt; 7 suv           62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That <code>car_counts</code> table has one row per body class and a column <code>n</code> with the count. The <code>|&gt;</code> symbol is the native <a class="auto-link" href="R-Pipe-Operator-in-R.html" title="R Pipe Operator: %>% vs |> (Complete Guide)">R pipe</a>: it takes the thing on its left and feeds it as the first argument to the function on its right, so <code>mpg |&gt; count(class)</code> reads as "take mpg, then count by class". Now turn those counts into a bar chart.</p>
+
+<div class="webr-container" data-block-title="Draw a plain static bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a plain static bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(car_counts, aes(x = reorder(class, n), y = n)) +
+  geom_col(fill = &quot;#4C72B0&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Number of cars&quot;, title = &quot;Cars per class&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is standard ggplot2. <code>geom_col()</code> draws one bar per class, <code>reorder(class, n)</code> sorts the classes by count, and <code>coord_flip()</code> lays the bars sideways so the labels are easy to read. The chart is clear, but it is frozen. A reader cannot ask it anything.</p>
+
+<p>ggiraph changes that in three small steps, shown below. You swap each <code>geom_*</code> for its <code>geom_*_interactive</code> twin, you map one or more interactive aesthetics (<code>tooltip</code>, <code>data_id</code>, or <code>onclick</code>), and you hand the finished plot to <code>girafe()</code>, which renders it as an interactive SVG that runs in any browser.</p>
+
+<p><img src="screenshots/ggiraph-Interactive-Charts-in-R-how-it-works.webp" alt="The three-step path ggiraph takes from a normal ggplot2 chart to an interactive one." class="img-responsive img-zoomable" loading="lazy" width="2248" height="278" /></p>
+
+<p><em>Figure 1: The three-step path from a normal ggplot2 chart to an interactive one.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ggiraph reuses everything you already know about ggplot2.</strong> Your aesthetics, scales, facets, and themes all keep working; ggiraph only adds a thin interactive layer, so learning it is mostly learning three new aesthetics and one wrapper function.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recolour the bars. Change the <code>fill</code> to a colour you like, such as <code>&quot;#55A868&quot;</code>, and add a subtitle with <code>labs(subtitle = &quot;...&quot;)</code>. Run it to see your version.</p>
+<div class="webr-container" data-block-title="Your turn: recolour the bars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recolour the bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(car_counts, aes(x = reorder(class, n), y = n)) +
+  geom_col(fill = &quot;#4C72B0&quot;) +   # change this colour
+  coord_flip() +
+  labs(x = NULL, y = &quot;Number of cars&quot;, title = &quot;Cars per class&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recoloured bars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recoloured bars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(car_counts, aes(x = reorder(class, n), y = n)) +
+  geom_col(fill = &quot;#55A868&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Number of cars&quot;, title = &quot;Cars per class&quot;,
+       subtitle = &quot;SUVs are the most common class&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the <code>fill</code> value and the new <code>subtitle</code> changed. Everything about how ggiraph works is layered on top of this ordinary ggplot2 code, so anything you can style in a normal chart carries straight over.</p>
+
+</details>
+</section>
+
+<h2>How do you install ggiraph and build your first interactive chart?</h2>
+
+<p>ggiraph lives on CRAN, so a one-line install is all you need. Run this once in your own R session.</p>
+
+<pre><code>install.packages(&quot;ggiraph&quot;)</code></pre>
+
+<p>Before we make the bar chart interactive, take a quick look at the <code>mpg</code> data so the tooltips we build later make sense. Each row is one car.</p>
+
+<div class="webr-container" data-block-title="Peek at the mpg dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Peek at the mpg dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg |&gt; select(manufacturer, model, displ, hwy, class) |&gt; head(5)
+#&gt; # A tibble: 5 × 5
+#&gt;   manufacturer model displ   hwy class  
+#&gt;   &lt;chr&gt;        &lt;chr&gt; &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;  
+#&gt; 1 audi         a4      1.8    29 compact
+#&gt; 2 audi         a4      1.8    29 compact
+#&gt; 3 audi         a4      2      31 compact
+#&gt; 4 audi         a4      2      30 compact
+#&gt; 5 audi         a4      2.8    26 compact</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now build the interactive bar chart. Compared with the static version, only two things change: <code>geom_col</code> becomes <code>geom_col_interactive</code>, and inside <code>aes()</code> we add two interactive aesthetics. <code>tooltip</code> is the text that pops up on hover, and <code>data_id</code> is a label ggiraph uses to know which element is which. Finally, <code>girafe()</code> renders it.</p>
+
+<pre><code class="language-r">library(ggiraph)
+
+interactive_bars &lt;- ggplot(car_counts, aes(x = reorder(class, n), y = n)) +
+  geom_col_interactive(
+    aes(tooltip = paste0(class, &quot;: &quot;, n, &quot; cars&quot;), data_id = class),
+    fill = &quot;#4C72B0&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Number of cars&quot;, title = &quot;Cars per class&quot;)
+
+girafe(ggobj = interactive_bars)</code></pre>
+
+<p>Run that in your own R session and hover over a bar. A dark label follows your cursor, and the bar under it lights up. The screenshot below shows exactly what you get: pointing at the SUV bar reveals "suv: 62 cars" and highlights that bar.</p>
+
+<p><img src="screenshots/ggiraph-Interactive-Charts-in-R-tooltip-demo.webp" alt="A ggiraph bar chart where hovering a bar shows a tooltip and highlights the bar." class="img-responsive img-zoomable" loading="lazy" width="589" height="363" /></p>
+
+<p><em>Figure 2: Hovering a bar shows its tooltip and highlights it. This is a real ggiraph chart.</em></p>
+
+<p>So what did <code>girafe()</code> actually hand back? It returns an htmlwidget, the same kind of object that packages like leaflet and plotly produce. That is why a ggiraph chart drops straight into web pages and Shiny apps with no extra work.</p>
+
+<pre><code class="language-r">gi &lt;- girafe(ggobj = interactive_bars)
+class(gi)
+#&gt; [1] &quot;girafe&quot;     &quot;htmlwidget&quot;</code></pre>
+
+<p>The interactivity you saw came from the two aesthetics we mapped. ggiraph gives you three of them, and each does a different job. The diagram below is the whole vocabulary you need.</p>
+
+<p><img src="screenshots/ggiraph-Interactive-Charts-in-R-three-aesthetics.webp" alt="The three interactive aesthetics in ggiraph and what each one does." class="img-responsive img-zoomable" loading="lazy" width="990" height="842" /></p>
+
+<p><em>Figure 3: The three interactive aesthetics and what each one does.</em></p>
+
+<p>Every standard geom has an interactive twin with the same name plus <code>_interactive</code>. Here are the ones you will reach for most.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Static geom</th>
+<th>Interactive twin</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_point()</code></td>
+<td><code>geom_point_interactive()</code></td>
+<td>Scatter plots, bubble charts</td>
+</tr>
+<tr>
+<td><code>geom_col()</code></td>
+<td><code>geom_col_interactive()</code></td>
+<td>Bar charts</td>
+</tr>
+<tr>
+<td><code>geom_line()</code></td>
+<td><code>geom_line_interactive()</code></td>
+<td><a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">Time series</a>, trends</td>
+</tr>
+<tr>
+<td><code>geom_sf()</code></td>
+<td><code>geom_sf_interactive()</code></td>
+<td>Maps</td>
+</tr>
+<tr>
+<td><code>geom_tile()</code></td>
+<td><code>geom_tile_interactive()</code></td>
+<td>Heatmaps</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>You need both the interactive geom and girafe() to get interactivity.</strong> If you use a plain <code>geom_col()</code>, or you forget to wrap the plot in <code>girafe()</code>, you get an ordinary static chart with no hover or click. Both pieces must be present.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the tooltip so it reads like "47 compact cars" instead of "compact: 47 cars". You only need to edit what goes inside <code>paste0()</code>.</p>
+</section>
+
+<pre><code>interactive_bars &lt;- ggplot(car_counts, aes(x = reorder(class, n), y = n)) +
+  geom_col_interactive(
+    aes(tooltip = ______, data_id = class),   # rebuild the tooltip text
+    fill = &quot;#4C72B0&quot;) +
+  coord_flip()
+
+girafe(ggobj = interactive_bars)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">interactive_bars2 &lt;- ggplot(car_counts, aes(x = reorder(class, n), y = n)) +
+  geom_col_interactive(
+    aes(tooltip = paste0(n, &quot; &quot;, class, &quot; cars&quot;), data_id = class),
+    fill = &quot;#4C72B0&quot;) +
+  coord_flip()
+
+girafe(ggobj = interactive_bars2)</code></pre>
+
+<p><strong>Explanation:</strong> The tooltip is just a character string, so you build it however you like with <code>paste0()</code>. Here we put the count first, then the class name, then the word "cars".</p>
+
+</details>
+
+<h2>How do you add hover tooltips to a chart?</h2>
+
+<p>The <code>tooltip</code> aesthetic is the single most useful feature in ggiraph, because it answers the question every reader has: "what exactly is this?" A tooltip is nothing more than a piece of text you attach to each element. Since it is a plain string, you can make it as rich as you want by pasting columns together.</p>
+
+<p>Here is the pattern for building a good label. We combine a car's maker, model, and mileage into one readable sentence per row.</p>
+
+<div class="webr-container" data-block-title="Build a tooltip label with paste0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a tooltip label with paste0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg |&gt;
+  transmute(label = paste0(manufacturer, &quot; &quot;, model, &quot;: &quot;, hwy, &quot; mpg&quot;)) |&gt;
+  slice(c(1, 120, 234))
+#&gt; # A tibble: 3 × 1
+#&gt;   label                    
+#&gt;   &lt;chr&gt;                    
+#&gt; 1 audi a4: 29 mpg          
+#&gt; 2 hyundai tiburon: 24 mpg  
+#&gt; 3 volkswagen passat: 26 mpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each label is a compact description of one car. Now map that same expression to the <code>tooltip</code> aesthetic of a scatter plot. We are plotting engine size against highway mileage, colouring points by class, and giving every point a descriptive tooltip.</p>
+
+<pre><code class="language-r">scatter &lt;- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point_interactive(
+    aes(tooltip = paste0(manufacturer, &quot; &quot;, model, &quot; (&quot;, hwy, &quot; mpg)&quot;),
+        data_id = class, colour = class),
+    size = 3, alpha = 0.8) +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway mpg&quot;, colour = &quot;Class&quot;)
+
+girafe(ggobj = scatter)</code></pre>
+
+<p>Hover any point in your R session and you will see which car it is. That turns a cloud of anonymous dots into something you can explore one point at a time.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>A tooltip can hold any text, so build labels that answer the reader's next question.</strong> Paste several columns together, add units, round numbers with <code>round()</code>, and phrase it as you would say it out loud. A tooltip that reads "Toyota Corolla (34 mpg)" is far more useful than a bare number.</div></div>
+
+<p>By default the tooltip is a small white box. You can restyle it through <code>girafe()</code> using <code>opts_tooltip()</code>, which takes a snippet of CSS. Do not worry if you do not know CSS: the string below just sets a dark background with white text and rounded corners.</p>
+
+<pre><code class="language-r">girafe(
+  ggobj = scatter,
+  options = list(
+    opts_tooltip(css = &quot;background:#1a1a1a; color:#fff; padding:6px 10px; border-radius:5px;&quot;)
+  )
+)</code></pre>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tooltip label that shows the model and its city mileage (the <code>cty</code> column), for example "corolla (28 city mpg)". Fill in the blank and run it.</p>
+</section>
+
+<pre><code>mpg |&gt;
+  transmute(label = ______) |&gt;   # use model and cty
+  slice(c(1, 120, 234))</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="City-mileage label solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">City-mileage label solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg |&gt;
+  transmute(label = paste0(model, &quot; (&quot;, cty, &quot; city mpg)&quot;)) |&gt;
+  slice(c(1, 120, 234))
+#&gt; # A tibble: 3 × 1
+#&gt;   label                
+#&gt;   &lt;chr&gt;                
+#&gt; 1 a4 (18 city mpg)     
+#&gt; 2 tiburon (17 city mpg)
+#&gt; 3 passat (17 city mpg) </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>transmute()</code> keeps only the new <code>label</code> column, and <code>paste0()</code> glues the model name to its city mileage. You would map this same expression to <code>tooltip</code> inside <code>geom_point_interactive()</code>.</p>
+
+</details>
+
+<h2>How do you highlight related points when you hover?</h2>
+
+<p>This is what <code>data_id</code> is for. Every element that shares the same <code>data_id</code> value belongs to the same group, and when you hover any one of them, ggiraph highlights the whole group at once. In our scatter plot we set <code>data_id = class</code>, so hovering a single SUV lights up every SUV on the chart.</p>
+
+<p>To make the effect visible, tell <code>girafe()</code> how highlighted and non-highlighted elements should look. <code>opts_hover()</code> styles the group you are pointing at, and <code>opts_hover_inv()</code> (short for "hover inverse") styles everything else. Here we give the hovered group a dark outline and fade all the other points to near-transparent.</p>
+
+<pre><code class="language-r">girafe(
+  ggobj = scatter,
+  options = list(
+    opts_hover(css = &quot;stroke:#111; stroke-width:1.5px;&quot;),
+    opts_hover_inv(css = &quot;opacity:0.15;&quot;)
+  )
+)</code></pre>
+
+<p>The screenshot below shows the result. Hovering one SUV point outlines every SUV and dims the rest, so a single class stands out from a busy chart.</p>
+
+<p><img src="screenshots/ggiraph-Interactive-Charts-in-R-linked-highlight.webp" alt="Hovering one SUV point highlights every SUV and fades the other classes." class="img-responsive img-zoomable" loading="lazy" width="682" height="394" /></p>
+
+<p><em>Figure 4: Hovering one SUV point highlights every SUV and fades the other classes.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Elements that share a data_id highlight together.</strong> This is what makes ggiraph feel connected rather than just decorated. Set <code>data_id</code> to a grouping column and every group becomes a hover-to-highlight cluster, even across separate panels of a faceted chart.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fade the non-hovered points even more so the highlighted class stands out harder. Change the opacity value in <code>opts_hover_inv()</code>.</p>
+</section>
+
+<pre><code>girafe(
+  ggobj = scatter,
+  options = list(
+    opts_hover(css = &quot;stroke:#111; stroke-width:1.5px;&quot;),
+    opts_hover_inv(css = &quot;opacity:____;&quot;)   # try a smaller number
+  )
+)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">girafe(
+  ggobj = scatter,
+  options = list(
+    opts_hover(css = &quot;stroke:#111; stroke-width:1.5px;&quot;),
+    opts_hover_inv(css = &quot;opacity:0.05;&quot;)
+  )
+)</code></pre>
+
+<p><strong>Explanation:</strong> A lower opacity in <code>opts_hover_inv()</code> pushes the non-hovered points closer to invisible, so the highlighted group dominates the view. Values between 0.05 and 0.2 usually read well.</p>
+
+</details>
+
+<h2>How do you make chart elements clickable?</h2>
+
+<p>The third aesthetic, <code>onclick</code>, runs a piece of JavaScript when a reader clicks an element. The most common use is to open a link, so a chart becomes a set of buttons that jump to a report or a web search. You do not need to be a JavaScript expert: you build a short string, and the browser runs it on click.</p>
+
+<p>Let's make a chart of the five manufacturers with the most models. First get the counts.</p>
+
+<div class="webr-container" data-block-title="Count the top 5 manufacturers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the top 5 manufacturers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top_makes &lt;- mpg |&gt;
+  count(manufacturer, name = &quot;n&quot;) |&gt;
+  arrange(desc(n)) |&gt;
+  slice_head(n = 5)
+top_makes
+#&gt; # A tibble: 5 × 2
+#&gt;   manufacturer     n
+#&gt;   &lt;chr&gt;        &lt;int&gt;
+#&gt; 1 dodge           37
+#&gt; 2 toyota          34
+#&gt; 3 volkswagen      27
+#&gt; 4 ford            25
+#&gt; 5 chevrolet       19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Next, build the onclick string. <code>window.open(...)</code> is the JavaScript command that opens a new tab. We paste each manufacturer's name into a search URL, so clicking a bar searches the web for that maker. Printing one of the strings shows exactly what the browser will run.</p>
+
+<div class="webr-container" data-block-title="Build a JavaScript onclick action">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a JavaScript onclick action</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top_makes &lt;- top_makes |&gt;
+  mutate(onclick = paste0('window.open(&quot;https://www.google.com/search?q=',
+                          manufacturer, ' car&quot;)'))
+writeLines(top_makes$onclick[1])
+#&gt; window.open(&quot;https://www.google.com/search?q=dodge car&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the quoting: the R string uses single quotes on the outside so the double quotes the URL needs can sit safely inside. Now map that column to <code>onclick</code> in the chart.</p>
+
+<pre><code class="language-r">clickable &lt;- ggplot(top_makes, aes(x = reorder(manufacturer, n), y = n)) +
+  geom_col_interactive(
+    aes(tooltip = paste0(n, &quot; models&quot;), data_id = manufacturer, onclick = onclick),
+    fill = &quot;#55A868&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Number of models&quot;)
+
+girafe(ggobj = clickable)</code></pre>
+
+<p>Run it and click any bar: a new tab opens with a search for that manufacturer. The tooltip and the click work together, since a bar can carry all three aesthetics at once.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>onclick is raw JavaScript, so get the quotes right.</strong> Wrap the R string in single quotes and the URL in double quotes, as shown above. Mismatched quotes are the most common reason a click silently does nothing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Point the click at a different site. Change the URL so clicking a bar opens the manufacturer's Wikipedia search instead.</p>
+</section>
+
+<pre><code># edit the URL inside window.open(...)
+top_makes &lt;- top_makes |&gt;
+  mutate(onclick = paste0('window.open(&quot;https://______', manufacturer, '&quot;)'))</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">top_makes &lt;- top_makes |&gt;
+  mutate(onclick = paste0('window.open(&quot;https://en.wikipedia.org/wiki/Special:Search?search=',
+                          manufacturer, '&quot;)'))
+
+clickable2 &lt;- ggplot(top_makes, aes(x = reorder(manufacturer, n), y = n)) +
+  geom_col_interactive(
+    aes(tooltip = paste0(n, &quot; models&quot;), data_id = manufacturer, onclick = onclick),
+    fill = &quot;#55A868&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Number of models&quot;)
+
+girafe(ggobj = clickable2)</code></pre>
+
+<p><strong>Explanation:</strong> Only the URL inside <code>window.open()</code> changed. Any valid link works, so you can send clicks to a search page or to another report.</p>
+
+</details>
+
+<h2>How do you control size, zoom, and selection with girafe options?</h2>
+
+<p>You have already met <code>opts_tooltip()</code>, <code>opts_hover()</code>, and <code>opts_hover_inv()</code>. <code>girafe()</code> accepts a whole family of these <code>opts_*</code> functions through its <code>options</code> argument, and together they control how the finished widget behaves. You pass them as a list, and each one tunes a different piece.</p>
+
+<p>The block below switches on several at once: a hover colour, a styled tooltip, zoom up to five times, click-to-select points, and responsive sizing.</p>
+
+<pre><code class="language-r">girafe(
+  ggobj = scatter,
+  width_svg = 7,
+  height_svg = 5,
+  options = list(
+    opts_hover(css = &quot;fill:#DD8452;&quot;),
+    opts_tooltip(css = &quot;background:#1a1a1a; color:#fff; padding:6px 10px; border-radius:5px;&quot;),
+    opts_zoom(max = 5),
+    opts_selection(type = &quot;multiple&quot;, css = &quot;fill:#C44E52;&quot;),
+    opts_sizing(rescale = TRUE)
+  )
+)</code></pre>
+
+<p>Here is what each option does, so you can pick the ones your chart needs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Option</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>opts_tooltip()</code></td>
+<td>The look of the hover tooltip (CSS)</td>
+</tr>
+<tr>
+<td><code>opts_hover()</code></td>
+<td>The style of the element you point at</td>
+</tr>
+<tr>
+<td><code>opts_hover_inv()</code></td>
+<td>The style of every other element while hovering</td>
+</tr>
+<tr>
+<td><code>opts_zoom()</code></td>
+<td>Whether readers can zoom, and how far (<code>max</code>)</td>
+</tr>
+<tr>
+<td><code>opts_selection()</code></td>
+<td>Click to select points, one (<code>single</code>) or many (<code>multiple</code>)</td>
+</tr>
+<tr>
+<td><code>opts_sizing()</code></td>
+<td>Whether the chart rescales to fit its container width</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>width_svg</code> and <code>height_svg</code> arguments set the chart's aspect ratio in inches, while <code>opts_sizing(rescale = TRUE)</code> lets it shrink or grow to fill whatever space it lands in on a page.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use opts_sizing(rescale = TRUE) so your chart fits its container.</strong> On a responsive web page or a Shiny app the available width changes, and rescaling keeps the chart looking right instead of overflowing or leaving a gap.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change how far readers can zoom. Set the <code>max</code> in <code>opts_zoom()</code> to a larger number and run it in your session.</p>
+</section>
+
+<pre><code>girafe(
+  ggobj = scatter,
+  options = list(
+    opts_zoom(max = ____)   # try 10
+  )
+)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">girafe(
+  ggobj = scatter,
+  options = list(
+    opts_zoom(max = 10)
+  )
+)</code></pre>
+
+<p><strong>Explanation:</strong> <code>opts_zoom(max = 10)</code> lets readers zoom in up to ten times using the small toolbar that ggiraph adds to the top corner of the chart. Raise it for dense charts where fine detail matters.</p>
+
+</details>
+
+<h2>How do you put an interactive chart on a website, in R Markdown, or Shiny?</h2>
+
+<p>A ggiraph chart is an htmlwidget, so it slots into every place that already knows how to show a widget. There are three common destinations.</p>
+
+<p>To publish a chart as a self-contained web page, save it with <code>saveWidget()</code> from the htmlwidgets package. The single file it writes bundles everything, so you can email it or drop it on any static host.</p>
+
+<pre><code>library(htmlwidgets)
+
+gi &lt;- girafe(ggobj = interactive_bars)
+saveWidget(gi, &quot;cars-per-class.html&quot;)</code></pre>
+
+<p>Inside an R Markdown or Quarto document, you do not need <code>saveWidget()</code> at all. Put the line below inside an ordinary R code chunk (the block that opens with <code>{r}</code> between backtick fences), and the chart renders straight into the knitted HTML.</p>
+
+<pre><code>girafe(ggobj = interactive_bars)</code></pre>
+
+<p>In a Shiny app, ggiraph provides a matched pair of functions: <code>girafeOutput()</code> for the UI and <code>renderGirafe()</code> for the server. There is one bonus: when a reader selects elements with <code>opts_selection()</code>, Shiny receives the selected <code>data_id</code> values in an input named <code>&lt;outputId&gt;_selected</code>, so your app can react to clicks.</p>
+
+<pre><code>library(shiny)
+library(ggiraph)
+
+ui &lt;- fluidPage(
+  girafeOutput(&quot;plot&quot;)
+)
+
+server &lt;- function(input, output) {
+  output$plot &lt;- renderGirafe({
+    girafe(ggobj = interactive_bars)
+  })
+}
+
+shinyApp(ui, server)</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Because girafe objects are htmlwidgets, anything that embeds a widget will embed a ggiraph chart.</strong> That includes R Markdown, Quarto, Shiny, flexdashboard, and plain HTML pages. You learn one output object and reuse it everywhere.</div></div>
+
+<h2>Complete Example: an interactive fuel-economy chart</h2>
+
+<p>Let's pull the pieces together into one chart you would be happy to ship. We will show average highway mileage by car class, with a tooltip that spells out the number and a hover highlight, all styled to look finished.</p>
+
+<p>First, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> the data. We compute the mean highway mileage and the number of cars in each class, then sort from most to least efficient.</p>
+
+<div class="webr-container" data-block-title="Summarise highway mileage by class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise highway mileage by class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class_summary &lt;- mpg |&gt;
+  group_by(class) |&gt;
+  summarise(mean_hwy = round(mean(hwy), 1), n = n()) |&gt;
+  arrange(desc(mean_hwy))
+class_summary
+#&gt; # A tibble: 7 × 3
+#&gt;   class      mean_hwy     n
+#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 compact        28.3    47
+#&gt; 2 subcompact     28.1    35
+#&gt; 3 midsize        27.3    41
+#&gt; 4 2seater        24.8     5
+#&gt; 5 minivan        22.4    11
+#&gt; 6 suv            18.1    62
+#&gt; 7 pickup         16.9    33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now build the interactive chart on top of that summary. It uses <code>geom_col_interactive</code> with a descriptive tooltip and <code>data_id</code>, and passes a hover colour and a styled tooltip through <code>girafe()</code>.</p>
+
+<pre><code class="language-r">final_chart &lt;- ggplot(class_summary, aes(x = reorder(class, mean_hwy), y = mean_hwy)) +
+  geom_col_interactive(
+    aes(tooltip = paste0(class, &quot;: &quot;, mean_hwy, &quot; mpg (&quot;, n, &quot; cars)&quot;), data_id = class),
+    fill = &quot;#4C72B0&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Mean highway mpg&quot;, title = &quot;Fuel economy by class&quot;)
+
+girafe(
+  ggobj = final_chart,
+  options = list(
+    opts_hover(css = &quot;fill:#DD8452;&quot;),
+    opts_tooltip(css = &quot;background:#1a1a1a; color:#fff; padding:6px 10px; border-radius:5px;&quot;)
+  )
+)</code></pre>
+
+<p>Run this in your session and hover across the bars. Each one reports its average mileage and how many cars it represents, and the bar you point at turns orange. That is a complete, presentation-ready interactive chart built entirely from ggplot2 code plus a handful of ggiraph additions.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine what you have learned. Try each one before opening the solution. The ggiraph pieces run in your own R session, where you can hover and click to check your work.</p>
+
+<h3>Exercise 1: An interactive city-versus-highway scatter</h3>
+
+<p>Build an interactive scatter plot of city mileage (<code>cty</code>) against highway mileage (<code>hwy</code>) from <code>mpg</code>. Colour the points by drivetrain (<code>drv</code>), show the model name in the tooltip, and set <code>data_id = drv</code> so hovering one point highlights all cars with the same drivetrain.</p>
+
+<pre><code># Start from geom_point_interactive() and map tooltip, data_id, and colour.
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_scatter &lt;- ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point_interactive(
+    aes(tooltip = model, data_id = drv, colour = drv),
+    size = 3, alpha = 0.8) +
+  labs(x = &quot;City mpg&quot;, y = &quot;Highway mpg&quot;, colour = &quot;Drivetrain&quot;)
+
+girafe(
+  ggobj = ex_scatter,
+  options = list(opts_hover_inv(css = &quot;opacity:0.2;&quot;))
+)</code></pre>
+
+<p><strong>Explanation:</strong> Setting <code>data_id = drv</code> groups the points by drivetrain, so hovering a front-wheel-drive car highlights every front-wheel-drive car. <code>opts_hover_inv()</code> fades the other groups to make the effect obvious.</p>
+
+</details>
+
+<h3>Exercise 2: A clickable manufacturer ranking</h3>
+
+<p>Build a horizontal bar chart of the ten manufacturers with the highest average highway mileage. Give each bar a tooltip showing its mileage, and an <code>onclick</code> that opens a web search for that manufacturer when clicked.</p>
+
+<pre><code># Hint: summarise first, then add an onclick column with paste0(), then plot.
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Top-10 summary solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-10 summary solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">make_hwy &lt;- mpg |&gt;
+  group_by(manufacturer) |&gt;
+  summarise(mean_hwy = round(mean(hwy), 1), n = n()) |&gt;
+  arrange(desc(mean_hwy)) |&gt;
+  slice_head(n = 10)
+make_hwy
+#&gt; # A tibble: 10 × 3
+#&gt;    manufacturer mean_hwy     n
+#&gt;    &lt;chr&gt;           &lt;dbl&gt; &lt;int&gt;
+#&gt;  1 honda            32.6     9
+#&gt;  2 volkswagen       29.2    27
+#&gt;  3 hyundai          26.9    14
+#&gt;  4 audi             26.4    18
+#&gt;  5 pontiac          26.4     5
+#&gt;  6 subaru           25.6    14
+#&gt;  7 toyota           24.9    34
+#&gt;  8 nissan           24.6    13
+#&gt;  9 chevrolet        21.9    19
+#&gt; 10 ford             19.4    25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now add the onclick column and draw the chart.</p>
+
+<pre><code class="language-r">make_hwy &lt;- make_hwy |&gt;
+  mutate(onclick = paste0('window.open(&quot;https://www.google.com/search?q=', manufacturer, '&quot;)'))
+
+ex_bars &lt;- ggplot(make_hwy, aes(x = reorder(manufacturer, mean_hwy), y = mean_hwy)) +
+  geom_col_interactive(
+    aes(tooltip = paste0(mean_hwy, &quot; mpg&quot;), data_id = manufacturer, onclick = onclick),
+    fill = &quot;#55A868&quot;) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Mean highway mpg&quot;)
+
+girafe(ggobj = ex_bars)</code></pre>
+
+<p><strong>Explanation:</strong> The summary gives one row per manufacturer with its mean mileage. Adding the <code>onclick</code> column and mapping it inside <code>geom_col_interactive()</code> makes every bar a clickable link, while the <code>tooltip</code> reports the exact number on hover.</p>
+
+</details>
+
+<h3>Exercise 3: Style the whole thing</h3>
+
+<p>Take the chart from Exercise 2 and finish it: give it a dark styled tooltip with an orange hover colour, then turn on zoom. Finally, save the result as a standalone web page.</p>
+
+<pre><code># Combine opts_tooltip(), opts_hover(), and opts_zoom() in girafe(options = ...).
+# Then call saveWidget() on the result.
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">styled &lt;- girafe(
+  ggobj = ex_bars,
+  options = list(
+    opts_tooltip(css = &quot;background:#1a1a1a; color:#fff; padding:6px 10px; border-radius:5px;&quot;),
+    opts_hover(css = &quot;fill:#DD8452;&quot;),
+    opts_zoom(max = 5)
+  )
+)
+styled</code></pre>
+
+<p>Then save it to a file you can share:</p>
+
+```
+<p>library(htmlwidgets)</p>
+<p>saveWidget(styled, "manufacturer-mileage.html")</p>
+```
+
+<p><strong>Explanation:</strong> All three <code>opts_*</code> functions go in the same <code>options</code> list. Once you hold the <code>girafe()</code> result in a variable, <code>saveWidget()</code> turns it into a self-contained HTML file that opens in any browser.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between ggiraph and plotly?</strong> Both make ggplot2 charts interactive. ggiraph keeps you in pure ggplot2 syntax and renders an SVG, so your styling and themes come through exactly, and it integrates tightly with Shiny selections. Plotly converts a chart through <code>ggplotly()</code> and adds a built-in toolbar. Choose ggiraph when you want faithful ggplot2 output and precise control over hovering, highlighting and clicks.</p>
+
+<p><strong>Do I have to rewrite my whole chart to use ggiraph?</strong> No. You swap each <code>geom_*</code> for its <code>geom_*_interactive</code> version, add at least one of the <code>tooltip</code>, <code>data_id</code>, or <code>onclick</code> aesthetics, and wrap the plot in <code>girafe()</code>. The rest of your ggplot2 code stays the same.</p>
+
+<p><strong>Why is my tooltip not showing anything?</strong> Check three things: you used the <code>_interactive</code> geom, you mapped <code>tooltip</code> inside <code>aes()</code> rather than outside it, and you wrapped the plot in <code>girafe()</code>. Missing any one of these gives a static chart.</p>
+
+<p><strong>Can a single element have a tooltip and a click at the same time?</strong> Yes. Map <code>tooltip</code>, <code>data_id</code>, and <code>onclick</code> together inside the same <code>aes()</code> call, and the element will show a tooltip on hover, highlight its group on that same gesture, then run its JavaScript on click.</p>
+
+<p><strong>Does ggiraph work with facets and maps?</strong> Yes. Interactive geoms work inside <code>facet_wrap()</code> and <code>facet_grid()</code>, and a shared <code>data_id</code> highlights matching elements across every panel. For maps, <code>geom_sf_interactive()</code> makes spatial features hoverable and clickable.</p>
+
+<p><strong>Where do the interactive charts run?</strong> A ggiraph chart is a self-contained web graphic, so it runs in any modern browser: inside R Markdown or Quarto reports, in Shiny apps, or as a standalone HTML file saved with <code>saveWidget()</code>.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The pattern</td>
+<td>Swap <code>geom_*</code> for <code>geom_*_interactive</code>, add an interactive aesthetic, wrap in <code>girafe()</code></td>
+</tr>
+<tr>
+<td><code>tooltip</code></td>
+<td>Text that appears on hover; build rich labels with <code>paste0()</code></td>
+</tr>
+<tr>
+<td><code>data_id</code></td>
+<td>Elements sharing an id highlight together on hover</td>
+</tr>
+<tr>
+<td><code>onclick</code></td>
+<td>A JavaScript string (usually <code>window.open(...)</code>) that runs on click</td>
+</tr>
+<tr>
+<td><code>girafe()</code></td>
+<td>Renders the chart as an htmlwidget you can embed anywhere</td>
+</tr>
+<tr>
+<td><code>opts_*</code> functions</td>
+<td>Passed via <code>options</code> to style tooltips, hover, zoom, selection, and sizing</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>Save with <code>saveWidget()</code>, or embed in R Markdown, Quarto, or Shiny</td>
+</tr>
+</tbody>
+</table>
+
+<p>ggiraph gives you interactive charts for the price of a few small changes to code you already write. Start with a <code>tooltip</code>, add <code>data_id</code> when you want linked highlighting, reach for <code>onclick</code> when a chart should link somewhere, and tune the feel with the <code>opts_*</code> family. Because the result is a standard htmlwidget, the same chart works on a web page just as well as inside a Shiny dashboard.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggiraph package documentation, David Gohel. <a href="https://davidgohel.github.io/ggiraph/">Link</a></li>
+
+<li>girafe() function reference, ggiraph. <a href="https://davidgohel.github.io/ggiraph/reference/girafe.html">Link</a></li>
+
+<li>ggiraph on CRAN, package page and manual. <a href="https://cran.r-project.org/package=ggiraph">Link</a></li>
+
+<li>The ggiraph book, ardata. <a href="https://www.ardata.fr/ggiraph-book/">Link</a></li>
+
+<li>ggplot2 documentation, tidyverse. <a href="https://ggplot2.tidyverse.org/">Link</a></li>
+
+<li>ggiraph gallery, R Graph Gallery. <a href="https://r-graph-gallery.com/package/ggiraph.html">Link</a></li>
+
+<li>htmlwidgets for R, the framework girafe builds on. <a href="https://www.htmlwidgets.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Combining-ggplot2-with-plotly.html">Combining ggplot2 with Plotly</a>: another route to interactive charts, converting a ggplot with <code>ggplotly()</code>.</li>
+
+<li><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html">Complete ggplot2 Tutorial (Part 1)</a>: build a solid ggplot2 foundation before you make it interactive.</li>
+
+<li><a href="25-Best-ggplot2-Extensions.html">25 Best ggplot2 Extensions</a>: discover more packages that add new powers to ggplot2.</li>
+
+</ul>
+
+{% endraw %}
