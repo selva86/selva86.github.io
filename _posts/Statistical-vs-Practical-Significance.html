@@ -1,0 +1,884 @@
+---
+title: "Statistical vs Practical Significance in R"
+description: "Statistical significance says an effect is real; practical significance asks if it matters. Tell them apart in R with effect size and confidence intervals."
+keywords: "statistical vs practical significance, practical significance, effect size, p-value and sample size, Cohen's d in R, confidence interval, significance testing in R, smallest effect size of interest"
+mathjax: true
+webr: true
+curriculum_id: "ST2-6.7"
+post_type: "C"
+auto_link_terms: "statistical vs practical significance|practical significance|practical vs statistical significance|statistically significant but not practically|practically significant|practical importance|real-world significance|smallest effect size of interest|statistical versus practical significance|significance versus importance"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Statistical vs Practical"
+sidebar_order: "30"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead"><a class="auto-link" href="First-Hypothesis-Test-Three-Ways-in-R.html" title="Your First Hypothesis Test in R: Three Ways">Statistical significance</a> tells you an effect is probably real. <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">Practical significance</a> tells you whether it is big enough to care about. They are not the same, and mixing them up is one of the most expensive mistakes in data analysis. This tutorial uses base R throughout, so you need no extra packages.</p>
+
+<h2>What is the difference between statistical and practical significance?</h2>
+
+<p>Imagine your team tests a new checkout page against the old one and times how long each customer takes to check out. With 50,000 customers in each group, the test comes back "statistically significant." Before you celebrate, look at the numbers. The code below shows the trap in one shot: a rock-solid p-value sitting on top of a difference so small no customer would ever feel it.</p>
+
+<p>We will simulate the two groups and run a standard <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Sample-t-Test-in-R.html" title="t-Test in R: One-Sample, Two-Sample and Paired (With Examples)">t-test</a>, which compares the average checkout time of the two pages and reports a p-value.</p>
+
+<div class="webr-container" data-block-title="Simulate two checkout pages and t-test them">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate two checkout pages and t-test them</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+version_a &lt;- rnorm(50000, mean = 30.2, sd = 10)  # current checkout, seconds
+version_b &lt;- rnorm(50000, mean = 30.0, sd = 10)  # new checkout, seconds
+
+t.test(version_a, version_b)
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  version_a and version_b
+#&gt; t = 3.2438, df = 99997, p-value = 0.00118
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  0.08076842 0.32739405
+#&gt; sample estimates:
+#&gt; mean of x mean of y
+#&gt;  30.23085  30.02677</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.00118. That is far below the usual 0.05 cutoff, so by the textbook rule the new page is "significantly" faster. The walk-through: <code>rnorm()</code> drew 50,000 random checkout times for each page, <code>t.test()</code> compared their averages, and the tiny p-value says a gap this size is very unlikely to be pure chance.</p>
+
+<p>Now ask the question the p-value never answers: how much faster? Let us look at the actual averages.</p>
+
+<div class="webr-container" data-block-title="Show the actual size of the gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the actual size of the gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(version_a)
+#&gt; [1] 30.23085
+mean(version_b)
+#&gt; [1] 30.02677
+mean(version_a) - mean(version_b)
+#&gt; [1] 0.2040812</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The new page saves about 0.2 seconds. Two tenths of one second, on a page that takes half a minute. No human would ever notice that. The result is statistically significant and practically meaningless at the same time.</p>
+
+<p>That gap is the whole topic of this tutorial. <strong>Statistical significance</strong> answers "is this effect probably real, or could it be random noise?" You measure it with a p-value. <strong>Practical significance</strong> answers "is this effect big enough to change a decision?" You measure it with the size of the effect, not its p-value.</p>
+
+<p><img src="screenshots/Statistical-vs-Practical-Significance-two-questions.webp" alt="Two different questions, answered by two different tools." class="img-responsive img-zoomable" loading="lazy" width="1404" height="690" /></p>
+
+<p><em>Figure 1: Two different questions, answered by two different tools.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Statistical significance is about chance, not size.</strong> A small p-value only says the effect is unlikely to be zero. It says nothing about whether the effect is large enough to matter, which is a completely separate question you have to answer yourself.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Express the 0.2-second gap as a percentage of the current page's average time. A number this small tells you at a glance how trivial the improvement is.</p>
+<div class="webr-container" data-block-title="Your turn: gap as a percent">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: gap as a percent</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: about 0.675 (well under 1 percent)
+# Replace the 0 with: (mean(version_a) - mean(version_b)) / mean(version_a) * 100
+ex_pct &lt;- 0
+ex_pct</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Gap as a percent solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gap as a percent solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pct &lt;- (mean(version_a) - mean(version_b)) / mean(version_a) * 100
+round(ex_pct, 3)
+#&gt; [1] 0.675</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The improvement is under 0.7 percent of the current checkout time. Dividing the raw gap by the baseline turns "0.2 seconds" into "basically nothing," which is exactly how a stakeholder would read it.</p>
+
+</details>
+</section>
+
+<h2>Why do large samples make almost everything statistically significant?</h2>
+
+<p>Here is the uncomfortable truth behind the checkout example: with a big enough sample, almost any difference becomes statistically significant, no matter how tiny. To see why, you only need to know what a t-test actually measures.</p>
+
+<p>A t-test builds a t-statistic, and the p-value comes from that number. The formula is short: the t-statistic is the size of the effect divided by the standard error. The standard error shrinks as the sample grows, because more data means a more precise estimate. So even a frozen, tiny effect produces a bigger and bigger t-statistic as you collect more data, which drives the p-value down toward zero.</p>
+
+<p>Let us prove it. We will hold the difference fixed at exactly 0.2 seconds and the spread fixed at 10, then change only the sample size and watch the p-value.</p>
+
+<div class="webr-container" data-block-title="Freeze the effect, grow the sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Freeze the effect, grow the sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">observed_diff &lt;- 0.2   # same 0.2-second gap every time
+spread &lt;- 10           # same variability every time
+sizes &lt;- c(50, 500, 5000, 50000)
+
+se &lt;- spread * sqrt(2 / sizes)          # standard error of the difference
+t_stat &lt;- observed_diff / se            # effect divided by standard error
+p_values &lt;- 2 * pt(-abs(t_stat), df = 2 * sizes - 2)
+
+data.frame(
+  sample_size = sizes,
+  p_value = round(p_values, 4),
+  cohens_d = round(observed_diff / spread, 3)
+)
+#&gt;   sample_size p_value cohens_d
+#&gt; 1          50  0.9205     0.02
+#&gt; 2         500  0.7519     0.02
+#&gt; 3        5000  0.3173     0.02
+#&gt; 4       50000  0.0016     0.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read down the <code>p_value</code> column: 0.92, then 0.75, then 0.32, then 0.0016. The exact same 0.2-second difference goes from "nowhere near significant" to "highly significant" purely because the sample got bigger. Nothing about the effect changed. The walk-through: <code>se</code> falls as <code>sizes</code> rises, so <code>t_stat</code> climbs, and <code>pt()</code> converts that into an ever-smaller p-value.</p>
+
+<p>Now read the <code>cohens_d</code> column, which measures the effect in standard-deviation units (the next section builds it from scratch). It sits at 0.02 the whole way down. The size of the effect never moved. Only your certainty that it is not exactly zero did.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Statistical significance grows with sample size.</strong> A significant p-value is a joint statement about the effect and how much data you collected. Feed a trivial effect enough data and it will clear any significance threshold you like, which is why "significant" alone can never mean "important."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun the sweep, but change the frozen difference from 0.2 to 2 seconds. A ten-times-bigger effect should turn significant at a much smaller sample size.</p>
+<div class="webr-container" data-block-title="Your turn: sweep a 2-second gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sweep a 2-second gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: significant (p under 0.05) by n = 500
+ex_diff2 &lt;- 2
+ex_t2 &lt;- ex_diff2 / se                  # reuse se and sizes from above
+# Replace the 0 with: 2 * pt(-abs(ex_t2), df = 2 * sizes - 2)
+ex_p2 &lt;- 0
+data.frame(sample_size = sizes, p_value = round(ex_p2, 4))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sweep a 2-second gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep a 2-second gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_diff2 &lt;- 2
+ex_t2 &lt;- ex_diff2 / se
+ex_p2 &lt;- 2 * pt(-abs(ex_t2), df = 2 * sizes - 2)
+data.frame(sample_size = sizes, p_value = round(ex_p2, 4))
+#&gt;   sample_size p_value
+#&gt; 1          50  0.3198
+#&gt; 2         500  0.0016
+#&gt; 3        5000  0.0000
+#&gt; 4       50000  0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A real 2-second effect reaches significance by n = 500, while the trivial 0.2-second effect needed n = 50,000. Bigger true effects need less data to detect, but a big enough sample eventually flags even the tiniest gap.</p>
+
+</details>
+</section>
+
+<h2>How do you measure practical significance with effect size?</h2>
+
+<p>If the p-value cannot tell you whether an effect is big, what can? The answer is <strong>effect size</strong>: a number that measures the gap in a way that does not inflate with sample size. The most common one for comparing two means is Cohen's d, which expresses the difference in standard-deviation units.</p>
+
+<p>The idea is simple. Instead of asking "how many seconds apart are the two averages," Cohen's d asks "how many standard deviations apart are they." Dividing by the spread makes the number comparable across studies and, crucially, independent of how many people you tested.</p>
+
+<p>You have already seen the concept above, so here is the formula it comes from. Skip it if you like; the code right after does the same arithmetic.</p>
+
+<p>$$d = \frac{\bar{x}_1 - \bar{x}_2}{s_p}, \qquad s_p = \sqrt{\frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1 + n_2 - 2}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{x}_1 - \bar{x}_2$ = the raw gap between the two group averages</li>
+
+<li>$s_p$ = the pooled standard deviation, the typical spread combined across both groups</li>
+
+<li>$n_1, n_2$ = the two sample sizes</li>
+
+<li>$s_1^2, s_2^2$ = the two group variances</li>
+
+</ul>
+
+<p>Let us turn that formula into a small function and run it on the checkout data.</p>
+
+<div class="webr-container" data-block-title="Define cohens_d and apply it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define cohens_d and apply it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cohens_d &lt;- function(x, y) {
+  nx &lt;- length(x); ny &lt;- length(y)
+  pooled_sd &lt;- sqrt(((nx - 1) * var(x) + (ny - 1) * var(y)) / (nx + ny - 2))
+  (mean(x) - mean(y)) / pooled_sd
+}
+
+cohens_d(version_a, version_b)
+#&gt; [1] 0.02051532</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cohen's d for the checkout test is 0.02. That is the same tiny number you saw in the sweep, and it does not care that we had 50,000 people per group. The walk-through: the function pools the two spreads into <code>pooled_sd</code>, then divides the raw mean gap by it, giving the effect in standard-deviation units.</p>
+
+<p>How do you read a d of 0.02? Jacob Cohen offered rough benchmarks, still the most quoted starting point.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Cohen's d</th>
+<th>Rough label</th>
+<th>What it feels like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.20</td>
+<td>Small</td>
+<td>Detectable only with care</td>
+</tr>
+<tr>
+<td>0.50</td>
+<td>Medium</td>
+<td>Visible to the naked eye</td>
+</tr>
+<tr>
+<td>0.80</td>
+<td>Large</td>
+<td>Obvious, hard to miss</td>
+</tr>
+</tbody>
+</table>
+
+<p>At 0.02, the checkout effect is far below even "small." Now contrast that with an effect that genuinely matters: a drug trial where the treatment lifts a score by 12 points.</p>
+
+<div class="webr-container" data-block-title="Contrast a genuinely large effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contrast a genuinely large effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+placebo &lt;- rnorm(60, mean = 100, sd = 15)
+active  &lt;- rnorm(60, mean = 112, sd = 15)
+
+t.test(active, placebo)$p.value
+#&gt; [1] 1.293809e-06
+cohens_d(active, placebo)
+#&gt; [1] 0.9324492</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the p-value is tiny (0.0000013) and the effect size is large (d = 0.93). This is what you want: a result that is both real and big. The walk-through: <code>t.test()$p.value</code> pulls out just the p-value, and <code>cohens_d()</code> reports a gap of nearly one full standard deviation, which lands well past Cohen's "large" mark.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report an effect size next to every p-value.</strong> The p-value tells a reader the effect is probably not zero; the effect size tells them whether to care. Journals and <a class="auto-link" href="AB-Testing-in-R.html" title="A/B Testing in R: Plan Your Sample Size, Analyse Correctly, and Know When to Stop">A/B testing</a> platforms increasingly require both for exactly this reason.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A tutoring program is tested on 40 students before and after. Compute Cohen's d for the improvement using the <code>cohens_d()</code> function you just wrote.</p>
+<div class="webr-container" data-block-title="Your turn: effect size of a tutoring program">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: effect size of a tutoring program</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(505)
+ex_before &lt;- rnorm(40, mean = 70, sd = 8)
+ex_after  &lt;- rnorm(40, mean = 74, sd = 8)
+
+# Target answer: about 0.61 (a medium-to-large effect)
+# Replace the 0 with: cohens_d(ex_after, ex_before)
+ex_d &lt;- 0
+round(ex_d, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tutoring program effect size solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tutoring program effect size solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d &lt;- cohens_d(ex_after, ex_before)
+round(ex_d, 2)
+#&gt; [1] 0.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The tutoring program has a Cohen's d of 0.61, a medium-to-large effect. Unlike a p-value, this number would read the same whether the class had 40 students or 40,000.</p>
+
+</details>
+</section>
+
+<h2>How do confidence intervals show practical significance?</h2>
+
+<p>Effect size gives you one number for the gap. A <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> gives you something even more useful: the plausible range for the true effect. If the entire range is trivially small, the effect is trivially small, even when the p-value is far below 0.05.</p>
+
+<p>A 95 percent confidence interval is the band of values that are consistent with your data. The t-test already computed one for the checkout gap. Let us pull it out on its own.</p>
+
+<div class="webr-container" data-block-title="Confidence interval for the checkout gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confidence interval for the checkout gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(version_a, version_b)$conf.int
+#&gt; [1] 0.08076842 0.32739405
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interval runs from 0.08 to 0.33 seconds. Two things jump out. First, it does not include zero, which is another way of seeing the result is statistically significant. Second, and more important, even the most optimistic end of the range is a third of a second. The best case is still nothing a customer would feel. The walk-through: <code>$conf.int</code> extracts the two bounds, and both sit far below anything a person would notice.</p>
+
+<p>Compare that to the drug trial, where the interval tells a very different story.</p>
+
+<div class="webr-container" data-block-title="Confidence interval for the drug effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confidence interval for the drug effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(active, placebo)$conf.int
+#&gt; [1]  7.990146 18.112955
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The drug's interval runs from about 8 to 18 points. Even the worst case, an 8-point lift, is a meaningful improvement. The interval is not just away from zero; it is entirely inside "this matters" territory. That is practical significance you can see at a glance.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A confidence interval does double duty.</strong> Whether it excludes zero answers the significance question, and where it sits answers the magnitude question. Reading the whole interval, not just checking for zero, is the single fastest habit for telling the two kinds of significance apart.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the lower and upper bounds of the drug interval into separate values using square-bracket indexing. The interval is just a length-two vector.</p>
+<div class="webr-container" data-block-title="Your turn: extract the interval bounds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract the interval bounds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci &lt;- t.test(active, placebo)$conf.int
+# Target answer: 7.99 and 18.11
+# Replace the 0s with ex_ci[1] and ex_ci[2]
+ex_low  &lt;- 0
+ex_high &lt;- 0
+round(c(ex_low, ex_high), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extract the interval bounds solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the interval bounds solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci &lt;- t.test(active, placebo)$conf.int
+ex_low  &lt;- ex_ci[1]
+ex_high &lt;- ex_ci[2]
+round(c(ex_low, ex_high), 2)
+#&gt; [1]  7.99 18.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A confidence interval is an ordinary vector, so <code>ex_ci[1]</code> and <code>ex_ci[2]</code> grab its two ends. Being able to read both bounds is what lets you judge the effect's size, not just its significance.</p>
+
+</details>
+</section>
+
+<h2>How do you decide what counts as practically significant?</h2>
+
+<p>So far we have judged effects loosely: 0.2 seconds feels trivial, 12 points feels real. That gut feeling is not good enough for a real decision. The fix is to set a threshold before you run the test: the smallest effect that would actually change what you do. Researchers call this the smallest effect size of interest, or SESOI.</p>
+
+<p>Setting the threshold up front stops you from rationalizing whatever result you happen to get. For the checkout page, suppose the team agrees in advance: a redesign is only worth shipping if it saves at least 3 seconds. Now the decision becomes mechanical. Compare the observed effect, and its whole confidence interval, against that 3-second line.</p>
+
+<div class="webr-container" data-block-title="Compare the result to a pre-set threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the result to a pre-set threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">threshold &lt;- 3   # smallest saving worth shipping for, in seconds
+
+observed &lt;- abs(mean(version_a) - mean(version_b))
+ci_upper &lt;- max(abs(t.test(version_a, version_b)$conf.int))
+
+round(observed, 3)
+#&gt; [1] 0.204
+round(ci_upper, 3)
+#&gt; [1] 0.327
+ci_upper &lt; threshold
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed saving is 0.204 seconds and even the top of the confidence interval is 0.327 seconds. Both sit far below the 3-second threshold, so <code>ci_upper &lt; threshold</code> returns <code>TRUE</code>. The verdict: statistically significant, but not practically significant. Do not ship it. The walk-through: we take the absolute effect and the largest plausible effect, then check that even the best case falls short of the line the team drew.</p>
+
+<p>Every result lands in one of four boxes, depending on the two questions. The chart below maps them out.</p>
+
+<p><img src="screenshots/Statistical-vs-Practical-Significance-decision-quadrant.webp" alt="Every result sits somewhere on these two axes." class="img-responsive img-zoomable" loading="lazy" width="1080" height="1080" /></p>
+
+<p><em>Figure 2: Every result sits somewhere on these two axes.</em></p>
+
+<p>The dangerous box is the bottom-right: statistically significant but practically trivial. That is where huge samples push almost everything, and where the checkout test landed.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Benchmarks are a fallback, not a verdict.</strong> Cohen's 0.2 / 0.5 / 0.8 labels are convenient, but a "small" effect can be life-saving (a cheap pill that slightly lowers heart-attack risk across millions) and a "large" effect can be useless. Whenever you can, set your threshold from real-world costs and benefits, not from a generic table.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply the same threshold logic to the drug trial. If the team only cares about improvements of at least 5 points, check whether even the smallest plausible effect clears that bar.</p>
+<div class="webr-container" data-block-title="Your turn: threshold decision for the drug">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: threshold decision for the drug</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drug_ci &lt;- t.test(active, placebo)$conf.int
+# Target answer: TRUE (smallest plausible effect is 7.99, above 5)
+# Replace the 0 with: min(abs(ex_drug_ci))
+ex_smallest &lt;- 0
+ex_smallest &gt; 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Threshold decision for the drug solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Threshold decision for the drug solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drug_ci &lt;- t.test(active, placebo)$conf.int
+ex_smallest &lt;- min(abs(ex_drug_ci))
+round(ex_smallest, 2)
+#&gt; [1] 7.99
+ex_smallest &gt; 5
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even the most pessimistic plausible effect, 7.99 points, clears the 5-point threshold. So the drug is both statistically and practically significant: the whole confidence interval sits above what the team cares about.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: A/B Test Decision From Start to Finish</h2>
+
+<p>Let us put every piece together on the kind of test a real company runs. Your site gets heavy traffic, so an experiment collects 2,000,000 visitors per variant. You are testing whether a new landing page lifts the signup rate above the current 12.0 percent. The new page truly converts a hair better, at 12.1 percent. With traffic this large, the test will be significant. The real question is whether a hair is worth shipping.</p>
+
+<p>First, simulate the two variants and run a <a class="auto-link" href="Proportion-Tests-in-R.html" title="Proportion Tests in R: prop.test(), binom.test(), When to Use Each">proportion test</a>, which compares two conversion rates.</p>
+
+<div class="webr-container" data-block-title="Run the A/B test at scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the A/B test at scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(606)
+visitors &lt;- 2000000
+conv_old &lt;- rbinom(1, visitors, 0.1200)   # signups on the current page
+conv_new &lt;- rbinom(1, visitors, 0.1210)   # signups on the new page
+
+signups &lt;- prop.test(c(conv_new, conv_old), c(visitors, visitors))
+signups
+#&gt; 	2-sample test for equality of proportions with continuity correction
+#&gt;
+#&gt; data:  c(conv_new, conv_old) out of c(visitors, visitors)
+#&gt; X-squared = 5.6741, df = 1, p-value = 0.01722
+#&gt; alternative hypothesis: two.sided
+#&gt; 95 percent confidence interval:
+#&gt;  0.0001373234 0.0014136766
+#&gt; sample estimates:
+#&gt;    prop 1    prop 2
+#&gt; 0.1207215 0.1199460</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.01722, comfortably under 0.05. The new page is statistically significantly better. If you stopped here, you would ship it. But you know better now, so measure the size of the win.</p>
+
+<div class="webr-container" data-block-title="Measure the lift and its range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the lift and its range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rate_old &lt;- conv_old / visitors
+rate_new &lt;- conv_new / visitors
+round(c(rate_old, rate_new), 5)
+#&gt; [1] 0.11995 0.12072
+
+lift_pp &lt;- (rate_new - rate_old) * 100      # lift in percentage points
+round(lift_pp, 4)
+#&gt; [1] 0.0775
+
+round(signups$conf.int * 100, 4)            # same interval, in percentage points
+#&gt; [1] 0.0137 0.1414
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lift is 0.0775 percentage points, and the confidence interval says the true lift is somewhere between 0.014 and 0.14 percentage points. Even the optimistic end, 0.14 points, means fewer than 3 extra signups per 2,000 visitors. The walk-through: we convert the raw counts into rates, take the difference as a percentage point lift, and rescale the test's interval into the same units so it is easy to read.</p>
+
+<p>Now make the call with a pre-set threshold. Suppose the product team decided beforehand that a redesign has to lift signups by at least 0.5 percentage points to justify the engineering and risk. The entire confidence interval, top included, is below 0.5. So the honest decision is: significant, yes, but do not ship. The win is too small to be worth the cost.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A tiny effect can be rock-solid and still not worth shipping.</strong> At two million visitors, a 0.08 percentage point lift is statistically certain and commercially pointless. The p-value confirmed the effect is real; the effect size and threshold told you it was too small to act on. That is the entire difference between statistical and practical significance, in one decision.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the ideas above. Try each before opening the solution. The exercises use their own variable names, so they will not disturb the earlier examples.</p>
+
+<h3>Exercise 1: Significant is not the only question</h3>
+
+<p>Two teaching methods are compared on 80 students each. Run a t-test to check statistical significance, then compute Cohen's d. What do you conclude when the p-value and the effect size seem to disagree?</p>
+
+<div class="webr-container" data-block-title="Exercise 1: test and size a teaching effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: test and size a teaching effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(707)
+method_x &lt;- rnorm(80, mean = 75, sd = 10)
+method_y &lt;- rnorm(80, mean = 78, sd = 10)
+
+# 1. Get the p-value from t.test()
+# 2. Get Cohen's d from cohens_d()
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(t.test(method_y, method_x)$p.value, 4)
+#&gt; [1] 0.1086
+round(cohens_d(method_y, method_x), 3)
+#&gt; [1] 0.255</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value is 0.1086, above 0.05, so the difference is not statistically significant. Yet Cohen's d is 0.255, a real small-to-medium effect. The two do not actually disagree: with only 80 students the study is underpowered, so a genuine effect fails to reach significance. Not significant does not mean no effect; it can mean not enough data.</p>
+
+</details>
+
+<h3>Exercise 2: Find where a trivial effect turns significant</h3>
+
+<p>A frozen effect of d = 0.1 is tested at growing sample sizes. Using the same deterministic approach from the sweep earlier, find the smallest sample size in the list where the p-value drops below 0.05. Confirm the effect size never changes.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: locate the significance tipping point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: locate the significance tipping point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_target &lt;- 0.1
+ex_sizes &lt;- c(100, 500, 1000, 2000, 5000)
+
+# Build the p-value at each size (work in SD units, so spread = 1)
+# Hint: ex_se &lt;- sqrt(2 / ex_sizes); ex_t &lt;- d_target / ex_se
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_target &lt;- 0.1
+ex_sizes &lt;- c(100, 500, 1000, 2000, 5000)
+ex_se &lt;- sqrt(2 / ex_sizes)
+ex_t &lt;- d_target / ex_se
+ex_p &lt;- 2 * pt(-abs(ex_t), df = 2 * ex_sizes - 2)
+data.frame(sample_size = ex_sizes, p_value = round(ex_p, 4))
+#&gt;   sample_size p_value
+#&gt; 1         100  0.4803
+#&gt; 2         500  0.1142
+#&gt; 3        1000  0.0255
+#&gt; 4        2000  0.0016
+#&gt; 5        5000  0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value crosses 0.05 between n = 500 and n = 1000; by n = 1000 it is 0.0255. The effect size stayed frozen at d = 0.1 the whole time. Significance was bought with sample size, not with a bigger effect.</p>
+
+</details>
+
+<h3>Exercise 3: The full workflow on one result</h3>
+
+<p>An ed-tech company tests a new app feature on 10,000 students and measures test scores. Run the complete practical-significance workflow: get the p-value, the effect size, and the confidence interval, then decide against a threshold of 2 points (the smallest score gain the company would act on).</p>
+
+<div class="webr-container" data-block-title="Exercise 3: full workflow on test scores">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: full workflow on test scores</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(909)
+control_scores &lt;- rnorm(10000, mean = 72.0, sd = 12)
+feature_scores &lt;- rnorm(10000, mean = 72.5, sd = 12)
+
+# 1. p-value from t.test()
+# 2. Cohen's d from cohens_d()
+# 3. confidence interval from t.test()$conf.int
+# 4. is the whole interval below the 2-point threshold?
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tt &lt;- t.test(feature_scores, control_scores)
+round(tt$p.value, 5)
+#&gt; [1] 0.00087
+round(mean(feature_scores) - mean(control_scores), 3)
+#&gt; [1] 0.566
+round(cohens_d(feature_scores, control_scores), 3)
+#&gt; [1] 0.047
+round(tt$conf.int[1:2], 3)
+#&gt; [1] 0.233 0.899
+max(tt$conf.int) &lt; 2
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The result is statistically significant (p = 0.00087) but the effect is negligible: Cohen's d is 0.047 and the whole confidence interval, 0.23 to 0.90 points, sits below the 2-point threshold. The feature raises scores by well under a point. Significant, but not worth acting on.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Statistical significance and practical significance answer two different questions, and a good analysis reports both. The table below is your quick reference.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Question it answers</th>
+<th>Tool in R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Statistical significance</td>
+<td>Is the effect probably real?</td>
+<td><code>t.test()</code>, <code>prop.test()</code> p-value</td>
+</tr>
+<tr>
+<td>Practical significance</td>
+<td>Is the effect big enough to matter?</td>
+<td>Cohen's d, effect size</td>
+</tr>
+<tr>
+<td>Plausible range</td>
+<td>How big could the true effect be?</td>
+<td><code>t.test()$conf.int</code></td>
+</tr>
+<tr>
+<td>Decision rule</td>
+<td>Does it clear my threshold?</td>
+<td>Compare effect and interval to a pre-set SESOI</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one habit that keeps you out of trouble: never read a p-value on its own. Pair it with an effect size and a confidence interval, and judge both against a threshold you set before seeing the data. The mindmap below recaps the whole picture.</p>
+
+<p><img src="screenshots/Statistical-vs-Practical-Significance-overview-mindmap.webp" alt="The whole picture at a glance." class="img-responsive img-zoomable" loading="lazy" width="1820" height="910" /></p>
+
+<p><em>Figure 3: The whole picture at a glance.</em></p>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>A small p-value means "unlikely to be chance," not "big enough to matter."</li>
+
+<li>Large samples make almost any difference statistically significant, so significance alone is a weak signal.</li>
+
+<li>Effect size (like Cohen's d) measures the magnitude of an effect and does not inflate with sample size.</li>
+
+<li>A confidence interval shows both significance and magnitude at once; read the whole interval, not just whether it excludes zero.</li>
+
+<li>Decide with a threshold set in advance, ideally from real-world costs and benefits rather than a generic benchmark table.</li>
+
+</ul>
+
+<h2>Frequently Asked Questions</h2>
+
+<p>A few questions come up again and again once people see the gap between the two kinds of significance. Here are quick answers.</p>
+
+<h3>Can a result be practically significant but not statistically significant?</h3>
+
+<p>Yes. A real, meaningful effect measured in a small or underpowered study can easily miss the p < 0.05 cutoff, exactly as you saw in Exercise 1. That is why you report the effect size and confidence interval too: they reveal a genuine effect that a p-value alone would let you dismiss as "not significant."</p>
+
+<h3>Is a p-value of 0.001 more practically significant than a p-value of 0.04?</h3>
+
+<p>No. A smaller p-value means you are more confident the effect is not exactly zero, not that the effect is bigger. Two results with wildly different p-values can have identical effect sizes. Practical size comes from the effect size and confidence interval, never from how small the p-value is.</p>
+
+<h3>What effect size should I use for two proportions instead of two means?</h3>
+
+<p>For two means, Cohen's d is the standard choice. For two proportions, the most decision-relevant number is usually the plain difference in rates, measured in percentage points, together with its confidence interval, as in the complete example above. <a class="auto-link" href="One-Sample-Proportion-z-Test-in-R.html" title="One-Sample Proportion z-Test in R: Large Sample Inference">Cohen's h</a> is a standardized alternative when you need one comparable across studies.</p>
+
+<h3>How do I choose the smallest effect size of interest?</h3>
+
+<p>Set it from real-world costs and benefits whenever you can: the smallest improvement that would actually change your decision, given what the change costs. A generic benchmark table is only a last resort. Ask "how big would the effect have to be for us to act?" and use that number as your threshold, decided before you see the data.</p>
+
+<h3>Does a larger sample size make my results more practically significant?</h3>
+
+<p>No. A larger sample makes tiny effects easier to detect statistically, but it does not change how big the effect actually is. If anything, a very large sample widens the gap between statistical and practical significance, because it will flag effects far too small to matter.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Sullivan, G. M. & Feinn, R. (2012). Using Effect Size, or Why the P Value Is Not Enough. <em>Journal of Graduate Medical Education</em>. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3444174/">Link</a>. The short paper this whole tutorial builds on: why a p-value alone never tells you if an effect matters.</li>
+
+<li>Lakens, D. (2013). Calculating and reporting effect sizes to facilitate cumulative science. <em>Frontiers in Psychology</em>. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3840331/">Link</a>. A practical how-to for computing and reporting Cohen's d and other effect sizes.</li>
+
+<li>Lakens, D., Scheel, A. M. & Isager, P. M. (2018). Equivalence Testing for Psychological Research: A Practical Primer. <em>Advances in Methods and Practices in Psychological Science</em>. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5502906/">Link</a>. Introduces equivalence testing, the formal way to declare an effect too small to care about.</li>
+
+<li>R Core Team. <code>t.test</code> {stats} reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">Link</a>. Official docs for the function behind every p-value and confidence interval on this page.</li>
+
+<li>R Core Team. <code>prop.test</code> {stats} reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html">Link</a>. Official docs for comparing two proportions, as in the A/B test example.</li>
+
+<li>Wikipedia. Effect size. <a href="https://en.wikipedia.org/wiki/Effect_size">Link</a>. A broad catalogue of effect-size measures beyond Cohen's d.</li>
+
+<li>Wikipedia. Clinical significance (statistical vs practical significance). <a href="https://en.wikipedia.org/wiki/Clinical_significance">Link</a>. The clinical framing of the same statistical-versus-practical distinction.</li>
+
+<li>R Core Team. <em>An Introduction to R</em>. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a>. A refresher on the base-R basics this tutorial assumes.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Effect-Size-in-R.html">Effect Size in R</a>: go deeper into Cohen's d, eta-squared, and correlation-based effect sizes, the numbers that quantify practical significance.</li>
+
+<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a>: understand the framework that produces the p-value in the first place, so you know exactly what "significant" claims.</li>
+
+<li><a href="Statistical-Power-Analysis-in-R.html">Power Analysis in R</a>: plan a sample size big enough to detect an effect that matters, instead of one so big it flags effects that do not.</li>
+
+</ul>
+
+{% endraw %}
