@@ -1,0 +1,954 @@
+---
+title: "What p-Values Mean (and What They Never Meant)"
+description: "A plain-English guide to what a p-value really means, built from scratch in R by simulation, plus the misconceptions it never meant and what to report instead."
+keywords: "what p-values mean, p-value explained, p-value interpretation, p-value in R, null hypothesis, statistical significance, p-value misconceptions, t.test p-value"
+mathjax: true
+webr: true
+curriculum_id: "ST2-6.9"
+post_type: "C"
+auto_link_terms: "p-value|p-values|what a p-value means|p-value meaning|meaning of a p-value|interpret a p-value|interpreting p-values|p-value interpretation|p-value misconceptions|what a p-value is not|p-value fallacy|misinterpret the p-value"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "What p-Values Mean"
+sidebar_order: "170"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A p-value is the probability of seeing data at least as surprising as yours if the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> (the boring "nothing is going on" explanation) were actually true. It is a measure of surprise, not the chance your hypothesis is right, and that single distinction clears up almost every mistake people make with it.</p>
+
+<p>The p-value is the most used and most misread number in all of statistics. You have almost certainly seen one, compared it to 0.05, and called your result "significant" or not. This tutorial does the thing most guides skip: it shows you exactly what that number is by building one from scratch, then walks through the four things a p-value has never been able to tell you. Everything here uses base R, and you have already met a hypothesis test once, so you have all the background you need. You can run every block right here in your browser.</p>
+
+<h2>What is a p-value in plain English?</h2>
+
+<p>You have probably run a test and seen a line like <code>p-value = 0.0014</code>. You were told "below 0.05, so it is significant," and you moved on. But what is that number actually measuring? The clearest way in is an analogy you already know: a courtroom.</p>
+
+<p>A court starts by presuming the defendant is innocent. In statistics, the equivalent starting assumption is the <strong>null hypothesis</strong>: the idea that nothing special is going on, that any pattern you see is just random noise. The evidence in the trial is your data. The p-value answers one precise question: <em>if the defendant were truly innocent (if the null were true), how often would evidence look at least this incriminating just by chance?</em> A tiny p-value means the evidence would be very surprising for an innocent defendant, so you start to doubt the innocence.</p>
+
+<p>Let us make that concrete. The built-in <code>mtcars</code> dataset records fuel economy (<code>mpg</code>) and transmission type (<code>am</code>, where 0 is automatic and 1 is manual) for 32 cars. We will ask whether manual and automatic cars differ in mileage, using <code>t.test()</code>, which compares two group averages and reports a p-value.</p>
+
+<div class="webr-container" data-block-title="Run a two-sample t-test on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run a two-sample t-test on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(mpg ~ am, data = mtcars)
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  mpg by am
+#&gt; t = -3.7671, df = 18.332, p-value = 0.001374
+#&gt; alternative hypothesis: true difference in means between group 0 and group 1 is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -11.280194  -3.209684
+#&gt; sample estimates:
+#&gt; mean in group 0 mean in group 1
+#&gt;        17.14737        24.39231</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output from the bottom up. The two group means are 17.1 mpg (automatic) and 24.4 mpg (manual), a gap of about 7.2 mpg. The <code>t = -3.7671</code> line summarizes that gap relative to the noise in the data, and the <code>p-value = 0.001374</code> is the number we care about. In plain words: <em>if transmission type made no real difference to mileage, a gap this large would turn up only about 14 times in 10,000 random samples.</em> That is rare enough to make the "no difference" story hard to believe.</p>
+
+<p><img src="screenshots/What-p-Values-Mean-courtroom-logic.webp" alt="A p-value follows the same logic as a courtroom: presume the null is true, then ask how surprising the evidence is." class="img-responsive img-zoomable" loading="lazy" width="2248" height="584" /></p>
+
+<p><em>Figure 1: A p-value follows the same courtroom logic. Presume the null is true, weigh the evidence, and ask how surprising that evidence would be under innocence.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A p-value is the probability of data at least as extreme as yours, computed in a world where the null hypothesis is true.</strong> It starts from the assumption that nothing is going on and asks how well your data fits that assumption. Small p-value means poor fit, which is evidence against the null.</div></div>
+
+<p>If you like the formal version, here it is. Feel free to skip this box, the sentence above is all you need.</p>
+
+<p>$$p = P(\text{a test statistic at least as extreme as ours} \mid H_0 \text{ is true})$$</p>
+
+<p>Where $H_0$ is the null hypothesis (no real effect), and the vertical bar means "given that" or "assuming." The whole expression is a <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">conditional probability</a>: it lives entirely inside the world where the null is true.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the same test for a different question. Do cars with a V-shaped engine differ from straight engines in mileage? Use <code>t.test(mpg ~ vs, data = mtcars)</code> and read off the p-value.</p>
+<div class="webr-container" data-block-title="Your turn: test mpg by engine shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test mpg by engine shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: p-value = 0.0001098
+# Replace NA with: t.test(mpg ~ vs, data = mtcars)
+ex_vs_test &lt;- NA
+ex_vs_test
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Engine shape t-test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Engine shape t-test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(mpg ~ vs, data = mtcars)
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  mpg by vs
+#&gt; t = -4.6671, df = 22.716, p-value = 0.0001098
+#&gt; alternative hypothesis: true difference in means between group 0 and group 1 is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -11.462508  -4.418445
+#&gt; sample estimates:
+#&gt; mean in group 0 mean in group 1
+#&gt;        16.61667        24.55714</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value is 0.0001098, far below 0.05. A mileage gap this big between engine shapes would almost never appear if engine shape made no difference, so the "no difference" story looks unlikely.</p>
+
+</details>
+</section>
+
+<h2>How can you build a p-value from scratch?</h2>
+
+<p>Here is the part almost no tutorial shows you, and it is the part that makes everything click: you can compute a p-value yourself with nothing but shuffling and counting. No formula, no t-distribution, no memorized definition. Once you build one by hand, the phrase "assuming the null is true" stops being abstract.</p>
+
+<p>The idea is simple. The null hypothesis says transmission type has no real link to mileage. So let us build that world directly: keep the mpg numbers exactly as they are, but randomly <strong>shuffle</strong> the transmission labels. Shuffling breaks any real connection, leaving only chance. If we shuffle thousands of times and measure the mpg gap each time, we get a picture of what gaps chance alone produces. Then we simply count how often chance beats our real gap.</p>
+
+<p>First, we need our real, observed gap to compare against.</p>
+
+<div class="webr-container" data-block-title="Compute the observed mpg gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the observed mpg gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto_mpg   &lt;- mtcars$mpg[mtcars$am == 0]   # the 19 automatic cars
+manual_mpg &lt;- mtcars$mpg[mtcars$am == 1]   # the 13 manual cars
+obs_diff   &lt;- mean(manual_mpg) - mean(auto_mpg)
+obs_diff
+#&gt; [1] 7.244939</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Manual cars average 7.24 mpg more than automatics in this sample. That is the number to beat. Now we build the null world by shuffling. We use <code>sample()</code> to scramble the <code>am</code> labels, recompute the gap, and repeat 10,000 times with <code>replicate()</code>. Setting a seed makes the random shuffles reproducible so your numbers match ours.</p>
+
+<div class="webr-container" data-block-title="Build the null distribution by shuffling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the null distribution by shuffling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+null_diffs &lt;- replicate(10000, {
+  shuffled_am &lt;- sample(mtcars$am)                                  # break the real link
+  mean(mtcars$mpg[shuffled_am == 1]) - mean(mtcars$mpg[shuffled_am == 0])
+})
+sum(abs(null_diffs) &gt;= abs(obs_diff))    # how many shuffles matched or beat the real gap
+#&gt; [1] 5
+mean(abs(null_diffs) &gt;= abs(obs_diff))   # that count as a proportion: our p-value
+#&gt; [1] 5e-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what just happened. Out of 10,000 shuffled worlds where transmission was unrelated to mileage, only 5 produced a gap as large as the real 7.24 mpg. Turning that count into a proportion gives 5 divided by 10,000, which R prints as <code>5e-04</code>, meaning 0.0005. That fraction <em>is</em> a p-value. We computed it by counting, not by any formula.</p>
+
+<p><img src="screenshots/What-p-Values-Mean-simulation-flow.webp" alt="Building a p-value by simulation: assume the null, shuffle many times, and count how often chance beats your real result." class="img-responsive img-zoomable" loading="lazy" width="2248" height="324" /></p>
+
+<p><em>Figure 2: Building a p-value by simulation. Assume the null is true, shuffle the labels thousands of times, build the distribution of chance results, then count how many are as extreme as your real one.</em></p>
+
+<p>Does our hand-built p-value agree with the one <code>t.test()</code> reported? Let us put them side by side.</p>
+
+<div class="webr-container" data-block-title="Compare the simulated p-value with t.test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the simulated p-value with t.test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(simulation = mean(abs(null_diffs) &gt;= abs(obs_diff)),
+  t_test     = t.test(mpg ~ am, data = mtcars)$p.value)
+#&gt;  simulation      t_test
+#&gt; 0.000500000 0.001373638</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both land in the same tiny territory, well under 0.05. They are not identical to the digit, and that is fine: shuffling and the t-distribution formula are two different recipes for the same idea, and the shuffled number wiggles a little each time you change the seed or the number of shuffles. What matters is that both roads reach the same verdict, a gap this size almost never happens by chance.</p>
+
+<p>It helps to see the whole null world at once. The histogram below shows all 10,000 shuffled gaps, with our real observed gap marked as a red line far out in the tail.</p>
+
+<div class="webr-container" data-block-title="Plot the null distribution with the observed gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the null distribution with the observed gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(null_diffs, breaks = 40, col = &quot;grey80&quot;, border = &quot;white&quot;,
+     main = &quot;10,000 shuffled worlds where the null is true&quot;,
+     xlab = &quot;Difference in mean mpg (manual minus automatic)&quot;)
+abline(v = obs_diff, col = &quot;red&quot;, lwd = 3)     # our real, observed gap</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pile of shuffled gaps clusters around zero, because when labels are random the two groups usually look about the same. Our real gap sits way out on the right edge, in a region chance rarely reaches. That distance is the whole story of the p-value, told as a picture.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>"Assuming the null is true" is not abstract, it is literally the shuffled world you just built.</strong> Every p-value lives inside a made-up world where nothing is going on. The number tells you how often that made-up world produces a result as extreme as your real one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The count of extreme shuffles is the raw ingredient of the p-value. Turn that count into a percentage, so you can say "X percent of random shuffles beat the real gap."</p>
+<div class="webr-container" data-block-title="Your turn: express the count as a percentage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: express the count as a percentage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: 5 shuffles, which is 0.05 percent
+# Replace NA with: sum(abs(null_diffs) &gt;= abs(obs_diff)) / 10000 * 100
+ex_pct &lt;- NA
+ex_pct
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count as a percentage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count as a percentage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum(abs(null_diffs) &gt;= abs(obs_diff))
+#&gt; [1] 5
+sum(abs(null_diffs) &gt;= abs(obs_diff)) / 10000 * 100
+#&gt; [1] 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five shuffles out of 10,000 beat the real gap, which is 0.05 percent. That small percentage is the p-value expressed on a familiar scale.</p>
+
+</details>
+</section>
+
+<h2>Does a p-value tell you the probability the null is true?</h2>
+
+<p>This is the single most common misconception, and it is worth slowing down for. Many people read <code>p = 0.05</code> as "there is a 5 percent chance the null is true" or "a 95 percent chance my effect is real." Both are wrong, and the reason is subtle but important.</p>
+
+<p>Look back at the definition. The p-value is the probability of your <em>data</em>, computed in a world where the null is <em>assumed</em> true. It is $P(\text{data} \mid \text{null true})$. What people want it to be is the reverse: $P(\text{null true} \mid \text{data})$, the probability the null holds given what you saw. These two are not the same, and swapping them is a classic error. Here is an everyday version: the probability the ground is wet given that it is raining is high, but the probability it is raining given that the ground is wet is much lower, because a garden sprinkler or a spilled bucket also wets the ground.</p>
+
+<p>We can prove the p-value does not measure "the chance the null is true" with a quick simulation. Let us run 10,000 experiments where the null is definitely, provably true, by drawing both groups from the <em>same</em> population. Each group is drawn with <code>rnorm()</code>, which returns random numbers from a normal (bell-shaped) population with the <a class="auto-link" href="Mean-vs-Median-SD-vs-IQR.html" title="Mean vs Median, SD vs IQR: Choosing Center and Spread">mean and standard deviation</a> you give it. If a small p-value really meant "the null is probably false," we should almost never see one here.</p>
+
+<div class="webr-container" data-block-title="Simulate experiments where the null is true">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate experiments where the null is true</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+many_p &lt;- replicate(10000, {
+  group_a &lt;- rnorm(30, mean = 100, sd = 15)
+  group_b &lt;- rnorm(30, mean = 100, sd = 15)   # same population, so the null is TRUE
+  t.test(group_a, group_b)$p.value
+})
+mean(many_p &lt; 0.05)      # fraction that looked &quot;significant&quot; anyway
+#&gt; [1] 0.0494</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 4.9 percent of these experiments returned <code>p &lt; 0.05</code>, even though the null was true every single time. That is not a bug, it is the design: a 0.05 threshold is <em>built</em> to raise a false alarm 5 percent of the time when nothing is going on. So a significant result cannot mean "the null is false," because the null was true in all 10,000 of these cases and still tripped the alarm once every twenty runs.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A p-value below 0.05 does not mean you are 95 percent sure there is an effect.</strong> The p-value never measures the probability that your hypothesis is true. It only measures how unusual your data would be if nothing were going on, and unusual things happen roughly 5 percent of the time by pure chance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A stricter threshold should raise fewer false alarms. Using the same true-null results in <code>many_p</code>, find what fraction fall below 0.01 instead of 0.05.</p>
+<div class="webr-container" data-block-title="Your turn: false alarms at a stricter cutoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: false alarms at a stricter cutoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: about 0.01
+# Replace NA with: mean(many_p &lt; 0.01)
+ex_strict &lt;- NA
+ex_strict
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stricter cutoff solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stricter cutoff solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(many_p &lt; 0.01)
+#&gt; [1] 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 1 percent of true-null experiments dip below 0.01. The false-alarm rate matches whatever threshold you pick, which is exactly why the threshold is your choice, not a fact about reality.</p>
+
+</details>
+</section>
+
+<h2>Does a small p-value mean a big or important effect?</h2>
+
+<p>It is tempting to read a very small p-value as a very big effect. It does not work that way. A p-value blends together two separate things: how large the effect is, and how much data you collected. Pour in enough data and even a microscopic, meaningless effect will produce an impressively tiny p-value.</p>
+
+<p>Let us watch it happen. We will fix a truly trivial effect, a difference of one-tenth of a standard deviation between two groups, and never change it. All we change is the <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a>, from 50 up to 50,000 per group. The effect stays trivial the whole time; only the amount of data grows.</p>
+
+<div class="webr-container" data-block-title="Hold the effect fixed, grow the sample size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hold the effect fixed, grow the sample size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_at_size &lt;- function(n) {
+  set.seed(n)
+  g1 &lt;- rnorm(n, mean = 0.0, sd = 1)
+  g2 &lt;- rnorm(n, mean = 0.1, sd = 1)   # a tiny real effect: one-tenth of an SD
+  t.test(g1, g2)$p.value
+}
+sizes &lt;- c(50, 500, 5000, 50000)
+data.frame(sample_size = sizes, p_value = signif(sapply(sizes, p_at_size), 2))
+#&gt;   sample_size p_value
+#&gt; 1          50 5.0e-01
+#&gt; 2         500 1.4e-01
+#&gt; 3        5000 3.3e-08
+#&gt; 4       50000 1.9e-53</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the p-value column top to bottom. At 50 per group the p-value is 0.50, nowhere near significant. At 50,000 per group it is <code>1.9e-53</code>, a decimal point followed by 52 zeros before the first real digit, which is zero for any practical purpose. The effect never grew. Only the sample size did. The same tiny difference went from "invisible" to "overwhelmingly significant" purely on the strength of more data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A p-value answers "is there a detectable signal," not "is the signal large."</strong> With enough data, any nonzero effect becomes detectable, no matter how tiny or unimportant. To judge whether an effect is big enough to care about, you need an <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> and a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>, not a smaller p-value.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Where does this trivial effect cross the usual 0.05 line? Add a sample size of 200 and check its p-value.</p>
+<div class="webr-container" data-block-title="Your turn: p-value at n = 200">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: p-value at n = 200</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: 0.13
+# Replace NA with: signif(p_at_size(200), 2)
+ex_p200 &lt;- NA
+ex_p200
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="p-value at n = 200 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">p-value at n = 200 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">signif(p_at_size(200), 2)
+#&gt; [1] 0.13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 200 per group the p-value is 0.13, still above 0.05. The same trivial effect is "not significant" at 200 and "wildly significant" at 50,000. The p-value tracks your sample size as much as your effect.</p>
+
+</details>
+</section>
+
+<h2>Will the same experiment always give the same p-value?</h2>
+
+<p>You might imagine that a real effect produces a stable, dependable p-value, so if you repeated your study you would see roughly the same number. In reality a p-value is itself a random quantity that jumps around wildly from one run to the next, even when the underlying effect never changes. Statisticians call this "the dance of the p-values."</p>
+
+<p>To see the dance, we will run the <em>same</em> experiment twelve times. Each run compares a control group against a treatment group with a genuine, medium-sized effect built in (half a standard deviation). Nothing about the effect changes between runs. Only the random sample of 20 people per group is redrawn.</p>
+
+<div class="webr-container" data-block-title="Run the same real-effect study twelve times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the same real-effect study twelve times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+one_study &lt;- function() {
+  control   &lt;- rnorm(20, mean = 0.0, sd = 1)
+  treatment &lt;- rnorm(20, mean = 0.5, sd = 1)   # a real, medium effect: half an SD
+  t.test(control, treatment)$p.value
+}
+round(replicate(12, one_study()), 3)
+#&gt;  [1] 0.642 0.081 0.004 0.965 0.153 0.191 0.002 0.045 0.451 0.369 0.166 0.012</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Stare at those twelve numbers. They swing from 0.002 (wildly significant) all the way up to 0.965 (utterly non-significant), and the effect was identical every single time. If you ran this study once and got 0.004, you would celebrate. Run it again and get 0.642, and you would conclude there is nothing there. Same truth, opposite verdicts, decided entirely by which 40 people you happened to sample.</p>
+
+<p>So how often does this real effect actually clear the 0.05 bar? Let us run it 5,000 times and count.</p>
+
+<div class="webr-container" data-block-title="How often does the real effect reach significance?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How often does the real effect reach significance?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+mean(replicate(5000, one_study()) &lt; 0.05)
+#&gt; [1] 0.3308</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only about 33 percent of the time. This is called the study's power, and it means a genuine, medium effect studied with 20 people per group gets missed two times out of three. The effect is real in every run; the p-value simply fails to detect it most of the time because the sample is small.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>One minus the p-value is not the probability your result will replicate.</strong> A p-value from a single study says almost nothing about what the next study will show. As the dance makes clear, a real effect can hand you 0.004 today and 0.6 tomorrow, so no single p-value is a promise about the future.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convince yourself the dance is not a fluke of one seed. Rerun the twelve studies with <code>set.seed(99)</code> and confirm the p-values still swing from tiny to huge.</p>
+<div class="webr-container" data-block-title="Your turn: dance again with a new seed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: dance again with a new seed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: values ranging from 0.000 up to 0.987
+# Replace NA with the two lines: set.seed(99) then round(replicate(12, one_study()), 3)
+ex_dance &lt;- NA
+ex_dance
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Dance with seed 99 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dance with seed 99 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+round(replicate(12, one_study()), 3)
+#&gt;  [1] 0.008 0.000 0.257 0.021 0.833 0.000 0.652 0.676 0.390 0.103 0.987 0.750</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A fresh seed gives a fresh dance, from 0.000 to 0.987, with the very same real effect. The p-value is a moving target, not a fixed property of the effect you are studying.</p>
+
+</details>
+</section>
+
+<h2>What does a p-value above 0.05 really mean?</h2>
+
+<p>When a p-value comes out above 0.05, people often report "there is no effect" or "the groups are the same." That is a serious mistake. A large p-value means you did not gather enough evidence to rule out chance, which is not the same as proving nothing is there. The slogan to remember: absence of evidence is not evidence of absence.</p>
+
+<p>The cleanest way to see this is to build a real effect on purpose, then look at it with too little data. We know the effect exists because we put it there. Watch what a small sample does to our ability to detect it.</p>
+
+<div class="webr-container" data-block-title="A real effect that a small sample misses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A real effect that a small sample misses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+control   &lt;- rnorm(10, mean = 0.0, sd = 1)
+treatment &lt;- rnorm(10, mean = 0.6, sd = 1)   # a real effect is genuinely present
+t.test(treatment, control)
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  treatment and control
+#&gt; t = 1.1692, df = 17.438, p-value = 0.258
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -0.4554596  1.5926971
+#&gt; sample estimates:
+#&gt; mean of x mean of y
+#&gt; 0.7797704 0.2111516</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.258, comfortably above 0.05, so a naive reading says "no effect." But we built in a real effect of 0.6, and the sample even shows it: the treatment mean (0.78) is well above the control mean (0.21). The problem is not that the effect vanished, it is that with only 10 per group we cannot separate it from noise. The confidence interval says it best. It runs from -0.46 to 1.59, meaning the true difference could plausibly be anywhere from a small reverse effect to a very large positive one. The data are consistent with almost everything, so we simply cannot conclude much.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the confidence interval so readers see the range of effects still on the table.</strong> A bare "not significant" hides whether you ruled out a big effect or just could not see anything with a tiny sample. The interval turns "we found nothing" into the honest "the true effect could be anywhere from this to that."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Give the same real effect more data. Bump both groups to 40 people (keep the same means and seed) and rerun. Watch the p-value fall and the interval tighten.</p>
+<div class="webr-container" data-block-title="Your turn: rerun with 40 per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rerun with 40 per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: p-value = 0.07139, interval from -0.04 to 0.97
+# Replace NA with a block that draws 40 per group and runs t.test(treatment40, control40)
+ex_big &lt;- NA
+ex_big
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Larger sample solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Larger sample solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+control40   &lt;- rnorm(40, mean = 0.0, sd = 1)
+treatment40 &lt;- rnorm(40, mean = 0.6, sd = 1)
+t.test(treatment40, control40)
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  treatment40 and control40
+#&gt; t = 1.8279, df = 77.866, p-value = 0.07139
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -0.0413623  0.9691437
+#&gt; sample estimates:
+#&gt;  mean of x  mean of y
+#&gt; 0.56148033 0.09758964</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> More data pulled the p-value down from 0.258 to 0.071 and shrank the interval toward zero width. The effect was real the whole time; we just needed enough data to start seeing it clearly.</p>
+
+</details>
+</section>
+
+<h2>What should you report instead of just a p-value?</h2>
+
+<p>By now the pattern is clear: a p-value answers one narrow question and stays silent on everything else that matters. In 2016 the American Statistical Association published six principles to curb exactly the misreadings you have seen here. You do not need to memorize them, but a few plain-English rules capture the spirit and will keep you out of trouble.</p>
+
+<ul>
+
+<li><strong>The p-value measures compatibility, not truth.</strong> It tells you how well your data fit the "nothing is going on" model, not whether that model is true.</li>
+
+<li><strong>It is not the size or importance of an effect.</strong> A tiny p-value can sit on top of a trivial effect, as the sample-size demo showed.</li>
+
+<li><strong>Do not worship 0.05.</strong> The 0.05 line is a convention, not a law of nature. A result at 0.049 and one at 0.051 are practically identical.</li>
+
+<li><strong>A bare p-value is weak evidence.</strong> On its own it does not tell the reader how big the effect is or how uncertain you are.</li>
+
+<li><strong>Always report an effect size and a confidence interval alongside it.</strong> Those answer "how big" and "how sure," the two questions the p-value ignores.</li>
+
+</ul>
+
+<p>The most useful companion to a p-value is an effect size. A common one is Cohen's d, which expresses the gap between two groups in units of standard deviation, so a d of 0.5 means the groups differ by half a standard deviation. It is easy to compute by hand.</p>
+
+<div class="webr-container" data-block-title="Compute Cohen&#x27;s d as an effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Cohen&#x27;s d as an effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(50)
+g_old &lt;- rnorm(60, mean = 50, sd = 10)
+g_new &lt;- rnorm(60, mean = 53, sd = 10)
+d &lt;- (mean(g_new) - mean(g_old)) / sqrt((var(g_new) + var(g_old)) / 2)
+round(d, 2)
+#&gt; [1] 0.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The effect size comes out to 0.39, a small-to-medium difference, and it carries a meaning a p-value never could: it says <em>how much</em> the groups differ, in a unit you can compare across studies. Report this next to your p-value and your reader learns both whether the signal is detectable and whether it is large enough to matter.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair every p-value with an effect size and a confidence interval.</strong> The p-value flags whether an effect is detectable, the effect size says how big it is, and the interval says how sure you are. Together they tell the full story; any one alone tells a misleading fragment.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Practice the effect-size calculation on a bigger gap. Compute Cohen's d for two groups with means 50 and 53 and standard deviation 10, using 60 per group. The scaffold above is your model.</p>
+<div class="webr-container" data-block-title="Your turn: compute an effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute an effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target answer: about 0.39
+# Reuse the Cohen's d formula from the block above on g_old and g_new
+ex_d &lt;- NA
+ex_d
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Effect size solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effect size solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(50)
+group_before &lt;- rnorm(60, mean = 50, sd = 10)
+group_after  &lt;- rnorm(60, mean = 53, sd = 10)
+(mean(group_after) - mean(group_before)) / sqrt((var(group_after) + var(group_before)) / 2)
+#&gt; [1] 0.3865199</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Rounded, that is the same 0.39 as before. The effect size stands on its own, no sample-size inflation, so it travels well between studies in a way a p-value cannot.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: reading an A/B test the right way</h2>
+
+<p>Let us tie everything together on a realistic decision. Your team tests a new page design against the old one and measures how many minutes each visitor spends on the page. You have 400 visitors in each group. The right report is never the p-value alone; it is the p-value, the effect size, and the confidence interval, read together.</p>
+
+<p>First, run the test.</p>
+
+<div class="webr-container" data-block-title="Run the A/B test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the A/B test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+old_page &lt;- rnorm(400, mean = 3.10, sd = 0.90)   # minutes on page, current design
+new_page &lt;- rnorm(400, mean = 3.28, sd = 0.90)   # minutes on page, new design
+result &lt;- t.test(new_page, old_page)
+result
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  new_page and old_page
+#&gt; t = 3.3123, df = 797.73, p-value = 0.0009669
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  0.08477935 0.33143509
+#&gt; sample estimates:
+#&gt; mean of x mean of y
+#&gt;  3.318938  3.110831</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.00097, so the difference is unlikely to be pure chance. But we know better than to stop there. Let us gather the three numbers that actually drive the decision: the raw difference, the effect size, and the confidence interval around it.</p>
+
+<div class="webr-container" data-block-title="Report difference, interval, and effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report difference, interval, and effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diff_means &lt;- mean(new_page) - mean(old_page)
+pooled_sd  &lt;- sqrt((var(new_page) + var(old_page)) / 2)
+cohens_d   &lt;- diff_means / pooled_sd
+round(c(difference = diff_means,
+        ci_low   = result$conf.int[1],
+        ci_high  = result$conf.int[2],
+        cohens_d = cohens_d), 3)
+#&gt; difference     ci_low    ci_high   cohens_d
+#&gt;      0.208      0.085      0.331      0.234</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now read it like a professional. The new design adds about 0.21 minutes on the page, roughly 12 extra seconds. The confidence interval runs from 0.09 to 0.33 minutes and stays above zero, which is consistent with the significant p-value. The effect size is a modest d of 0.23. So the honest summary is: the improvement is real and unlikely to be chance, but it is small, and whether 12 seconds justifies shipping the redesign is a business judgment the p-value cannot make for you. That final sentence is the whole point of this tutorial.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each uses fresh variable names so nothing collides with the code above. Try each before opening the solution.</p>
+
+<h3>Exercise 1: Estimate a false-alarm rate</h3>
+
+<p>Pick a significance threshold of 0.10 and estimate how often a true-null experiment falsely clears it. Simulate 10,000 experiments where both groups come from the same population (40 per group, mean 50, sd 10), collect the p-values, and compute the fraction below 0.10. Use <code>set.seed(303)</code> so your answer matches.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fraction of true-null experiments with p &lt; 0.10 (expect about 0.10)
+# Hint: replicate() two rnorm() groups from the SAME population, run t.test, keep $p.value
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+p_null &lt;- replicate(10000, {
+  a &lt;- rnorm(40, mean = 50, sd = 10)
+  b &lt;- rnorm(40, mean = 50, sd = 10)   # identical populations, so the null is true
+  t.test(a, b)$p.value
+})
+mean(p_null &lt; 0.10)
+#&gt; [1] 0.1015</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 10 percent of true-null experiments fall below 0.10, matching the threshold. The false-alarm rate is simply whatever cutoff you choose, which is why the cutoff is a decision, not a discovery.</p>
+
+</details>
+
+<h3>Exercise 2: Make the dance produce opposite verdicts</h3>
+
+<p>Take one real, fixed effect (before-mean 0.0, after-mean 0.6, sd 1, 18 people per group) and run it under two different seeds, 3 and 4. Show that the same true effect can be "significant" under one seed and "not significant" under the other, then explain why in one sentence.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: two p-values from the SAME effect, one below 0.05 and one above
+# Hint: write a function of the seed that sets the seed, draws the two groups, returns $p.value
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">run_one &lt;- function(seed) {
+  set.seed(seed)
+  before &lt;- rnorm(18, mean = 0.0, sd = 1)
+  after  &lt;- rnorm(18, mean = 0.6, sd = 1)   # the SAME real effect each time
+  t.test(after, before)$p.value
+}
+round(c(seed_3 = run_one(3), seed_4 = run_one(4)), 3)
+#&gt; seed_3 seed_4
+#&gt;  0.002  0.090</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Seed 3 gives 0.002 (significant) and seed 4 gives 0.090 (not significant), from the identical effect. The only thing that changed was which random sample of 36 people we drew, which is the dance of the p-values in a single, stark comparison.</p>
+
+</details>
+
+<h3>Exercise 3: Significant but trivial</h3>
+
+<p>A large <a class="auto-link" href="AB-Testing-in-R.html" title="A/B Testing in R: Plan Your Sample Size, Analyse Correctly, and Know When to Stop">A/B test</a> with 20,000 users per group finds a real difference of just 0.03 units. Run the test with <code>set.seed(808)</code> (both groups sd 1.2, control mean 4.00, variant mean 4.03), then report the p-value, the raw difference, the confidence interval, and Cohen's d. Decide whether you would act on this result.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: a significant p-value paired with a trivial effect size
+# Hint: rnorm(20000, ...) for each group; compute p, difference, conf.int, and Cohen's d
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+control_big &lt;- rnorm(20000, mean = 4.00, sd = 1.2)
+variant_big &lt;- rnorm(20000, mean = 4.03, sd = 1.2)   # a real but tiny 0.03 difference
+res   &lt;- t.test(variant_big, control_big)
+d_big &lt;- (mean(variant_big) - mean(control_big)) / sqrt((var(variant_big) + var(control_big)) / 2)
+round(c(p_value    = res$p.value,
+        difference = mean(variant_big) - mean(control_big),
+        ci_low     = res$conf.int[1],
+        ci_high    = res$conf.int[2],
+        cohens_d   = d_big), 4)
+#&gt;    p_value difference     ci_low    ci_high   cohens_d
+#&gt;     0.0138     0.0298     0.0061     0.0534     0.0246</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value is 0.0138, "statistically significant," yet Cohen's d is 0.0246, a practically invisible effect. This is the whole lesson in one output: significance is not importance. With 40,000 users you can detect a difference far too small to matter, so you report the effect size and walk away.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>A p-value is a measure of surprise under the null hypothesis, computed by asking how often chance alone would beat your result. It is genuinely useful for one job: flagging whether a pattern is more than noise. Almost every famous misuse comes from asking it to do a different job, one it was never built for.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>A p-value IS</th>
+<th>A p-value is NOT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The chance of data this extreme if the null were true</td>
+<td>The chance that the null (or your hypothesis) is true</td>
+</tr>
+<tr>
+<td>A measure of surprise, computed in the null world</td>
+<td>A measure of how big or important the effect is</td>
+</tr>
+<tr>
+<td>A single random draw that dances run to run</td>
+<td>A promise about whether your study will replicate</td>
+</tr>
+<tr>
+<td>Small when data are hard to explain by chance</td>
+<td>Proof there is no effect when it is large</td>
+</tr>
+</tbody>
+</table>
+
+<p>The three things to carry away: build the intuition by simulation, never confuse $P(\text{data} \mid \text{null})$ with $P(\text{null} \mid \text{data})$, and always report an effect size and a confidence interval next to any p-value.</p>
+
+<p><img src="screenshots/What-p-Values-Mean-is-vs-isnot.webp" alt="What a p-value is, and the three things it is not." class="img-responsive img-zoomable" loading="lazy" width="982" height="1282" /></p>
+
+<p><em>Figure 3: What a p-value is, and the three things it is not. Keep this picture in mind and most p-value mistakes disappear.</em></p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Is a p-value the probability my results happened by chance?</strong> No. It is the probability of data at least as extreme as yours <em>assuming</em> the null (the "only chance is at work" model) is true. It starts from the chance explanation rather than measuring it.</p>
+
+<p><strong>Does a p-value below 0.05 prove my hypothesis is correct?</strong> No. As the true-null simulation showed, about 5 percent of experiments with no real effect still produce a p-value under 0.05. A small p-value is evidence against the null, not proof of your alternative.</p>
+
+<p><strong>What is a good p-value threshold to use?</strong> The 0.05 convention is a habit, not a rule. Choose your threshold before you look at the data based on how costly a false alarm is, and remember that 0.049 and 0.051 mean essentially the same thing.</p>
+
+<p><strong>If my p-value is above 0.05, can I say there is no effect?</strong> No. A large p-value means you lack the evidence to rule out chance, not that the effect is zero. Report the confidence interval so readers see which effects you actually ruled out.</p>
+
+<p><strong>What should I report alongside a p-value?</strong> Always include an effect size (such as Cohen's d) and a confidence interval. The p-value says whether an effect is detectable, the effect size says how big it is, and the interval says how sure you are.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wasserstein, R. L. & Lazar, N. A. (2016). The ASA Statement on Statistical Significance and p-Values. <em>The American Statistician</em>, 70(2). <a href="https://www.amstat.org/asa/files/pdfs/P-ValueStatement.pdf">Link</a> - the official statistical-association statement behind the plain-English rules in this post.</li>
+
+<li>Greenland, S. et al. (2016). Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations. <em>European Journal of Epidemiology</em>, 31. <a href="https://link.springer.com/article/10.1007/s10654-016-0149-3">Link</a> - a numbered catalogue of 25 common p-value and interval misreadings, each with the correction.</li>
+
+<li>R Core Team. <code>t.test</code> documentation, stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">Link</a> - the reference for every argument and output field of the function used throughout.</li>
+
+<li>Cumming, G. (2014). The New Statistics: Why and How (the source of "the dance of the p-values"). <em>Psychological Science</em>, 25(1). <a href="https://thenewstatistics.com/itns/">Link</a> - the paper that named the dance and makes the case for reporting effect sizes and intervals.</li>
+
+<li>Wickham, H. & Grolemund, G. <em>R for Data Science</em>, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a> - a free, beginner-friendly grounding in the base R this tutorial assumes.</li>
+
+<li>R Core Team. <em>An Introduction to R</em>. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a> - the canonical reference for base functions like <code>rnorm()</code>, <code>replicate()</code>, and <code>sample()</code>.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="First-Hypothesis-Test-Three-Ways-in-R.html">Your First Hypothesis Test in R: Three Ways</a> - build a <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Sample-t-Test-in-R.html" title="t-Test in R: One-Sample, Two-Sample and Paired (With Examples)">t-test</a> three ways and see where the p-value comes from.</li>
+
+<li><a href="Statistical-vs-Practical-Significance.html">Statistical vs Practical Significance in R</a> - the effect-size side of the story, in depth.</li>
+
+<li><a href="How-Statistical-Inference-Works.html">How Statistical Inference Works</a> - the big picture of samples, populations, and uncertainty, with no formulas.</li>
+
+</ul>
+
+{% endraw %}
