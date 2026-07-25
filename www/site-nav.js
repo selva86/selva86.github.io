@@ -68,7 +68,7 @@
         '<button class="snav-close" type="button" aria-label="Close menu">&times;</button>' +
         '<div class="snav-dtitle">Navigate</div>' +
         '<a class="snav-dlink" href="/roadmap/">Roadmap <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
-        '<a class="snav-dlink" href="/tutorials/">Tutorials</a>' +
+        '<a class="snav-dlink" href="/tutorials/">Tutorials <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
         '<a class="snav-dlink" href="/exercises/">Exercises <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
         '<a class="snav-dlink" href="/tools/">Tools</a>' +
         '<a class="snav-dcta" href="/pricing.html">Get certified</a>' +
