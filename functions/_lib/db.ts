@@ -40,13 +40,37 @@ export async function getUserByEmail(db: D1Database, email: string): Promise<Use
 // Upsert called from Supabase Auth webhook on user.created / user.updated,
 // and from /api/me as a lazy-create fallback when JWT validates but no D1
 // row exists (Phase 1.6 — webhook race / pre-webhook signups).
+let avatarKeyEnsured = false;
+async function ensureAvatarKeyColumn(db: D1Database): Promise<void> {
+  if (avatarKeyEnsured) return;
+  try { await db.prepare("ALTER TABLE users ADD COLUMN avatar_key TEXT").run(); } catch { /* exists */ }
+  avatarKeyEnsured = true;
+}
+
 export async function upsertUserFromSupabase(
   db: D1Database,
   row: { id: string; email: string; display_name?: string; avatar_url?: string; country?: string },
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
-  await db
-    .prepare(
+  // avatar_key set = the learner uploaded their own picture; the OAuth
+  // provider picture must never clobber it on later sign-ins.
+  await ensureAvatarKeyColumn(db);
+  const sql =
+    `INSERT INTO users (id, email, display_name, avatar_url, country, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       email        = excluded.email,
+       display_name = COALESCE(excluded.display_name, users.display_name),
+       avatar_url   = CASE WHEN users.avatar_key IS NOT NULL THEN users.avatar_url
+                           ELSE COALESCE(excluded.avatar_url, users.avatar_url) END,
+       country      = COALESCE(excluded.country, users.country)`;
+  const bind = [row.id, row.email, row.display_name ?? null, row.avatar_url ?? null, row.country ?? null, now];
+  try {
+    await db.prepare(sql).bind(...bind).run();
+  } catch {
+    // pre-migration fallback: the exact pre-avatar_key statement, so a
+    // failed ALTER can never break signups
+    await db.prepare(
       `INSERT INTO users (id, email, display_name, avatar_url, country, created_at)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
@@ -54,9 +78,8 @@ export async function upsertUserFromSupabase(
          display_name = COALESCE(excluded.display_name, users.display_name),
          avatar_url   = COALESCE(excluded.avatar_url, users.avatar_url),
          country      = COALESCE(excluded.country, users.country)`,
-    )
-    .bind(row.id, row.email, row.display_name ?? null, row.avatar_url ?? null, row.country ?? null, now)
-    .run();
+    ).bind(...bind).run();
+  }
 }
 
 // ===== Newsletter consent sync (Phase 6 / Phase A) =====

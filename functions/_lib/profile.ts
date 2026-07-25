@@ -27,6 +27,7 @@ export async function ensureProfileColumns(DB: D1Database): Promise<void> {
     "ALTER TABLE users ADD COLUMN handle TEXT",
     "ALTER TABLE users ADD COLUMN public_profile INTEGER DEFAULT 1",
     "ALTER TABLE users ADD COLUMN profile_json TEXT",
+    "ALTER TABLE users ADD COLUMN avatar_key TEXT",
     "ALTER TABLE users ADD COLUMN github_login TEXT",
     "ALTER TABLE users ADD COLUMN prev_handle TEXT",
     "ALTER TABLE users ADD COLUMN recap_opt_out INTEGER DEFAULT 0",
@@ -167,6 +168,8 @@ export function computeTier(xp: number, solved: number, certs: number): Tier {
 
 // ------------------------------------------------------------ profile_json
 
+export const THEME_IDS = ["navy", "forest", "plum", "slate", "ember"];
+
 export interface ProfileExtras {
   bio?: string;
   website?: string;
@@ -177,6 +180,8 @@ export interface ProfileExtras {
   role?: string;             // target role, <= 60 chars
   work_pref?: string;        // remote | hybrid | onsite | any
   snippet?: { title?: string; code?: string };  // pinned runnable R snippet
+  pinned?: Array<{ title: string; code: string; note?: string }>;  // up to 3 runnable pieces
+  theme?: string;            // profile accent theme (THEME_IDS)
 }
 
 const URL_CAP = 200;
@@ -223,6 +228,11 @@ export function mergeProfileExtras(
       if (!b) return { ok: false, error: "bio must be 1-140 printable characters" };
       out.bio = b;
     }
+  }
+  if ("theme" in body) {
+    if (body.theme == null || body.theme === "" || body.theme === "navy") delete out.theme;
+    else if (typeof body.theme === "string" && THEME_IDS.includes(body.theme)) out.theme = body.theme;
+    else return { ok: false, error: "theme must be one of " + THEME_IDS.join(", ") };
   }
   for (const k of ["website", "resume", "github"] as const) {
     if (k in body) {
@@ -277,6 +287,27 @@ export function mergeProfileExtras(
       out.snippet = { title, code };
     }
   }
+  if ("pinned" in body) {
+    if (body.pinned == null) delete out.pinned;
+    else {
+      if (!Array.isArray(body.pinned) || body.pinned.length > 3) {
+        return { ok: false, error: "pinned must be a list of at most 3 items" };
+      }
+      const cleaned: Array<{ title: string; code: string; note?: string }> = [];
+      for (const it of body.pinned) {
+        const o = it as { title?: unknown; code?: unknown; note?: unknown };
+        const codeRaw = typeof o.code === "string" ? o.code.replace(/\r\n/g, "\n").slice(0, 2000) : "";
+        if (!codeRaw.trim()) return { ok: false, error: "each pinned item needs non-empty R code (max 2000 chars)" };
+        const title = cleanText(o.title, 80) || "Pinned work";
+        const note = cleanText(o.note, 140);
+        cleaned.push(note ? { title, code: codeRaw, note } : { title, code: codeRaw });
+      }
+      if (cleaned.length) out.pinned = cleaned; else delete out.pinned;
+    }
+  }
+  if (JSON.stringify(out).length > 12 * 1024) {
+    return { ok: false, error: "profile data is too large; trim the pinned code blocks" };
+  }
   return { ok: true, extras: out };
 }
 
@@ -292,7 +323,7 @@ export interface ProfileStats {
   rank: number | null;            // 1-based by total_xp; null when base < 100
   learners_total: number;
   by_difficulty: Record<string, number>;
-  by_track: Array<{ track: string; solved: number }>;
+  by_track: Array<{ track: string; solved: number; beginner: number; intermediate: number; advanced: number }>;
   currently_learning: string | null;   // top track of the last 30 days
   certificates: Array<{ public_id: string; track_name: string; issued_at: number }>;
   top_hubs: Array<{ hub_slug: string; solved: number }>;
@@ -335,7 +366,7 @@ export async function loadProfileStats(DB: D1Database, userId: string, totalXp: 
       ).bind(userId, since52).all<{ day: string; n: number }>()
         .catch(() => ({ results: [] as Array<{ day: string; n: number }> })),
       DB.prepare(
-        "SELECT action, ref, xp, at FROM xp_ledger WHERE user_id = ?1 ORDER BY at DESC LIMIT 8"
+        "SELECT action, ref, xp, at FROM xp_ledger WHERE user_id = ?1 ORDER BY at DESC LIMIT 30"
       ).bind(userId).all<{ action: string; ref: string | null; xp: number; at: number }>(),
       DB.prepare(
         "SELECT COUNT(*) AS n FROM reading_progress WHERE user_id = ?1"
@@ -374,14 +405,19 @@ export async function loadProfileStats(DB: D1Database, userId: string, totalXp: 
 
   // difficulty + track breakdowns from the solved pairs
   const byDifficulty: Record<string, number> = {};
-  const trackCount = new Map<string, number>();
+  const trackCount = new Map<string, { solved: number; beginner: number; intermediate: number; advanced: number }>();
   for (const p of pairs.results ?? []) {
     const d = (lookupDifficulty(p.hub_slug, p.exercise_id) || "other").toLowerCase();
     byDifficulty[d] = (byDifficulty[d] || 0) + 1;
     const track = hubTracks[p.hub_slug];
-    if (track) trackCount.set(track, (trackCount.get(track) || 0) + 1);
+    if (track) {
+      const c = trackCount.get(track) || { solved: 0, beginner: 0, intermediate: 0, advanced: 0 };
+      c.solved++;
+      if (d === "beginner" || d === "intermediate" || d === "advanced") c[d]++;
+      trackCount.set(track, c);
+    }
   }
-  const byTrack = Array.from(trackCount, ([track, solved]) => ({ track, solved }))
+  const byTrack = Array.from(trackCount, ([track, c]) => ({ track, ...c }))
     .sort((a, b) => b.solved - a.solved).slice(0, 8);
 
   // currently learning: dominant track of the last 30 days' graded activity
@@ -533,10 +569,17 @@ export function renderCardSvg(args: {
   streak: number;
   certs: number;
   heat: Array<{ day: string; n: number; xp: number }>;
-}): string {
+}, theme: "light" | "dark" = "light"): string {
   const W = 480, H = 180;
   const name = escHtml(args.name.slice(0, 32));
   const tierName = escHtml(args.tier.name);
+  // GitHub README embeds skew dark; both palettes ship system fonts only
+  // (camo re-hosts the SVG, webfonts would never load).
+  const P = theme === "dark"
+    ? { bg: "#161b22", border: "#30363d", fg: "#e6edf3", mute: "#8d96a0",
+        heat: ["#21262d", "#1d3a6e", "#2b5cb8", "#4e83e8", "#88b3ff"], mark: "#7da2ff" }
+    : { bg: "#ffffff", border: "#d4d9e3", fg: "#0a0d14", mute: "#6b7280",
+        heat: ["#e9edf4", "#bcd0f0", "#7fa3e8", "#4272d4", "#1f4eb8"], mark: "#2056d2" };
 
   // 16-week mini heatmap strip
   const byDay = new Map(args.heat.map((h) => [h.day, h]));
@@ -544,7 +587,7 @@ export function renderCardSvg(args: {
   const now = new Date();
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const start = todayUtc - ((WEEKS - 1) * 7 + new Date(todayUtc).getUTCDay()) * 86400000;
-  const colors = ["#e9edf4", "#bcd0f0", "#7fa3e8", "#4272d4", "#1f4eb8"];
+  const colors = P.heat;
   let strip = "";
   for (let w = 0; w < WEEKS; w++) {
     for (let d = 0; d < 7; d++) {
@@ -559,12 +602,12 @@ export function renderCardSvg(args: {
   }
 
   const stat = (x: number, value: string, label: string) =>
-    `<text x="${x}" y="112" font-size="22" font-weight="700" fill="#0a0d14" font-family="'Segoe UI',Roboto,Arial,sans-serif">${value}</text>` +
-    `<text x="${x}" y="130" font-size="10.5" fill="#6b7280" font-family="'Segoe UI',Roboto,Arial,sans-serif">${label}</text>`;
+    `<text x="${x}" y="112" font-size="22" font-weight="700" fill="${P.fg}" font-family="'Segoe UI',Roboto,Arial,sans-serif">${value}</text>` +
+    `<text x="${x}" y="130" font-size="10.5" fill="${P.mute}" font-family="'Segoe UI',Roboto,Arial,sans-serif">${label}</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="r-statistics.co learner card for ${name}">
-  <rect width="${W - 1}" height="${H - 1}" x="0.5" y="0.5" rx="12" fill="#ffffff" stroke="#d4d9e3"/>
-  <text x="24" y="42" font-size="20" font-weight="700" fill="#0a0d14" font-family="'Segoe UI',Roboto,Arial,sans-serif">${name}</text>
+  <rect width="${W - 1}" height="${H - 1}" x="0.5" y="0.5" rx="12" fill="${P.bg}" stroke="${P.border}"/>
+  <text x="24" y="42" font-size="20" font-weight="700" fill="${P.fg}" font-family="'Segoe UI',Roboto,Arial,sans-serif">${name}</text>
   <rect x="24" y="54" rx="9" height="18" width="${16 + tierName.length * 7}" fill="${args.tier.color}"/>
   <text x="${24 + (16 + tierName.length * 7) / 2}" y="67" font-size="10.5" font-weight="600" fill="#ffffff" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif">${tierName}</text>
   ${stat(24, args.totalXp.toLocaleString(), "XP")}
@@ -572,9 +615,52 @@ export function renderCardSvg(args: {
   ${stat(194, String(args.streak), "day streak")}
   ${stat(274, String(args.certs), "certificates")}
   ${strip}
-  <text x="24" y="164" font-size="10.5" fill="#6b7280" font-family="'Segoe UI',Roboto,Arial,sans-serif">r-statistics.co/u/${escHtml(args.handle)}</text>
-  <text x="${W - 24}" y="164" font-size="12" font-weight="700" text-anchor="end" fill="#2056d2" font-family="Georgia,serif">R.</text>
+  <text x="24" y="164" font-size="10.5" fill="${P.mute}" font-family="'Segoe UI',Roboto,Arial,sans-serif">r-statistics.co/u/${escHtml(args.handle)}</text>
+  <text x="${W - 24}" y="164" font-size="12" font-weight="700" text-anchor="end" fill="${P.mark}" font-family="Georgia,serif">R.</text>
 </svg>`;
+}
+
+
+// ================= pass M additions =================
+
+// "Top N%" percentile chips. Population = users who have earned any XP (the
+// honest denominator; parked accounts are not competition). Cached in KV an
+// hour as two sorted arrays; ~300 users today, revisit the storage shape well
+// before 50k. Returns null per metric when the chip should not render:
+// population under 30, or the viewer sits in the bottom half (a "Top 92%"
+// chip helps nobody).
+export async function xpPercentiles(
+  DB: D1Database, KV: KVNamespace, totalXp: number, xp30: number,
+): Promise<{ alltime: number | null; month: number | null }> {
+  const out: { alltime: number | null; month: number | null } = { alltime: null, month: null };
+  try {
+    const KEY = "pct:hist:v1";
+    let hist = await KV.get<{ all: number[]; m30: number[] }>(KEY, "json");
+    if (!hist) {
+      const cutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
+      const [allRows, m30Rows] = await Promise.all([
+        DB.prepare("SELECT total_xp AS v FROM users WHERE deleted_at IS NULL AND total_xp > 0 LIMIT 20000")
+          .all<{ v: number }>(),
+        DB.prepare("SELECT SUM(xp) AS v FROM xp_ledger WHERE at >= ?1 GROUP BY user_id LIMIT 20000")
+          .bind(cutoff).all<{ v: number }>(),
+      ]);
+      hist = {
+        all: (allRows.results ?? []).map((r) => Number(r.v)).sort((a, b) => a - b),
+        m30: (m30Rows.results ?? []).map((r) => Number(r.v)).filter((v) => v > 0).sort((a, b) => a - b),
+      };
+      await KV.put(KEY, JSON.stringify(hist), { expirationTtl: 3600 });
+    }
+    const top = (sorted: number[], mine: number): number | null => {
+      if (sorted.length < 30 || mine <= 0) return null;
+      let above = 0;
+      for (let i = sorted.length - 1; i >= 0 && sorted[i] > mine; i--) above++;
+      const pct = Math.max(1, Math.ceil(((above + 1) / sorted.length) * 100));
+      return pct <= 50 ? pct : null;
+    };
+    out.alltime = top(hist.all, totalXp);
+    out.month = top(hist.m30, xp30);
+  } catch { /* chips are decoration; never break the page */ }
+  return out;
 }
 
 

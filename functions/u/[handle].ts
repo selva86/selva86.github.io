@@ -10,7 +10,7 @@ import type { Env, RequestData } from "../_middleware";
 import {
   ensureProfileColumns, loadProfileStats, escHtml, describeAction,
   computeTier, parseProfileJson, linkedInAddUrl, bumpProfileView,
-  monthlyDeltas, captureAndDeltaRank, loadBoardRows, renderBoardHtml,
+  monthlyDeltas, captureAndDeltaRank, loadBoardRows, renderBoardHtml, xpPercentiles,
   renderXpChartSvg,
 } from "../_lib/profile";
 import {
@@ -31,7 +31,7 @@ const CSS = `
   .masthead nav a{color:#c7d2e8}
   .masthead .grow{flex:1}
   .masthead .cta{background:#fff;color:#101a30;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:600}
-  .hero{background:linear-gradient(180deg,#101a30 0%,#182644 100%);color:#e8edf8;padding:34px 0 0}
+  .hero{background:linear-gradient(180deg,var(--hero-a,#101a30) 0%,var(--hero-b,#182644) 100%);color:#e8edf8;padding:34px 0 0}
   .hero-in{max-width:1180px;margin:0 auto;padding:0 22px;display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
   .ringwrap{position:relative;width:148px;height:148px;flex:none}
   .ringwrap svg{position:absolute;inset:0}
@@ -227,6 +227,32 @@ function ownerScript(pageHandle: string): string {
   return `<script>
 (function(){
   'use strict';
+  // Count-up on the hero numbers. Pure decoration: static text is the
+  // fallback for reduced-motion, old browsers, and any parse miss.
+  try {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var els = document.querySelectorAll('.hstat b, .bignum');
+      els.forEach(function(el){
+        var raw = (el.textContent || '').trim();
+        if (!/^[\\d,]+$/.test(raw)) return;
+        var target = parseInt(raw.replace(/,/g, ''), 10);
+        if (!isFinite(target) || target <= 0) return;
+        var hasComma = raw.indexOf(',') >= 0;
+        var t0 = null;
+        var DUR = 700;
+        el.textContent = '0';
+        function step(ts){
+          if (t0 === null) t0 = ts;
+          var p = Math.min(1, (ts - t0) / DUR);
+          var eased = 1 - Math.pow(1 - p, 3);
+          var v = Math.round(target * eased);
+          el.textContent = hasComma ? v.toLocaleString('en-US') : String(v);
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+    }
+  } catch (e) {}
   var tok = null;
   try {
     for (var i = 0; i < localStorage.length; i++) {
@@ -314,8 +340,15 @@ function ownerScript(pageHandle: string): string {
       document.getElementById('f-otw').checked = !!x.open_to_work;
       document.getElementById('f-role').value = x.role || '';
       document.getElementById('f-pref').value = x.work_pref || 'any';
-      document.getElementById('f-sn-title').value = (x.snippet && x.snippet.title) || '';
-      document.getElementById('f-sn-code').value = (x.snippet && x.snippet.code) || '';
+      document.getElementById('f-theme').value = x.theme || 'navy';
+      var pins = (x.pinned && x.pinned.length) ? x.pinned
+        : (x.snippet && x.snippet.code ? [{ title: x.snippet.title, code: x.snippet.code }] : []);
+      document.getElementById('f-sn-title').value = (pins[0] && pins[0].title) || '';
+      document.getElementById('f-sn-code').value = (pins[0] && pins[0].code) || '';
+      document.getElementById('f-sn2-title').value = (pins[1] && pins[1].title) || '';
+      document.getElementById('f-sn2-code').value = (pins[1] && pins[1].code) || '';
+      document.getElementById('f-sn3-title').value = (pins[2] && pins[2].title) || '';
+      document.getElementById('f-sn3-code').value = (pins[2] && pins[2].code) || '';
       var h = document.getElementById('f-handle');
       h.value = p.handle; h.disabled = !!p.handle_locked;
       document.getElementById('handle-note').textContent = p.handle_locked
@@ -325,6 +358,34 @@ function ownerScript(pageHandle: string): string {
     if (editBtn) editBtn.addEventListener('click', function(){
       ed.style.display = ed.style.display === 'block' ? 'none' : 'block';
       if (ed.style.display === 'block') fill();
+    });
+    var avIn = document.getElementById('f-avatar');
+    if (avIn) avIn.addEventListener('change', function(){
+      var f = avIn.files && avIn.files[0];
+      if (!f) return;
+      var am = document.getElementById('avatar-msg');
+      am.textContent = 'Uploading...';
+      var img = new Image();
+      img.onload = function(){
+        try {
+          var c = document.createElement('canvas');
+          c.width = 256; c.height = 256;
+          var ctx = c.getContext('2d');
+          var side = Math.min(img.width, img.height);
+          ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+          var data = c.toDataURL('image/jpeg', 0.85);
+          fetch('/api/me/avatar', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: data })
+          }).then(function(r){ return r.json(); }).then(function(j){
+            if (j && j.ok) { am.textContent = 'Saved. Reloading...'; location.reload(); }
+            else { am.textContent = (j && j.error && j.error.message) || 'Upload failed.'; }
+          }).catch(function(){ am.textContent = 'Upload failed.'; });
+        } catch (e) { am.textContent = 'Could not read that image.'; }
+      };
+      img.onerror = function(){ am.textContent = 'Could not read that image.'; };
+      img.src = URL.createObjectURL(f);
     });
     var save = document.getElementById('own-save');
     if (save) save.addEventListener('click', function(){
@@ -336,10 +397,16 @@ function ownerScript(pageHandle: string): string {
         bio: val('f-bio'), website: val('f-website'), resume: val('f-resume'),
         github: val('f-github'), projects: projects,
         open_to_work: document.getElementById('f-otw').checked,
-        role: val('f-role'), work_pref: val('f-pref')
+        role: val('f-role'), work_pref: val('f-pref'),
+        theme: val('f-theme')
       };
-      var code = val('f-sn-code');
-      body.snippet = code ? { title: val('f-sn-title'), code: document.getElementById('f-sn-code').value } : null;
+      var pinned = [];
+      [['f-sn-title','f-sn-code'],['f-sn2-title','f-sn2-code'],['f-sn3-title','f-sn3-code']].forEach(function(pair){
+        var c = document.getElementById(pair[1]).value;
+        if (c && c.trim()) pinned.push({ title: val(pair[0]), code: c });
+      });
+      body.pinned = pinned.length ? pinned : null;
+      body.snippet = null;
       api('POST', body).then(function(res2){
         if (!res2.ok || res2.j.error) {
           msg.className = 'msg err'; msg.textContent = res2.j.error || 'Save failed';
@@ -390,19 +457,34 @@ function ownerBar(): string {
         <div><label>Project link 2</label><input type="text" id="f-p2" placeholder="https://..."></div>
         <div><label>Project link 3</label><input type="text" id="f-p3" placeholder="https://..."></div>
         <div><label>Work preference</label><select id="f-pref"><option value="any">Any</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option></select></div>
+        <div><label>Profile picture (square works best)</label><input type="file" id="f-avatar" accept="image/jpeg,image/png,image/webp"><div class="msg" id="avatar-msg"></div></div>
+        <div><label>Accent theme</label><select id="f-theme"><option value="navy">Navy (default)</option><option value="forest">Forest</option><option value="plum">Plum</option><option value="slate">Slate</option><option value="ember">Ember</option></select></div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="checkbox" id="f-otw" style="width:auto;margin:0"> Open to work (shows a badge on your public profile)</label>
-      <label>Pinned snippet title</label><input type="text" id="f-sn-title" maxlength="80" placeholder="My favourite plot">
-      <label>Pinned R snippet (runs live on your profile; max 2000 chars; clear to remove)</label>
+      <label>Pinned work 1 title</label><input type="text" id="f-sn-title" maxlength="80" placeholder="My favourite plot">
+      <label>Pinned work 1 code (runs live on your profile; max 2000 chars; clear to remove)</label>
       <textarea id="f-sn-code" maxlength="2000" placeholder="library(ggplot2)&#10;..."></textarea>
+      <label>Pinned work 2 title</label><input type="text" id="f-sn2-title" maxlength="80">
+      <label>Pinned work 2 code</label>
+      <textarea id="f-sn2-code" maxlength="2000"></textarea>
+      <label>Pinned work 3 title</label><input type="text" id="f-sn3-title" maxlength="80">
+      <label>Pinned work 3 code</label>
+      <textarea id="f-sn3-code" maxlength="2000"></textarea>
       <div class="row"><button class="btn primary" id="own-save" type="button">Save profile</button><span class="msg" id="own-msg"></span></div>
     </div>
   </div>`;
 }
 
-function snippetBlock(title: string, code: string): string {
+function showcaseBlock(items: Array<{ title: string; code: string; note?: string }>): string {
   return `<div class="card" id="showcase"><h2>Showcase <small>pinned by the learner &middot; runs in your browser</small></h2>
-    <div class="webrcard">
+    ${items.map((it) => onePiece(it)).join("")}</div>`;
+}
+
+function onePiece(it: { title: string; code: string; note?: string }): string {
+  const title = it.title;
+  const code = it.code;
+  return `<div class="webrcard">
+    ${it.note ? `<p class="sub" style="margin:0 0 8px">${escHtml(it.note)}</p>` : ""}
     <div class="webr-container" data-block-title="${escHtml(title)}">
       <div class="webr-code-block">
         <div class="webr-editor" data-language="r">${escHtml(code)}</div>
@@ -414,8 +496,7 @@ function snippetBlock(title: string, code: string): string {
       </div>
       <div class="webr-plot-output"></div>
     </div>
-    </div>
-    <div class="report"><a href="mailto:selva86@gmail.com?subject=Report%20profile%20snippet" style="color:inherit">Report this snippet</a></div>
+    <div class="report"><a href="mailto:selva86@gmail.com?subject=Report%20profile%20snippet" style="color:inherit">Report this piece</a></div>
   </div>`;
 }
 
@@ -491,7 +572,18 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     monthlyDeltas(DB, u.id),
   ]);
   const extras = parseProfileJson(u.profile_json);
+  const THEMES: Record<string, [string, string]> = {
+    forest: ["#0d2418", "#12352a"], plum: ["#231031", "#331b49"],
+    slate: ["#15171c", "#20242c"], ember: ["#2a130c", "#3c2012"],
+  };
+  const themeVars = extras.theme && THEMES[extras.theme]
+    ? `<style>:root{--hero-a:${THEMES[extras.theme][0]};--hero-b:${THEMES[extras.theme][1]}}</style>`
+    : "";
+  const showcaseItems: Array<{ title: string; code: string; note?: string }> =
+    (extras.pinned && extras.pinned.length ? extras.pinned : (extras.snippet?.code
+      ? [{ title: extras.snippet.title || "Pinned snippet", code: extras.snippet.code }] : [])).slice(0, 3);
   const tier = computeTier(u.total_xp || 0, stats.exercises_solved, stats.certificates.length);
+  const xpPct = await xpPercentiles(DB, context.env.KV, u.total_xp || 0, deltas.xp30).catch(() => ({ alltime: null, month: null }));
 
   // badge sweep (lazy backfill) + render data
   const bctx: BadgeCtx = {
@@ -533,6 +625,9 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     ? `<span class="hchip otw">Open to work${extras.role ? `: ${escHtml(extras.role)}` : ""}${extras.work_pref && extras.work_pref !== "any" ? ` &middot; ${escHtml(extras.work_pref)}` : ""}</span>`
     : "";
   const curr = stats.currently_learning ? `<span class="hchip">Deep in ${escHtml(stats.currently_learning)} this month</span>` : "";
+  const pctChips =
+    (xpPct.alltime ? `<span class="hchip">Top ${xpPct.alltime}% by XP</span>` : "") +
+    (xpPct.month ? `<span class="hchip">Top ${xpPct.month}% this month</span>` : "");
 
   const pct = stats.rank && stats.learners_total ? Math.max(1, Math.ceil((stats.rank / stats.learners_total) * 100)) : null;
 
@@ -553,10 +648,16 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   }).join("");
 
   // skills matrix: per-track difficulty chips need pairs by track+difficulty
-  const skillRows = stats.by_track.map((t) =>
-    `<div class="skillrow"><div class="nm">${escHtml(t.track)}</div>
-      <div class="mchips"><span class="mchip"><b>${t.solved}</b> graded exercise${t.solved === 1 ? "" : "s"} solved</span></div>
-      <div class="tot">${t.solved}<span>solved</span></div></div>`).join("");
+  const skillRows = stats.by_track.map((t) => {
+    const parts: string[] = [];
+    if (t.beginner) parts.push(`<span class="mchip">${t.beginner} beginner</span>`);
+    if (t.intermediate) parts.push(`<span class="mchip">${t.intermediate} intermediate</span>`);
+    if (t.advanced) parts.push(`<span class="mchip">${t.advanced} advanced</span>`);
+    const chips = parts.join("") || `<span class="mchip"><b>${t.solved}</b> graded exercise${t.solved === 1 ? "" : "s"} solved</span>`;
+    return `<div class="skillrow"><div class="nm">${escHtml(t.track)}</div>
+      <div class="mchips">${chips}</div>
+      <div class="tot">${t.solved}<span>solved</span></div></div>`;
+  }).join("");
 
   // badges: earned first (by award date), then locked with progress
   const rarLine = (id: string) => {
@@ -599,10 +700,42 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
       </div>
     </div>`).join("");
 
-  const recentRows = stats.recent.map((r) => {
-    const col = r.action === "cert.earned" ? "#a16207" : r.action === "streak.day" ? "#a16207" : "#2056d2";
-    return `<tr><td class="ic"><span class="dot" style="background:${col}"></span></td><td>${escHtml(describeAction(r.action, r.ref))}</td>` +
-      `<td class="xp">+${r.xp} XP</td>` +
+  // Timeline: collapse same-day runs of solves in one hub into a single row,
+  // then interleave badge awards; newest first, capped at 12 rows.
+  type FeedRow = { at: number; col: string; text: string; xp: number | null };
+  const feed: FeedRow[] = [];
+  for (const r of stats.recent) {
+    const day = new Date(r.at * 1000).toISOString().slice(0, 10);
+    const hub = (r.ref || "").split("|")[0];
+    const prev = feed[feed.length - 1] as (FeedRow & { _day?: string; _hub?: string; _n?: number }) | undefined;
+    if (r.action === "exercise.passed" && prev && (prev as { _day?: string })._day === day && (prev as { _hub?: string })._hub === hub) {
+      const px = prev as FeedRow & { _day: string; _hub: string; _n: number };
+      px._n += 1;
+      px.xp = (px.xp || 0) + r.xp;
+      px.text = `Solved ${px._n} exercises in ${hub.replace(/-/g, " ")}`;
+      continue;
+    }
+    const row: FeedRow & { _day?: string; _hub?: string; _n?: number } = {
+      at: r.at,
+      col: r.action === "cert.earned" ? "#a16207" : r.action === "streak.day" ? "#a16207" : r.action === "daily.bonus" ? "#0f7a52" : "#2056d2",
+      text: r.action === "daily.bonus" ? "Completed the daily set" : describeAction(r.action, r.ref),
+      xp: r.xp,
+    };
+    if (r.action === "exercise.passed") { row._day = day; row._hub = hub; row._n = 1; }
+    feed.push(row);
+  }
+  {
+    const names = new Map(BADGE_DEFS.map((d) => [d.id, d.name]));
+    const badgeEvents = Array.from(owned, ([id, at]) => ({ id, at }))
+      .filter((b) => names.has(b.id)).sort((a, b) => b.at - a.at).slice(0, 5);
+    for (const b of badgeEvents) {
+      feed.push({ at: b.at, col: "#7c3aed", text: `Earned the ${names.get(b.id)} badge`, xp: null });
+    }
+  }
+  feed.sort((a, b) => b.at - a.at);
+  const recentRows = feed.slice(0, 12).map((r) => {
+    return `<tr><td class="ic"><span class="dot" style="background:${r.col}"></span></td><td>${escHtml(r.text)}</td>` +
+      `<td class="xp">${r.xp ? `+${r.xp} XP` : ""}</td>` +
       `<td class="when">${new Date(r.at * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td></tr>`;
   }).join("");
 
@@ -630,7 +763,8 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     `<meta property="og:type" content="profile">` +
     `<meta property="og:url" content="https://r-statistics.co/u/${escHtml(raw)}">` +
     `<meta name="twitter:card" content="summary">` +
-    (extras.snippet ? `<link rel="stylesheet" href="/www/webr.css">` : "");
+    (showcaseItems.length ? `<link rel="stylesheet" href="/www/webr.css">` : "") +
+    themeVars;
 
   const hero = `
   <header class="hero">
@@ -648,7 +782,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
         <h1>${name}</h1>
         <div class="handle">r-statistics.co/u/${escHtml(raw)}</div>
         ${extras.bio ? `<p class="bio">${escHtml(extras.bio)}</p>` : ""}
-        <div class="hchips">${pro}${otw}${curr}</div>
+        <div class="hchips">${pro}${pctChips}${otw}${curr}</div>
         <div class="hmeta">
           <span>Member since <b>${memberSince}</b></span>
           ${tier.next ? `<span>${escHtml(tier.next.line)}</span>` : "<span>Top of the ladder</span>"}
@@ -757,14 +891,14 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
         <div class="badgegrid">${badgeCards}</div>
       </div>
       ${certCards ? `<div class="card" id="certs"><h2>Certificates <small>issuer-verified, employer-checkable</small></h2><div class="certgrid">${certCards}</div></div>` : ""}
-      ${extras.snippet?.code ? snippetBlock(extras.snippet.title || "Pinned snippet", extras.snippet.code) : ""}
+      ${showcaseItems.length ? showcaseBlock(showcaseItems) : ""}
       ${recentRows ? `<div class="card"><h2>Recent activity</h2><table class="feed">${recentRows}</table></div>` : ""}
       ${!hasActivity ? `<div class="card"><h2>Just getting started</h2><p class="sub">This learner joined in ${memberSince} and the journey is just beginning. Progress shows up here as they solve graded exercises and earn certificates.</p></div>` : ""}
       <div class="foot">Profiles show learning activity only; contact details are never published.
         Want a page like this? <a href="/signin.html">Start learning free</a>.</div>
     </main>
   </div>
-  ${extras.snippet ? `<script src="/www/webr-init.js" defer></script>` : ""}
+  ${showcaseItems.length ? `<script src="/www/webr-init.js" defer></script>` : ""}
   ${ownerScript(raw)}`;
 
   return htmlResponse(shell(`${u.display_name || "R learner"} - learner profile`, body, extraHead), 200);

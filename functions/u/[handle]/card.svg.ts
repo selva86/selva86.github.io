@@ -35,6 +35,8 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   }
   if ((u.public_profile ?? 1) !== 1) return notFound;
 
+  const themeParam = new URL(context.request.url).searchParams.get("theme");
+  const theme = themeParam === "dark" ? "dark" as const : "light" as const;
   const stats = await loadProfileStats(DB, u.id, u.total_xp || 0);
   const tier = computeTier(u.total_xp || 0, stats.exercises_solved, stats.certificates.length);
   const svg = renderCardSvg({
@@ -46,13 +48,13 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     streak: u.current_streak_days || 0,
     certs: stats.certificates.length,
     heat: stats.heatmap,
-  });
+  }, theme);
 
   return new Response(svg, {
     status: 200,
     headers: {
       "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+      "Cache-Control": "public, max-age=14400, stale-while-revalidate=86400",
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
     },
   });
