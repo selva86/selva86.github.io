@@ -1,0 +1,1137 @@
+---
+title: "Recreating Three Professional Charts in R: a Case Study"
+description: "Recreate three professional-grade charts in R with ggplot2: a small-multiples panel, an annotated line chart and a diverging bar chart, built step by step."
+keywords: "professional charts in R, ggplot2 case study, small multiples ggplot2, annotated line chart ggplot2, diverging bar chart R, publication quality ggplot2, recreate charts R, direct labels ggplot2, faceting ggplot2"
+mathjax: false
+webr: true
+curriculum_id: "GG2-13.5"
+post_type: "C"
+auto_link_terms: "recreating professional charts|professional charts in R|small multiples in R|small-multiples panel|annotated line chart|diverging bar chart|direct labels on lines|highlight one line|publication-grade charts|chart case study"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Recreating Pro Charts"
+sidebar_order: "99"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A professional chart is not built from a different tool than a default one. It is a default chart with a handful of deliberate decisions made about hierarchy, colour and annotation. In this case study you rebuild three genuinely different published-chart styles from scratch in ggplot2, on real public data, and you learn the decision behind every layer. Every chart runs as interactive code in your browser, so you can change a value and rebuild it on the spot.</p>
+
+<h2>What separates a professional chart from a default one?</h2>
+
+<p>Open any newspaper graphics desk or a well-designed business dashboard and the charts look effortless. They are not. Each one is a plain ggplot underneath, dressed by a short list of choices: what to emphasise, what to mute, what to label, and what to leave out. Defaults are not wrong, they are just unfinished. This chapter rebuilds three real chart styles, and at each step it names the decision a professional would make and why.</p>
+
+<p>We work in base ggplot2 with the tidyverse for data shaping, and nothing exotic, so every chart reproduces anywhere R runs. The first thing a professional does is fix a small palette, because colour is the loudest signal on a chart and the easiest to overspend. We pick four colours and give each a job.</p>
+
+<div class="webr-container" data-block-title="Load the tools and set a palette">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the tools and set a palette</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+
+library(tibble)
+pal &lt;- c(highlight = &quot;#c1440e&quot;,  # burnt orange, for the one thing that matters
+         cool      = &quot;#2f6d80&quot;,  # teal-slate, for a calm second colour
+         context   = &quot;#b9c2ca&quot;,  # grey, for everything in the background
+         ink       = &quot;#22303a&quot;)  # near-black, for text
+pal
+#&gt; highlight      cool   context       ink 
+#&gt; &quot;#c1440e&quot; &quot;#2f6d80&quot; &quot;#b9c2ca&quot; &quot;#22303a&quot; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The palette is a named vector, so later we can ask for a colour by its job, <code>pal[[&quot;highlight&quot;]]</code>, instead of pasting a hex code and hoping we remember which orange we meant. Naming colours by role, not by hue, is the habit that keeps a whole project consistent.</p>
+
+<p>The second reusable piece is a theme: one function that controls every mark on the chart that is not the data itself. Fonts, grid lines, the background, the caption colour. We define it once and reuse it for all three charts, so they read as a family.</p>
+
+<div class="webr-container" data-block-title="Define one reusable theme">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define one reusable theme</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theme_pub &lt;- function(base_size = 12, base_family = &quot;sans&quot;) {
+  theme_minimal(base_size = base_size, base_family = base_family) +
+    theme(
+      plot.title.position   = &quot;plot&quot;,
+      plot.caption.position = &quot;plot&quot;,
+      plot.title    = element_text(face = &quot;bold&quot;, size = rel(1.28),
+                                   colour = pal[[&quot;ink&quot;]], margin = margin(b = 3)),
+      plot.subtitle = element_text(colour = &quot;#5b6b76&quot;, margin = margin(b = 14)),
+      plot.caption  = element_text(colour = &quot;#93a0a8&quot;, hjust = 0, margin = margin(t = 14)),
+      axis.title = element_text(colour = &quot;#5b6b76&quot;, size = rel(0.9)),
+      axis.text  = element_text(colour = &quot;#6b7780&quot;),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(colour = &quot;#eef1f3&quot;, linewidth = 0.4),
+      plot.margin = margin(16, 20, 12, 16)
+    )
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We start from <code>theme_minimal()</code> because it already drops the grey panel that print does not want, then we soften the text to near-black, thin the grid to a whisper, and left-align the title over the whole plot. We use the plain <code>sans</code> family so the code renders everywhere; later you will see how to swap in a branded typeface for the final export.</p>
+
+<p>With the kit in place, every chart follows the same build order. You shape the data, add the marks (the geoms), set the scales that map data to the page, write the labels and annotation, and finish with the theme. Keeping that order in your head stops you from fiddling with fonts before the data even reads correctly.</p>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-build-order.webp" alt="A five-step flow: data, geoms, scales, annotation, theme" class="img-responsive img-zoomable" loading="lazy" width="2248" height="356" /></p>
+
+<p><em>Figure 1: The order to build any chart in, from data on the left to the styling on the right.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A default chart is tuned for any data; a professional chart is tuned for this data.</strong> The ggplot defaults have to work for a scatter, a bar and a boxplot alike, so they commit to nothing. Your job is the opposite: decide what this one chart must say, then bend every layer toward that message.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make a copy of the palette called <code>ex_pal</code> and change its highlight colour to a deep blue, <code>&quot;#1f5f8b&quot;</code>, then print it. Using a copy keeps the original <code>pal</code> intact for the charts that follow.</p>
+<div class="webr-container" data-block-title="Your turn: recolour the palette">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recolour the palette</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Copy pal into ex_pal, then reassign the highlight colour, then print ex_pal.
+ex_pal &lt;- pal
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recolour the palette solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recolour the palette solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pal &lt;- pal
+ex_pal[&quot;highlight&quot;] &lt;- &quot;#1f5f8b&quot;
+ex_pal
+#&gt; highlight      cool   context       ink 
+#&gt; &quot;#1f5f8b&quot; &quot;#2f6d80&quot; &quot;#b9c2ca&quot; &quot;#22303a&quot; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because the palette is a named vector, you reassign one element by its name and the other three are untouched. Working on <code>ex_pal</code> rather than <code>pal</code> means the tutorial's charts keep their original burnt-orange highlight.</p>
+
+</details>
+</section>
+
+<h2>How do you build a dense small-multiples panel?</h2>
+
+<p>The first style is the small-multiples panel: the same chart drawn many times, once per group, in a tight grid. It is the honest way to show a pattern that repeats across dozens of categories, because the eye compares shapes rather than untangling a bowl of overlapping lines. What makes a good one work is discipline: identical, minimal encoding in every panel, and each panel free to use the vertical scale that suits it.</p>
+
+<p>Our data is real. The <code>txhousing</code> dataset that ships with ggplot2 records monthly home sales for Texas cities from the Texas A&M Real Estate Center. We total each city's sales by year, keep twelve well-known metros, and stop at 2014 so every year is complete. We also lock the city order, so the biggest metros lead the grid.</p>
+
+<div class="webr-container" data-block-title="Aggregate annual sales for twelve metros">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate annual sales for twelve metros</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tx_metros &lt;- c(&quot;Houston&quot;, &quot;Dallas&quot;, &quot;Austin&quot;, &quot;San Antonio&quot;,
+               &quot;Fort Worth&quot;, &quot;El Paso&quot;, &quot;Corpus Christi&quot;, &quot;Tyler&quot;,
+               &quot;Amarillo&quot;, &quot;Beaumont&quot;, &quot;Abilene&quot;, &quot;Wichita Falls&quot;)
+
+tx_sales &lt;- txhousing |&gt;
+  filter(city %in% tx_metros, year &lt;= 2014) |&gt;
+  group_by(city, year) |&gt;
+  summarise(homes_sold = sum(sales), .groups = &quot;drop&quot;) |&gt;
+  mutate(city = factor(city, levels = tx_metros))
+
+head(tx_sales)
+#&gt; # A tibble: 6 × 3
+#&gt;   city     year homes_sold
+#&gt;   &lt;fct&gt;   &lt;int&gt;      &lt;dbl&gt;
+#&gt; 1 Abilene  2000       1375
+#&gt; 2 Abilene  2001       1431
+#&gt; 3 Abilene  2002       1516
+#&gt; 4 Abilene  2003       1632
+#&gt; 5 Abilene  2004       1830
+#&gt; 6 Abilene  2005       1977</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is now one metro in one year with a single number, <code>homes_sold</code>. That tidy shape, one row per panel-point, is exactly what <code>facet_wrap()</code> wants. Before we plot, let's confirm there is a story worth telling by reading Houston's crash and recovery in three numbers.</p>
+
+<div class="webr-container" data-block-title="Read the crash and the recovery">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the crash and the recovery</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tx_sales |&gt;
+  filter(city == &quot;Houston&quot;) |&gt;
+  summarise(peak_2006   = homes_sold[year == 2006],
+            trough_2009 = homes_sold[year == 2009],
+            back_by_2014 = homes_sold[year == 2014])
+#&gt; # A tibble: 1 × 3
+#&gt;   peak_2006 trough_2009 back_by_2014
+#&gt;       &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1     80994       60106        83412</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Houston sold about 81,000 homes in 2006, fell to 60,000 by 2009 as the financial crisis hit, then climbed back past its old peak by 2014. That rise, fall and recovery is the shape we want every panel to show. Now for the naive version: one line per city, faceted, with nothing else.</p>
+
+<div class="webr-container" data-block-title="Draw the default small-multiples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the default small-multiples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tx_sales, aes(year, homes_sold)) +
+  geom_line() +
+  facet_wrap(~ city)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and you meet the small-multiples trap. Because <code>facet_wrap()</code> shares one vertical scale by default, Houston's tall numbers stretch the axis, and every smaller metro flattens into a line hugging the floor. You can see Houston, and almost nothing else. The fix is to let each panel choose its own y-scale, add a light band to mark the downturn years as shared context, and clean the rest with our theme.</p>
+
+<div class="webr-container" data-block-title="Build the finished panel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the finished panel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tx_sales, aes(year, homes_sold)) +
+  annotate(&quot;rect&quot;, xmin = 2007, xmax = 2011, ymin = -Inf, ymax = Inf,
+           fill = &quot;#eceff1&quot;, alpha = 0.9) +
+  geom_area(fill = pal[[&quot;cool&quot;]], alpha = 0.16) +
+  geom_line(colour = pal[[&quot;cool&quot;]], linewidth = 0.7) +
+  facet_wrap(~ city, scales = &quot;free_y&quot;, ncol = 4) +
+  scale_x_continuous(breaks = c(2000, 2007, 2014)) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                     breaks = pretty_breaks(3),
+                     expand = expansion(mult = c(0, 0.08))) +
+  labs(title = &quot;Home sales fell across every Texas metro after 2007, then recovered&quot;,
+       subtitle = &quot;Homes sold per year. Shaded band marks the 2007-2011 downturn. Each panel keeps its own vertical scale.&quot;,
+       x = NULL, y = NULL,
+       caption = &quot;Source: Texas A&amp;M Real Estate Center, via the txhousing dataset in ggplot2.&quot;) +
+  theme_pub() +
+  theme(panel.grid.major.x = element_blank(),
+        panel.spacing = unit(11, &quot;pt&quot;),
+        strip.text = element_text(face = &quot;bold&quot;, hjust = 0, colour = pal[[&quot;ink&quot;]],
+                                  size = rel(0.95), margin = margin(b = 3)),
+        axis.text = element_text(size = rel(0.8)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-smallmultiples.webp" alt="A four-by-three grid of Texas metro home-sales panels, each with its own scale, a shaded recession band, and a filled area line" class="img-responsive img-zoomable" loading="lazy" width="1920" height="1480" /></p>
+
+<p><em>Figure 2: The finished small-multiples panel. Every metro repeats the same downturn-and-recovery shape at its own scale.</em></p>
+
+<p>Walk through what changed. The <code>annotate(&quot;rect&quot;, ...)</code> draws one grey band across the 2007 to 2011 downturn in every panel, so the crash years are marked once and read everywhere. Setting <code>scales = &quot;free_y&quot;</code> is the decision that saves the chart: now Wichita Falls, with a few thousand sales, gets the same vertical room as Houston with eighty thousand. The <code>label_number(scale_cut = cut_short_scale())</code> call turns 80000 into a clean "80K", and <code>pretty_breaks(3)</code> keeps each panel to three tidy gridlines instead of a cluttered ladder.</p>
+
+<p>The result reads at two speeds. Glance at it and the whole state dips together in the shaded years, then rises out of it. Look closer and each metro tells its own version: Houston and Austin blow past their old peaks, while Wichita Falls never fully recovers. A single shared-scale chart would have hidden all of that. The comparison below shows exactly what the free scale buys you.</p>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-smallmultiples-compare.webp" alt="Left, four panels on a shared scale where small metros flatten to the baseline; right, the same four on free scales, each shape visible" class="img-responsive img-zoomable" loading="lazy" width="1920" height="1280" /></p>
+
+<p><em>Figure 3: A shared y-axis hides the small metros; a free y-axis gives every one its own shape.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A shared scale silently hides your smaller panels.</strong> When one group is much larger than the rest, a single y-axis flattens everyone else into a flat line and the reader concludes, wrongly, that nothing happened there. Reach for <code>scales = &quot;free_y&quot;</code> whenever the groups differ in size and the shape, not the absolute level, is the story.</div></div>
+
+<p><strong>Craft notes for this chart.</strong> Three decisions carried it: freeing the y-scale so every panel is legible, repeating one calm colour and one thin line in every panel so the grid reads as a set, and marking the downturn with a single shared band instead of twelve separate labels. The traps it avoids are the shared axis that crushes small metros, and the temptation to give each of the twelve metros its own colour, which would turn a clean grid into a rainbow with no added meaning.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Feel the problem for yourself. Rebuild a stripped-down panel but set <code>scales = &quot;fixed&quot;</code> and watch the small metros collapse.</p>
+<div class="webr-container" data-block-title="Your turn: shared versus free scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shared versus free scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw tx_sales faceted by city with a fixed (shared) scale.
+# ggplot(tx_sales, aes(year, homes_sold)) + geom_line(colour = pal[[&quot;cool&quot;]]) + ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shared-scale solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shared-scale solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tx_sales, aes(year, homes_sold)) +
+  geom_line(colour = pal[[&quot;cool&quot;]]) +
+  facet_wrap(~ city, scales = &quot;fixed&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>scales = &quot;fixed&quot;</code>, Houston's large values set the axis for all twelve panels, so the smaller metros press flat against the bottom. Switching that one argument to <code>&quot;free_y&quot;</code> is the entire difference between a chart that hides its data and one that reveals it.</p>
+
+</details>
+</section>
+
+<h2>How do you build an annotated line chart that tells one story?</h2>
+
+<p>The second style is the annotated line chart: several series over time where one line is the story and the rest are context. The professional move is to stop treating every line as equal. You highlight one in colour, mute the others to grey, and label the lines directly at their ends so the reader never has to bounce between a legend and the chart.</p>
+
+<p>Our data is <code>EuStockMarkets</code>, a built-in record of daily closing prices for four major European indices from 1991 to 1998: Germany's DAX, Switzerland's SMI, France's CAC and the UK's FTSE. Raw prices are not comparable, because each index starts at a different level, so we rebase every series to 100 at the start. Then a value of 200 means "doubled", whatever the index.</p>
+
+<div class="webr-container" data-block-title="Rebase every index to 100">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebase every index to 100</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu &lt;- as.data.frame(EuStockMarkets)
+eu$year &lt;- as.numeric(time(EuStockMarkets))
+
+eu_long &lt;- eu |&gt;
+  mutate(across(c(DAX, SMI, CAC, FTSE), ~ .x / first(.x) * 100)) |&gt;
+  pivot_longer(c(DAX, SMI, CAC, FTSE), names_to = &quot;index&quot;, values_to = &quot;value&quot;)
+
+eu_long |&gt;
+  group_by(index) |&gt;
+  summarise(start = round(first(value)),
+            end   = round(last(value)),
+            gain_pct = round(last(value) - 100),
+            .groups = &quot;drop&quot;) |&gt;
+  arrange(desc(end))
+#&gt; # A tibble: 4 × 4
+#&gt;   index start   end gain_pct
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 SMI     100   457      357
+#&gt; 2 DAX     100   336      236
+#&gt; 3 CAC     100   225      125
+#&gt; 4 FTSE    100   223      123</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is the story in one table. Every index rose, but Switzerland's SMI ended at 457, a 357% gain that left the others far behind, while France and the UK roughly doubled. That gap is what the chart must make obvious the instant someone looks at it. To highlight one line, we split the data into the lead series and the rest, and we pre-compute where each end label should sit.</p>
+
+<div class="webr-container" data-block-title="Separate the lead line from the context">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Separate the lead line from the context</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu_context &lt;- filter(eu_long, index != &quot;SMI&quot;)
+eu_lead    &lt;- filter(eu_long, index == &quot;SMI&quot;)
+
+ends &lt;- eu_long |&gt;
+  group_by(index) |&gt;
+  filter(year == max(year)) |&gt;
+  ungroup() |&gt;
+  mutate(label = paste0(index, &quot;  &quot;, round(value)),
+         label_y = case_when(index == &quot;CAC&quot;  ~ value + 9,
+                             index == &quot;FTSE&quot; ~ value - 9,
+                             TRUE            ~ value))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Splitting the frame lets us draw the grey lines and the coloured line as separate layers, each with its own fixed colour. The <code>ends</code> table holds one row per index at the final date, with a ready-made label like "SMI  457". Because CAC and FTSE finish almost on top of each other at 225 and 223, we nudge their labels apart by hand with <code>label_y</code>, so the text never overlaps. First, though, the default, so you can feel the difference.</p>
+
+<div class="webr-container" data-block-title="Draw the default spaghetti">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the default spaghetti</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(eu_long, aes(year, value, colour = index)) +
+  geom_line()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four lines, four colours of equal weight, and a legend off to the side. Nothing is wrong, and nothing is emphasised, so the reader has to work: match a colour to the legend, find the line again, repeat. That handoff between legend and chart is friction, and friction loses readers. Now the finished version, where colour and labels do the pointing for them.</p>
+
+<div class="webr-container" data-block-title="Build the annotated highlight chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the annotated highlight chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mapping = aes(year, value, group = index)) +
+  geom_hline(yintercept = 100, colour = &quot;#d6dce0&quot;, linewidth = 0.5, linetype = &quot;22&quot;) +
+  geom_line(data = eu_context, colour = pal[[&quot;context&quot;]], linewidth = 0.7) +
+  geom_line(data = eu_lead,    colour = pal[[&quot;highlight&quot;]], linewidth = 1.3) +
+  geom_text(data = filter(ends, index != &quot;SMI&quot;), aes(y = label_y, label = label),
+            hjust = 0, nudge_x = 0.06, colour = &quot;#8b97a0&quot;, size = 3.5, fontface = &quot;bold&quot;) +
+  geom_text(data = filter(ends, index == &quot;SMI&quot;), aes(y = label_y, label = label),
+            hjust = 0, nudge_x = 0.06, colour = pal[[&quot;highlight&quot;]], size = 3.9, fontface = &quot;bold&quot;) +
+  annotate(&quot;text&quot;, x = 1992.1, y = 452, hjust = 0, colour = pal[[&quot;highlight&quot;]],
+           size = 4.1, lineheight = 0.95,
+           label = &quot;Switzerland's SMI roughly\nquadrupled over the decade&quot;) +
+  scale_x_continuous(breaks = 1991:1998, limits = c(1991.4, 1999.4)) +
+  scale_y_continuous(breaks = c(100, 200, 300, 400, 500)) +
+  labs(title = &quot;Switzerland's market led Europe's 1990s bull run&quot;,
+       subtitle = &quot;Four major indices, each rebased to 100 at the start of 1991. Line ends show the final level.&quot;,
+       x = NULL, y = &quot;Index (Jan 1991 = 100)&quot;,
+       caption = &quot;Source: EuStockMarkets, R datasets. Daily closing prices, 1991-1998.&quot;) +
+  theme_pub() +
+  theme(panel.grid.major.x = element_blank())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-annotated-line.webp" alt="Four rebased European stock indices, with the Swiss SMI drawn in bold orange above three grey lines, each labelled at its end" class="img-responsive img-zoomable" loading="lazy" width="1839" height="1200" /></p>
+
+<p><em>Figure 4: The finished annotated line chart. One coloured line carries the story; the rest are quiet context.</em></p>
+
+<p>Read how the layers stack. The dashed <code>geom_hline</code> at 100 is the "no change" baseline, so any line above it has grown. We draw <code>eu_context</code> first in grey and <code>eu_lead</code> second in orange, so the highlighted line sits on top and reads as the foreground. The two <code>geom_text</code> layers put each index's name and final value right at the end of its line, which is why the chart needs no legend at all. The <code>annotate(&quot;text&quot;, ...)</code> call adds one sentence of interpretation in the same highlight colour, tying the words to the line they describe.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Label lines at their ends instead of using a legend.</strong> A legend forces the reader to hold a colour in memory and hunt for the matching line. A short label at the end of each line, in the line's own colour, removes that step entirely and reads like a finished newspaper graphic.</div></div>
+
+<p>Set that beside the default and the difference is not decoration, it is comprehension. The default asks the reader to decode; the finished chart hands them the point.</p>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-annotated-line-compare.webp" alt="Left, four equal coloured lines with a legend; right, one orange line above three grey ones with labels on the lines" class="img-responsive img-zoomable" loading="lazy" width="2120" height="1000" /></p>
+
+<p><em>Figure 5: A legend to decode versus one highlighted line with labels sitting on the data.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Colour is a spotlight, so spend it on one thing.</strong> The moment every series has its own bright colour, none of them stands out and the chart has no subject. Muting the context to grey and giving a single line the accent colour tells the reader exactly where to look first.</div></div>
+
+<p><strong>Craft notes for this chart.</strong> The three decisions: rebasing to 100 so the series are comparable at all, highlighting one line while greying the rest, and labelling on the lines rather than in a legend. The traps avoided are the legend hunt and the four-equal-colours spaghetti, both of which spread the reader's attention thin instead of pointing it at the one line that matters.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change which line is the hero. Highlight the DAX instead of the SMI by splitting the data on <code>&quot;DAX&quot;</code>, and draw it over the grey context.</p>
+<div class="webr-container" data-block-title="Your turn: highlight a different index">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: highlight a different index</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split eu_long into ex_context (everything but DAX) and ex_lead (DAX), then draw.
+ex_context &lt;- filter(eu_long, index != &quot;DAX&quot;)
+ex_lead    &lt;- filter(eu_long, index == &quot;DAX&quot;)
+# add two geom_line layers using pal[[&quot;context&quot;]] and pal[[&quot;highlight&quot;]]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Highlight the DAX solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Highlight the DAX solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_context &lt;- filter(eu_long, index != &quot;DAX&quot;)
+ex_lead    &lt;- filter(eu_long, index == &quot;DAX&quot;)
+
+ggplot(mapping = aes(year, value, group = index)) +
+  geom_line(data = ex_context, colour = pal[[&quot;context&quot;]]) +
+  geom_line(data = ex_lead, colour = pal[[&quot;highlight&quot;]], linewidth = 1.2) +
+  theme_pub()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The highlight technique is data-driven, not hard-coded. You choose the hero simply by which rows land in the lead frame, so pointing the spotlight at a different series is a one-word change from <code>&quot;SMI&quot;</code> to <code>&quot;DAX&quot;</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you build a diverging comparison chart?</h2>
+
+<p>The third style is the <a class="auto-link" href="Population-Pyramids-and-Diverging-Bars-in-R.html" title="Population Pyramids and Diverging Bars in ggplot2">diverging bar chart</a>: a ranked comparison where each category is measured against a meaningful centre, and bars spread left and right of a zero line. It answers "who is above and who is below?" at a glance. The craft is in the categorical layout: sort the bars by value, centre them on a real baseline, and use just two colours to split the two sides.</p>
+
+<p>Our data is <code>USArrests</code>, the 1973 rates of arrest per 100,000 residents in each US state, from the World Almanac. The raw assault numbers are not comparable across a reader's intuition, so we standardise them into a z-score: how many standard deviations each state sits above or below the national average. A z-score of +1 means "one standard deviation above average".</p>
+
+<div class="webr-container" data-block-title="Standardise each state against the average">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardise each state against the average</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">arrests &lt;- USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (Assault - mean(Assault)) / sd(Assault),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;)) |&gt;
+  arrange(desc(z))
+
+arrests |&gt;
+  select(state, Assault, z, side) |&gt;
+  mutate(z = round(z, 2)) |&gt;
+  head(6)
+#&gt;            state Assault    z          side
+#&gt; 1 North Carolina     337 1.99 Above average
+#&gt; 2        Florida     335 1.97 Above average
+#&gt; 3       Maryland     300 1.55 Above average
+#&gt; 4        Arizona     294 1.48 Above average
+#&gt; 5     New Mexico     285 1.37 Above average
+#&gt; 6 South Carolina     279 1.30 Above average</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each state now has a <code>z</code> and a <code>side</code> label. North Carolina and Florida sit almost two standard deviations above the national average, and the <code>side</code> column will drive the two-colour split. The <code>tibble::rownames_to_column(&quot;state&quot;)</code> step matters because the state names live in the row names of <code>USArrests</code>, and a chart needs them as a real column. Here is the naive default.</p>
+
+<div class="webr-container" data-block-title="Draw the default bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the default bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(arrests, aes(state, Assault)) +
+  geom_col()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It is a mess, and instructively so. The states run alphabetically, so Alabama sits next to Alaska for no reason a reader cares about, the bars all start at zero on raw counts, and fifty vertical labels crush together along the bottom. You cannot see who is high or low without reading every bar. The finished version fixes all three problems: sort by value, centre on the average, and colour by side.</p>
+
+<div class="webr-container" data-block-title="Build the diverging chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the diverging chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">div_cols &lt;- c(&quot;Above average&quot; = pal[[&quot;highlight&quot;]],
+              &quot;Below average&quot; = pal[[&quot;cool&quot;]])
+
+ggplot(arrests, aes(x = z, y = reorder(state, z), fill = side)) +
+  geom_col(width = 0.72) +
+  geom_vline(xintercept = 0, colour = &quot;#7b8894&quot;, linewidth = 0.5) +
+  scale_fill_manual(values = div_cols, name = NULL) +
+  scale_x_continuous(breaks = -2:2,
+                     labels = c(&quot;-2 sd&quot;, &quot;-1 sd&quot;, &quot;average&quot;, &quot;+1 sd&quot;, &quot;+2 sd&quot;),
+                     expand = expansion(mult = c(0.02, 0.02))) +
+  labs(title = &quot;Assault arrests in 1973: how far each state sat from the US average&quot;,
+       subtitle = &quot;State assault-arrest rate, standardised (z-score). Bars right of the line are above the national average.&quot;,
+       x = NULL, y = NULL,
+       caption = &quot;Source: McNeil (1977) / World Almanac 1975, via R's USArrests. Rate per 100,000 residents.&quot;) +
+  theme_pub() +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.y = element_text(size = rel(0.72), colour = pal[[&quot;ink&quot;]]),
+        legend.position = &quot;top&quot;,
+        legend.justification = &quot;left&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-diverging.webp" alt="A horizontal diverging bar chart of fifty US states, sorted from most above average in orange at the top to most below average in teal at the bottom" class="img-responsive img-zoomable" loading="lazy" width="1680" height="1920" /></p>
+
+<p><em>Figure 6: The finished diverging chart. States are ranked around the national average, with two colours splitting above from below.</em></p>
+
+<p>Look at how the layout carries the meaning. Putting <code>z</code> on the x-axis and <code>reorder(state, z)</code> on the y-axis sorts the bars from most above average at the top to most below at the bottom, so the ranking is the shape of the chart. The <code>geom_vline</code> at zero is the reference every bar is measured against, and relabelling the axis ticks as "average" and "+1 sd" tells the reader what zero and one actually mean. The two-colour <code>scale_fill_manual</code> splits the country in half at a glance, without inventing fifty separate colours.</p>
+
+<p>Against the default, the difference is meaning versus noise.</p>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-diverging-compare.webp" alt="Left, fifty alphabetical single-colour bars of raw counts; right, the same states sorted, centred on the average and split into two colours" class="img-responsive img-zoomable" loading="lazy" width="2080" height="1880" /></p>
+
+<p><em>Figure 7: Alphabetical raw bars tell you nothing; sorted, centred, two-tone bars tell you everything.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Standardising is what makes the comparison fair.</strong> Raw counts answer "how many", but a z-score answers "how unusual", which is the question a comparison chart is really asking. Subtracting the mean and dividing by the standard deviation puts every state on one common ruler, so a bar's length is its distance from the norm.</div></div>
+
+<p><strong>Craft notes for this chart.</strong> The three decisions: standardising to a shared ruler so lengths are comparable, sorting the categories by value so the ranking reads instantly, and using two tones plus a zero line so above and below split cleanly. The traps avoided are a truncated baseline that would exaggerate the differences, and a fifty-colour palette that would add visual noise without adding meaning.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Swap the crime. Rebuild the diverging chart on the <code>Murder</code> column instead of <code>Assault</code>, reusing <code>div_cols</code>.</p>
+<div class="webr-container" data-block-title="Your turn: diverge on murder rates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: diverge on murder rates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Recompute z on Murder, keep the side label, then draw the diverging bars.
+ex_murder &lt;- USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (Murder - mean(Murder)) / sd(Murder),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;))
+# ggplot(ex_murder, aes(z, reorder(state, z), fill = side)) + ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Diverge on murder solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Diverge on murder solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_murder &lt;- USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (Murder - mean(Murder)) / sd(Murder),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;))
+
+ggplot(ex_murder, aes(z, reorder(state, z), fill = side)) +
+  geom_col() +
+  scale_fill_manual(values = div_cols) +
+  theme_pub()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The whole recipe is portable. You change only the column inside the z-score, and the sort, the centre and the two-colour split all still work, because they were written to depend on <code>z</code> and <code>side</code> rather than on any one variable.</p>
+
+</details>
+</section>
+
+<h2>Which traps make a chart lie?</h2>
+
+<p>The same three professional habits, honest scales, restrained colour and clear reference points, also protect you from the ways a chart can mislead. Three traps account for most <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">misleading charts</a>, and it is worth seeing at least one of them happen. The most common is the truncated axis: starting a bar chart's value axis somewhere above zero, which stretches small differences into dramatic ones.</p>
+
+<div class="webr-container" data-block-title="See the truncated-axis lie">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the truncated-axis lie</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">austin &lt;- filter(tx_sales, city == &quot;Austin&quot;, year &gt;= 2011)
+
+ggplot(austin, aes(factor(year), homes_sold)) +
+  geom_col(fill = pal[[&quot;highlight&quot;]], width = 0.7) +
+  coord_cartesian(ylim = c(20000, 32000)) +
+  labs(title = &quot;Truncated axis: 2014 looks like a giant leap&quot;, x = NULL, y = NULL) +
+  theme_pub()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and 2014 towers over 2011, as if sales had multiplied. They did not. By starting the axis at 20,000 rather than 0, we chopped off the shared base of every bar and left only the small differences on top, then blew those up to fill the panel. The honest version starts at zero.</p>
+
+<div class="webr-container" data-block-title="Restore the zero baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restore the zero baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(austin, aes(factor(year), homes_sold)) +
+  geom_col(fill = pal[[&quot;cool&quot;]], width = 0.7) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                     expand = expansion(mult = c(0, 0.05))) +
+  labs(title = &quot;Zero baseline: the same numbers, honestly&quot;, x = NULL, y = NULL) +
+  theme_pub()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><img src="screenshots/Recreating-Professional-Charts-in-R-truncated-axis.webp" alt="Left, Austin sales bars on an axis starting at 20,000 that exaggerate the rise; right, the same bars from zero showing a modest, steady climb" class="img-responsive img-zoomable" loading="lazy" width="2000" height="880" /></p>
+
+<p><em>Figure 8: The same four numbers. A truncated axis manufactures a dramatic jump; a zero baseline shows the modest truth.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A bar chart must start its value axis at zero.</strong> The length of a bar is its meaning, so cutting off the bottom lies about the quantity even when every number on the chart is correct. Line charts, which encode position rather than length, may start elsewhere, but bars never should.</div></div>
+
+<p>The other two traps are quieter. Dual axes, two different y-scales on the left and right of one chart, let you slide two unrelated series until they appear to move together, manufacturing a correlation that is really just your choice of scales. When you must compare two different units, use two stacked panels instead. And rainbow palettes, a different hue for every category, imply an order that hue does not carry, so a reader cannot tell which colour is "more". Use one accent against grey, as we did with the indices, or an ordered scale that runs light to dark when the categories genuinely rank.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make the truncation worse. Push the lower limit up to 28,000 and watch the exaggeration grow.</p>
+<div class="webr-container" data-block-title="Your turn: exaggerate the truncation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: exaggerate the truncation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change the ylim lower bound to 28000 and redraw the Austin bars.
+# ggplot(austin, aes(factor(year), homes_sold)) + geom_col(fill = pal[[&quot;highlight&quot;]]) + ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extreme truncation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extreme truncation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(austin, aes(factor(year), homes_sold)) +
+  geom_col(fill = pal[[&quot;highlight&quot;]]) +
+  coord_cartesian(ylim = c(28000, 32000)) +
+  theme_pub()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The higher the axis floor, the smaller the slice of real data on show, and the more that slice is stretched to fill the panel. At a floor of 28,000, a rise of a few percent looks like a doubling, which is exactly the distortion a zero baseline prevents.</p>
+
+</details>
+</section>
+
+<h2>The complete recipe: one theme, three charts</h2>
+
+<p>The real payoff of the last few sections is that you never build the kit twice. The block below is self-contained: it loads the tools, defines the palette and a compact theme, then builds a finished diverging chart on a brand-new variable, the share of each state that is urban. Lift it into any project, point it at your own data, and the house style comes along for free.</p>
+
+<div class="webr-container" data-block-title="The reusable kit, start to finish">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The reusable kit, start to finish</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+# 1. one palette, colours named by their job
+pal &lt;- c(highlight = &quot;#c1440e&quot;, cool = &quot;#2f6d80&quot;, context = &quot;#b9c2ca&quot;, ink = &quot;#22303a&quot;)
+
+# 2. one theme, every non-data mark in one place
+theme_pub &lt;- function(base_size = 12, base_family = &quot;sans&quot;) {
+  theme_minimal(base_size, base_family) +
+    theme(plot.title.position = &quot;plot&quot;,
+          plot.title    = element_text(face = &quot;bold&quot;, colour = pal[[&quot;ink&quot;]]),
+          plot.subtitle = element_text(colour = &quot;#5b6b76&quot;),
+          panel.grid.minor = element_blank(),
+          panel.grid.major = element_line(colour = &quot;#eef1f3&quot;, linewidth = 0.4))
+}
+
+# 3. use it: a diverging chart on a new question, start to finish
+kit_chart &lt;- USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (UrbanPop - mean(UrbanPop)) / sd(UrbanPop),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;)) |&gt;
+  ggplot(aes(z, reorder(state, z), fill = side)) +
+  geom_col(width = 0.72) +
+  geom_vline(xintercept = 0, colour = &quot;#7b8894&quot;) +
+  scale_fill_manual(values = c(&quot;Above average&quot; = pal[[&quot;highlight&quot;]],
+                               &quot;Below average&quot; = pal[[&quot;cool&quot;]]), name = NULL) +
+  labs(title = &quot;The same kit, a new question&quot;,
+       subtitle = &quot;Urban population share by state, distance from the average&quot;,
+       x = NULL, y = NULL) +
+  theme_pub() +
+  theme(axis.text.y = element_text(size = rel(0.7)),
+        legend.position = &quot;top&quot;, legend.justification = &quot;left&quot;,
+        panel.grid.major.y = element_blank())
+kit_chart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nothing in that block is specific to arrests or stock prices. It is the palette, the theme and the diverging pattern, aimed at a new column. That portability is the point: the effort you spent designing the kit pays out on every future chart, not just this one.</p>
+
+<p>Once a chart is right on screen, the last step is exporting it at the size and resolution a report or print job needs. <code>ggsave()</code> handles that: give it a size and a resolution, and it writes the file.</p>
+
+<div class="webr-container" data-block-title="Export at print quality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Export at print quality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">out &lt;- file.path(tempdir(), &quot;diverging.png&quot;)
+ggsave(out, kit_chart, width = 8, height = 10, units = &quot;in&quot;, dpi = 300)
+file.exists(out)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>dpi = 300</code> is the usual floor for print, and fixing the size in inches means text keeps its intended proportion when the figure lands on the page. We wrote to a temporary folder here so nothing clutters your project, but in practice you would save to a named <code>figures/</code> file.</p>
+
+<p>One last detail is fonts. The theme uses the generic <code>sans</code> family on purpose, so the code renders anywhere with no missing-font errors. For a branded typeface in your final export, register the font locally with the <a class="auto-link" href="Custom-Fonts-in-R-Plots.html" title="Custom Fonts in R Plots: systemfonts, ragg and showtext">showtext</a> package, then set <code>base_family</code> in the theme. That step needs a font installed on your own machine, so it runs in your local RStudio rather than in the browser.</p>
+
+<pre><code class="language-r"># Run this in your own RStudio session (needs a font installed locally)
+library(showtext)
+font_add_google(&quot;Inter&quot;, &quot;inter&quot;)   # or font_add() for a local .ttf
+showtext_auto()
+
+# then point the theme at it
+theme_pub_branded &lt;- function() theme_pub(base_family = &quot;inter&quot;)</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The deliverable is the reusable kit, not any single chart.</strong> A palette and a theme you can lift into the next project is worth more than one beautiful plot, because it makes every future chart start half-finished and end consistent. Design the system once, and the individual charts almost draw themselves.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Aim the kit at yet another column. Change <code>UrbanPop</code> to <code>Rape</code> in the recipe and rebuild, and the whole chart re-sorts around the new average.</p>
+<div class="webr-container" data-block-title="Your turn: point the kit at a new column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: point the kit at a new column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># In the kit_chart pipeline, replace UrbanPop with Rape (mean and sd too) and redraw.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="New-column solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">New-column solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (Rape - mean(Rape)) / sd(Rape),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;)) |&gt;
+  ggplot(aes(z, reorder(state, z), fill = side)) +
+  geom_col(width = 0.72) +
+  geom_vline(xintercept = 0, colour = &quot;#7b8894&quot;) +
+  scale_fill_manual(values = c(&quot;Above average&quot; = pal[[&quot;highlight&quot;]],
+                               &quot;Below average&quot; = pal[[&quot;cool&quot;]]), name = NULL) +
+  theme_pub() +
+  theme(axis.text.y = element_text(size = rel(0.7)),
+        panel.grid.major.y = element_blank())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because the recipe depends only on a computed <code>z</code> and <code>side</code>, swapping the source column is all it takes. The kit does the rest, which is exactly what a reusable system is for.</p>
+
+</details>
+</section>
+
+<h2>The 12-question pre-ship checklist</h2>
+
+<p>Before any chart leaves your hands, run it past these twelve questions. They are the same decisions this case study made, turned into a checklist you can reuse on every graphic.</p>
+
+<ol>
+
+<li><strong>Message.</strong> Can you state, in one sentence, the single thing this chart is for?</li>
+
+<li><strong>One story.</strong> Does one element clearly carry that message, rather than everything competing at once?</li>
+
+<li><strong>Hierarchy.</strong> Is the most important thing the most visually prominent, in size, weight or colour?</li>
+
+<li><strong>Honest axis.</strong> Do bars start at zero, and does no axis truncation exaggerate a difference?</li>
+
+<li><strong>Colour restraint.</strong> Are you using one accent against grey, or an ordered scale, rather than a rainbow?</li>
+
+<li><strong>Direct labels.</strong> Have you labelled series on the chart instead of forcing the reader into a legend?</li>
+
+<li><strong>Sorted categories.</strong> Are categories ordered by value or by a meaningful sequence, never alphabetically by accident?</li>
+
+<li><strong>Readable text.</strong> Is every label legible at the final size, with a font that has a safe fallback?</li>
+
+<li><strong>Reference points.</strong> Is there a baseline, average line or annotation that tells the reader what "normal" is?</li>
+
+<li><strong>Source and caption.</strong> Does the chart name its data source and say what the numbers are?</li>
+
+<li><strong>Export spec.</strong> Is it saved at the right size and at least 300 DPI for the medium it ships in?</li>
+
+<li><strong>The stranger test.</strong> Would someone who has never seen the data understand the point within five seconds?</li>
+
+</ol>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the case study. Try each before opening the solution. They use their own variable names so they will not disturb the objects from the tutorial.</p>
+
+<h3>Exercise 1: A median-price small-multiples panel</h3>
+
+<p>Build a small-multiples panel from <code>txhousing</code> showing the median sale price over time for six metros: Houston, Dallas, Austin, San Antonio, Fort Worth and El Paso. Use <code>scales = &quot;free_y&quot;</code> and <code>theme_pub()</code>. Store the working data in <code>my_prices</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Keep the six metros, drop rows with a missing median, then plot median over date.
+my_prices &lt;- txhousing |&gt;
+  filter(city %in% c(&quot;Houston&quot;, &quot;Dallas&quot;, &quot;Austin&quot;,
+                     &quot;San Antonio&quot;, &quot;Fort Worth&quot;, &quot;El Paso&quot;),
+         !is.na(median))
+
+# Plot date on x, median on y, facet by city with free scales:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_prices &lt;- txhousing |&gt;
+  filter(city %in% c(&quot;Houston&quot;, &quot;Dallas&quot;, &quot;Austin&quot;,
+                     &quot;San Antonio&quot;, &quot;Fort Worth&quot;, &quot;El Paso&quot;),
+         !is.na(median))
+
+ggplot(my_prices, aes(date, median)) +
+  geom_line(colour = pal[[&quot;cool&quot;]], linewidth = 0.7) +
+  facet_wrap(~ city, scales = &quot;free_y&quot;) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+  labs(title = &quot;Median home price by metro&quot;, x = NULL, y = NULL) +
+  theme_pub() +
+  theme(strip.text = element_text(face = &quot;bold&quot;, hjust = 0))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The pattern is identical to the sales panel: filter to the groups you want, plot one line per panel, and free the y-scale so each metro's price range is legible. Reusing <code>theme_pub()</code> means this chart already matches the rest of your work.</p>
+
+</details>
+
+<h3>Exercise 2: Highlight the worst performer</h3>
+
+<p>Rebuild the rebased European-index line chart, but this time highlight the weakest index instead of the strongest, and add a direct label at its end. The weakest is the one with the lowest final value. Store the highlighted frame in <code>my_lead</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># From the summary, FTSE ended lowest (223). Highlight FTSE.
+my_lead    &lt;- filter(eu_long, index == &quot;FTSE&quot;)
+my_context &lt;- filter(eu_long, index != &quot;FTSE&quot;)
+# Draw grey context lines and one highlighted FTSE line, then label its end.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_lead    &lt;- filter(eu_long, index == &quot;FTSE&quot;)
+my_context &lt;- filter(eu_long, index != &quot;FTSE&quot;)
+my_end &lt;- filter(my_lead, year == max(year))
+
+ggplot(mapping = aes(year, value, group = index)) +
+  geom_line(data = my_context, colour = pal[[&quot;context&quot;]], linewidth = 0.7) +
+  geom_line(data = my_lead, colour = pal[[&quot;highlight&quot;]], linewidth = 1.3) +
+  geom_text(data = my_end, aes(label = paste0(&quot;FTSE  &quot;, round(value))),
+            hjust = 0, nudge_x = 0.06, colour = pal[[&quot;highlight&quot;]],
+            fontface = &quot;bold&quot;) +
+  scale_x_continuous(limits = c(1991.4, 1999.4)) +
+  labs(title = &quot;The UK's FTSE trailed its neighbours&quot;,
+       x = NULL, y = &quot;Index (Jan 1991 = 100)&quot;) +
+  theme_pub()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The highlight logic does not care whether the hero is the best or the worst performer. You choose the story by which rows go into the lead frame, then colour and a direct label do the pointing, exactly as they did for the SMI.</p>
+
+</details>
+
+<h3>Exercise 3: A diverging chart with the extremes labelled</h3>
+
+<p>Build a diverging bar chart of the urban-population z-score by state (as in the recipe), but add value labels only to the five most urban states, so the extremes are called out without cluttering all fifty bars. Store the data in <code>my_urban</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_urban &lt;- USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (UrbanPop - mean(UrbanPop)) / sd(UrbanPop),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;)) |&gt;
+  arrange(desc(z))
+
+# Draw the diverging bars, then add geom_text for head(my_urban, 5) only.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_urban &lt;- USArrests |&gt;
+  tibble::rownames_to_column(&quot;state&quot;) |&gt;
+  mutate(z = (UrbanPop - mean(UrbanPop)) / sd(UrbanPop),
+         side = if_else(z &gt;= 0, &quot;Above average&quot;, &quot;Below average&quot;)) |&gt;
+  arrange(desc(z))
+
+ggplot(my_urban, aes(z, reorder(state, z), fill = side)) +
+  geom_col(width = 0.72) +
+  geom_vline(xintercept = 0, colour = &quot;#7b8894&quot;) +
+  geom_text(data = head(my_urban, 5), aes(label = round(z, 1)),
+            hjust = -0.2, size = 3, colour = pal[[&quot;ink&quot;]]) +
+  scale_fill_manual(values = c(&quot;Above average&quot; = pal[[&quot;highlight&quot;]],
+                               &quot;Below average&quot; = pal[[&quot;cool&quot;]]), name = NULL) +
+  labs(title = &quot;How urban is each state, versus the average?&quot;,
+       x = NULL, y = NULL) +
+  theme_pub() +
+  theme(axis.text.y = element_text(size = rel(0.7)),
+        panel.grid.major.y = element_blank(),
+        legend.position = &quot;top&quot;, legend.justification = &quot;left&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Labelling only <code>head(my_urban, 5)</code> calls out the extremes while leaving the other bars clean, which is a common newsroom compromise between a fully labelled chart and a bare one. The reader gets the headline numbers without fifty competing labels.</p>
+
+</details>
+
+<h2>Frequently asked questions</h2>
+
+<h3>How many groups is too many for a small-multiples panel?</h3>
+
+<p><a class="auto-link" href="Small-Multiples-in-R.html" title="Small Multiples in R: the 40-Tiny-Plots Workflow">Small multiples</a> stay readable up to a few dozen panels, as long as every panel keeps the same simple encoding. Past that the panels get too small to read, so show only the most important groups or <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> the rest into an "other" panel. This post used twelve metros, which fits comfortably in a four-column grid.</p>
+
+<h3>Should I always use free scales for small multiples?</h3>
+
+<p>No. Free scales are right when the shape of each group is the story and the groups differ a lot in size, as the Texas metros did. But a free y-axis hides how much bigger one group is than another, so when the absolute magnitudes are the point of the comparison, keep a shared scale. The choice follows the question you are asking, not a fixed rule.</p>
+
+<h3>How do I label lines directly instead of using a legend?</h3>
+
+<p>Build a small table with one row per series at its final x-position, then add a <code>geom_text</code> layer that draws each label there in the line's own colour. Nudge any <a class="auto-link" href="ggplot2-Text-Labels-in-R.html" title="Text Labels in ggplot2: geom_text, geom_label and ggrepel">overlapping labels</a> apart by hand, the way we separated CAC and FTSE. Once every line is labelled at its end, you can drop the legend entirely.</p>
+
+<h3>How do I keep the same style across every chart in a project?</h3>
+
+<p>Put your colours in one named vector and every non-data styling choice in one theme function, then call that function on each plot. Because the styling lives in a single place, changing a colour or a font size updates every chart at once, and new charts start already on-brand.</p>
+
+<h3>What size and resolution should I export a chart at?</h3>
+
+<p>Use <code>ggsave()</code> with the size fixed in inches and the resolution set to at least 300 DPI for anything printed. Fixing the size in inches keeps text at its intended proportion on the page, and 300 DPI is the usual floor for print quality. A figure that will only ever appear on screen can use a lower DPI.</p>
+
+<h2>Summary</h2>
+
+<p>Recreating a professional chart is not about a secret geom or a magic package. It is about making a short list of decisions on purpose, in the same order every time: shape the data, choose the marks, set honest scales, add the labels and annotation that carry the message, and finish with a consistent theme.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Chart style</th>
+<th>The decision that carried it</th>
+<th>The trap it avoids</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small multiples</td>
+<td>Free the y-scale so every panel is legible</td>
+<td>A shared scale that flattens small groups</td>
+</tr>
+<tr>
+<td>Annotated line</td>
+<td>Highlight one line, label it directly</td>
+<td>A legend hunt and four competing colours</td>
+</tr>
+<tr>
+<td>Diverging bars</td>
+<td>Sort, centre and split into two tones</td>
+<td>A truncated baseline and a rainbow palette</td>
+</tr>
+</tbody>
+</table>
+
+<p>The three habits worth carrying into every chart you make are these: keep your scales honest, so a bar starts at zero and no axis exaggerates; spend colour like it is scarce, one accent against grey; and label the data directly so the reader never has to decode. Build those into a reusable palette and theme, and your charts will look deliberate because they will be.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H., Navarro, D., and Pedersen, T. L. <em>ggplot2: Elegant Graphics for Data Analysis (3e), Annotations.</em> <a href="https://ggplot2-book.org/annotations.html">Link</a> - the reference for the <code>geom_text</code> and <code>annotate()</code> layers used to label the lines and shade the recession band.</li>
+
+<li>ggplot2 documentation. <em>facet_wrap(): wrap a 1d ribbon of panels into 2d.</em> <a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html">Link</a> - the full argument list for faceting, including the <code>scales = &quot;free_y&quot;</code> option that rescued the small-multiples panel.</li>
+
+<li>scales package. <em>Label and transform functions for ggplot2 scales.</em> <a href="https://scales.r-lib.org/">Link</a> - documents <code>label_number</code>, <code>cut_short_scale</code> and <code>pretty_breaks</code>, the axis-formatting helpers used throughout.</li>
+
+<li>The R Graph Gallery. <em>Diverging bar plot recreated from a New York Times chart.</em> <a href="https://r-graph-gallery.com/web-diverging-bar-plot-recreated-from-nytimes.html">Link</a> - a worked recreation of a real diverging bar chart, close to the one built here.</li>
+
+<li>The R Graph Gallery. <em>Line chart with labels at the end of each line.</em> <a href="https://r-graph-gallery.com/web-line-chart-with-labels-at-end-of-line.html">Link</a> - a step-by-step version of the direct-labelling technique behind the annotated line chart.</li>
+
+<li>Wilke, C. O. <em>Fundamentals of Data Visualization.</em> <a href="https://clauswilke.com/dataviz/">Link</a> - the theory behind honest scales, colour restraint and small multiples, freely readable online.</li>
+
+<li>Cairo, A. <em>The Truthful Art: Data, Charts, and Maps for Communication.</em> New Riders (2016). <a href="https://www.thefunctionalart.com/p/the-truthful-art-book.html">Link</a> - a careful treatment of the truncated-axis and dual-axis traps covered in the final section.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="/Publication-Figure-System-in-R.html">A Publication Figure System in R: an End-to-End Case Study</a> - build the reusable theme, palette and scales this chapter leans on into a full figure system.</li>
+
+<li><a href="/Publication-Quality-Figures-in-R.html">Publication-Ready ggplot2 Figures: The Checklist</a> - the per-figure checklist of fonts, sizes and DPI that turns a draft into a journal-ready figure.</li>
+
+<li><a href="/ggplot2-Themes-in-R.html">ggplot2 Themes: From theme_classic to Your Own House Style</a> - a deeper look at every theme element you can control when you design a house style.</li>
+
+</ul>
+
+{% endraw %}
