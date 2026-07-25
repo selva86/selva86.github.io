@@ -1,0 +1,879 @@
+---
+title: "Bubble and Point Maps in R with ggplot2 and sf"
+description: "Learn to build point maps and bubble maps in R with ggplot2 and sf. Plot longitude and latitude, size bubbles by area not radius, add geom_sf boundaries."
+keywords: "bubble map R, point map R, ggplot2 bubble map, geom_point map, plot longitude latitude R, sf geom_sf, proportional symbol map R, scale_size_area, bubble map ggplot2, map points in R"
+mathjax: true
+webr: true
+curriculum_id: "GG2-5.5"
+post_type: "C"
+auto_link_terms: "bubble map|bubble maps|point map|point maps|proportional symbol map|geom_sf()|scale_size_area()|bubble map in R|point map in R|plot longitude and latitude|map points in R|geographic bubble chart"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Bubble & Point Maps"
+sidebar_order: "75"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A point map drops a dot at each location's longitude and latitude. A bubble map goes one step further: it lets each dot's size stand for a value, so a glance shows you both where things are and how big they are. You build the dots with ggplot2 and, when you want real country or county outlines behind them, you add the <a class="auto-link" href="Spatial-Data-in-R-with-sf.html" title="Spatial Data in R with sf: Shapefiles, CRS Transformation, and ggplot2 Maps">sf package</a>.</p>
+
+<h2>How is a map just a scatterplot of longitude and latitude?</h2>
+
+<p>Here is the idea that makes everything else easy: a map is a scatterplot. Every place on Earth has two numbers, a longitude (how far east or west) and a latitude (how far north or south). Put longitude on the x axis and latitude on the y axis, and each place lands exactly where it belongs. You do not need a special map object to start, just a table of coordinates and ggplot2.</p>
+
+<p>Let's build that table. Run this first block to load the tools and see ten of the world's largest cities with their coordinates and populations.</p>
+
+<div class="webr-container" data-block-title="Load libraries and city data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and city data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+cities &lt;- data.frame(
+  city = c(&quot;Tokyo&quot;, &quot;Delhi&quot;, &quot;Shanghai&quot;, &quot;Sao Paulo&quot;, &quot;Mexico City&quot;,
+           &quot;Cairo&quot;, &quot;New York&quot;, &quot;Lagos&quot;, &quot;Moscow&quot;, &quot;London&quot;),
+  lon  = c(139.69, 77.10, 121.47, -46.63, -99.13,
+            31.24, -74.01,   3.38,  37.62,  -0.13),
+  lat  = c( 35.69, 28.70,  31.23, -23.55,  19.43,
+            30.04,  40.71,   6.52,  55.75,  51.51),
+  pop  = c(37.4, 32.9, 29.2, 22.6, 22.3,
+           21.9, 18.8, 15.4, 12.6, 9.5)
+)
+
+cities
+#&gt;           city    lon    lat  pop
+#&gt; 1        Tokyo 139.69  35.69 37.4
+#&gt; 2        Delhi  77.10  28.70 32.9
+#&gt; 3     Shanghai 121.47  31.23 29.2
+#&gt; 4    Sao Paulo -46.63 -23.55 22.6
+#&gt; 5  Mexico City -99.13  19.43 22.3
+#&gt; 6        Cairo  31.24  30.04 21.9
+#&gt; 7     New York -74.01  40.71 18.8
+#&gt; 8        Lagos   3.38   6.52 15.4
+#&gt; 9       Moscow  37.62  55.75 12.6
+#&gt; 10      London  -0.13  51.51  9.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one city. The <code>lon</code> column is longitude, <code>lat</code> is latitude, and <code>pop</code> is the population in millions. Negative longitudes sit west of the prime meridian (New York, Sao Paulo), and negative latitudes sit south of the equator (Sao Paulo again). Those four numbers per row are all a point map needs.</p>
+
+<p>Now the payoff. We map longitude to x and latitude to y, then draw one dot per city with <code>geom_point()</code>.</p>
+
+<div class="webr-container" data-block-title="Draw the first point map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the first point map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat)) +
+  geom_point()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that and a rough world map appears out of nothing. The dot on the far right is Tokyo, the cluster in the middle is Europe, Africa, and the Middle East, and the two dots on the left are New York and Mexico City. It already looks like a map because the coordinates are a map. There is no country outline yet, only the cities, but the shape of the continents is already hinted at by where the cities fall.</p>
+
+<p>There is one problem the plain scatterplot ignores: the aspect ratio. A degree of longitude and a degree of latitude are not the same width on screen, so the world looks squashed. The <code>coord_quickmap()</code> function fixes the ratio for the small-to-medium areas most maps show. Let's add it, plus a splash of color and clearer labels.</p>
+
+<div class="webr-container" data-block-title="Fix the aspect ratio and label axes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix the aspect ratio and label axes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat)) +
+  geom_point(color = &quot;steelblue&quot;, size = 3) +
+  coord_quickmap() +
+  labs(title = &quot;Ten of the world's largest cities&quot;,
+       x = &quot;Longitude&quot;, y = &quot;Latitude&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and the map relaxes into more natural proportions. The dots have not moved to new coordinates, but the plotting area now gives each degree of latitude and longitude a sensible relative width, so the arrangement reads more like a real map and less like a stretched chart.</p>
+
+<p><img src="screenshots/Bubble-Maps-in-R-lonlat-xy.webp" alt="A map is a scatterplot: longitude becomes x, latitude becomes y." class="img-responsive img-zoomable" loading="lazy" width="1466" height="690" /></p>
+
+<p><em>Figure 1: A map is a scatterplot: longitude becomes x, latitude becomes y.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A map is a scatterplot in disguise.</strong> Every location carries two numbers, longitude and latitude, and putting longitude on the x axis and latitude on the y axis places each point exactly where it belongs. The points on a map need no special map object at all, only their coordinates.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Longitude and latitude do not have equal spacing on screen.</strong> One degree of longitude covers less ground near the poles than at the equator, so a raw scatterplot stretches the world. Adding coord_quickmap() corrects the aspect ratio so distances and shapes look right for the region you are showing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a point map of only the cities in the northern hemisphere, the ones with a latitude greater than zero. The starter filters the data for you; add the ggplot call.</p>
+<div class="webr-container" data-block-title="Your turn: map northern cities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: map northern cities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Keep only cities north of the equator
+ex_north &lt;- subset(cities, lat &gt; 0)
+
+# your code here: draw a point map of ex_north with coord_quickmap()
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Northern cities solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Northern cities solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_north &lt;- subset(cities, lat &gt; 0)
+
+ggplot(ex_north, aes(x = lon, y = lat)) +
+  geom_point(color = &quot;darkgreen&quot;, size = 3) +
+  coord_quickmap() +
+  labs(title = &quot;Northern-hemisphere cities&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>subset()</code> keeps the eight cities with <code>lat &gt; 0</code>, and the ggplot call is the same recipe as before: longitude to x, latitude to y, one point each.</p>
+
+</details>
+</section>
+
+<h2>What turns a point map into a bubble map?</h2>
+
+<p>A point map answers "where?". A bubble map answers "where, and how much?" at the same time. The trick is one extra line in <code>aes()</code>: you map a value to the <code>size</code> aesthetic, and ggplot2 draws each point as a circle whose size reflects that value. Our cities already carry a <code>pop</code> column, so let's size each dot by population.</p>
+
+<div class="webr-container" data-block-title="Size the points by population">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Size the points by population</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat, size = pop)) +
+  geom_point(color = &quot;steelblue&quot;, alpha = 0.7) +
+  coord_quickmap()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and Tokyo, Delhi, and Shanghai swell into the biggest circles while London stays small. The <code>size = pop</code> inside <code>aes()</code> is the whole difference between a point map and a bubble map. The <code>alpha = 0.7</code> makes each circle slightly see-through so that when two bubbles overlap you can still tell them apart.</p>
+
+<p>Right now ggplot2 picks the size range and the legend title for us. We usually want more control: a wider spread between the smallest and biggest bubble, and a legend title a human wrote. The <code>scale_size()</code> function gives us both.</p>
+
+<div class="webr-container" data-block-title="Widen the size range and label the legend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Widen the size range and label the legend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat, size = pop)) +
+  geom_point(color = &quot;firebrick&quot;, alpha = 0.6) +
+  scale_size(range = c(2, 14), name = &quot;Population (millions)&quot;) +
+  coord_quickmap() +
+  labs(title = &quot;City population as bubble size&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>range = c(2, 14)</code> tells ggplot2 to draw the smallest population as a 2-unit circle and the largest as a 14-unit circle, with everything else spaced in between. The <code>name = &quot;Population (millions)&quot;</code> renames the legend so a reader knows what the sizes mean. Small choices like these are what separate a rough draft from a chart you would put in a report.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Color the bubbles by population as well as sizing them, so the biggest cities are both large and brightly colored. The starter sets up the base plot; add a <code>geom_point()</code> that maps <code>colour = pop</code>, then a viridis color scale.</p>
+<div class="webr-container" data-block-title="Your turn: colour and size bubbles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: colour and size bubbles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Map colour to pop as well as size
+base_bubble &lt;- ggplot(cities, aes(x = lon, y = lat, size = pop))
+
+# your code here: add geom_point(aes(colour = pop)) + scale_colour_viridis_c()
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Colour and size solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Colour and size solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat, size = pop, colour = pop)) +
+  geom_point(alpha = 0.8) +
+  scale_size(range = c(2, 14)) +
+  scale_colour_viridis_c(option = &quot;plasma&quot;) +
+  coord_quickmap() +
+  labs(title = &quot;Bubbles sized and coloured by population&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Mapping <code>pop</code> to both <code>size</code> and <code>colour</code> doubles the signal, and <code>scale_colour_viridis_c()</code> supplies a color-blind-friendly gradient. When two aesthetics carry the same variable, ggplot2 merges them into one legend automatically.</p>
+
+</details>
+</section>
+
+<h2>How do you size bubbles so the areas are honest?</h2>
+
+<p>This is the section most tutorials skip, and it is where most bubble maps go wrong. When you look at a circle, your brain judges its area, not its radius. That single fact decides whether your map tells the truth. Let's see the trap with plain arithmetic before we fix it.</p>
+
+<p>Suppose you let the radius grow in step with the value, so value 2 gets radius 2 and value 4 gets radius 4. The area a reader actually sees is proportional to the radius squared. Run this to watch the distortion pile up.</p>
+
+<div class="webr-container" data-block-title="Show the radius trap with numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the radius trap with numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">size_demo &lt;- data.frame(value = c(1, 2, 4, 8))
+size_demo$radius    &lt;- size_demo$value
+size_demo$area_seen &lt;- size_demo$radius^2
+size_demo
+#&gt;   value radius area_seen
+#&gt; 1     1      1         1
+#&gt; 2     2      2         4
+#&gt; 3     4      4        16
+#&gt; 4     8      8        64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the last row. The value went up 8 times, from 1 to 8, but the area the eye reads went up 64 times. A city that is 8 times bigger looks 64 times bigger. That is not a rounding error, it is a lie baked into the chart, and it happens whenever radius tracks the value directly.</p>
+
+<p>The fix is to make the radius grow with the square root of the value, so that the area, the thing you actually see, grows in direct proportion to the value. The algebra is short:</p>
+
+<p>$$A = \pi r^2 \quad\Longrightarrow\quad r \propto \sqrt{v} \;\text{ gives }\; A \propto v$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$A$ = the bubble's area, which is what the eye reads</li>
+
+<li>$r$ = the bubble's radius</li>
+
+<li>$v$ = the data value you are encoding</li>
+
+<li>$\propto$ means "is proportional to", so $r \propto \sqrt{v}$ reads "the radius grows with the square root of the value"</li>
+
+</ul>
+
+<p>If the algebra is not your thing, skip it, because the practical rule is one line: use <code>scale_size_area()</code> instead of <code>scale_size()</code>. It maps the value to area for you, so a value twice as large draws a bubble with twice the area.</p>
+
+<div class="webr-container" data-block-title="Map value to area with scale_size_area">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map value to area with scale_size_area</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat, size = pop)) +
+  geom_point(color = &quot;firebrick&quot;, alpha = 0.6) +
+  scale_size_area(max_size = 16, name = &quot;Population (millions)&quot;) +
+  coord_quickmap() +
+  labs(title = &quot;Honest bubbles: area is proportional to population&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and compare with the earlier maps. The differences between cities now look proportional to their real population gaps, not exaggerated. A zero value would draw a bubble of zero area, which is exactly what an honest scale should do.</p>
+
+<p><img src="screenshots/Bubble-Maps-in-R-radius-vs-area.webp" alt="Map the value to bubble area rather than radius, or big values look exaggerated." class="img-responsive img-zoomable" loading="lazy" width="1424" height="690" /></p>
+
+<p><em>Figure 2: Map the value to bubble area rather than radius, or big values look exaggerated.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The eye reads a bubble's area, not its radius.</strong> If the radius grows in step with the value, the area grows with the square of the value, so a value 4 times larger looks 16 times larger. Mapping the value to area keeps every comparison on your map honest.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Control the biggest bubble with one number.</strong> The max_size argument of <a class="auto-link" href="Bubble-Chart-in-R.html" title="Bubble Chart in R: Add a Third Variable to Your Scatter Plot">scale_size_area()</a> sets the area of the largest value and scales every smaller bubble down in proportion, so a single number tunes the whole map without touching the data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the population bubble map with <code>scale_size_area(max_size = 10)</code> so the largest bubble is a bit smaller. The starter gives you the base plot; add the geom and the scale.</p>
+<div class="webr-container" data-block-title="Your turn: cap the largest bubble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cap the largest bubble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Start from the base and cap the biggest bubble at 10
+ex_area &lt;- ggplot(cities, aes(x = lon, y = lat, size = pop))
+
+# your code here: add geom_point() + scale_size_area(max_size = 10) + coord_quickmap()
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capped bubble solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capped bubble solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cities, aes(x = lon, y = lat, size = pop)) +
+  geom_point(colour = &quot;purple&quot;, alpha = 0.6) +
+  scale_size_area(max_size = 10) +
+  coord_quickmap()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Lowering <code>max_size</code> from 16 to 10 shrinks the largest bubble while keeping every area proportional, which is handy when big bubbles crowd their neighbours.</p>
+
+</details>
+</section>
+
+<h2>How do you build a bubble map from a real dataset (Fiji earthquakes)?</h2>
+
+<p>Toy data is fine for learning, but the fun starts with a real dataset. R ships with <code>quakes</code>, a record of 1,000 earthquakes near Fiji, and it is perfect for a bubble map because every row already has a location and a magnitude. Let's look at the first few rows.</p>
+
+<div class="webr-container" data-block-title="Peek at the quakes dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Peek at the quakes dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(quakes)
+#&gt;      lat   long depth mag stations
+#&gt; 1 -20.42 181.62   562 4.8       41
+#&gt; 2 -20.62 181.03   650 4.2       15
+#&gt; 3 -26.00 184.10    42 5.4       43
+#&gt; 4 -17.97 181.66   626 4.1       19
+#&gt; 5 -20.42 181.96   649 4.0       11
+#&gt; 6 -19.68 184.31   195 4.0       12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one earthquake. The <code>long</code> and <code>lat</code> columns are its coordinates, <code>mag</code> is the magnitude on the Richter scale, <code>depth</code> is how deep below the surface it struck in kilometres, and <code>stations</code> counts how many seismic stations reported it. That gives us a location, plus a magnitude to size by and a depth to color by, all in one table.</p>
+
+<p>Now we build the bubble map: longitude goes to x and latitude to y, then magnitude to size and depth to color. We use <code>scale_size_area()</code> for honest sizing and a viridis scale for the depth colors.</p>
+
+<div class="webr-container" data-block-title="Map earthquakes by magnitude and depth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map earthquakes by magnitude and depth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(quakes, aes(x = long, y = lat, size = mag, colour = depth)) +
+  geom_point(alpha = 0.5) +
+  scale_size_area(max_size = 6, name = &quot;Magnitude&quot;) +
+  scale_colour_viridis_c(name = &quot;Depth (km)&quot;) +
+  coord_quickmap() +
+  labs(title = &quot;1000 earthquakes near Fiji&quot;,
+       x = &quot;Longitude&quot;, y = &quot;Latitude&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and a dense cloud of quakes appears. Two bands stand out: a busy zone in the upper area and a scattering to the lower right. The bright and dark colors reveal that shallow and deep quakes cluster in different places, a pattern a plain point map would hide. The <code>alpha = 0.5</code> matters a lot here, because without it the overlapping points would blur into a solid blob.</p>
+
+<p>With a thousand points, drawing order matters. If a big bubble is drawn last, it sits on top and buries the small ones behind it. Sorting so the largest are drawn first pushes them to the back, keeping the smaller quakes visible. Let's arrange by descending magnitude before plotting.</p>
+
+<div class="webr-container" data-block-title="Draw large bubbles behind small ones">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw large bubbles behind small ones</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quakes_sorted &lt;- quakes |&gt; arrange(desc(mag))
+
+ggplot(quakes_sorted, aes(x = long, y = lat, size = mag, colour = depth)) +
+  geom_point(alpha = 0.5) +
+  scale_size_area(max_size = 6) +
+  scale_colour_viridis_c() +
+  coord_quickmap()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and the map reads a little cleaner. The <code>arrange(desc(mag))</code> sorts the strongest quakes to the top of the data frame, so ggplot2 draws them first and they end up at the back. The many small quakes then sit on top where you can still see them, instead of vanishing under the big circles.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Overlapping bubbles hide each other.</strong> When many points crowd a small area, big bubbles bury the small ones underneath. Draw the largest first so they sit at the back, and add transparency with a value like <code>alpha = 0.5</code> so that overlaps stay readable instead of merging into one dark mass.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Color the earthquake bubbles by the number of reporting <code>stations</code> instead of by depth. The starter sets up the base plot with size mapped to magnitude; add the colored geom and a scale.</p>
+<div class="webr-container" data-block-title="Your turn: colour quakes by stations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: colour quakes by stations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Base plot with size mapped to magnitude
+ex_q &lt;- ggplot(quakes, aes(x = long, y = lat, size = mag))
+
+# your code here: add geom_point(aes(colour = stations)) + a viridis scale + coord_quickmap()
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Colour by stations solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Colour by stations solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(quakes, aes(x = long, y = lat, size = mag, colour = stations)) +
+  geom_point(alpha = 0.5) +
+  scale_size_area(max_size = 6) +
+  scale_colour_viridis_c(option = &quot;magma&quot;, name = &quot;Stations&quot;) +
+  coord_quickmap()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Swapping <code>colour = depth</code> for <code>colour = stations</code> re-colors the same bubbles by how many stations detected each quake, which tends to track magnitude because bigger quakes are felt more widely.</p>
+
+</details>
+</section>
+
+<h2>How do you add real map boundaries with sf and geom_sf()?</h2>
+
+<p>So far the points have floated on a blank background. To give them context with real boundary shapes like coastlines or county borders, you need polygon geometry, and that is the job of the sf package. An sf object is just a normal data frame with one special column that holds the shape of each region. You draw those shapes with <code>geom_sf()</code>, then layer your bubbles on top. If you want to fill whole regions by value instead of dropping points on them, see <a href="Choropleth-Maps-in-R.html">choropleth maps</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The sf examples below are meant to run in your local R session.</strong> The sf package leans on system geospatial libraries that the in-page runner does not bundle, so copy these blocks into RStudio to execute them. Everything above, the point and bubble maps built with ggplot2, runs right here on the page.</div></div>
+
+<p>The sf package ships with a classic teaching dataset: the 100 counties of North Carolina, each with a birth count and a count of sudden infant deaths from 1974. Let's load it and inspect what an sf object looks like.</p>
+
+<pre><code class="language-r">library(sf)
+library(ggplot2)
+library(dplyr)
+
+# North Carolina counties ship with the sf package
+nc &lt;- st_read(system.file(&quot;shape/nc.shp&quot;, package = &quot;sf&quot;), quiet = TRUE)
+
+class(nc)
+#&gt; [1] &quot;sf&quot;         &quot;data.frame&quot;
+
+nc |&gt; st_drop_geometry() |&gt; select(NAME, BIR74, SID74) |&gt; head(4)
+#&gt;        NAME BIR74 SID74
+#&gt; 1      Ashe  1091     1
+#&gt; 2 Alleghany   487     0
+#&gt; 3     Surry  3188     5
+#&gt; 4 Currituck   508     1</code></pre>
+
+<p>The <code>class(nc)</code> line confirms the key idea: <code>nc</code> is both an <code>&quot;sf&quot;</code> object and an ordinary <code>&quot;data.frame&quot;</code>, so every dplyr verb you know still works on it. We used <code>st_drop_geometry()</code> to hide the bulky shape column and print a clean table of county names alongside births (<code>BIR74</code>) and sudden infant deaths (<code>SID74</code>). The geometry is still there in the full object, holding the outline of each county.</p>
+
+<p>Now the bubble map. We draw the county outlines with one <code>geom_sf()</code>, compute a single representative point per county with <code>st_centroid()</code>, then draw a second <code>geom_sf()</code> of those points sized by the birth count.</p>
+
+<pre><code class="language-r"># One representative point (centroid) per county
+county_centres &lt;- st_centroid(nc)
+
+ggplot(nc) +
+  geom_sf(fill = &quot;grey95&quot;, colour = &quot;grey70&quot;) +
+  geom_sf(data = county_centres, aes(size = BIR74),
+          colour = &quot;firebrick&quot;, alpha = 0.6) +
+  scale_size_area(max_size = 10, name = &quot;Births (1974)&quot;) +
+  theme_void() +
+  labs(title = &quot;Births per North Carolina county, 1974&quot;)</code></pre>
+
+<p>Run it locally and you get a real map of North Carolina with a red bubble over each county, sized by how many births it recorded. The first <code>geom_sf()</code> draws the grey county polygons as a basemap, and the second draws the centroid points on top. R prints a short note that <code>st_centroid</code> assumes attributes are constant over each county, which is just a reminder, not an error. <code>theme_void()</code> strips the axes and gridlines, which are clutter on a finished map.</p>
+
+<p>You will often have your own longitude and latitude table, like our <code>cities</code> data, and want to place it on an sf basemap. The bridge is <code>st_as_sf()</code>, which turns coordinate columns into proper geometry. Let's convert the cities.</p>
+
+<pre><code class="language-r"># Turn any longitude/latitude table into an sf object
+cities_sf &lt;- st_as_sf(cities, coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326)
+
+cities_sf
+#&gt; Simple feature collection with 10 features and 2 fields
+#&gt; Geometry type: POINT
+#&gt; Dimension:     XY
+#&gt; Bounding box:  xmin: -99.13 ymin: -23.55 xmax: 139.69 ymax: 55.75
+#&gt; Geodetic CRS:  WGS 84
+#&gt;           city  pop              geometry
+#&gt; 1        Tokyo 37.4  POINT (139.69 35.69)
+#&gt; 2        Delhi 32.9     POINT (77.1 28.7)
+#&gt; 3     Shanghai 29.2  POINT (121.47 31.23)
+#&gt; 4    Sao Paulo 22.6 POINT (-46.63 -23.55)
+#&gt; 5  Mexico City 22.3  POINT (-99.13 19.43)
+#&gt; 6        Cairo 21.9   POINT (31.24 30.04)
+#&gt; 7     New York 18.8  POINT (-74.01 40.71)
+#&gt; 8        Lagos 15.4     POINT (3.38 6.52)
+#&gt; 9       Moscow 12.6   POINT (37.62 55.75)
+#&gt; 10      London  9.5   POINT (-0.13 51.51)</code></pre>
+
+<p>The <code>coords = c(&quot;lon&quot;, &quot;lat&quot;)</code> argument tells sf which columns hold the longitude and latitude, and it folds them into a single <code>geometry</code> column of <code>POINT</code> values. Once your data is an sf object, you can draw it with <code>geom_sf()</code> on top of any basemap and let sf handle the alignment for you.</p>
+
+<p><img src="screenshots/Bubble-Maps-in-R-sf-layers.webp" alt="geom_sf draws the boundary basemap, then sized points layer on top." class="img-responsive img-zoomable" loading="lazy" width="982" height="690" /></p>
+
+<p><em>Figure 3: <a class="auto-link" href="R-Maps-for-US-States-and-Counties.html" title="R Maps for US States & Counties: ggplot2 + tigris Package">geom_sf</a> draws the boundary basemap, then sized points layer on top.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>crs = 4326 means raw GPS longitude and latitude.</strong> The number 4326 is the EPSG code for WGS 84, the coordinate system your phone's GPS reports. Tagging your points with it tells sf how to line them up with any basemap that uses the same reference.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Redraw the North Carolina bubble map using <code>SID74</code> (sudden infant deaths) instead of <code>BIR74</code>. Reuse <code>county_centres</code> and change only the size aesthetic.</p>
+<pre><code class="language-r"># Reuse county_centres; map size to SID74 instead of BIR74
+# your code here
+</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ggplot(nc) +
+  geom_sf(fill = &quot;grey95&quot;, colour = &quot;grey70&quot;) +
+  geom_sf(data = county_centres, aes(size = SID74),
+          colour = &quot;darkblue&quot;, alpha = 0.6) +
+  scale_size_area(max_size = 10, name = &quot;Deaths (1974)&quot;) +
+  theme_void()</code></pre>
+
+<p><strong>Explanation:</strong> The only change is <code>aes(size = SID74)</code>. Because deaths are much rarer than births, the bubbles are far smaller, and <code>scale_size_area()</code> keeps their areas honest so you do not overstate the counts.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: a polished earthquake bubble map</h2>
+
+<p>Let's pull the pieces together into one finished map you could drop into a report. First a quick numeric summary of the earthquakes so we know what we are drawing.</p>
+
+<div class="webr-container" data-block-title="Summarise the earthquake data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise the earthquake data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quakes |&gt;
+  summarise(
+    n          = n(),
+    min_mag    = min(mag),
+    max_mag    = max(mag),
+    mean_depth = mean(depth)
+  )
+#&gt;      n min_mag max_mag mean_depth
+#&gt; 1 1000       4     6.4    311.371</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The summary confirms 1,000 quakes ranging from magnitude 4.0 to 6.4, with an average depth of about 311 km. Now the polished map: we sort so big quakes sit at the back, size by magnitude with an honest area scale, color by depth with a reversed viridis scale so shallow quakes show up in bright yellow, and finish with a clean theme and a subtitle that explains the colors.</p>
+
+<div class="webr-container" data-block-title="Build the final polished map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the final polished map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quakes |&gt;
+  arrange(desc(mag)) |&gt;
+  ggplot(aes(x = long, y = lat, size = mag, colour = depth)) +
+  geom_point(alpha = 0.5) +
+  scale_size_area(max_size = 7, name = &quot;Magnitude&quot;) +
+  scale_colour_viridis_c(option = &quot;viridis&quot;, name = &quot;Depth (km)&quot;,
+                         direction = -1) +
+  coord_quickmap() +
+  labs(title = &quot;Earthquakes near Fiji, sized by magnitude&quot;,
+       subtitle = &quot;Shallow quakes in yellow, deep quakes in dark blue&quot;,
+       x = &quot;Longitude&quot;, y = &quot;Latitude&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and every technique from this tutorial is on screen at once: coordinates as position, magnitude as honest area, depth as color, transparency and draw order taming the overlap, and a coordinate system that keeps the shape true. That is a publication-ready bubble map built entirely from a data frame and ggplot2.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each starter block runs as written, and the expected result is described so you can check your work. Use the distinct variable names in each starter so your code does not clash with the tutorial examples.</p>
+
+<h3>Exercise 1: Map only the strong quakes</h3>
+
+<p><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> <code>quakes</code> down to the strong events with magnitude 5 or greater, then draw a bubble map with <code>size = mag</code> and <code>colour = depth</code>. You should find 198 quakes that qualify.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: strong quakes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: strong quakes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Keep only magnitude 5.0 and above
+my_strong &lt;- subset(quakes, mag &gt;= 5)
+
+# your code here: plot my_strong as a bubble map, then check nrow(my_strong)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_strong &lt;- subset(quakes, mag &gt;= 5)
+nrow(my_strong)
+#&gt; [1] 198
+
+ggplot(my_strong, aes(x = long, y = lat, size = mag, colour = depth)) +
+  geom_point(alpha = 0.7) +
+  scale_size_area(max_size = 8) +
+  scale_colour_viridis_c() +
+  coord_quickmap()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>subset(quakes, mag &gt;= 5)</code> keeps the 198 strongest quakes, and the same bubble-map recipe reveals that the big events cluster tightly rather than spreading evenly.</p>
+
+</details>
+
+<h3>Exercise 2: Label the three largest cities</h3>
+
+<p>Draw a bubble map of all ten cities sized by population, then add non-overlapping text labels for only the three largest. Use the <a class="auto-link" href="ggplot2-Labels-and-Annotations.html" title="ggplot2 Labels and Annotations: Add Context Without Cluttering Your Chart">ggrepel</a> package, which nudges labels apart so they do not collide.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: label top cities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: label top cities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggrepel)
+
+# The three most populous cities
+my_top3 &lt;- cities |&gt; arrange(desc(pop)) |&gt; head(3)
+
+# your code here: bubble map of all cities + geom_text_repel labels for my_top3
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_top3 &lt;- cities |&gt; arrange(desc(pop)) |&gt; head(3)
+
+ggplot(cities, aes(x = lon, y = lat)) +
+  geom_point(aes(size = pop), colour = &quot;steelblue&quot;, alpha = 0.6) +
+  scale_size_area(max_size = 14) +
+  geom_text_repel(data = my_top3, aes(label = city), size = 4) +
+  coord_quickmap() +
+  labs(title = &quot;Ten cities, three largest labelled&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>arrange(desc(pop)) |&gt; head(3)</code> picks Tokyo, Delhi, and Shanghai, and <code>geom_text_repel()</code> draws their names with little connector lines so the text never sits on top of a bubble.</p>
+
+</details>
+
+<h3>Exercise 3: Map a rate, not a raw count</h3>
+
+<p>Raw counts favor big counties, so map a rate instead. For each North Carolina county compute the sudden infant death rate as <code>SID74 / BIR74</code>, then size the centroid bubbles by that rate. This one uses sf, so run it in your local R session.</p>
+
+<pre><code class="language-r"># Compute the death-per-birth rate for each county
+nc_rate &lt;- nc |&gt; mutate(rate = SID74 / BIR74)
+rate_centres &lt;- st_centroid(nc_rate)
+
+# your code here: bubble map of rate_centres sized by rate, on the nc basemap
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">nc_rate &lt;- nc |&gt; mutate(rate = SID74 / BIR74)
+rate_centres &lt;- st_centroid(nc_rate)
+
+ggplot(nc_rate) +
+  geom_sf(fill = &quot;grey95&quot;, colour = &quot;grey70&quot;) +
+  geom_sf(data = rate_centres, aes(size = rate),
+          colour = &quot;firebrick&quot;, alpha = 0.6) +
+  scale_size_area(max_size = 10, name = &quot;SIDS rate&quot;) +
+  theme_void() +
+  labs(title = &quot;Sudden infant death rate by county, 1974&quot;)</code></pre>
+
+<p><strong>Explanation:</strong> Dividing deaths by births turns raw counts into a comparable rate, so a small county with a high rate is no longer hidden behind a big county with a high count. This is the same fairness fix that matters for choropleth maps.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between a point map and a bubble map?</h3>
+
+<p>A point map draws every location at the same size, so it answers only "where?". A bubble map maps a value to the <code>size</code> aesthetic, so each point's area also answers "how much?". A bubble map is a point map with one extra job.</p>
+
+<h3>Do I need the sf package to make a bubble map?</h3>
+
+<p>No. If your data has longitude and latitude columns, ggplot2 alone draws a perfectly good point or bubble map with <code>geom_point()</code>. You only reach for sf when you want real boundary shapes such as coastlines or county borders drawn behind the points with <code>geom_sf()</code>.</p>
+
+<h3>Why does my map look stretched or squashed?</h3>
+
+<p>A plain scatterplot treats one degree of longitude and one degree of latitude as the same width, but they are not equal on the ground. Add <code>coord_quickmap()</code> for a quick fix, or <code>coord_sf()</code> when you are working with sf objects, and the aspect ratio will look right.</p>
+
+<h3>Should I use scale_size or scale_size_area?</h3>
+
+<p>Use <code>scale_size_area()</code> for bubble maps. It maps your value to the circle's area, which is what the eye actually judges. Plain <code>scale_size()</code> maps the value to the radius, which exaggerates large values because area grows with the square of the radius.</p>
+
+<h3>How do I stop bubbles from covering each other?</h3>
+
+<p>Three habits help. Sort the data so the largest bubbles are drawn first and sit at the back, add transparency with <code>alpha</code> so overlaps stay readable, and keep the size range modest with <code>max_size</code> so no single bubble dominates.</p>
+
+<h3>Which coordinate system should raw GPS points use?</h3>
+
+<p>Longitude and latitude straight from a GPS device are in WGS 84, whose EPSG code is 4326. When you convert a table with <code>st_as_sf()</code>, pass <code>crs = 4326</code> so sf knows how to align your points with a basemap.</p>
+
+<h2>Summary</h2>
+
+<p>A point map is a scatterplot of longitude and latitude, and a bubble map adds a <code>size</code> aesthetic so each point's area carries a value. Build the points live with ggplot2, size them honestly by area, and add real boundaries with sf only when you need geographic context.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Function</th>
+<th>Key argument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plot points at coordinates</td>
+<td><code>geom_point()</code></td>
+<td><code>aes(x = lon, y = lat)</code></td>
+</tr>
+<tr>
+<td>Turn points into bubbles</td>
+<td><code>aes(size = value)</code></td>
+<td>inside <code>aes()</code></td>
+</tr>
+<tr>
+<td>Size bubbles by area (honest)</td>
+<td><code>scale_size_area()</code></td>
+<td><code>max_size</code></td>
+</tr>
+<tr>
+<td>Fix the map aspect ratio</td>
+<td><code>coord_quickmap()</code></td>
+<td>none</td>
+</tr>
+<tr>
+<td>Draw boundary polygons</td>
+<td><code>geom_sf()</code></td>
+<td><code>data =</code> the sf object</td>
+</tr>
+<tr>
+<td>One point per region</td>
+<td><code>st_centroid()</code></td>
+<td>the sf object</td>
+</tr>
+<tr>
+<td>Convert lon/lat to sf</td>
+<td><code>st_as_sf()</code></td>
+<td><code>coords</code>, <code>crs = 4326</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Three takeaways to keep:</p>
+
+<ol>
+
+<li>A map is a scatterplot: longitude is x, latitude is y.</li>
+
+<li>Map values to area with <code>scale_size_area()</code>, never to radius, or you will exaggerate big values.</li>
+
+<li>Reach for sf and <code>geom_sf()</code> only when you need real boundaries behind your points.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation - <code>geom_point()</code> reference. <a href="https://ggplot2.tidyverse.org/reference/geom_point.html">Link</a></li>
+
+<li>ggplot2 documentation - <code>scale_size()</code> and <code>scale_size_area()</code> reference. <a href="https://ggplot2.tidyverse.org/reference/scale_size.html">Link</a></li>
+
+<li>ggplot2 documentation - <code>geom_sf()</code> and <code>coord_sf()</code> reference. <a href="https://ggplot2.tidyverse.org/reference/ggsf.html">Link</a></li>
+
+<li>ggplot2 documentation - viridis color scales. <a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html">Link</a></li>
+
+<li>sf package - Simple Features for R. <a href="https://r-spatial.github.io/sf/">Link</a></li>
+
+<li>sf package - Simple Features vignette. <a href="https://r-spatial.github.io/sf/articles/sf1.html">Link</a></li>
+
+<li>The R Graph Gallery - Bubble map. <a href="https://r-graph-gallery.com/bubble-map.html">Link</a></li>
+
+<li>R datasets - the <code>quakes</code> earthquake data. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/quakes.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Choropleth-Maps-in-R.html">Choropleth Maps in R</a> - shade whole regions by value with sf and <code>geom_sf()</code>, the natural companion to bubble maps.</li>
+
+<li><a href="Interactive-Maps-in-R-with-leaflet.html">Interactive Maps in R with leaflet</a> - turn a static map into a pan-and-zoom map your readers can explore.</li>
+
+<li><a href="ggplot2-Scale-Transformations-in-R.html">Scale Transformations in ggplot2 Beyond Log</a> - go deeper on the scale functions that control size and color.</li>
+
+</ul>
+
+{% endraw %}
