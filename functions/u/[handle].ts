@@ -364,6 +364,24 @@ function ownerScript(pageHandle: string): string {
       var md = '[![My r-statistics.co learner card](' + location.origin + '/u/' + p.handle + '/card.svg)](' + location.origin + '/u/' + p.handle + ')';
       try { navigator.clipboard.writeText(md); embed.textContent = 'Markdown copied'; } catch (e) {}
     });
+    fetch('/api/me/daily', { headers: { 'Authorization': 'Bearer ' + tok } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d || !d.tasks || !d.tasks.length) return;
+        var wrap = document.getElementById('own-daily');
+        var list = document.getElementById('own-daily-list');
+        d.tasks.forEach(function(t){
+          var a = document.createElement('a');
+          a.href = t.href;
+          a.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;color:' + (t.done ? '#0f7a52' : '#16181d') + ';text-decoration:none';
+          a.innerHTML = '<span style="flex:none;width:16px;height:16px;border-radius:5px;border:1.5px solid ' + (t.done ? '#0f7a52' : '#c9d2e6') + ';background:' + (t.done ? '#0f7a52' : '#fff') + ';display:inline-flex;align-items:center;justify-content:center">' + (t.done ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>' : '') + '</span><span>' + t.hub.replace(/-/g, ' ') + '</span>';
+          list.appendChild(a);
+        });
+        if (d.all_done) document.getElementById('own-daily-done').style.display = 'block';
+        wrap.style.display = 'block';
+      }).catch(function(){});
+    var dl = document.getElementById('own-dl');
+    if (dl) dl.href = '/u/' + p.handle + '/card.svg';
     var li = document.getElementById('own-li');
     if (li) li.href = 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(location.origin + '/u/' + p.handle);
     var xs = document.getElementById('own-x');
@@ -521,6 +539,7 @@ function ownerBar(): string {
       <button class="btn" id="own-embed" type="button">Copy README embed</button>
       <a class="btn" id="own-li" href="#" target="_blank" rel="noopener">Share on LinkedIn</a>
       <a class="btn" id="own-x" href="#" target="_blank" rel="noopener">Share on X</a>
+      <a class="btn" id="own-dl" href="#" download="r-statistics-learner-card.svg">Download card</a>
     </div>
     <div id="own-editor">
       <div class="grid2">
@@ -558,6 +577,11 @@ function ownerBar(): string {
       <label>Pinned work 3 code</label>
       <textarea id="f-sn3-code" maxlength="2000"></textarea>
       <div class="row"><button class="btn primary" id="own-save" type="button">Save profile</button><span class="msg" id="own-msg"></span></div>
+    </div>
+    <div id="own-daily" style="display:none;border-top:1px solid #eadfae;margin-top:12px;padding-top:12px">
+      <b style="font-size:13.5px">Today's set</b>
+      <div id="own-daily-list" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+      <div id="own-daily-done" style="display:none;color:#0f7a52;font-size:12.5px;margin-top:6px">All three done. Bonus XP is yours.</div>
     </div>
   </div>`;
 }
