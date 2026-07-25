@@ -1,0 +1,881 @@
+---
+title: "Accessible Data Visualization in R: Color Vision and Contrast"
+description: "Make accessible data visualization in R: learn color vision deficiency, colorblind-safe palettes, WCAG contrast ratios, and redundant encoding in ggplot2."
+keywords: "accessible data visualization, colorblind ggplot2, color vision deficiency, colorblind-safe palette, WCAG contrast ratio, relative luminance R, Okabe-Ito palette, viridis R, redundant encoding"
+mathjax: true
+webr: true
+curriculum_id: "GG2-13.3"
+post_type: "C"
+auto_link_terms: "accessible data visualization|colorblind-safe palette|colorblind-friendly palette|color vision deficiency|WCAG contrast ratio|relative luminance|Okabe-Ito palette|color contrast|colorblind accessibility|redundant encoding"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Accessible Charts"
+sidebar_order: "83"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Accessible data visualization means every reader can decode your chart, including the roughly 1 in 12 men and 1 in 200 women who see color differently. Two levers do most of the work: choosing colors that survive color blindness and grayscale, and keeping enough brightness contrast between your marks and the background. This tutorial builds both from scratch in R and ggplot2, and you can run every example as you read.</p>
+
+<h2>Why do readers see the same chart differently?</h2>
+
+<p>A chart that looks perfectly clear to you can be unreadable to the person sitting next to you. The reason is that human color vision varies, and a surprisingly large slice of your audience does not see the red-versus-green distinction you might be relying on. If your chart's meaning lives entirely in color, part of your audience loses that meaning.</p>
+
+<p>We will work in the tidyverse dialect throughout: <code>ggplot2</code> for the charts and a little <code>dplyr</code> for data. Let's start with an ordinary scatter plot and let ggplot2 pick the colors, the way most people write their first plot.</p>
+
+<div class="webr-container" data-block-title="Load libraries and plot fuel economy by drive type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and plot fuel economy by drive type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+
+library(scales)
+# The mpg data splits 234 cars into three drive types; colour will encode them
+table(mpg$drv)
+#&gt;
+#&gt;   4   f   r
+#&gt; 103 106  25
+
+# An everyday scatter: fuel economy by drive type, default ggplot2 colours
+ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
+  geom_point(size = 2) +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway MPG&quot;, colour = &quot;Drive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those are the three groups we color by: 103 four-wheel, 106 front, and 25 rear-drive cars. Run the plot and you get three colored point clouds, one per drive type. It looks fine. But which three colors did ggplot2 actually choose? We can ask directly. <code>scales::hue_pal()</code> is the function that builds ggplot2's default colors, and calling its result with <code>(3)</code> returns three of them, spaced evenly around a color wheel.</p>
+
+<div class="webr-container" data-block-title="Reveal the default colour values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reveal the default colour values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># What three colours did ggplot2 assign to the three groups?
+scales::hue_pal()(3)
+#&gt; [1] &quot;#F8766D&quot; &quot;#00BA38&quot; &quot;#619CFF&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three hex codes are a salmon red (<code>#F8766D</code>), a green (<code>#00BA38</code>), and a blue (<code>#619CFF</code>). That first pair, a red and a green at similar brightness, is exactly the combination that the most common form of color blindness cannot tell apart. The default palette produces exactly that risky pairing.</p>
+
+<p>To understand why, you need a quick model of how color vision works. Your eye has three kinds of color-sensing cells called cones, tuned to long (reddish), medium (greenish), and short (bluish) wavelengths. Color vision deficiency, often shortened to CVD, happens when one cone type is missing or shifted. That produces four broad types, shown below in order of how common they are.</p>
+
+<p><img src="screenshots/Accessible-Data-Visualization-in-R-cvd-types.webp" alt="The four types of color vision deficiency, arranged by how common they are." class="img-responsive img-zoomable" loading="lazy" width="1940" height="710" /></p>
+
+<p><em>Figure 1: The four types of color vision deficiency, by how common they are.</em></p>
+
+<p>The two red-green types, deuteranopia (green-weak) and protanopia (red-weak), are by far the most frequent and together affect about 8% of men of Northern European descent. Tritanopia (blue-yellow) is rare, and complete monochromacy (no color at all) is rarer still. The practical takeaway is blunt: red versus green is the single riskiest color contrast you can build a chart around.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never let red versus green carry meaning on its own.</strong> This is the pairing that deuteranopia and protanopia, the two most common deficiencies, collapse into the same muddy tone, so any chart that separates groups only by red and green is unreadable for roughly 1 in 12 male viewers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the five colors ggplot2 would use for a five-group chart, then pick out the pair most likely to be confused as red and green.</p>
+<div class="webr-container" data-block-title="Your turn: inspect a five-colour default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: inspect a five-colour default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Print the 5 default ggplot2 colours with scales::hue_pal()
+# your code here
+
+#&gt; Expected: a character vector of 5 hex codes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Five-colour default solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Five-colour default solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scales::hue_pal()(5)
+#&gt; [1] &quot;#F8766D&quot; &quot;#A3A500&quot; &quot;#00BF7D&quot; &quot;#00B0F6&quot; &quot;#E76BF3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The red <code>#F8766D</code> and the green <code>#00BF7D</code> sit at similar lightness, so a red-green colorblind reader sees them as nearly the same color. The more groups you add with the default scale, the more likely two of them land in a confusable pair.</p>
+
+</details>
+</section>
+
+<h2>What makes a color palette colorblind-safe?</h2>
+
+<p>A <a class="auto-link" href="Publication-Quality-Figures-in-R.html" title="Publication-Ready ggplot2 Figures: The Checklist for Journals and Theses">colorblind-safe palette</a> is one whose colors stay distinct even after a cone type drops out. Two design ideas make that happen. The first is spreading colors apart in more than just hue, so they also differ in brightness. The second is perceptual uniformity, meaning equal steps in your data map to equal-looking steps in color across the whole range. Two families give you this for free in ggplot2.</p>
+
+<p>The first is <strong>viridis</strong>, a set of continuous scales that ship with ggplot2. Viridis was engineered to stay readable under all common CVD types and even in grayscale. Use it for continuous quantities with <code>scale_colour_viridis_c()</code> (or <code>scale_fill_viridis_c()</code>).</p>
+
+<p>The second is <strong>Okabe-Ito</strong>, a <a class="auto-link" href="ggplot2-scale_color_brewer-in-R.html" title="ggplot2 scale_color_brewer() in R: ColorBrewer Palettes">qualitative palette</a> of eight colors designed by Masataka Okabe and Kei Ito specifically so that no two are confusable under color blindness. It is the go-to choice for categorical groups. ggplot2 does not carry it as a named scale, so we define it as a plain vector of hex codes.</p>
+
+<div class="webr-container" data-block-title="Define the Okabe-Ito palette">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the Okabe-Ito palette</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The eight Okabe-Ito colours, safe across all CVD types
+okabe_ito &lt;- c(&quot;#E69F00&quot;, &quot;#56B4E9&quot;, &quot;#009E73&quot;, &quot;#F0E442&quot;,
+               &quot;#0072B2&quot;, &quot;#D55E00&quot;, &quot;#CC79A7&quot;, &quot;#000000&quot;)
+okabe_ito
+#&gt; [1] &quot;#E69F00&quot; &quot;#56B4E9&quot; &quot;#009E73&quot; &quot;#F0E442&quot; &quot;#0072B2&quot; &quot;#D55E00&quot; &quot;#CC79A7&quot;
+#&gt; [8] &quot;#000000&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That printed vector is just the eight hex codes: orange, sky blue, bluish green, yellow, blue, vermillion, reddish purple, and black. To use them, hand a named subset to <code>scale_colour_manual()</code>, matching each data value to a color. Here is the same scatter from before, now on a safe palette.</p>
+
+<div class="webr-container" data-block-title="Recolour the scatter with Okabe-Ito">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recolour the scatter with Okabe-Ito</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
+  geom_point(size = 2) +
+  scale_colour_manual(
+    values = c(&quot;4&quot; = &quot;#0072B2&quot;, &quot;f&quot; = &quot;#E69F00&quot;, &quot;r&quot; = &quot;#009E73&quot;),
+    labels = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)
+  ) +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway MPG&quot;, colour = &quot;Drive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three groups now use blue, orange, and green from Okabe-Ito. These were chosen so they differ in both hue and brightness, which is what keeps them apart when a cone type is missing. For a continuous variable, reach for viridis instead. Below we color the same points by city mileage, a continuous number.</p>
+
+<div class="webr-container" data-block-title="Colour a continuous variable with viridis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Colour a continuous variable with viridis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = cty)) +
+  geom_point(size = 2) +
+  scale_colour_viridis_c() +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway MPG&quot;, colour = &quot;City MPG&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points run from dark purple (low city MPG) through green to bright yellow (high). Because viridis brightness increases steadily with the value, a reader can rank the points even if they cannot see the hues at all. That is the property a rainbow scale lacks.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Viridis is the safe default for continuous color.</strong> Its brightness rises steadily with the data, so it stays readable under every type of color blindness and even in black and white, which is why it beats rainbow-style scales for any quantity you want people to actually rank.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Color the scatter by <code>class</code> (a 7-level category) using the discrete viridis scale instead of a manual palette.</p>
+<div class="webr-container" data-block-title="Your turn: viridis discrete by class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: viridis discrete by class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point(size = 2) +
+  # add the discrete viridis scale here
+  labs(colour = &quot;Class&quot;)
+
+#&gt; Expected: the same scatter with a purple-to-yellow viridis colour set</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Viridis discrete solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Viridis discrete solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point(size = 2) +
+  scale_colour_viridis_d() +
+  labs(colour = &quot;Class&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale_colour_viridis_d()</code> picks seven evenly spaced viridis colors, one per class. The <code>_d</code> suffix means discrete (one color per category); <code>_c</code> means continuous. Even with seven groups the brightness ordering keeps them legible.</p>
+
+</details>
+</section>
+
+<h2>How can you simulate color blindness to test a chart?</h2>
+
+<p>Choosing a safe palette is step one. Step two is checking your specific chart, because a palette that is safe in theory can still fail once you subset it, tweak it, or add a risky custom color. The most reliable check is to transform your colors through a model of each deficiency and look at the result. The <code>colorspace</code> package does this with <code>deutan()</code>, <code>protan()</code>, and <code>tritan()</code>, one function per CVD type.</p>
+
+<p>That package is not one of the ones that runs in your browser here, so run the next block in your own R session (for example in RStudio) after <code>install.packages(&quot;colorspace&quot;)</code>. It takes your palette and returns how those colors appear to someone with each deficiency.</p>
+
+<pre><code class="language-r">library(colorspace)
+
+# How the Okabe-Ito colours appear under two CVD types
+deutan(okabe_ito)   # deuteranopia (green-weak): the most common type
+#&gt; [1] &quot;#CAB411&quot; &quot;#87A4E8&quot; &quot;#8A8676&quot; &quot;#FCE34E&quot; &quot;#3B67B1&quot; &quot;#9E8C00&quot; &quot;#9498A5&quot;
+#&gt; [8] &quot;#000000&quot;
+tritan(okabe_ito)   # tritanopia (blue-yellow): rare
+#&gt; [1] &quot;#FB8C87&quot; &quot;#00C2C6&quot; &quot;#009E92&quot; &quot;#FFD4C5&quot; &quot;#008289&quot; &quot;#EB4050&quot; &quot;#D6788A&quot;
+#&gt; [8] &quot;#000000&quot;</code></pre>
+
+<p>Each call returns a new set of eight hex codes, the simulated appearance of the palette. The important test is whether the eight simulated colors are still distinct from one another. For Okabe-Ito they are, which is the whole point of the palette.</p>
+
+<p>Reading hex codes is hard, so let's see them as swatches. The helper below draws any vector of colors as labeled tiles, and it even picks black or white text depending on how dark each tile is (a tiny preview of the contrast idea in the next section). We feed it the deuteranopia-simulated colors we just computed, pasted in as a vector so this block runs anywhere.</p>
+
+<div class="webr-container" data-block-title="View the simulated palette as swatches">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">View the simulated palette as swatches</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw a colour vector as labelled swatches, with legible text on each tile
+show_swatches &lt;- function(cols, labels = cols) {
+  brightness &lt;- colMeans(col2rgb(cols)) / 255
+  df &lt;- data.frame(x = seq_along(cols), fill = cols, lab = labels,
+                   txt = ifelse(brightness &lt; 0.5, &quot;white&quot;, &quot;black&quot;))
+  ggplot(df, aes(x = x, y = 1, fill = fill)) +
+    geom_tile(width = 0.9, height = 0.9) +
+    geom_text(aes(label = lab, colour = txt), size = 3) +
+    scale_fill_identity() +
+    scale_colour_identity() +
+    theme_void()
+}
+
+# Deuteranopia-simulated Okabe-Ito, from the local colorspace run above
+okabe_deutan &lt;- c(&quot;#CAB411&quot;, &quot;#87A4E8&quot;, &quot;#8A8676&quot;, &quot;#FCE34E&quot;,
+                  &quot;#3B67B1&quot;, &quot;#9E8C00&quot;, &quot;#9498A5&quot;, &quot;#000000&quot;)
+
+show_swatches(okabe_deutan)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You get eight tiles, and crucially they are still eight visibly different tiles. The orange has shifted toward gold and the greens have muted, but a reader with deuteranopia can still tell every group apart. That is what "safe" looks like when you test it rather than assume it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Simulation is a test, not a fix.</strong> Running <code>deutan()</code> on your palette tells you whether groups survive color blindness; it does not change your chart. If two simulated swatches look alike, that is your signal to pick different colors or add a second encoding, which we cover below.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You already defined <code>show_swatches()</code>. Render the tritanopia-simulated Okabe-Ito palette (its hex codes are printed above) to see how blue-yellow color blindness reshapes it.</p>
+<div class="webr-container" data-block-title="Your turn: swatch the tritan palette">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: swatch the tritan palette</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">okabe_tritan &lt;- c(&quot;#FB8C87&quot;, &quot;#00C2C6&quot;, &quot;#009E92&quot;, &quot;#FFD4C5&quot;,
+                  &quot;#008289&quot;, &quot;#EB4050&quot;, &quot;#D6788A&quot;, &quot;#000000&quot;)
+# render these with show_swatches()
+# your code here
+
+#&gt; Expected: eight swatches in the tritan-simulated colours</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tritan swatch solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tritan swatch solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_swatches(okabe_tritan)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Under tritanopia the yellow drifts toward pink and the blues shift toward teal, yet the eight swatches stay distinct. A palette that survives all three simulations, as Okabe-Ito does, is what we mean by colorblind-safe.</p>
+
+</details>
+</section>
+
+<h2>What is color contrast and why does it matter?</h2>
+
+<p>Color choice handles who can tell your groups apart. Contrast handles whether anyone can read your text and see your marks at all. Contrast is the brightness gap between two colors, most often between text and its background, or between a data mark and the panel behind it. Low contrast makes labels vanish for readers with low vision, on dim screens, and in bright sunlight.</p>
+
+<p>The web accessibility standard, WCAG, turns this into a number you can compute. First it converts a color to a single brightness value called relative luminance, then it compares two luminances as a ratio. Both are short formulas, and both are just arithmetic you can run in base R.</p>
+
+<p>The luminance step starts by undoing the gamma curve baked into screen colors, then takes a weighted average that reflects how sensitive the eye is to each channel (green counts most, blue least). If the math is not your thing, skip to the code below; the function does exactly what the formulas say.</p>
+
+<p>For each channel value $c$ (red, green, or blue, scaled to the 0-to-1 range), linearize it:</p>
+
+<p>$$ c_{lin} = \begin{cases} \dfrac{c}{12.92} & c \le 0.03928 \\[2mm] \left(\dfrac{c + 0.055}{1.055}\right)^{2.4} & c > 0.03928 \end{cases} $$</p>
+
+<p>Then combine the three linearized channels into one luminance $L$:</p>
+
+<p>$$ L = 0.2126\,R_{lin} + 0.7152\,G_{lin} + 0.0722\,B_{lin} $$</p>
+
+<p>Here is that formula as an R function. It takes any hex color (or several) and returns luminance on a 0 (black) to 1 (white) scale.</p>
+
+<div class="webr-container" data-block-title="Define the relative luminance function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the relative luminance function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># WCAG relative luminance of a hex colour, from 0 (black) to 1 (white)
+relative_luminance &lt;- function(hex) {
+  channels &lt;- col2rgb(hex) / 255
+  lin &lt;- ifelse(channels &lt;= 0.03928,
+                channels / 12.92,
+                ((channels + 0.055) / 1.055) ^ 2.4)
+  as.numeric(0.2126 * lin[1, ] + 0.7152 * lin[2, ] + 0.0722 * lin[3, ])
+}
+
+round(relative_luminance(c(&quot;#FFFFFF&quot;, &quot;#000000&quot;, &quot;#0072B2&quot;, &quot;#F0E442&quot;)), 4)
+#&gt; [1] 1.0000 0.0000 0.1525 0.7441</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output confirms the scale: white is 1, black is 0, the Okabe-Ito blue is a dark 0.15, and the Okabe-Ito yellow is a bright 0.74. Now the contrast ratio. WCAG defines it as the lighter luminance plus a small constant, divided by the darker luminance plus the same constant:</p>
+
+<p>$$ \text{contrast} = \frac{L_{light} + 0.05}{L_{dark} + 0.05} $$</p>
+
+<p>The ratio runs from 1:1 (two identical colors) up to 21:1 (black on white). WCAG asks for at least 4.5:1 for normal body text and 3:1 for large text or graphical objects like lines and points. Here is the function and three quick tests.</p>
+
+<div class="webr-container" data-block-title="Define the contrast ratio function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the contrast ratio function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># WCAG contrast ratio between a foreground and background colour
+contrast_ratio &lt;- function(foreground, background) {
+  l1 &lt;- relative_luminance(foreground)
+  l2 &lt;- relative_luminance(background)
+  (pmax(l1, l2) + 0.05) / (pmin(l1, l2) + 0.05)
+}
+
+round(contrast_ratio(&quot;#767676&quot;, &quot;#FFFFFF&quot;), 2)   # mid grey text on white
+#&gt; [1] 4.54
+round(contrast_ratio(&quot;#E69F00&quot;, &quot;#FFFFFF&quot;), 2)   # Okabe orange on white
+#&gt; [1] 2.25
+round(contrast_ratio(&quot;#0072B2&quot;, &quot;#FFFFFF&quot;), 2)   # Okabe blue on white
+#&gt; [1] 5.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those three numbers against the 4.5:1 bar for text. The mid grey scores 4.54, so it just passes; in fact <code>#767676</code> is the lightest grey that clears 4.5:1 on white. The orange scores only 2.25 and fails badly, so orange text on white is too faint to read. The blue scores 5.19 and passes comfortably. Same palette, very different results depending on the background.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A colorblind-safe color is not automatically a readable one.</strong> Okabe orange survives color blindness but scores just 2.25 against white, far below the 4.5:1 text threshold. Palette safety and contrast are two separate checks, and you have to pass both.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Put text where it has contrast, not where it looks tidy.</strong> A light fill like orange or yellow needs dark text on top, and a dark fill needs light text; when in doubt, move labels onto the white panel, where black text scores a full 21:1.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Check whether the Okabe-Ito sky blue (<code>#56B4E9</code>) passes the 4.5:1 threshold for normal text on a white background.</p>
+<div class="webr-container" data-block-title="Your turn: contrast of sky blue on white">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: contrast of sky blue on white</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># use contrast_ratio() to test #56B4E9 against #FFFFFF
+# your code here
+
+#&gt; Expected: a single number; is it above 4.5?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sky-blue contrast solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sky-blue contrast solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(contrast_ratio(&quot;#56B4E9&quot;, &quot;#FFFFFF&quot;), 2)
+#&gt; [1] 2.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 2.31 is well below 4.5:1, so sky blue makes poor body text on white. It is fine for large marks like points and bars (which only need 3:1, and even that is borderline here), but not for small labels.</p>
+
+</details>
+</section>
+
+<h2>How do you make any ggplot chart accessible?</h2>
+
+<p>You now have the pieces: a safe palette, a way to test it, and a way to measure contrast. Putting them together into a routine turns "accessible" from a vague goal into four concrete steps you can apply to any chart.</p>
+
+<p><img src="screenshots/Accessible-Data-Visualization-in-R-accessible-workflow.webp" alt="Four steps that make almost any chart accessible: pick a safe palette, add a second encoding, check contrast, and test in grayscale." class="img-responsive img-zoomable" loading="lazy" width="2124" height="394" /></p>
+
+<p><em>Figure 2: Four steps that make almost any chart accessible.</em></p>
+
+<p>The step that does the most work is the second one: <strong>redundant encoding</strong>, meaning you map the same variable to a second aesthetic so color is never the only clue. For points, add <code>shape</code>. For lines, add <code>linetype</code>. Here is the scatter from the very start of the tutorial, now encoded twice: color and shape both track drive type.</p>
+
+<div class="webr-container" data-block-title="Dual-encode with colour and shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dual-encode with colour and shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(x = displ, y = hwy, colour = drv, shape = drv)) +
+  geom_point(size = 2.5, alpha = 0.9) +
+  scale_colour_manual(
+    values = c(&quot;4&quot; = &quot;#0072B2&quot;, &quot;f&quot; = &quot;#E69F00&quot;, &quot;r&quot; = &quot;#009E73&quot;),
+    labels = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)
+  ) +
+  scale_shape_manual(
+    values = c(&quot;4&quot; = 16, &quot;f&quot; = 17, &quot;r&quot; = 15),
+    labels = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)
+  ) +
+  labs(x = &quot;Engine size (litres)&quot;, y = &quot;Highway MPG&quot;,
+       colour = &quot;Drive&quot;, shape = &quot;Drive&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because we gave <code>colour</code> and <code>shape</code> the same labels, ggplot2 merges them into one legend. Now a reader can separate the groups by circle, triangle, and square even if the colors are useless to them. The same trick works for line charts, where <code>linetype</code> (solid, dashed, dotted) plays the role of shape. Let's build a small trend dataset to show it.</p>
+
+<div class="webr-container" data-block-title="Create a small trend dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a small trend dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">econ &lt;- data.frame(
+  year  = rep(2015:2020, times = 3),
+  group = rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 6),
+  value = c(1:6, 6:1, rep(3, 6)) + rep(c(0, 0.3, 0.6), each = 6)
+)
+
+ggplot(econ, aes(x = year, y = value, colour = group)) +
+  geom_line(linewidth = 1) +
+  scale_colour_manual(values = c(&quot;A&quot; = &quot;#0072B2&quot;, &quot;B&quot; = &quot;#D55E00&quot;, &quot;C&quot; = &quot;#009E73&quot;)) +
+  labs(x = &quot;Year&quot;, y = &quot;Value&quot;, colour = &quot;Group&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three colored lines, but color alone is doing the work. The inline exercise below fixes that. First, the fourth step in the workflow: the grayscale test. Printing and photocopying strip color entirely, so a truly robust chart still reads in pure brightness. We can preview that by converting our palette to its luminance-equivalent grays.</p>
+
+<div class="webr-container" data-block-title="Test the palette in grayscale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the palette in grayscale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">okabe_lum &lt;- relative_luminance(okabe_ito)
+round(okabe_lum, 3)
+#&gt; [1] 0.416 0.405 0.257 0.744 0.152 0.222 0.293 0.000
+
+show_swatches(grey(okabe_lum))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the first two numbers: orange is 0.416 and sky blue is 0.405, almost identical brightness. In the gray swatches they collapse into the same shade. Okabe-Ito is colorblind-safe, but it is not fully grayscale-safe, because several of its colors share a luminance. This is the reason redundant encoding matters even with a good palette: shape and linetype survive the grayscale test that color cannot.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Redundant encoding is what makes a chart robust, not the palette alone.</strong> A safe palette can still collapse in grayscale or under an unusual deficiency, but a group marked by both color and shape (or color and linetype) stays readable no matter what happens to the color channel.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the line chart and add <code>linetype = group</code> so the three lines stay separable in black and white.</p>
+<div class="webr-container" data-block-title="Your turn: add linetype to the lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add linetype to the lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(econ, aes(x = year, y = value, colour = group)) +
+  geom_line(linewidth = 1) +
+  # map linetype to group as well
+  scale_colour_manual(values = c(&quot;A&quot; = &quot;#0072B2&quot;, &quot;B&quot; = &quot;#D55E00&quot;, &quot;C&quot; = &quot;#009E73&quot;))
+
+#&gt; Expected: three lines that differ in both colour and dash pattern</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Colour plus linetype solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Colour plus linetype solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(econ, aes(x = year, y = value, colour = group, linetype = group)) +
+  geom_line(linewidth = 1) +
+  scale_colour_manual(values = c(&quot;A&quot; = &quot;#0072B2&quot;, &quot;B&quot; = &quot;#D55E00&quot;, &quot;C&quot; = &quot;#009E73&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Mapping the same variable to <code>linetype</code> adds a second channel. Even printed in grayscale, solid versus dashed versus dotted tells the three lines apart when their colors would merge.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's tie the palette, contrast, and grayscale ideas together in one polished chart: average city fuel economy for each vehicle class, split by drive type. We pick three Okabe-Ito fills that sit far apart in brightness, and we audit that spacing with <code>relative_luminance()</code> before drawing, so we are not just trusting the palette's reputation.</p>
+
+<div class="webr-container" data-block-title="Build and audit an accessible bar chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build and audit an accessible bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mean city MPG for each class and drive type
+mpg_summary &lt;- mpg |&gt;
+  group_by(class, drv) |&gt;
+  summarise(mean_cty = mean(cty), .groups = &quot;drop&quot;)
+
+# Three Okabe-Ito fills, chosen to sit far apart in brightness
+pal &lt;- c(&quot;4&quot; = &quot;#0072B2&quot;, &quot;f&quot; = &quot;#E69F00&quot;, &quot;r&quot; = &quot;#009E73&quot;)
+
+# Accessibility audit: how far apart are the fills in luminance?
+round(relative_luminance(pal), 3)
+#&gt; [1] 0.152 0.416 0.257
+
+ggplot(mpg_summary, aes(x = reorder(class, mean_cty), y = mean_cty, fill = drv)) +
+  geom_col(position = position_dodge(0.9)) +
+  scale_fill_manual(values = pal, labels = c(&quot;4&quot; = &quot;4WD&quot;, &quot;f&quot; = &quot;Front&quot;, &quot;r&quot; = &quot;Rear&quot;)) +
+  coord_flip() +
+  labs(x = NULL, y = &quot;Mean city MPG&quot;, fill = &quot;Drive&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The audit prints three luminances, 0.152, 0.416, and 0.257, which are comfortably spread out. Because the fills differ in brightness as well as hue, the bars stay distinguishable under color blindness and in grayscale, and because they come from Okabe-Ito, no two collapse under a deficiency. That is a chart that works for every reader, built from the same three checks you learned above.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. They use fresh variable names so they will not clobber the objects from earlier examples.</p>
+
+<h3>Exercise 1: Rescue a red-green line chart</h3>
+
+<p>The chart below encodes two teams with red and green only, the worst case for a colorblind reader. Rewrite it to be accessible: swap in Okabe-Ito colors that differ in brightness, add <code>linetype</code> as a second channel, and then use <code>contrast_ratio()</code> to confirm the two line colors differ in luminance.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: fix a red-green line chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: fix a red-green line chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+risky &lt;- data.frame(
+  month = rep(1:12, times = 2),
+  sales = c(cumsum(rnorm(12, 5)), cumsum(rnorm(12, 5))),
+  team  = rep(c(&quot;North&quot;, &quot;South&quot;), each = 12)
+)
+
+# Relies on red vs green only:
+ggplot(risky, aes(month, sales, colour = team)) +
+  geom_line(linewidth = 1) +
+  scale_colour_manual(values = c(&quot;North&quot; = &quot;#CC0000&quot;, &quot;South&quot; = &quot;#009900&quot;))
+
+# Rewrite below: Okabe-Ito colours + linetype, then a contrast check.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(risky, aes(month, sales, colour = team, linetype = team)) +
+  geom_line(linewidth = 1) +
+  scale_colour_manual(values = c(&quot;North&quot; = &quot;#0072B2&quot;, &quot;South&quot; = &quot;#E69F00&quot;))
+
+# Do the two line colours also differ in brightness?
+round(contrast_ratio(&quot;#0072B2&quot;, &quot;#E69F00&quot;), 2)
+#&gt; [1] 2.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Blue and orange are far apart in hue for color vision, and <code>linetype</code> keeps them apart in grayscale. The contrast ratio of 2.31 confirms they also differ in brightness (blue is darker), so the two lines never look identical, whatever the reader's vision.</p>
+
+</details>
+
+<h3>Exercise 2: Write a palette auditor</h3>
+
+<p>Not every color pair in a "safe" palette is safe in grayscale, as we saw with orange and sky blue. Write a function <code>flag_pairs()</code> that takes a palette and returns every pair of colors whose contrast ratio is below a threshold (default 1.15, meaning nearly identical brightness). Reuse <code>relative_luminance()</code> and <code>contrast_ratio()</code>, and <code>utils::combn()</code> to generate the pairs.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: flag low-contrast palette pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: flag low-contrast palette pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flag_pairs &lt;- function(palette, min_contrast = 1.15) {
+  # 1. make every 2-colour combination with combn()
+  # 2. compute the contrast ratio of each pair
+  # 3. return only the pairs below min_contrast
+}
+
+flag_pairs(okabe_ito)
+#&gt; Expected: a data frame of near-identical-brightness pairs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flag_pairs &lt;- function(palette, min_contrast = 1.15) {
+  combos &lt;- utils::combn(palette, 2)
+  ratio  &lt;- round(contrast_ratio(combos[1, ], combos[2, ]), 2)
+  out    &lt;- data.frame(colour_1 = combos[1, ], colour_2 = combos[2, ],
+                       contrast = ratio)
+  out    &lt;- out[out$contrast &lt; min_contrast, ]
+  rownames(out) &lt;- NULL
+  out
+}
+
+flag_pairs(okabe_ito)
+#&gt;   colour_1 colour_2 contrast
+#&gt; 1  #E69F00  #56B4E9     1.02
+#&gt; 2  #009E73  #D55E00     1.13
+#&gt; 3  #009E73  #CC79A7     1.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>combn()</code> builds all 28 pairs; we keep the three whose brightness is within about 15%. These are the pairs (orange and sky blue, green and vermillion, green and pink) that merge in grayscale, which is exactly why you add shape or linetype when any of them share a chart.</p>
+
+</details>
+
+<h3>Exercise 3: An accessible heatmap with legible labels</h3>
+
+<p>Build a tile heatmap of how many cars fall in each class-and-drive combination, filled with continuous viridis. Then add the count as a text label on each tile, choosing black text on the bright (high-count) tiles and white text on the dark ones, so every label stays readable.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter: accessible heatmap with labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter: accessible heatmap with labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">counts &lt;- as.data.frame(table(mpg$class, mpg$drv))
+names(counts) &lt;- c(&quot;class&quot;, &quot;drv&quot;, &quot;n&quot;)
+
+# your code here: geom_tile + scale_fill_viridis_c + geom_text whose
+# colour depends on whether the tile is in the bright half of the scale</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">counts &lt;- as.data.frame(table(mpg$class, mpg$drv))
+names(counts) &lt;- c(&quot;class&quot;, &quot;drv&quot;, &quot;n&quot;)
+
+ggplot(counts, aes(x = drv, y = class, fill = n)) +
+  geom_tile() +
+  geom_text(aes(label = n, colour = n &gt; max(n) / 2), size = 4, show.legend = FALSE) +
+  scale_fill_viridis_c() +
+  scale_colour_manual(values = c(&quot;TRUE&quot; = &quot;black&quot;, &quot;FALSE&quot; = &quot;white&quot;)) +
+  labs(x = &quot;Drive&quot;, y = &quot;Class&quot;, fill = &quot;Count&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Viridis makes the counts readable as a <a class="auto-link" href="ggplot2-scale_x_continuous-in-R.html" title="ggplot2 scale_x_continuous() in R: Customize the X Axis">continuous scale</a> for every reader. The <code>n &gt; max(n) / 2</code> test flips the label color: bright yellow tiles get black text, dark purple tiles get white text, so no label ever sits on a same-brightness background. That is the contrast rule applied automatically.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Accessible visualization comes down to two questions asked of every chart: can everyone tell the groups apart, and can everyone read the marks and text? The table below maps each situation to the tool that answers it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Situation</th>
+<th>Tool in R</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Continuous quantity, any reader</td>
+<td><code>scale_colour_viridis_c()</code> / <code>scale_fill_viridis_c()</code></td>
+<td>Brightness rises with value; safe for CVD and grayscale</td>
+</tr>
+<tr>
+<td>Categorical groups, any reader</td>
+<td>Okabe-Ito via <code>scale_colour_manual()</code></td>
+<td>Eight colors no CVD type confuses</td>
+</tr>
+<tr>
+<td>Test a chart for color blindness</td>
+<td><code>colorspace::deutan()</code> / <code>protan()</code> / <code>tritan()</code></td>
+<td>Simulates how colors appear under each deficiency</td>
+</tr>
+<tr>
+<td>Check text or mark legibility</td>
+<td><code>contrast_ratio()</code> vs WCAG 4.5:1 / 3:1</td>
+<td>Measures brightness gap to the background</td>
+</tr>
+<tr>
+<td>Survive grayscale and printing</td>
+<td><code>shape</code>, <code>linetype</code>, direct labels</td>
+<td>Redundant channels that need no color</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Accessible-Data-Visualization-in-R-overview.webp" alt="The pieces of accessible visualization covered in this tutorial: color vision, safe palettes, contrast, and redundant encoding." class="img-responsive img-zoomable" loading="lazy" width="1666" height="942" /></p>
+
+<p><em>Figure 3: The pieces of accessible visualization covered in this tutorial.</em></p>
+
+<p>The habits that make it automatic:</p>
+
+<ul>
+
+<li>Start from a safe palette: viridis for continuous data, Okabe-Ito for categories.</li>
+
+<li>Never let color be the only channel. Add shape to points and linetype to lines.</li>
+
+<li>Measure contrast instead of guessing. Aim for 4.5:1 on text, 3:1 on marks.</li>
+
+<li>Test, do not assume. Simulate CVD and preview in grayscale before you ship.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Should I use viridis or Okabe-Ito?</strong></p>
+
+<p>Match the palette to the data. Viridis is a continuous scale, so use it for numbers you want readers to rank (counts, prices, temperatures). Okabe-Ito is a discrete, qualitative palette, so use it for unordered categories (species, region, team). Reaching for the wrong one, like a qualitative palette on a continuous variable, makes smooth data look stepwise.</p>
+
+<p><strong>Are ggplot2's default colors colorblind-safe?</strong></p>
+
+<p>No. The default <code>scale_colour_hue()</code> spaces colors evenly around a color wheel at similar brightness, which regularly produces confusable red-green pairs, as <code>scales::hue_pal()(3)</code> showed. For anything you share, replace the default with viridis or Okabe-Ito.</p>
+
+<p><strong>What contrast ratio do I actually need?</strong></p>
+
+<p>WCAG asks for at least 4.5:1 between normal text and its background, and 3:1 for large text (roughly 18pt or 14pt bold) and for graphical objects like lines, points, and icons. Chart titles and axis labels are text, so hold them to 4.5:1.</p>
+
+<p><strong>How many distinct colors can a palette carry?</strong></p>
+
+<p>Fewer than you think. Okabe-Ito tops out at eight, and beyond about seven categories any color scheme gets hard to distinguish, especially under color blindness. If you need more groups, rethink the chart: facet into <a class="auto-link" href="Small-Multiples-in-R.html" title="Small Multiples in R: the 40-Tiny-Plots Workflow">small multiples</a>, use direct labels, or aggregate the long tail into an "other" category.</p>
+
+<p><strong>Does an accessible chart still need alt text?</strong></p>
+
+<p>Yes. Color and contrast serve readers who see the chart; a text description serves screen-reader users who do not. When you save a plot for the web with <code>ggsave()</code>, add a concise <code>alt</code> attribute in the HTML <code>&lt;img&gt;</code> tag that states the chart type, the variables, and the main takeaway.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wickham, H. (2016). <em>ggplot2: Elegant Graphics for Data Analysis</em>, Chapter 11: Colour scales and legends. Springer. <a href="https://ggplot2-book.org/scales-colour.html">Link</a></li>
+
+<li>Okabe, M. & Ito, K. (2008). <em>Color Universal Design (CUD): How to make figures and presentations that are friendly to colorblind people</em>. <a href="https://jfly.uni-koeln.de/color/">Link</a></li>
+
+<li>Smith, N. J. & van der Walt, S. (2015). <em>A Better Default Colormap for Matplotlib</em> (the viridis design talk). SciPy 2015. <a href="https://bids.github.io/colormap/">Link</a></li>
+
+<li>W3C (2018). <em>Web Content Accessibility Guidelines (WCAG) 2.1</em>, Success Criterion 1.4.3 Contrast (Minimum) and the contrast-ratio definition. <a href="https://www.w3.org/TR/WCAG21/#contrast-minimum">Link</a></li>
+
+<li>Zeileis, A., Fisher, J. C., Hornik, K., et al. (2020). <em>colorspace: A Toolbox for Manipulating and Assessing Colors and Palettes</em>. Journal of Statistical Software, 96(1). <a href="https://doi.org/10.18637/jss.v096.i01">Link</a></li>
+
+<li>Wilke, C. O. (2019). <em>Fundamentals of Data Visualization</em>, Chapter 19: Common pitfalls of color use. <a href="https://clauswilke.com/dataviz/color-pitfalls.html">Link</a></li>
+
+<li>ggplot2 reference. <em>The viridis scales</em>, <code>scale_colour_viridis_c()</code>. <a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="ggplot2-Colours.html" title="ggplot2 Colours: Choose Palettes That Are Beautiful, Accessible, and Honest">ggplot2 Colours</a></strong>, the foundations of mapping color aesthetics in ggplot2, the parent topic this tutorial builds on.</li>
+
+<li><strong>R Color Theory: Palettes and ColorBrewer</strong>, a deeper tour of sequential, diverging, and qualitative palette families and when each applies.</li>
+
+<li><strong><a class="auto-link" href="ggplot2-Themes-in-R.html" title="ggplot2 Themes: From theme_classic to Your Own Custom House Style">ggplot2 Themes</a></strong>, control panel background, gridlines, and text so your contrast choices survive into the final styled figure.</li>
+
+</ul>
+
+{% endraw %}
