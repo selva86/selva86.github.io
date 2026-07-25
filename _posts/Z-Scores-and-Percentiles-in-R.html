@@ -1,0 +1,1018 @@
+---
+title: "Z-Scores and Percentiles in R"
+description: "Learn z-scores and percentiles in R from scratch: standardize data with scale(), rank values using quantile() and ecdf(), and convert z-scores to percentiles."
+keywords: "z-scores in R, percentiles in R, scale function in R, standardize data in R, pnorm, qnorm, quantile in R, ecdf, standard score, percentile rank"
+mathjax: true
+webr: true
+curriculum_id: "ST2-1.7"
+post_type: "C"
+auto_link_terms: "z-score|z-scores|z-scores in R|z-score in R|standard score|standardize a variable|standardizing data|percentile rank|percentiles in R|percentile in R|convert z-score to percentile|empirical cumulative distribution"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Z-Scores & Percentiles"
+sidebar_order: "138"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A z-score tells you how many standard deviations a value sits above or below the mean. A percentile tells you what fraction of the data falls below that value. This tutorial builds both from scratch in base R, then shows you how to convert between them and where each one can quietly mislead you.</p>
+
+<h2>Why do raw numbers lie, and what fixes them?</h2>
+
+<p>Imagine a student who scored 80 in a math test and 65 in a reading test. The 80 looks better. But suppose the math class averaged 70 and the reading class averaged 55, and reading scores were far more tightly packed. Once you know how each class performed, the ranking can flip. Raw numbers measured on different scales are not directly comparable, and a z-score is the tool that fixes that.</p>
+
+<p>A z-score rescales any value onto one common ruler: its distance from the mean, measured in standard deviations. Let's compute both scores the same way and see which result is actually more impressive.</p>
+
+<div class="webr-container" data-block-title="Compare two scores on different scales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two scores on different scales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Math: scored 80, class mean 70, standard deviation 8
+# Reading: scored 65, class mean 55, standard deviation 4
+z_math    &lt;- (80 - 70) / 8
+z_reading &lt;- (65 - 55) / 4
+c(math = z_math, reading = z_reading)
+#&gt;    math reading 
+#&gt;    1.25    2.50 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what the code did. For each subject we subtracted the class mean from the student's score, then divided by that class's standard deviation. Math gives 1.25 and reading gives 2.50.</p>
+
+<p>Now the interpretation. The 80 in math is 1.25 standard deviations above its class average, but the 65 in reading is a full 2.50 standard deviations above its class average. Relative to their peers, the reading result is the standout, even though its raw number is lower. That reversal is the whole point of standardizing.</p>
+
+<p>The formula behind the two lines above is short. When you know the true population mean and standard deviation, the z-score of a value $x$ is:</p>
+
+<p>$$z = \frac{x - \mu}{\sigma}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x$ = the value you are scoring</li>
+
+<li>$\mu$ = the mean of the group (the Greek letter mu)</li>
+
+<li>$\sigma$ = the standard deviation of the group (the Greek letter sigma)</li>
+
+</ul>
+
+<p>In practice you almost never know the true population values, so you estimate them from a sample. The sample version swaps in the sample mean $\bar{x}$ and the sample standard deviation $s$:</p>
+
+<p>$$z = \frac{x - \bar{x}}{s}$$</p>
+
+<p>The sign and size of a z-score are easy to read once you know the pattern.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Z-score</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>exactly at the mean</td>
+</tr>
+<tr>
+<td>+1</td>
+<td>one standard deviation above the mean</td>
+</tr>
+<tr>
+<td>-2</td>
+<td>two standard deviations below the mean</td>
+</tr>
+<tr>
+<td>3 or more (either sign)</td>
+<td>unusually far out, a possible outlier</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A z-score is always relative to a reference group.</strong> The same score of 80 becomes a different z-score depending on whose mean and standard deviation you divide by, so a z-score only means something when you know which group it was measured against.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A student scored 66 in a science test where the class mean was 60 and the standard deviation was 4. Work out the z-score by hand in R.</p>
+<div class="webr-container" data-block-title="Your turn: compute a z-score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute a z-score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blanks, then run.
+# ex_score &lt;- 66
+# ex_z &lt;- (ex_score - ___) / ___
+# ex_z
+# Expected: 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Science score z-score solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Science score z-score solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_score &lt;- 66
+ex_z &lt;- (ex_score - 60) / 4
+ex_z
+#&gt; [1] 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The score is 6 points above the mean, and each standard deviation is worth 4 points, so 6 divided by 4 gives a z-score of 1.5.</p>
+
+</details>
+</section>
+
+<h2>How do you compute z-scores in R with scale()?</h2>
+
+<p>Doing the arithmetic by hand is fine for one number, but real data comes in whole columns, and you rarely know the mean and standard deviation in advance. You compute them from the data itself. R has a built-in function, <code>scale()</code>, that centers and standardizes a vector in one step.</p>
+
+<p>Let's set up a small class of twelve students with math and reading scores. We will standardize these columns and keep using this data frame for the rest of the tutorial.</p>
+
+<div class="webr-container" data-block-title="Create the students data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create the students data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">students &lt;- data.frame(
+  name    = c(&quot;Ana&quot;,&quot;Ben&quot;,&quot;Cai&quot;,&quot;Dee&quot;,&quot;Eli&quot;,&quot;Fay&quot;,&quot;Gus&quot;,&quot;Hana&quot;,&quot;Ivo&quot;,&quot;Jill&quot;,&quot;Kip&quot;,&quot;Lena&quot;),
+  math    = c(82, 70, 65, 90, 58, 74, 68, 88, 60, 76, 72, 95),
+  reading = c(78, 75, 80, 72, 69, 77, 74, 71, 82, 76, 70, 79)
+)
+head(students)
+#&gt;   name math reading
+#&gt; 1  Ana   82      78
+#&gt; 2  Ben   70      75
+#&gt; 3  Cai   65      80
+#&gt; 4  Dee   90      72
+#&gt; 5  Eli   58      69
+#&gt; 6  Fay   74      77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now hand the math column to <code>scale()</code>. Watch the output carefully, because it is not a plain vector.</p>
+
+<div class="webr-container" data-block-title="Standardize the math column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize the math column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scale(students$math)
+#&gt;              [,1]
+#&gt;  [1,]  0.60536639
+#&gt;  [2,] -0.40827036
+#&gt;  [3,] -0.83061900
+#&gt;  [4,]  1.28112422
+#&gt;  [5,] -1.42190711
+#&gt;  [6,] -0.07039144
+#&gt;  [7,] -0.57720982
+#&gt;  [8,]  1.11218477
+#&gt;  [9,] -1.25296765
+#&gt; [10,]  0.09854802
+#&gt; [11,] -0.23933090
+#&gt; [12,]  1.70347287
+#&gt; attr(,&quot;scaled:center&quot;)
+#&gt; [1] 74.83333
+#&gt; attr(,&quot;scaled:scale&quot;)
+#&gt; [1] 11.83856</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things happened. First, <code>scale()</code> returned a single-column matrix, not a vector, which is why every row is printed with a <code>[1,]</code> style index. Second, it attached two useful numbers at the bottom: <code>scaled:center</code> is the mean it subtracted (74.83) and <code>scaled:scale</code> is the standard deviation it divided by (11.84). So <code>scale()</code> computed the mean and standard deviation from your data automatically.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>scale() returns a matrix, not a vector.</strong> If you store the result straight into a data frame column you get a matrix column that can misbehave in later steps. Wrap it in <code>as.numeric()</code> to get a clean numeric vector.</div></div>
+
+<p>Let's do exactly that and round the result so it is easy to read.</p>
+
+<div class="webr-container" data-block-title="Store z-scores as a clean vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Store z-scores as a clean vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">students$math_z &lt;- as.numeric(scale(students$math))
+round(students$math_z, 2)
+#&gt;  [1]  0.61 -0.41 -0.83  1.28 -1.42 -0.07 -0.58  1.11 -1.25  0.10 -0.24  1.70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ana's 82 becomes a z-score of 0.61 here. Notice that back in the opening section a score of 80 gave a z-score of 1.25, because that was a different class with a lower average. Same idea, different reference group, different z-score.</p>
+
+<p>A standardized column always has the same two properties: its mean is 0 and its standard deviation is 1. That is what "standard" refers to. Let's confirm it.</p>
+
+<div class="webr-container" data-block-title="A standardized column has mean 0 and SD 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A standardized column has mean 0 and SD 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(mean = mean(students$math_z), sd = sd(students$math_z)), 4)
+#&gt; mean   sd 
+#&gt;    0    1 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean comes back as 0 and the standard deviation as 1, exactly as promised. You can also standardize several columns in one call by passing a data frame of numeric columns.</p>
+
+<div class="webr-container" data-block-title="Standardize two columns at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize two columns at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scaled_scores &lt;- scale(students[, c(&quot;math&quot;,&quot;reading&quot;)])
+round(head(scaled_scores), 2)
+#&gt;       math reading
+#&gt; [1,]  0.61    0.66
+#&gt; [2,] -0.41   -0.06
+#&gt; [3,] -0.83    1.14
+#&gt; [4,]  1.28   -0.78
+#&gt; [5,] -1.42   -1.50
+#&gt; [6,] -0.07    0.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each column is standardized on its own terms, using its own mean and standard deviation. Ana (row 1) is 0.61 standard deviations above average in math and 0.66 above in reading, so she is slightly stronger in reading relative to her class.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>scale() uses the sample standard deviation.</strong> It divides by the same n minus 1 formula that <code>sd()</code> uses, which is the right choice when your data is a sample rather than the entire population. If you ever need the population version, divide by your own hand-computed population standard deviation instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Standardize the <code>reading</code> column into a clean numeric vector and round it to two decimals.</p>
+<div class="webr-container" data-block-title="Your turn: standardize reading">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: standardize reading</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blank, then run.
+# ex_reading_z &lt;- as.numeric(scale(students$___))
+# round(ex_reading_z, 2)
+# Expected: a 12-value vector, first value 0.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standardize reading solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize reading solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_reading_z &lt;- as.numeric(scale(students$reading))
+round(ex_reading_z, 2)
+#&gt;  [1]  0.66 -0.06  1.14 -0.78 -1.50  0.42 -0.30 -1.02  1.62  0.18 -1.26  0.90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale()</code> centers and standardizes the reading column, and <code>as.numeric()</code> strips the matrix wrapper so you get a plain vector.</p>
+
+</details>
+</section>
+
+<h2>What is a percentile, and how do you read it off your data?</h2>
+
+<p>A percentile answers a ranking question: what fraction of the data falls at or below a given value? If a score is at the 90th percentile, 90 percent of the values are at or below it. Percentiles are intuitive because they need no assumptions, they just count positions in your actual data.</p>
+
+<p>There are two directions you might want to go, and R has a function for each. Use <code>quantile()</code> when you have a percentile and want the value at it. Let's find the values at the 25th, 50th, 75th, and 90th percentiles of the math scores.</p>
+
+<div class="webr-container" data-block-title="Find the value at each percentile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the value at each percentile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quantile(students$math, probs = c(0.25, 0.5, 0.75, 0.9))
+#&gt;   25%   50%   75%   90% 
+#&gt; 67.25 73.00 83.50 89.80 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output reads directly: a quarter of the class scored 67.25 or below, half scored 73 or below (that is the median), and the top ten percent starts around 89.8. Each label on top is the percentile, and each number beneath is the score at that cut point.</p>
+
+<p>The other direction is more common in practice: you have a value and want its percentile. Use <code>ecdf()</code>, which stands for empirical <a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">cumulative distribution function</a>. It builds a function that, given a value, returns the proportion of the data at or below it.</p>
+
+<div class="webr-container" data-block-title="Find the percentile of a single value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the percentile of a single value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">math_ecdf &lt;- ecdf(students$math)
+math_ecdf(82)
+#&gt; [1] 0.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The line <code>ecdf(students$math)</code> builds the ranking function, and calling it on 82 returns 0.75. That means 75 percent of the class scored 82 or below, so a score of 82 sits at the 75th percentile of this group.</p>
+
+<p>You can hand the whole column back to the same function to get everyone's percentile at once. Multiplying by 100 turns the proportions into familiar percentile numbers.</p>
+
+<div class="webr-container" data-block-title="Percentile rank for every student">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Percentile rank for every student</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">students$math_pct &lt;- round(100 * ecdf(students$math)(students$math))
+students[, c(&quot;name&quot;,&quot;math&quot;,&quot;math_pct&quot;)]
+#&gt;    name math math_pct
+#&gt; 1   Ana   82       75
+#&gt; 2   Ben   70       42
+#&gt; 3   Cai   65       25
+#&gt; 4   Dee   90       92
+#&gt; 5   Eli   58        8
+#&gt; 6   Fay   74       58
+#&gt; 7   Gus   68       33
+#&gt; 8  Hana   88       83
+#&gt; 9   Ivo   60       17
+#&gt; 10 Jill   76       67
+#&gt; 11  Kip   72       50
+#&gt; 12 Lena   95      100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every student now has a <a class="auto-link" href="dplyr-percent_rank-in-R.html" title="dplyr percent_rank() in R: Relative Position 0 to 1">percentile rank</a>. Lena, with the top score of 95, lands at the 100th percentile, while Eli's 58 sits at the 8th. These ranks come purely from counting positions in this class, with no formula about shapes or curves involved.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>quantile() offers nine calculation methods.</strong> The default (type 7) interpolates between data points, which is why the 25th percentile came out as 67.25 rather than one of the actual scores. Other statistical software sometimes uses a different type, so if your numbers differ slightly from another tool, check the <code>type</code> argument.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the reading score that marks the 80th percentile of the class.</p>
+<div class="webr-container" data-block-title="Your turn: value at the 80th percentile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: value at the 80th percentile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blank, then run.
+# quantile(students$reading, ___)
+# Expected: about 78.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reading 80th percentile solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading 80th percentile solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quantile(students$reading, 0.80)
+#&gt;  80% 
+#&gt; 78.8 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing a single probability of 0.80 asks <code>quantile()</code> for the value below which 80 percent of the reading scores fall.</p>
+
+</details>
+</section>
+
+<h2>How do you convert a z-score to a percentile (and back)?</h2>
+
+<p>So far z-scores and percentiles have felt like separate tools. They are actually two views of the same idea, and R lets you move between them with a pair of functions built around the standard <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>, the familiar bell curve with mean 0 and standard deviation 1.</p>
+
+<p><img src="screenshots/Z-Scores-and-Percentiles-in-R-standardization-pipeline.webp" alt="The path from a raw value to a percentile" class="img-responsive img-zoomable" loading="lazy" width="2186" height="374" /></p>
+
+<p><em>Figure 1: The path from a raw value to a percentile, and back with qnorm().</em></p>
+
+<p>To go from a z-score to a percentile, use <code>pnorm()</code>. It returns the proportion of a normal distribution that lies below a given z-score. Let's convert a z-score of 1.5.</p>
+
+<div class="webr-container" data-block-title="Convert a z-score to a percentile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a z-score to a percentile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pnorm(1.5)
+#&gt; [1] 0.9331928</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A z-score of 1.5 corresponds to 0.9332, so it sits at roughly the 93rd percentile of a normal distribution. About 93 percent of a bell-shaped population would fall below a value that is 1.5 standard deviations above the mean.</p>
+
+<p>To go the other way, from a percentile to the z-score that marks it, use <code>qnorm()</code>. It is the exact inverse of <code>pnorm()</code>. Let's find the z-score at the 90th percentile.</p>
+
+<div class="webr-container" data-block-title="Convert a percentile to a z-score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a percentile to a z-score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qnorm(0.90)
+#&gt; [1] 1.281552</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 90th percentile of a normal distribution sits at a z-score of about 1.28. Feed that 1.28 back into <code>pnorm()</code> and you would land on 0.90 again, which is what "inverse functions" means.</p>
+
+<p>Now let's run the full pipeline on real data: take Ana's math score of 82, standardize it against her class, and read off its theoretical percentile.</p>
+
+<div class="webr-container" data-block-title="Standardize one score, then read its percentile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize one score, then read its percentile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">z82 &lt;- (82 - mean(students$math)) / sd(students$math)
+round(z82, 2)
+#&gt; [1] 0.61
+round(100 * pnorm(z82), 1)
+#&gt; [1] 72.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The score of 82 is 0.61 standard deviations above the class mean, and <code>pnorm()</code> places that at the 72.8th percentile. Earlier, counting positions directly with <code>ecdf()</code> put the same 82 at the 75th percentile. The two answers are close here because this small class is fairly symmetric, but they are computed in completely different ways, and later you will see them disagree.</p>
+
+<p>The normal distribution also explains the famous 68-95-99.7 rule. Let's derive it with <code>pnorm()</code> by measuring how much of the curve lies within one, two, and three standard deviations of the mean.</p>
+
+<div class="webr-container" data-block-title="Derive the 68-95-99.7 rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Derive the 68-95-99.7 rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(
+  within_1sd = pnorm(1) - pnorm(-1),
+  within_2sd = pnorm(2) - pnorm(-2),
+  within_3sd = pnorm(3) - pnorm(-3)
+), 4)
+#&gt; within_1sd within_2sd within_3sd 
+#&gt;     0.6827     0.9545     0.9973 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Subtracting the percentile at the lower bound from the percentile at the upper bound gives the share of values in between. About 68 percent of a normal distribution falls within one standard deviation of the mean, 95 percent within two, and 99.7 percent within three. That is why a z-score beyond 3 is treated as rare.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Skip the arithmetic with the on-site calculator.</strong> If you just need a quick conversion, the <a href="tools/z-score-percentile.html">z-score to percentile calculator</a> does both directions in the browser without writing any code.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the z-score at the 95th percentile with <code>qnorm()</code>, and the percentile of a z-score of -1 with <code>pnorm()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert between z and percentile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert between z and percentile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blanks, then run.
+# qnorm(___)   # z-score at the 95th percentile
+# pnorm(___)   # percentile of a z-score of -1
+# Expected: about 1.6449, then about 0.1587</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Convert between z and percentile solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert between z and percentile solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qnorm(0.95)
+#&gt; [1] 1.644854
+pnorm(-1)
+#&gt; [1] 0.1586553</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 95th percentile sits at a z-score of about 1.64, and a z-score of -1 (one standard deviation below the mean) sits at about the 16th percentile.</p>
+
+</details>
+</section>
+
+<h2>Empirical vs theoretical percentiles: which should you trust?</h2>
+
+<p>The two paths to a percentile in the last section were not interchangeable, and the difference matters enormously the moment your data stops being bell-shaped. This is the point most tutorials skip, and it is the one that will save you from wrong conclusions.</p>
+
+<p><img src="screenshots/Z-Scores-and-Percentiles-in-R-empirical-vs-theoretical.webp" alt="Two routes to a percentile" class="img-responsive img-zoomable" loading="lazy" width="1270" height="930" /></p>
+
+<p><em>Figure 2: Two routes to a percentile: from your actual data, or from a normal model.</em></p>
+
+<p>There are two kinds of percentile. An <strong>empirical percentile</strong> comes from <code>ecdf()</code> or <code>quantile()</code>, which count positions in your real data and assume nothing about its shape. A <strong>theoretical percentile</strong> comes from converting a z-score with <code>pnorm()</code>, which assumes your data follows a normal curve. When the data really is bell-shaped, the two agree. When it is skewed, they can be far apart.</p>
+
+<p>Let's build a clearly skewed sample: household incomes, which have a long right tail because a few people earn a lot. We simulate 1000 incomes and look at the center. The <code>set.seed()</code> call fixes the random draw so you get the same numbers shown here.</p>
+
+<div class="webr-container" data-block-title="Build a skewed income sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a skewed income sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+income &lt;- round(rexp(1000, rate = 1/50000))
+round(c(mean = mean(income), median = median(income), sd = sd(income)))
+#&gt;   mean median     sd 
+#&gt;  48308  33718  48810 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean income (48,308) is far above the median (33,718). That gap is the signature of right skew: a handful of very high earners pull the average up, while most people sit below it. Now watch what happens when we ask where the average earner ranks.</p>
+
+<div class="webr-container" data-block-title="Where does the average earner actually rank?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Where does the average earner actually rank?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">100 * pnorm(0)                              # theoretical: the mean always has z = 0
+#&gt; [1] 50
+round(100 * ecdf(income)(mean(income)))    # empirical: the mean's real rank
+#&gt; [1] 64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is where the two methods disagree. Because the mean always has a z-score of 0, <code>pnorm()</code> insists the mean sits at the 50th percentile, as it would for any normal distribution. But counting the actual data, the mean income sits at the 64th percentile: 64 percent of households earn at or below the average. The theoretical answer is simply wrong for this data, because incomes are not normal.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Theoretical percentiles assume normality, empirical percentiles do not.</strong> Converting a z-score with <code>pnorm()</code> only gives a correct percentile when your data is roughly bell-shaped. For skewed data, trust <code>ecdf()</code> and <code>quantile()</code>, which read percentiles straight from the values you actually have.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For an income of 90,000, compute both the empirical percentile (with <code>ecdf()</code>) and the theoretical percentile (standardize, then <code>pnorm()</code>), and see how far apart they land.</p>
+<div class="webr-container" data-block-title="Your turn: compare the two percentiles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare the two percentiles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blanks, then run.
+# ex_val &lt;- 90000
+# ex_z &lt;- (ex_val - mean(income)) / sd(income)
+# round(c(empirical = 100 * ecdf(income)(ex_val),
+#         theoretical = 100 * pnorm(ex_z)), 1)
+# Expected: empirical about 85.7, theoretical about 80.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare the two percentiles solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two percentiles solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_val &lt;- 90000
+ex_z &lt;- (ex_val - mean(income)) / sd(income)
+round(c(empirical = 100 * ecdf(income)(ex_val),
+        theoretical = 100 * pnorm(ex_z)), 1)
+#&gt;   empirical theoretical 
+#&gt;        85.7        80.3 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The empirical percentile counts that 85.7 percent of incomes are at or below 90,000, while the normal-based estimate says only 80.3 percent. The gap is the skew showing through, and the empirical number is the honest one for this data.</p>
+
+</details>
+</section>
+
+<h2>How do you use z-scores to spot outliers?</h2>
+
+<p>A popular rule of thumb flags any value with a z-score beyond 3 as an outlier, since the 68-95-99.7 rule showed that only 0.3 percent of a normal distribution lies out there. It is a handy first pass, but it has a trap you should see before you rely on it.</p>
+
+<p>Consider ten temperature readings where one sensor glitched and reported 95 instead of a normal room temperature. Let's compute standard z-scores and check the largest.</p>
+
+<div class="webr-container" data-block-title="Flag outliers with the z-score rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag outliers with the z-score rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">temps &lt;- c(21, 22, 20, 23, 22, 21, 24, 22, 20, 95)
+z_temps &lt;- (temps - mean(temps)) / sd(temps)
+round(z_temps, 2)
+#&gt;  [1] -0.34 -0.30 -0.39 -0.26 -0.30 -0.34 -0.22 -0.30 -0.39  2.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The glitch value of 95 gets a z-score of only 2.84, which is below the threshold of 3. The rule misses it. This happens because the outlier is so extreme that it inflates the very mean and standard deviation used to score it, which lowers its own z-score back below the threshold. Statisticians call this masking.</p>
+
+<p>The fix is a robust z-score that uses measures the outlier cannot distort. Swap the mean for the median and the standard deviation for the median absolute deviation, computed by <code>mad()</code>:</p>
+
+<p>$$z_{\text{robust}} = \frac{x - \text{median}}{\text{MAD}}$$</p>
+
+<p>Both the median and the MAD ignore extreme values, so a single glitch cannot hide behind them.</p>
+
+<div class="webr-container" data-block-title="Flag outliers with a robust z-score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag outliers with a robust z-score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">z_robust &lt;- (temps - median(temps)) / mad(temps)
+round(z_robust, 2)
+#&gt;  [1] -0.67  0.00 -1.35  0.67  0.00 -0.67  1.35  0.00 -1.35 49.24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the glitch stands out unmistakably: a robust z-score of 49.24, while every genuine reading stays between about -1.4 and 1.4. The robust method caught what the standard rule missed.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">z-score outlier</a> rule fails on small or skewed samples.</strong> A single extreme value inflates the mean and standard deviation enough to mask itself, and skewed data produces large z-scores that are not really outliers. Prefer the robust z-score based on the median and MAD when you suspect either problem.</div></div>
+
+<p>R's <code>mad()</code> already multiplies by a constant of about 1.4826 so that, for normal data, the MAD lines up with the ordinary standard deviation. That means a robust z-score of 3 carries roughly the same meaning as a standard z-score of 3 when the data is well behaved.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the <code>z_robust</code> values from above, return the positions of any readings whose robust z-score is beyond 3 in absolute value.</p>
+<div class="webr-container" data-block-title="Your turn: return the outlier positions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: return the outlier positions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blank, then run.
+# which(abs(z_robust) &gt; ___)
+# Expected: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Return the outlier positions solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return the outlier positions solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">which(abs(z_robust) &gt; 3)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>abs(z_robust) &gt; 3</code> marks each reading as TRUE or FALSE, and <code>which()</code> returns the positions of the TRUE ones. Only the tenth reading, the glitch, clears the threshold.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: Ranking students across three exams</h2>
+
+<p>Let's tie every piece together. Suppose you want a single ranking of students across three exams that were graded on different scales. You cannot just average the raw scores, because a subject with larger numbers would dominate. Standardizing first puts all three exams on the same ruler, and then averaging the z-scores is fair.</p>
+
+<p>We add a science column, standardize all three exams with <code>scale()</code>, average each student's z-scores into an overall figure, convert that to a percentile with <code>ecdf()</code>, and sort from strongest to weakest.</p>
+
+<div class="webr-container" data-block-title="Rank students by standardized performance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank students by standardized performance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">students$science &lt;- c(66, 71, 60, 74, 58, 69, 63, 80, 62, 70, 68, 77)
+z_all &lt;- scale(students[, c(&quot;math&quot;,&quot;reading&quot;,&quot;science&quot;)])
+students$overall_z   &lt;- rowMeans(z_all)
+students$overall_pct &lt;- round(100 * ecdf(students$overall_z)(students$overall_z))
+result &lt;- students[order(-students$overall_z), c(&quot;name&quot;,&quot;overall_z&quot;,&quot;overall_pct&quot;)]
+result$overall_z &lt;- round(result$overall_z, 2)
+print(result, row.names = FALSE)
+#&gt;  name overall_z overall_pct
+#&gt;  Lena      1.30         100
+#&gt;  Hana      0.61          92
+#&gt;   Dee      0.45          83
+#&gt;   Ana      0.32          75
+#&gt;  Jill      0.18          67
+#&gt;   Fay      0.16          58
+#&gt;   Ben     -0.02          50
+#&gt;   Ivo     -0.18          42
+#&gt;   Cai     -0.30          33
+#&gt;   Kip     -0.51          25
+#&gt;   Gus     -0.55          17
+#&gt;   Eli     -1.48           8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pipeline reads top to bottom: <code>scale()</code> standardized each exam on its own terms, <code>rowMeans()</code> averaged the three z-scores per student, and <code>ecdf()</code> turned those averages into percentiles. Lena comes out on top with an overall z of 1.30 (the 100th percentile), and Eli sits at the bottom with -1.48 (the 8th percentile). Because we averaged standardized scores rather than raw ones, no single exam's scale unfairly tilted the ranking.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between a z-score and a percentile?</strong> A z-score measures distance from the mean in standard deviations, so it can be negative and has no fixed upper limit. A percentile measures the fraction of the data at or below a value, so it always runs from 0 to 100. They answer related but different questions, and you convert a z-score to a percentile with <code>pnorm()</code> only when the data is roughly normal.</p>
+
+<p><strong>Can a z-score be negative or larger than 100?</strong> Yes to negative: any value below the mean has a negative z-score, and a value one standard deviation below the mean has a z-score of -1. A z-score has no fixed range, so values like 2.84 or 49.24 are perfectly ordinary. The 0-to-100 range belongs to percentiles, not z-scores, and confusing the two scales is the most common beginner mistake with this topic.</p>
+
+<p><strong>Do I need any extra packages to compute z-scores and percentiles in R?</strong> No. Every function in this tutorial, <code>scale()</code>, <code>quantile()</code>, <code>ecdf()</code>, <code>pnorm()</code>, <code>qnorm()</code>, <code>median()</code>, and <code>mad()</code>, ships with base R. You can standardize data and read percentiles without installing anything.</p>
+
+<p><strong>Why does <code>scale()</code> return a matrix instead of a plain vector?</strong> <code>scale()</code> is built to standardize many columns at once, so it always returns a matrix, even when you pass it a single column. It also attaches the mean and standard deviation it used as attributes below the numbers. Wrap the result in <code>as.numeric()</code> when you want a clean numeric vector to store in a data frame column.</p>
+
+<p><strong>When is it safe to convert a z-score to a percentile with <code>pnorm()</code>?</strong> Only when the data is roughly bell-shaped. <code>pnorm()</code> reads the percentile off a normal curve, so on skewed data the answer can be far from the true rank, as the income example showed. When you are unsure about the shape, count positions directly with <code>ecdf()</code> or <code>quantile()</code>, which assume nothing about the distribution.</p>
+
+<p><strong>What z-score should I treat as an outlier?</strong> A common rule flags any value with an absolute z-score above 3, since only about 0.3 percent of a normal distribution lies beyond that. On small or skewed samples the standard z-score can be fooled, because one extreme value inflates the mean and standard deviation used to score it. When you suspect that, switch to the robust z-score built from the median and <code>mad()</code>.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each solution uses only functions covered above. Try each before revealing the answer, and use fresh variable names so you do not overwrite the tutorial data.</p>
+
+<h3>Exercise 1: Check the 68 percent rule on real data</h3>
+
+<p>Simulate 200 test scores with a mean of 500 and a standard deviation of 100 using <code>set.seed(7)</code> and <code>rnorm(200, mean = 500, sd = 100)</code>. Standardize them, then find the share of values whose z-score is within 1 (that is, absolute z-score at most 1). Compare it to the theoretical 68 percent.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: standardize with scale(), then test abs(z) &lt;= 1 and take the mean.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+scores_v &lt;- round(rnorm(200, mean = 500, sd = 100))
+z_v &lt;- as.numeric(scale(scores_v))
+mean(abs(z_v) &lt;= 1)
+#&gt; [1] 0.665</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 66.5 percent of the simulated scores fall within one standard deviation of the mean, close to the 68 percent the normal rule predicts. The small gap is ordinary sampling variation from using only 200 values.</p>
+
+</details>
+
+<h3>Exercise 2: A function that returns both percentiles</h3>
+
+<p>Write a function <code>percentiles(x, value)</code> that returns both the empirical percentile (from <code>ecdf()</code>) and the theoretical percentile (standardize <code>value</code>, then <code>pnorm()</code>), each as a rounded percentage. Test it on the <code>income</code> data from earlier with a value of 120,000.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: compute z inside the function, then combine the two results with c().
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">percentiles &lt;- function(x, value) {
+  z &lt;- (value - mean(x)) / sd(x)
+  round(c(empirical   = 100 * ecdf(x)(value),
+          theoretical = 100 * pnorm(z)), 1)
+}
+percentiles(income, 120000)
+#&gt;   empirical theoretical 
+#&gt;        91.5        92.9 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For an income of 120,000 the two methods happen to land close (91.5 versus 92.9), because far out in the tail the counts and the curve nearly agree here. Near the center, as you saw with the mean, they diverge more.</p>
+
+</details>
+
+<h3>Exercise 3: A robust outlier finder</h3>
+
+<p>Write a function <code>find_outliers(x, thresh = 3.5)</code> that returns the positions of values whose robust z-score (based on the median and <code>mad()</code>) exceeds the threshold in absolute value. Test it on the <code>temps</code> vector from earlier.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build the robust z inside the function, then use which() on abs(rz) &gt; thresh.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">find_outliers &lt;- function(x, thresh = 3.5) {
+  rz &lt;- (x - median(x)) / mad(x)
+  which(abs(rz) &gt; thresh)
+}
+find_outliers(temps, thresh = 3.5)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function flags position 10, the glitch reading of 95, and leaves the genuine temperatures alone. Raising or lowering <code>thresh</code> makes the test stricter or more lenient.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Z-scores and percentiles are two ways to describe where a value sits within its group. A z-score measures distance from the mean in standard deviations, and a percentile measures the fraction of data below a value. You can convert between them through the normal distribution, but only when the data is bell-shaped.</p>
+
+<p><img src="screenshots/Z-Scores-and-Percentiles-in-R-overview-mindmap.webp" alt="Overview of z-scores and percentiles" class="img-responsive img-zoomable" loading="lazy" width="2130" height="1128" /></p>
+
+<p><em>Figure 3: The four things this tutorial covered, at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Function</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standardize a value or column</td>
+<td><code>scale()</code></td>
+<td>Returns a matrix, wrap in <code>as.numeric()</code>; uses sample SD</td>
+</tr>
+<tr>
+<td>Value at a percentile</td>
+<td><code>quantile()</code></td>
+<td>Default type 7 interpolates between points</td>
+</tr>
+<tr>
+<td>Percentile of a value</td>
+<td><code>ecdf()</code></td>
+<td>Counts positions, assumes nothing about shape</td>
+</tr>
+<tr>
+<td>Z-score to percentile</td>
+<td><code>pnorm()</code></td>
+<td>Assumes a normal distribution</td>
+</tr>
+<tr>
+<td>Percentile to z-score</td>
+<td><code>qnorm()</code></td>
+<td>The inverse of pnorm()</td>
+</tr>
+<tr>
+<td>Robust outlier check</td>
+<td><code>median()</code> and <code>mad()</code></td>
+<td>Survives extreme values that fool the standard rule</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one habit that separates a careful analyst from a careless one: reach for empirical percentiles (<code>ecdf()</code> and <code>quantile()</code>) by default, and only convert z-scores to percentiles with <code>pnorm()</code> after you have checked that the data is roughly normal.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. stats::scale documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/scale.html">Link</a></li>
+
+<li>R Core Team. stats::quantile documentation (sample quantile types). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html">Link</a></li>
+
+<li>R Core Team. stats::ecdf documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/ecdf.html">Link</a></li>
+
+<li>R Core Team. Normal distribution functions (pnorm, qnorm). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Normal.html">Link</a></li>
+
+<li>R Core Team. stats::mad documentation (median absolute deviation). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/mad.html">Link</a></li>
+
+<li>Hyndman, R. J. and Fan, Y. (1996). Sample Quantiles in Statistical Packages. The American Statistician, 50(4), 361-365. <a href="https://www.jstor.org/stable/2684934">Link</a></li>
+
+<li>Diez, D., Barr, C., and Cetinkaya-Rundel, M. OpenIntro Statistics, 4th Edition (z-scores and the normal model). <a href="https://www.openintro.org/book/os/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Mean-vs-Median-SD-vs-IQR.html">Mean vs Median, SD vs IQR</a>: the mean and standard deviation are the exact ingredients a z-score divides by, so this is the natural prerequisite.</li>
+
+<li><a href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html">Normal, t, F and Chi-Squared Distributions in R</a>: a deeper look at the bell curve that <code>pnorm()</code> and <code>qnorm()</code> are built on.</li>
+
+<li><a href="Sampling-Distributions-in-R.html">Sampling Distributions in R</a>: where standardizing leads next, turning z-scores into the foundation of statistical inference.</li>
+
+</ul>
+
