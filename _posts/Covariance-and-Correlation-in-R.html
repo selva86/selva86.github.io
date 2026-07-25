@@ -1,0 +1,1287 @@
+---
+title: "Covariance and Correlation in R from First Principles"
+description: "Covariance and correlation in R, built from scratch: derive cov() and cor() by hand, read a correlation matrix, run cor.test(), and avoid the classic pitfalls."
+keywords: "covariance in R, correlation in R, cov function in R, cor function in R, cor.test, Pearson correlation, Spearman correlation, correlation coefficient, covariance vs correlation, correlation matrix in R"
+mathjax: true
+webr: true
+curriculum_id: "ST2-2.3"
+post_type: "C"
+auto_link_terms: "covariance|covariance in R|correlation|correlation in R|correlation coefficient|Pearson correlation|Spearman correlation|Kendall correlation|covariance vs correlation|correlation matrix|correlation and causation|cor.test|cov() function|cor() function"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Covariance & Correlation"
+sidebar_order: "141"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Covariance measures whether two variables move together and in which direction. Correlation rescales that same idea onto a fixed ruler from -1 to +1, so the strength of the link is finally readable. This tutorial builds both by hand in base R, matches them exactly to the built-in cov() and cor() functions, then shows you where each one can quietly mislead. Every code block is live, so you can run it and change the numbers as you read.</p>
+
+<h2>What does it mean for two variables to move together?</h2>
+
+<p>Think about hours spent studying and the exam score that follows. You expect that as one goes up, the other tends to go up too. That everyday idea, two things rising and falling together, is exactly what covariance and correlation put a number on. Before any formula, let's look at a tiny, honest dataset we will carry through the whole tutorial: six students, their study hours, and their exam scores.</p>
+
+<p>We only need base R for the statistics. We will bring in <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> for the pictures, and load it once here so it is ready for every plot later.</p>
+
+<div class="webr-container" data-block-title="Load ggplot2 and the study data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load ggplot2 and the study data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+study &lt;- data.frame(
+  hours = c(1, 2, 3, 4, 5, 6),
+  score = c(52, 58, 62, 71, 76, 84)
+)
+study
+#&gt;   hours score
+#&gt; 1     1    52
+#&gt; 2     2    58
+#&gt; 3     3    62
+#&gt; 4     4    71
+#&gt; 5     5    76
+#&gt; 6     6    84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what just happened. We created a small data frame called <code>study</code> with one row per student, a <code>hours</code> column, and a <code>score</code> column. Printing <code>study</code> shows the six pairs of numbers we will analyze.</p>
+
+<p>Reading down the two columns, a pattern jumps out: the student with 1 hour scored 52, and the student with 6 hours scored 84. As hours climb, score climbs too. Numbers in a table are easy to misread, though, so let's see the same six pairs as points.</p>
+
+<div class="webr-container" data-block-title="Plot hours against score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot hours against score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(study, aes(x = hours, y = score)) +
+  geom_point(size = 3, color = &quot;#3b6fb6&quot;) +
+  labs(x = &quot;Hours studied&quot;, y = &quot;Exam score&quot;,
+       title = &quot;Do hours studied and exam score move together?&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows six points marching from the bottom-left to the top-right. That upward slope is the visual signature of two variables that move together. If the points sloped downward, one would rise as the other fell. If they scattered with no slope, the two would be unrelated.</p>
+
+<p>To turn that picture into a number, we need one more idea: the deviation. A deviation is how far a single value sits from its own column's average. A student above the average study time has a positive hours-deviation; a student below it has a negative one. Covariance, which we build next, is really just a clever combination of these deviations.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Two variables move together when their deviations tend to share a sign.</strong> When a student is above average on hours and also above average on score, both deviations are positive and they reinforce each other. Covariance adds up exactly this agreement across every point.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Here are four daily temperatures. Compute each day's deviation from the mean, which is the value minus the average. A positive result means that day was warmer than average.</p>
+<div class="webr-container" data-block-title="Your turn: find the deviations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the deviations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_temp &lt;- c(20, 24, 26, 30)
+# ex_dev  &lt;- ex_temp - mean(ex_temp)
+# ex_dev
+# Expected: -5 -1  1  5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Deviations from the mean solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Deviations from the mean solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_temp &lt;- c(20, 24, 26, 30)
+ex_dev  &lt;- ex_temp - mean(ex_temp)
+ex_dev
+#&gt; [1] -5 -1  1  5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean of the four temperatures is 25. Subtracting 25 from each value gives its deviation, so 20 becomes -5 (five below average) and 30 becomes +5 (five above average).</p>
+
+</details>
+</section>
+
+<h2>What is covariance, and how do you compute it by hand?</h2>
+
+<p>Covariance takes the deviation idea and does three things: it finds each point's deviation in both columns, multiplies those two deviations together, and averages the results. The multiplication is the heart of it. When both deviations are positive (above average on both) or both negative (below average on both), their product is positive. When one is above and the other below, the product is negative. Add the products up and a positive total means "they move together."</p>
+
+<p>Let's build that table for the six students, one column at a time, so nothing is hidden.</p>
+
+<div class="webr-container" data-block-title="Build the deviation and product table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the deviation and product table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean_hours &lt;- mean(study$hours)
+mean_score &lt;- mean(study$score)
+dev_hours  &lt;- study$hours - mean_hours
+dev_score  &lt;- study$score - mean_score
+products   &lt;- dev_hours * dev_score
+data.frame(hours = study$hours, score = study$score,
+           dev_hours, dev_score, products)
+#&gt;   hours score dev_hours  dev_score  products
+#&gt; 1     1    52      -2.5 -15.166667 37.916667
+#&gt; 2     2    58      -1.5  -9.166667 13.750000
+#&gt; 3     3    62      -0.5  -5.166667  2.583333
+#&gt; 4     4    71       0.5   3.833333  1.916667
+#&gt; 5     5    76       1.5   8.833333 13.250000
+#&gt; 6     6    84       2.5  16.833333 42.083333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through one row to see the recipe. The first student studied 1 hour, which is 2.5 below the average of 3.5, so <code>dev_hours</code> is -2.5. That student scored 52, which is 15.17 below the average score, so <code>dev_score</code> is -15.17. Both deviations are negative (below average on both), and multiplying two negatives gives a positive product of 37.92. Notice that every single product in the table is positive, because in this dataset a below-average student on hours is also below-average on score, and an above-average student is above-average on both.</p>
+
+<p>Now we collapse that whole <code>products</code> column into one number. Covariance is the sum of the products divided by the number of points minus one.</p>
+
+<div class="webr-container" data-block-title="Compute covariance by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute covariance by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- nrow(study)
+cov_manual &lt;- sum(products) / (n - 1)
+cov_manual
+#&gt; [1] 22.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>products</code> column adds up to 111.5. We have 6 students, so we divide by <code>n - 1</code>, which is 5, giving 22.3. That single positive number is the covariance: positive because the products agreed, and larger the more strongly the two columns move together.</p>
+
+<p>The real test is whether R's built-in function agrees with our hand calculation. It does, to the decimal.</p>
+
+<div class="webr-container" data-block-title="Confirm with the cov function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm with the cov function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cov(study$hours, study$score)
+#&gt; [1] 22.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cov()</code> returns 22.3, exactly matching <code>cov_manual</code>. That is the whole point of doing it by hand first: the built-in function is not a black box, it is just the deviation-product-average recipe you traced through above.</p>
+
+<p>In formula form, the sample covariance of two variables $x$ and $y$ is:</p>
+
+<p>$$\operatorname{cov}(x, y) = \frac{1}{n-1} \sum_{i=1}^{n} (x_i - \bar{x})(y_i - \bar{y})$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x_i$ and $y_i$ = the $i$-th pair of values (one student's hours and score)</li>
+
+<li>$\bar{x}$ and $\bar{y}$ = the means of the two columns</li>
+
+<li>$n$ = the number of pairs</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Divide by n minus 1, not n.</strong> Using <code>n - 1</code> for a sample rather than <code>n</code> corrects a small underestimate that creeps in because you estimated the means from the same data you are measuring. R's <code>cov()</code> and <code>var()</code> both use <code>n - 1</code> by default, which is why the hand calculation and the function match.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the covariance of two short vectors with <code>cov()</code>. A positive answer means they tend to rise together.</p>
+<div class="webr-container" data-block-title="Your turn: covariance of two vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: covariance of two vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_x &lt;- c(1, 3, 5, 7)
+# ex_y &lt;- c(2, 5, 4, 9)
+# cov(ex_x, ex_y)
+# Expected: about 6.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Covariance of two vectors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Covariance of two vectors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- c(1, 3, 5, 7)
+ex_y &lt;- c(2, 5, 4, 9)
+cov(ex_x, ex_y)
+#&gt; [1] 6.666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The covariance is positive, so <code>ex_x</code> and <code>ex_y</code> broadly move together, even though the second pair (3 with 5) and third pair (5 with 4) dip against the trend.</p>
+
+</details>
+</section>
+
+<h2>Why is covariance hard to read, and how does correlation fix it?</h2>
+
+<p>Covariance has a serious flaw: its size depends on the units you happen to use. The number 22.3 sounds concrete, but it is measured in "hours times score points," a unit nobody has intuition for. Worse, if you switch hours to minutes, the covariance balloons even though the underlying relationship has not changed at all. Let's prove it.</p>
+
+<div class="webr-container" data-block-title="Change the units and watch covariance move">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Change the units and watch covariance move</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cov(study$hours, study$score)        # hours measured in hours
+cov(study$hours * 60, study$score)   # exact same data, hours as minutes
+#&gt; [1] 22.3
+#&gt; [1] 1338</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line is our familiar 22.3. In the second line we multiplied hours by 60 to express the same study time in minutes, and the covariance jumped to 1338, which is exactly 60 times larger. The students did not study any differently. We only relabeled the axis, yet the covariance changed by a factor of 60.</p>
+
+<p>This is why you can never look at a lone covariance and say whether a relationship is strong. Is 1338 a strong link? You cannot know without also knowing the scale of both variables. A covariance between two dollar amounts and a covariance between two temperatures live in different units and cannot be compared.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The sign of a covariance is meaningful, but its magnitude is not comparable across different variable pairs.</strong> Positive still means "move together" and negative still means "move oppositely," but you cannot say one covariance is stronger than another just because its number is bigger. Fixing that is the entire job of correlation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Multiply the score column by 10 and compare the covariance before and after. Watch what happens to the number.</p>
+<div class="webr-container" data-block-title="Your turn: rescale and watch covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rescale and watch covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_cov1 &lt;- cov(study$hours, study$score)
+# ex_cov2 &lt;- cov(study$hours, study$score * 10)
+# c(original = ex_cov1, scaled = ex_cov2)
+# Expected: the scaled covariance is 10 times the original</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rescaled covariance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rescaled covariance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cov1 &lt;- cov(study$hours, study$score)
+ex_cov2 &lt;- cov(study$hours, study$score * 10)
+c(original = ex_cov1, scaled = ex_cov2)
+#&gt; original   scaled 
+#&gt;     22.3    223.0 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying one variable by 10 multiplies the covariance by 10, from 22.3 to 223.0. The relationship is identical; only the units changed. That instability is exactly why we need a scale-free version.</p>
+
+</details>
+</section>
+
+<h3>Correlation: dividing the units out</h3>
+
+<p>Correlation fixes the units problem with one simple move: it divides the covariance by the two standard deviations. A standard deviation is the typical spread of a single column, measured in that column's own units. When you divide the covariance (in hours-times-points) by the standard deviation of hours and the standard deviation of score, all the units cancel out. What is left is a pure, unit-free number that always lands between -1 and +1.</p>
+
+<p><img src="screenshots/Covariance-and-Correlation-in-R-cov-to-cor.webp" alt="Correlation is covariance divided by the two standard deviations, which strips out the units." class="img-responsive img-zoomable" loading="lazy" width="2248" height="270" /></p>
+
+<p><em>Figure 1: Correlation is covariance divided by the two standard deviations, which strips out the units.</em></p>
+
+<p>Let's compute correlation by hand using the covariance we already have.</p>
+
+<div class="webr-container" data-block-title="Compute correlation by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute correlation by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor_manual &lt;- cov_manual / (sd(study$hours) * sd(study$score))
+cor_manual
+#&gt; [1] 0.9955126</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is the arithmetic. We took <code>cov_manual</code>, which is 22.3, and divided by the product of the two standard deviations. R computes those two spreads (about 1.87 for hours and about 11.97 for score), multiplies them to get roughly 22.40, and 22.3 divided by 22.40 gives 0.9955. Because it sits so close to 1, this tells us hours and score move together almost perfectly in this small dataset.</p>
+
+<p>As before, the built-in function agrees exactly.</p>
+
+<div class="webr-container" data-block-title="Confirm with the cor function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm with the cor function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor(study$hours, study$score)
+#&gt; [1] 0.9955126</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cor()</code> returns the same 0.9955126. And now for the payoff that covariance could not deliver: correlation does not care about units. Let's redo it with hours in minutes.</p>
+
+<div class="webr-container" data-block-title="Correlation ignores the change of units">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation ignores the change of units</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor(study$hours * 60, study$score)
+#&gt; [1] 0.9955126</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Switching hours to minutes left the correlation completely unchanged at 0.9955126, even though the covariance for the same switch leapt from 22.3 to 1338. That stability is what makes correlation readable: a correlation of 0.9955 means the same thing whether you measure time in minutes or hours.</p>
+
+<p>In formula form, the Pearson <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation coefficient</a> $r$ is the covariance divided by the product of the two sample standard deviations:</p>
+
+<p>$$r = \frac{\operatorname{cov}(x, y)}{s_x \, s_y}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\operatorname{cov}(x, y)$ = the covariance you already computed</li>
+
+<li>$s_x$ = the sample standard deviation of $x$</li>
+
+<li>$s_y$ = the sample standard deviation of $y$</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Correlation is unitless and always sits between -1 and +1.</strong> Because dividing by the two standard deviations cancels the units, you can compare a correlation between height and weight directly against a correlation between price and demand. That is something raw covariances can never let you do.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reuse the <code>ex_x</code> and <code>ex_y</code> vectors from earlier and turn their covariance into a correlation.</p>
+<div class="webr-container" data-block-title="Your turn: correlation of two vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlation of two vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># cor(ex_x, ex_y)
+# Expected: about 0.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correlation of two vectors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation of two vectors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor(ex_x, ex_y)
+#&gt; [1] 0.877058</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The correlation of about 0.88 is a strong positive link. Unlike the covariance of 6.67 from before, this number is instantly interpretable: close to 1 means a strong upward relationship.</p>
+
+</details>
+</section>
+
+<h2>How do you read a correlation coefficient?</h2>
+
+<p>A correlation carries two pieces of information at once: the sign and the size. The sign is direction. A positive correlation means the variables rise together; a negative one means as a rule when one rises the other falls. The size, ignoring the sign, is strength. A value near 1 or -1 means the points hug a straight line closely; a value near 0 means they scatter.</p>
+
+<p>Here is a rough guide for reading the strength. Treat these bands as conventions, not laws, because what counts as "strong" depends heavily on the field you work in.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Absolute value of r</th>
+<th>How to describe it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.0 to 0.1</td>
+<td>negligible</td>
+</tr>
+<tr>
+<td>0.1 to 0.3</td>
+<td>weak</td>
+</tr>
+<tr>
+<td>0.3 to 0.5</td>
+<td>moderate</td>
+</tr>
+<tr>
+<td>0.5 to 0.7</td>
+<td>strong</td>
+</tr>
+<tr>
+<td>0.7 to 1.0</td>
+<td>very strong</td>
+</tr>
+</tbody>
+</table>
+
+<p>Numbers on a table are abstract, so let's generate three datasets with known correlations and see what each strength actually looks like. We set a seed first so the random draw is the same every time you run it.</p>
+
+<div class="webr-container" data-block-title="Generate three datasets with known correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generate three datasets with known correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+ng &lt;- 200
+gx &lt;- rnorm(ng)
+strong_pos &lt;- gx + rnorm(ng, sd = 0.3)
+weak_pos   &lt;- gx + rnorm(ng, sd = 2)
+negative   &lt;- -gx + rnorm(ng, sd = 0.5)
+round(c(
+  strong_positive = cor(gx, strong_pos),
+  weak_positive   = cor(gx, weak_pos),
+  negative        = cor(gx, negative)
+), 2)
+#&gt; strong_positive   weak_positive        negative 
+#&gt;            0.96            0.43           -0.91 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We built one base variable <code>gx</code>, then created three partners. The first adds only a little noise, giving a strong positive correlation of 0.96. The second adds a lot of noise, lowering the correlation to a weak 0.43. The third flips the sign by negating <code>gx</code>, producing a strong negative correlation of -0.91. Now let's plot all three side by side.</p>
+
+<div class="webr-container" data-block-title="Plot the correlation gallery">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the correlation gallery</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gallery &lt;- rbind(
+  data.frame(x = gx, y = strong_pos, panel = &quot;Strong positive (0.96)&quot;),
+  data.frame(x = gx, y = weak_pos,   panel = &quot;Weak positive (0.43)&quot;),
+  data.frame(x = gx, y = negative,   panel = &quot;Negative (-0.91)&quot;)
+)
+ggplot(gallery, aes(x, y)) +
+  geom_point(alpha = 0.5, color = &quot;#3b6fb6&quot;) +
+  facet_wrap(~ panel, scales = &quot;free_y&quot;) +
+  theme_minimal(base_size = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pictures make the numbers concrete. The strong-positive panel shows points packed tightly along an upward line. The weak-positive panel shows a cloud that still tilts up but with plenty of scatter. The negative panel shows a tight downward line. Once you have seen these shapes, a bare correlation number will call the matching picture to mind.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Strength labels are rules of thumb, not verdicts.</strong> In physics a correlation of 0.9 might be disappointingly low, while in messy human behavior data a correlation of 0.3 can be a major finding. Always judge a correlation against what is normal for your field, not against a generic table.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The mtcars dataset ships with R. Correlate a car's miles-per-gallon with its weight and read off the sign and strength.</p>
+<div class="webr-container" data-block-title="Your turn: correlate mpg and weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlate mpg and weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_r &lt;- cor(mtcars$mpg, mtcars$wt)
+# round(ex_r, 2)
+# Expected: -0.87 (strong and negative)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="mpg and weight correlation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mpg and weight correlation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(mtcars$mpg, mtcars$wt), 2)
+#&gt; [1] -0.87</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The correlation of -0.87 is strong and negative, which matches intuition: heavier cars burn more fuel, so as weight goes up, miles per gallon goes down.</p>
+
+</details>
+</section>
+
+<h2>How do you build and read a correlation matrix?</h2>
+
+<p>Real analysis rarely involves just two columns. Usually you want to see how every variable relates to every other variable at once. Hand <code>cor()</code> a data frame of several numeric columns and it returns a correlation matrix: a grid where the cell in row A, column B holds the correlation between variable A and variable B. Let's do it for five columns of mtcars.</p>
+
+<div class="webr-container" data-block-title="Compute a correlation matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute a correlation matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vars &lt;- mtcars[, c(&quot;mpg&quot;, &quot;wt&quot;, &quot;hp&quot;, &quot;disp&quot;, &quot;drat&quot;)]
+round(cor(vars), 2)
+#&gt;        mpg    wt    hp  disp  drat
+#&gt; mpg   1.00 -0.87 -0.78 -0.85  0.68
+#&gt; wt   -0.87  1.00  0.66  0.89 -0.71
+#&gt; hp   -0.78  0.66  1.00  0.79 -0.45
+#&gt; disp -0.85  0.89  0.79  1.00 -0.71
+#&gt; drat  0.68 -0.71 -0.45 -0.71  1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the matrix like a mileage chart. The diagonal is all 1.00 because every variable is perfectly correlated with itself. The grid is symmetric, so the value above the diagonal mirrors the one below it. Scanning the <code>mpg</code> row, you can see mileage is strongly negatively correlated with weight (-0.87), horsepower (-0.78), and engine displacement (-0.85), and positively correlated with the rear axle ratio drat (0.68). The matrix is the fastest way to spot which pairs deserve a closer look.</p>
+
+<p>A grid of numbers is hard to scan once it grows, so a colored heatmap helps. First we reshape the matrix into a long, three-column form that ggplot2 can plot.</p>
+
+<div class="webr-container" data-block-title="Reshape the matrix for plotting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reshape the matrix for plotting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor_mat &lt;- cor(vars)
+cor_df  &lt;- as.data.frame(as.table(cor_mat))
+head(cor_df)
+#&gt;   Var1 Var2       Freq
+#&gt; 1  mpg  mpg  1.0000000
+#&gt; 2   wt  mpg -0.8676594
+#&gt; 3   hp  mpg -0.7761684
+#&gt; 4 disp  mpg -0.8475514
+#&gt; 5 drat  mpg  0.6811719
+#&gt; 6  mpg   wt -0.8676594</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>as.table()</code> then <code>as.data.frame()</code> trick unrolls the grid into one row per cell, with <code>Var1</code> and <code>Var2</code> naming the pair and <code>Freq</code> holding the correlation. That long shape is exactly what a tile plot needs.</p>
+
+<div class="webr-container" data-block-title="Draw the correlation heatmap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the correlation heatmap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cor_df, aes(Var1, Var2, fill = Freq)) +
+  geom_tile(color = &quot;white&quot;) +
+  geom_text(aes(label = round(Freq, 2)), size = 4) +
+  scale_fill_gradient2(low = &quot;#c0392b&quot;, mid = &quot;white&quot;, high = &quot;#2c7fb8&quot;,
+                       midpoint = 0, limits = c(-1, 1), name = &quot;r&quot;) +
+  labs(x = NULL, y = NULL) +
+  theme_minimal(base_size = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The heatmap paints strong positive correlations blue, strong negative ones red, and near-zero ones white, with the exact number printed in each cell. Now the weight-and-displacement pair (0.89) and the weight-and-mpg pair (-0.87) leap out by color alone, no squinting at a number grid required.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Round the matrix and remember the diagonal is always 1.</strong> Wrapping the call in <code>round(cor(vars), 2)</code> trims the noise so patterns stand out, and the ones down the diagonal are just each variable correlated with itself, so you can ignore them when hunting for interesting pairs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The first four columns of the iris dataset are numeric flower measurements. Build their correlation matrix and find the most tightly linked pair.</p>
+<div class="webr-container" data-block-title="Your turn: correlation matrix of iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlation matrix of iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># round(cor(iris[, 1:4]), 2)
+# Expected: Petal.Length and Petal.Width are near 0.96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correlation matrix of iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation matrix of iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(iris[, 1:4]), 2)
+#&gt;              Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; Sepal.Length         1.00       -0.12         0.87        0.82
+#&gt; Sepal.Width         -0.12        1.00        -0.43       -0.37
+#&gt; Petal.Length         0.87       -0.43         1.00        0.96
+#&gt; Petal.Width          0.82       -0.37         0.96        1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Petal length and petal width have the strongest link at 0.96, so flowers with longer petals almost always have wider petals. Sepal width stands apart, correlating only weakly and even negatively with the others.</p>
+
+</details>
+</section>
+
+<h2>How do you test whether a correlation is statistically significant?</h2>
+
+<p>A correlation computed from a handful of points can be a fluke. With only six students, even unrelated variables can line up by luck. The question significance testing answers is: if hours and score were truly unrelated in the wider world, how surprising would a correlation this strong be in a sample this size? The <code>cor.test()</code> function answers it, and it returns far more than a single number.</p>
+
+<div class="webr-container" data-block-title="Test the correlation with cor.test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the correlation with cor.test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor.test(study$hours, study$score)
+#&gt; 
+#&gt; 	Pearson's product-moment correlation
+#&gt; 
+#&gt; data:  study$hours and study$score
+#&gt; t = 21.04, df = 4, p-value = 3.016e-05
+#&gt; alternative hypothesis: true correlation is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  0.9576779 0.9995323
+#&gt; sample estimates:
+#&gt;       cor 
+#&gt; 0.9955126 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is a lot in that output, so let's read it line by line. The <code>cor</code> at the bottom is our familiar estimate, 0.9955. The <code>p-value</code> is 3.016e-05, which is 0.00003, far below the usual 0.05 threshold. A <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> that small means a correlation this strong would almost never appear by chance if the two variables were truly unrelated, so we treat the link as real. The <code>95 percent confidence interval</code> runs from 0.958 to 0.9995, which is the plausible range for the true correlation: even at its most pessimistic, the relationship stays very strong.</p>
+
+<p>The takeaway is a two-part verdict. The correlation is both large (0.9955) and unlikely to be an accident (tiny p-value), so we can report it with confidence. Had the p-value been above 0.05, we would say the data are too thin to rule out coincidence.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A small p-value means "probably not luck," not "large or important."</strong> With enough data points, even a trivially weak correlation of 0.05 can be statistically significant. Always report the correlation size alongside the p-value, and remember that a tiny sample produces a wide <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>, which is its own warning that the estimate is shaky.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>cor.test()</code> on mtcars mileage and weight, then pull out just the p-value from the result.</p>
+<div class="webr-container" data-block-title="Your turn: p-value for mpg and weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: p-value for mpg and weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_test &lt;- cor.test(mtcars$mpg, mtcars$wt)
+# ex_test$p.value
+# Expected: a tiny number near 1.3e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="p-value for mpg and weight solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">p-value for mpg and weight solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_test &lt;- cor.test(mtcars$mpg, mtcars$wt)
+ex_test$p.value
+#&gt; [1] 1.293959e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The result of <code>cor.test()</code> is a list, and <code>$p.value</code> reaches into it for that one element. The value 1.3e-10 is vanishingly small, so the strong negative link between weight and mileage is not a coincidence.</p>
+
+</details>
+</section>
+
+<h2>When should you use Spearman or Kendall instead of Pearson?</h2>
+
+<p>Everything so far used <a class="auto-link" href="Correlation-in-R.html" title="Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests">Pearson correlation</a>, which measures how close the points come to a straight line. That is the right tool most of the time, but it has a blind spot: a relationship can be perfectly predictable yet not straight. Pearson underrates those curved relationships. Two alternatives, Spearman and Kendall, fix this by looking at ranks (the order of the values) instead of the raw numbers. The right choice depends on the shape of your data.</p>
+
+<p><img src="screenshots/Covariance-and-Correlation-in-R-method-chooser.webp" alt="Pick the correlation method from the shape of the relationship." class="img-responsive img-zoomable" loading="lazy" width="1268" height="662" /></p>
+
+<p><em>Figure 2: Pick the correlation method from the shape of the relationship.</em></p>
+
+<p>Here is a relationship that is perfectly ordered but strongly curved: each value is the cube of the one before it. Watch how the two methods disagree.</p>
+
+<div class="webr-container" data-block-title="Compare Pearson and Spearman on a curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare Pearson and Spearman on a curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- 1:10
+h &lt;- g^3
+c(pearson  = cor(g, h),
+  spearman = cor(g, h, method = &quot;spearman&quot;))
+#&gt;   pearson  spearman 
+#&gt; 0.9283912 1.0000000 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pearson reports 0.928, strong but not perfect, because the cubic curve bends away from a straight line. Spearman reports exactly 1.000, and it is right in its own terms: every time <code>g</code> increases, <code>h</code> increases too, without a single exception. Spearman measures whether the ranks move together perfectly, and here they do. When you care about "does y always go up when x goes up" rather than "do they follow a straight line," Spearman is the honest answer.</p>
+
+<p>Here is how to pick among the three methods.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Use it when</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pearson</td>
+<td>the relationship is roughly a straight line</td>
+<td>strength of the linear link</td>
+</tr>
+<tr>
+<td>Spearman</td>
+<td>the relationship is curved but always one direction, or has outliers</td>
+<td>strength of the ranked, monotonic link</td>
+</tr>
+<tr>
+<td>Kendall</td>
+<td>the sample is small or has many tied values</td>
+<td>agreement between ordered pairs</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Spearman is far more robust to outliers than Pearson.</strong> Because it works on ranks, a single wild value only shifts one rank by a little, whereas the same value can move a Pearson correlation substantially. When your scatter plot shows one point far from the crowd, compare both methods before trusting either.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> These two vectors rise together, but the first has one huge <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>. Compute both Pearson and Spearman and see which one the outlier fools.</p>
+<div class="webr-container" data-block-title="Your turn: outlier, Pearson vs Spearman">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: outlier, Pearson vs Spearman</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_a &lt;- c(1, 2, 3, 4, 5, 100)
+# ex_b &lt;- c(2, 4, 6, 8, 10, 12)
+# round(c(pearson  = cor(ex_a, ex_b),
+#         spearman = cor(ex_a, ex_b, method = &quot;spearman&quot;)), 3)
+# Expected: Spearman is 1, Pearson is lower</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Outlier Pearson vs Spearman solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Outlier Pearson vs Spearman solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_a &lt;- c(1, 2, 3, 4, 5, 100)
+ex_b &lt;- c(2, 4, 6, 8, 10, 12)
+round(c(pearson  = cor(ex_a, ex_b),
+        spearman = cor(ex_a, ex_b, method = &quot;spearman&quot;)), 3)
+#&gt;  pearson spearman 
+#&gt;    0.681    1.000 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ranks of <code>ex_a</code> still climb 1 through 6 in step with <code>ex_b</code>, so Spearman sees a perfect 1.000. Pearson, distorted by the value 100, drops to a misleading 0.681. When an outlier is present, the rank-based method tells the truer story.</p>
+
+</details>
+</section>
+
+<h2>What traps should you watch for with correlation?</h2>
+
+<p>Correlation is powerful, but it is easy to misread in three specific ways. The first trap is that a correlation only sees straight-line relationships. The most famous demonstration is Anscombe's quartet, four datasets built by the statistician Francis Anscombe that share almost the same correlation while looking completely different. R ships them in a built-in data frame called <code>anscombe</code>.</p>
+
+<div class="webr-container" data-block-title="Correlation of Anscombe&#x27;s four datasets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation of Anscombe&#x27;s four datasets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anscombe_cors &lt;- sapply(1:4, function(i) {
+  cor(anscombe[[paste0(&quot;x&quot;, i)]], anscombe[[paste0(&quot;y&quot;, i)]])
+})
+round(anscombe_cors, 3)
+#&gt; [1] 0.816 0.816 0.816 0.817</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four datasets report a correlation of about 0.816. If correlation told the whole story, the four would be interchangeable. They are not, as the plot reveals.</p>
+
+<div class="webr-container" data-block-title="Plot Anscombe&#x27;s four datasets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot Anscombe&#x27;s four datasets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anscombe_long &lt;- do.call(rbind, lapply(1:4, function(i) {
+  data.frame(set = paste(&quot;Dataset&quot;, i),
+             x = anscombe[[paste0(&quot;x&quot;, i)]],
+             y = anscombe[[paste0(&quot;y&quot;, i)]])
+}))
+ggplot(anscombe_long, aes(x, y)) +
+  geom_point(size = 2, color = &quot;#3b6fb6&quot;) +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE, color = &quot;#c0392b&quot;) +
+  facet_wrap(~ set) +
+  theme_minimal(base_size = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the first dataset is a genuine straight-line cloud. The second is a smooth curve that a straight line badly misfits. The third is a perfect line ruined by one outlier. The fourth is a vertical stack of points plus one far-off point that on its own produces the correlation. Same number, four completely different realities. The lesson is permanent: always plot your data, never trust a correlation you have not looked at.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A correlation coefficient only captures the straight-line part of a relationship.</strong> Two variables can be perfectly related in a curved or clumped way and still return a middling or even zero correlation. The number is a summary, and like all summaries it throws information away, so the scatter plot is not optional.</div></div>
+
+<p>The second trap follows directly: a correlation of zero does not mean the variables are unrelated. It only means there is no straight-line trend. A perfect, obvious pattern can hide behind a zero.</p>
+
+<div class="webr-container" data-block-title="A strong pattern with zero correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A strong pattern with zero correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sx &lt;- seq(-5, 5, by = 0.5)
+sy &lt;- sx^2
+round(cor(sx, sy), 10)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>sy</code> is exactly the square of <code>sx</code>, a perfect U-shaped parabola with no randomness at all. Yet the correlation is precisely 0, because for every upward stretch on the right there is a matching downward stretch on the left, and they cancel. The variables are completely determined by each other, and correlation still reports nothing. Zero correlation rules out a linear trend, not a relationship.</p>
+
+<p>The third trap is the most famous: correlation is not causation. Ice cream sales and drowning deaths rise together across the year, giving a strong positive correlation, but ice cream does not cause drowning. A third variable, summer heat, drives both. A correlation tells you two things move together; it never tells you that one makes the other happen.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A correlation, however strong, is not evidence that one variable causes the other.</strong> Hidden common causes, reverse direction, and pure coincidence can all produce strong correlations. To claim causation you need a controlled experiment or careful causal reasoning, never a correlation coefficient on its own.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a V-shaped relationship where y is the distance of x from zero, then check the correlation. The points clearly follow a rule, so predict the number before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: r near zero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: r near zero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_x9 &lt;- -5:5
+# ex_y9 &lt;- abs(ex_x9)
+# round(cor(ex_x9, ex_y9), 3)
+# Expected: 0, even though the points obey a clear rule</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="r near zero solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">r near zero solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x9 &lt;- -5:5
+ex_y9 &lt;- abs(ex_x9)
+round(cor(ex_x9, ex_y9), 3)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The V shape is symmetric around zero, so the rising right arm and the falling left arm cancel out to a correlation of 0. The relationship is real and perfectly predictable, but it is not linear, so Pearson correlation cannot see it.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: A correlation analysis of mtcars</h2>
+
+<p>Let's tie every piece together in a small, realistic workflow: figure out what makes a car fuel-efficient. We start by screening how mileage relates to five candidate predictors, all at once.</p>
+
+<div class="webr-container" data-block-title="Screen mpg against five predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Screen mpg against five predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_cor &lt;- cor(mtcars$mpg, mtcars[, c(&quot;wt&quot;, &quot;hp&quot;, &quot;disp&quot;, &quot;drat&quot;, &quot;qsec&quot;)])
+round(mtcars_cor, 2)
+#&gt;         wt    hp  disp drat qsec
+#&gt; [1,] -0.87 -0.78 -0.85 0.68 0.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single row of correlations ranks the candidates instantly. Weight has the strongest link to mileage at -0.87, followed closely by displacement (-0.85) and horsepower (-0.78), all negative, meaning bigger, heavier, more powerful cars use more fuel. Weight is the front-runner, so we confirm it with a significance test.</p>
+
+<div class="webr-container" data-block-title="Confirm the strongest link">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the strongest link</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_test &lt;- cor.test(mtcars$mpg, mtcars$wt)
+round(best_test$estimate, 3)
+signif(best_test$p.value, 3)
+#&gt;    cor 
+#&gt; -0.868 
+#&gt; [1] 1.29e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test pins the correlation at -0.868 with a p-value of 1.29e-10, so the weight-mileage link is both strong and highly significant. Now we finish the way every correlation analysis should, by plotting the pair to check the relationship really is a straight line and not an Anscombe-style illusion.</p>
+
+<div class="webr-container" data-block-title="Plot mpg against weight with a trend line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot mpg against weight with a trend line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, color = &quot;#3b6fb6&quot;) +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE, color = &quot;#c0392b&quot;) +
+  labs(x = &quot;Weight (1000 lbs)&quot;, y = &quot;Miles per gallon&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The scatter shows a clean downward band of points that the trend line tracks well, with no lurking curve or lone outlier steering the result. That final visual check is what lets us report the finding honestly: in this dataset, a heavier car reliably means lower mileage. Whether weight is the true cause, or a stand-in for engine size and everything else that scales with a big car, is a question correlation alone cannot settle.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each starter block runs as written, so you can fill in your own attempt and compare it to the reveal.</p>
+
+<h3>Exercise 1: Show that correlation is scale-invariant but covariance is not</h3>
+
+<p>Take two short vectors, <code>my_x</code> and <code>my_y</code>. Multiply <code>my_x</code> by 100 to change its units, then compare both the covariance and the correlation before and after the change. Confirm that the covariance moves but the correlation stays put.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: compute cov() and cor() twice, once with my_x and once with my_x * 100.
+my_x &lt;- c(10, 20, 30, 40, 50)
+my_y &lt;- c(3, 5, 4, 8, 9)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x &lt;- c(10, 20, 30, 40, 50)
+my_y &lt;- c(3, 5, 4, 8, 9)
+data.frame(
+  measure = c(&quot;covariance&quot;, &quot;correlation&quot;),
+  before = c(cov(my_x, my_y), cor(my_x, my_y)),
+  after  = c(cov(my_x * 100, my_y), cor(my_x * 100, my_y))
+)
+#&gt;       measure     before        after
+#&gt; 1  covariance 37.5000000 3750.0000000
+#&gt; 2 correlation  0.9162708    0.9162708</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Scaling <code>my_x</code> by 100 multiplies the covariance by 100, from 37.5 to 3750, but the correlation holds steady at 0.9163. This is the units problem and its fix, side by side in one table.</p>
+
+</details>
+
+<h3>Exercise 2: Find the most correlated pair in a matrix</h3>
+
+<p>From the columns mpg, wt, hp, and qsec of mtcars, build the correlation matrix and find the single strongest relationship. Blank out the diagonal and the lower half first so each pair appears only once and no variable can match itself.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: after building the matrix, set m[lower.tri(m, diag = TRUE)] &lt;- NA
+#       so only the unique pairs remain, then read off the largest magnitude.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- cor(mtcars[, c(&quot;mpg&quot;, &quot;wt&quot;, &quot;hp&quot;, &quot;qsec&quot;)])
+m[lower.tri(m, diag = TRUE)] &lt;- NA
+round(m, 2)
+#&gt;      mpg    wt    hp  qsec
+#&gt; mpg   NA -0.87 -0.78  0.42
+#&gt; wt    NA    NA  0.66 -0.17
+#&gt; hp    NA    NA    NA -0.71
+#&gt; qsec  NA    NA    NA    NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With the diagonal and lower triangle set to NA, only the six unique pairs remain. The largest magnitude is -0.87, the mpg-and-weight pair, confirming weight as mileage's strongest partner among these four.</p>
+
+</details>
+
+<h3>Exercise 3: Curved data with an outlier, tested properly</h3>
+
+<p>A dose-response study returns values that rise steeply and include one extreme dose. Compute both the Pearson and Spearman correlations, then run a Spearman significance test. Decide which correlation you would report.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: cor(..., method = &quot;spearman&quot;) for the rank version,
+#       and cor.test(..., method = &quot;spearman&quot;)$p.value for the test.
+dose &lt;- c(1, 2, 3, 4, 5, 6, 7, 20)
+resp &lt;- c(2, 4, 9, 16, 25, 36, 49, 400)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dose &lt;- c(1, 2, 3, 4, 5, 6, 7, 20)
+resp &lt;- c(2, 4, 9, 16, 25, 36, 49, 400)
+round(c(pearson  = cor(dose, resp),
+        spearman = cor(dose, resp, method = &quot;spearman&quot;)), 3)
+signif(cor.test(dose, resp, method = &quot;spearman&quot;)$p.value, 3)
+#&gt;  pearson spearman 
+#&gt;    0.975    1.000 
+#&gt; [1] 4.96e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The response is perfectly monotonic, so Spearman gives a clean 1.000, while Pearson lands at 0.975 because the curve and the extreme dose bend it off a straight line. The Spearman p-value of 0.0000496 confirms the ranked link is real, so Spearman is the honest number to report here.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Why does cor() return NA when my data looks fine?</h3>
+
+<p>The usual cause is <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>. If either vector contains an <code>NA</code>, <code>cor()</code> returns <code>NA</code> rather than guess what you meant by the gap. Tell it how to handle the missing entries with the <code>use</code> argument: <code>cor(x, y, use = &quot;complete.obs&quot;)</code> drops any row where either value is missing, and for a whole matrix <code>use = &quot;pairwise.complete.obs&quot;</code> builds each pair from the rows those two columns share. Look at where the <code>NA</code>s sit before you choose, because dropping rows changes which data each correlation rests on.</p>
+
+<h3>Can I compute a correlation for categorical variables?</h3>
+
+<p>Not with Pearson, which needs numbers so it can measure distance from a mean. If the categories have a natural order (small to large), convert them to ranks and use Spearman instead. For unordered categories like colour or city, correlation does not apply at all, and you would reach for an association measure built for counts, such as <a class="auto-link" href="Measures-of-Association-in-R.html" title="Measures of Association in R: Cramer's V, Phi, Pearson r With Examples">Cramer's V</a> from a <a class="auto-link" href="R-Mosaic-Plots.html" title="R Mosaic Plots: Visualize Categorical Variable Relationships">contingency table</a>. The guiding idea is to match the method to the type of variable you have.</p>
+
+<h3>How many data points do I need to trust a correlation?</h3>
+
+<p>There is no hard cutoff, but very small samples give unstable numbers. With only six students, a high correlation still came with a wide confidence interval from <code>cor.test()</code>, which is its own warning that the estimate is shaky. As a rough habit, treat a correlation from fewer than about 30 points with caution and read the confidence interval, not only the coefficient. More points narrow that interval and make the number you report more dependable.</p>
+
+<h3>What is the quickest way to remember covariance versus correlation?</h3>
+
+<p>Both measure whether two variables move together, but covariance is stated in mixed units you cannot compare across different variable pairs, while correlation divides those units out to land on a fixed -1 to +1 scale. Use the sign of a covariance to read direction, and use correlation whenever you need to judge or compare strength.</p>
+
+<h2>Summary</h2>
+
+<p>Covariance and correlation both answer "do these two variables move together," but only correlation gives you a number you can actually read and compare. The mindmap below gathers the whole journey in one view.</p>
+
+<p><img src="screenshots/Covariance-and-Correlation-in-R-overview-mindmap.webp" alt="A one-page map of covariance, correlation, their R functions and the traps." class="img-responsive img-zoomable" loading="lazy" width="1770" height="1158" /></p>
+
+<p><em>Figure 3: A one-page map of covariance, correlation, their <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> and the traps.</em></p>
+
+<p>Here are the key takeaways to carry forward.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it tells you</th>
+<th>R function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Covariance</td>
+<td>the direction of co-movement, but in unreadable units</td>
+<td><code>cov()</code></td>
+</tr>
+<tr>
+<td>Correlation</td>
+<td>direction and standardized strength, always -1 to +1</td>
+<td><code>cor()</code></td>
+</tr>
+<tr>
+<td>Significance</td>
+<td>whether the correlation is more than sampling luck</td>
+<td><code>cor.test()</code></td>
+</tr>
+<tr>
+<td>Method choice</td>
+<td>match Pearson, Spearman, or Kendall to the shape</td>
+<td><code>cor(..., method =)</code></td>
+</tr>
+</tbody>
+</table>
+
+<ul>
+
+<li><strong>Covariance sign is meaningful, its size is not.</strong> Positive means together, negative means opposite, but the magnitude changes with units.</li>
+
+<li><strong>Correlation standardizes covariance</strong> by dividing by the two standard deviations, producing a unit-free value from -1 to +1.</li>
+
+<li><strong>Always plot before you trust a number.</strong> Anscombe's quartet proves that identical correlations can hide wildly different shapes.</li>
+
+<li><strong>Zero correlation is not independence,</strong> and correlation is never proof of causation.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team, stats package. cor, cov and cor.test reference. <a href="https://stat.ethz.ch/R-manual/R-patched/library/stats/html/cor.html">Link</a></li>
+
+<li>R Core Team. An Introduction to R, section on statistical models and summaries. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li>Wickham, H. and Grolemund, G. R for Data Science, chapter on exploratory data analysis and covariation. <a href="https://r4ds.hadley.nz/eda.html">Link</a></li>
+
+<li>Anscombe, F. J. (1973). Graphs in Statistical Analysis. The American Statistician, 27(1), 17-21. <a href="https://www.jstor.org/stable/2682899">Link</a></li>
+
+<li>Frost, J. Covariance vs Correlation: Understanding the Differences. Statistics By Jim. <a href="https://statisticsbyjim.com/basics/covariance-vs-correlation/">Link</a></li>
+
+<li>Pearson correlation coefficient. Wikipedia (formula reference). <a href="https://en.wikipedia.org/wiki/Pearson_correlation_coefficient">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Z-Scores-and-Percentiles-in-R.html">Z-Scores and Percentiles in R</a>: correlation standardizes a pair of variables the same way a z-score standardizes one, so this is the natural companion.</li>
+
+<li><a href="Mean-Median-SD-IQR-in-R.html">Mean, Median, SD and IQR in R</a>: the standard deviation you divided by to get correlation is explained from scratch here.</li>
+
+<li><a href="Linear-Regression.html">Linear Regression</a>: squaring the correlation gives R-squared, the bridge from measuring a relationship to modeling it.</li>
+
+</ul>
+
+{% endraw %}
