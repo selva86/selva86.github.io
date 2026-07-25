@@ -1,0 +1,816 @@
+---
+title: "Bump Charts in R: Rank Over Time with ggplot2"
+description: "Build bump charts in R with ggplot2 to show rank over time. Learn to compute ranks, reverse the axis, label lines, and highlight one series, with runnable code."
+keywords: "bump chart in R, bump chart ggplot2, rank over time chart, geom_line rank chart, scale_y_reverse, ggbump, ranking chart R, bump plot R"
+mathjax: false
+webr: true
+curriculum_id: "GG2-9.8"
+post_type: "C"
+auto_link_terms: "bump chart|bump chart in R|bump charts|bump plot|bump chart ggplot2|rank over time|ranking chart|rank chart|bump chart in ggplot2|geom_bump|ggbump"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Bump Charts"
+sidebar_order: "65"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A bump chart is a ggplot2 chart that shows how the ranking of several groups changes over time. Each group becomes a line running left to right across the time points, and because the y-axis is flipped so rank 1 sits at the top, a line that rises means a group climbed the ranking and two lines that cross mean one group overtook another.</p>
+
+<p>This tutorial builds a bump chart from scratch with the tidyverse: <code>ggplot2</code> for the graphics, <code>dplyr</code> for computing the ranks, and <code>tidyr</code> for one reshape step. You will not need any special "bump" add-on package. A bump chart is really just a line chart with a flipped axis, and building it by hand teaches you exactly how it works so you can restyle it any way you like.</p>
+
+<h2>What is a bump chart and when should you use one?</h2>
+
+<p>Line and bar charts answer the question "how big?" A bump chart answers a different question: "who is winning, and is the order changing?" It deliberately throws away the exact values and keeps only the ranking, so a shift in position jumps out even when the underlying numbers barely move. That makes it perfect for a handful of groups tracked over a few time points, like teams across a season or products across a few quarters.</p>
+
+<p>We will follow one story throughout. An online store tracks five product categories and their revenue each month, and we want to see how their popularity ranking reshuffles from January to May. Let's build that data and look at it.</p>
+
+<div class="webr-container" data-block-title="Load libraries and build the sample data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load libraries and build the sample data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+sales_wide &lt;- tibble(
+  category = c(&quot;Books&quot;, &quot;Electronics&quot;, &quot;Home&quot;, &quot;Toys&quot;, &quot;Sports&quot;),
+  Jan = c(48, 80, 55, 42, 63),
+  Feb = c(52, 76, 60, 58, 49),
+  Mar = c(61, 64, 66, 70, 57),
+  Apr = c(58, 70, 74, 62, 81),
+  May = c(72, 68, 79, 50, 85)
+)
+
+sales_wide
+#&gt; # A tibble: 5 × 6
+#&gt;   category      Jan   Feb   Mar   Apr   May
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Books          48    52    61    58    72
+#&gt; 2 Electronics    80    76    64    70    68
+#&gt; 3 Home           55    60    66    74    79
+#&gt; 4 Toys           42    58    70    62    50
+#&gt; 5 Sports         63    49    57    81    85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We built the table with <code>tibble()</code>, the tidyverse's version of a <code>data.frame</code> (it prints with the tidy <code># A tibble</code> header you see above and otherwise behaves the same). These revenue figures are made-up sample numbers, in thousands of dollars, chosen so the ranking shuffles in an interesting way. Each row is one category, and each of the five month columns holds that category's revenue for the month. This "wide" shape, one row per group with a column per time point, is a common way real data arrives from a spreadsheet.</p>
+
+<p>Look down any single column and you can eyeball a winner. In January, Electronics leads at 80 and Toys trails at 42. But scanning five separate columns to track who moved where is exactly the mental work a bump chart does for you.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A bump chart hides the numbers on purpose so the ranking becomes the whole story.</strong> By converting revenue into position (1st, 2nd, 3rd) and drawing position over time, you turn "five columns of numbers to compare" into "five lines to watch," and a crossing instantly signals that one group passed another.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Before we go further, warm up on the wide table. Use <code>sum()</code> to total the January revenue across all five categories. The answer should be 288.</p>
+<div class="webr-container" data-block-title="Your turn: total the January revenue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: total the January revenue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: sum the Jan column of sales_wide with sum(sales_wide$Jan)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Total January revenue solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Total January revenue solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum(sales_wide$Jan)
+#&gt; [1] 288</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>$</code> pulls out a single column as a plain numeric vector, and <code>sum()</code> adds up its five values. That is 48 + 80 + 55 + 42 + 63 = 288.</p>
+
+</details>
+</section>
+
+<h2>How do you turn values into ranks for each period?</h2>
+
+<p>A bump chart plots rank, not revenue, so the real work happens before any plotting: we need a rank for every category in every month. Getting there is a clean three-step pipeline. First reshape the wide table into a long one, then group the rows by month, then rank the categories inside each month.</p>
+
+<p><img src="screenshots/Bump-Charts-in-R-pipeline.webp" alt="Three steps turn a table of values into rank-per-period data." class="img-responsive img-zoomable" loading="lazy" width="2248" height="364" /></p>
+
+<p><em>Figure 1: Three steps turn a table of values into rank-per-period data.</em></p>
+
+<p>Let's start with the reshape. Right now each month is a separate column, but to rank "within a month" and later to draw a line through a category's points, we want one row per category per month. The <code>pivot_longer()</code> function folds several columns down into two: one holding the old column names, one holding their values.</p>
+
+<div class="webr-container" data-block-title="Reshape the data from wide to long">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reshape the data from wide to long</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- sales_wide |&gt;
+  pivot_longer(cols = Jan:May, names_to = &quot;month&quot;, values_to = &quot;revenue&quot;)
+
+sales
+#&gt; # A tibble: 25 × 3
+#&gt;    category    month revenue
+#&gt;    &lt;chr&gt;       &lt;chr&gt;   &lt;dbl&gt;
+#&gt;  1 Books       Jan        48
+#&gt;  2 Books       Feb        52
+#&gt;  3 Books       Mar        61
+#&gt;  4 Books       Apr        58
+#&gt;  5 Books       May        72
+#&gt;  6 Electronics Jan        80
+#&gt;  7 Electronics Feb        76
+#&gt;  8 Electronics Mar        64
+#&gt;  9 Electronics Apr        70
+#&gt; 10 Electronics May        68
+#&gt; # ℹ 15 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>|&gt;</code> symbol is R's pipe: it takes the value on its left and feeds it as the first argument to the function on its right, so <code>sales_wide |&gt; pivot_longer(...)</code> just reads as "take the wide table, then pivot it." The <code>cols = Jan:May</code> argument names the five columns to fold, <code>names_to = &quot;month&quot;</code> sends their names into a new <code>month</code> column, and <code>values_to = &quot;revenue&quot;</code> sends the numbers into a new <code>revenue</code> column. We started with 5 rows and now have 25, five months for each of the five categories (the printout shows the first 10 and notes 15 more).</p>
+
+<p>There is one catch with the new <code>month</code> column: R stored it as plain text, and text sorts alphabetically. On a chart axis that would put "Apr" first and scramble the timeline. We fix it by turning <code>month</code> into a factor with the levels listed in calendar order.</p>
+
+<div class="webr-container" data-block-title="Set the month order with a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set the month order with a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">month_order &lt;- c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;, &quot;Apr&quot;, &quot;May&quot;)
+
+sales &lt;- sales |&gt;
+  mutate(month = factor(month, levels = month_order))
+
+levels(sales$month)
+#&gt; [1] &quot;Jan&quot; &quot;Feb&quot; &quot;Mar&quot; &quot;Apr&quot; &quot;May&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A factor is R's type for a category that has a fixed set of allowed values in a set order. By passing <code>levels = month_order</code> we tell R that January comes first and May comes last, no matter how the rows happen to be sorted. The <code>levels()</code> function reads that order back so we can confirm it stuck.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set the time order yourself, or the x-axis sorts alphabetically.</strong> Left as plain text, "Apr" and "Feb" would jump ahead of "Jan" on the axis and every line would zig-zag through a nonsense timeline. Converting the time column to a factor with explicit levels is the fix, and it is easy to forget until a chart comes out looking scrambled.</div></div>
+
+<p>Now the key step: ranking. We want, inside each month, a rank of 1 for the highest revenue down to 5 for the lowest. The <code>group_by(month)</code> call tells dplyr to treat each month as its own little table, and <code>min_rank(desc(revenue))</code> assigns the ranks within that group. We call <code>ungroup()</code> afterward to return to a normal, ungrouped table.</p>
+
+<div class="webr-container" data-block-title="Rank the categories within each month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank the categories within each month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- sales |&gt;
+  group_by(month) |&gt;
+  mutate(rank = min_rank(desc(revenue))) |&gt;
+  ungroup()
+
+sales |&gt;
+  filter(month %in% c(&quot;Jan&quot;, &quot;May&quot;)) |&gt;
+  arrange(month, rank)
+#&gt; # A tibble: 10 × 4
+#&gt;    category    month revenue  rank
+#&gt;    &lt;chr&gt;       &lt;fct&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt;  1 Electronics Jan        80     1
+#&gt;  2 Sports      Jan        63     2
+#&gt;  3 Home        Jan        55     3
+#&gt;  4 Books       Jan        48     4
+#&gt;  5 Toys        Jan        42     5
+#&gt;  6 Sports      May        85     1
+#&gt;  7 Home        May        79     2
+#&gt;  8 Books       May        72     3
+#&gt;  9 Electronics May        68     4
+#&gt; 10 Toys        May        50     5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>desc()</code> wrapper flips the sort so that the largest revenue earns rank 1, and <code>min_rank()</code> returns clean whole-number ranks (shown as <code>&lt;int&gt;</code>). Because we grouped by month first, the ranking restarts inside each month rather than running across the whole table. We then filtered to just January and May and sorted by month and rank so the two ends of the story sit side by side.</p>
+
+<p>Read the two blocks and the reshuffle is obvious. Electronics starts at rank 1 in January but falls to rank 4 by May, while Sports climbs from 2 up to 1. That swap, the market leader getting overtaken, is precisely the kind of movement a bump chart is built to show.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use min_rank(desc(x)) as your default ranker for bump charts.</strong> It gives 1 to the biggest value and returns integers, which is exactly what you want for a leaderboard. The base function <code>rank(-x)</code> also works but returns decimals and averages ties, so <code>min_rank()</code> is the cleaner choice here.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Show the ranking for February only. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> <code>sales</code> to the rows where <code>month</code> is "Feb" and sort them by <code>rank</code>. Electronics should sit at rank 1 and Sports at rank 5.</p>
+<div class="webr-container" data-block-title="Your turn: show the February ranking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: show the February ranking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: filter sales to month == &quot;Feb&quot;, then arrange(rank)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="February ranking solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">February ranking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  filter(month == &quot;Feb&quot;) |&gt;
+  arrange(rank)
+#&gt; # A tibble: 5 × 4
+#&gt;   category    month revenue  rank
+#&gt;   &lt;chr&gt;       &lt;fct&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Electronics Feb        76     1
+#&gt; 2 Home        Feb        60     2
+#&gt; 3 Toys        Feb        58     3
+#&gt; 4 Books       Feb        52     4
+#&gt; 5 Sports      Feb        49     5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>filter()</code> keeps only the February rows and <code>arrange(rank)</code> sorts them best to worst. Notice Sports sank to last in February after sitting second in January, a dip it later recovers from.</p>
+
+</details>
+</section>
+
+<h2>How do you build a basic bump chart in ggplot2?</h2>
+
+<p>With a rank for every category in every month, the chart itself is short. A bump chart is built from three ordinary ingredients: one <code>geom_line()</code> to connect each category's ranks across the months, one <code>geom_point()</code> to mark the rank at each month, and <code>scale_y_reverse()</code> to flip the y-axis so that rank 1 sits at the top like the winner of a race.</p>
+
+<p><img src="screenshots/Bump-Charts-in-R-anatomy.webp" alt="A bump chart is lines plus points on a reversed y-axis." class="img-responsive img-zoomable" loading="lazy" width="924" height="986" /></p>
+
+<p><em>Figure 2: A bump chart is lines plus points on a reversed y-axis.</em></p>
+
+<p>Let's map the pieces to ggplot2. We put <code>month</code> on the x-axis and <code>rank</code> on the y-axis, and we set <code>group = category</code> so ggplot2 knows which points belong to the same line. Coloring by category gives each line its own hue.</p>
+
+<div class="webr-container" data-block-title="Build a basic bump chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a basic bump chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_basic &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category), linewidth = 1) +
+  geom_point(aes(color = category), size = 3) +
+  scale_y_reverse()
+
+p_basic</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>group = category</code> mapping is the piece that makes the chart work. Without it, ggplot2 would try to connect every point into one tangled path; with it, each category gets its own line threading through its five ranks. The <code>geom_point()</code> layer drops a dot at each month so the reader can see exactly where a line sits at each step.</p>
+
+<p>The key line in this block is <code>scale_y_reverse()</code>. Rank data is upside down compared to how ggplot2 draws numbers: normally a bigger y-value sits higher, but here the <em>best</em> rank is the <em>smallest</em> number (1). Reversing the axis puts rank 1 at the top and rank 5 at the bottom, so the chart reads like a leaderboard. Try deleting that line and you will see the whole thing flip into a confusing "lower is better" picture.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>scale_y_reverse() is what turns a line chart of rank numbers into a leaderboard.</strong> Rank 1 is the best but the smallest number, so without the flip your winner would sit at the bottom. Reversing the axis matches the picture to the intuition: higher on the page means higher in the standings.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Copy the basic chart but make it bolder. Set the lines to <code>linewidth = 1.5</code> and the points to <code>size = 5</code> so the ranking reads from across a room.</p>
+<div class="webr-container" data-block-title="Your turn: make the lines and points bolder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: make the lines and points bolder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: rebuild p_basic but set linewidth = 1.5 on geom_line
+# and size = 5 on geom_point</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bolder lines and points solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bolder lines and points solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ex_bold &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category), linewidth = 1.5) +
+  geom_point(aes(color = category), size = 5) +
+  scale_y_reverse()
+
+p_ex_bold</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>linewidth</code> controls line thickness and <code>size</code> controls point radius. Thicker lines and bigger dots make the ranking easier to follow at a glance, which is handy for slides.</p>
+
+</details>
+</section>
+
+<h2>How do you make a bump chart clear and readable?</h2>
+
+<p>The basic chart is correct but rough. It leans on a color legend, its y-axis shows fractional ticks like 2.5 that make no sense for ranks, and you have to hop back and forth to a key to tell the lines apart. Three small moves fix all of that: force whole-number ticks, label each line at its right end, and drop the legend.</p>
+
+<p>Let's build the polished version and then unpack it. We add a <code>geom_text()</code> layer that draws only the "May" rows, so each category name appears once at the finish line of its own line.</p>
+
+<div class="webr-container" data-block-title="Add integer ticks, end labels, and a clean theme">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add integer ticks, end labels, and a clean theme</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_labeled &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category), linewidth = 1.2) +
+  geom_point(aes(color = category), size = 3) +
+  geom_text(
+    data = subset(sales, month == &quot;May&quot;),
+    aes(label = category, color = category),
+    hjust = 0, nudge_x = 0.1, size = 3.5
+  ) +
+  scale_y_reverse(breaks = 1:5) +
+  scale_x_discrete(expand = expansion(mult = c(0.05, 0.35))) +
+  guides(color = &quot;none&quot;) +
+  labs(x = NULL, y = &quot;Rank (1 = best)&quot;) +
+  theme_minimal()
+
+p_labeled</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four things changed from the basic chart. The <code>breaks = 1:5</code> inside <code>scale_y_reverse()</code> forces the axis to show only whole ranks, 1 through 5, with no odd half-steps. The <code>geom_text()</code> layer pulls out just the May rows with <code>subset(sales, month == &quot;May&quot;)</code> and prints each category name to the right of its last point, nudged over with <code>nudge_x = 0.1</code>. Because the labels now identify the lines, <code>guides(color = &quot;none&quot;)</code> hides the redundant legend. Finally <code>scale_x_discrete(expand = ...)</code> adds a 35 percent margin on the right so the names have room instead of running off the panel, and <code>theme_minimal()</code> strips the grey background down to the data.</p>
+
+<p>The payoff is a chart that explains itself. A reader can trace Sports climbing to the top and Electronics sliding down without ever consulting a legend, because the answer is written at the end of each line.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><a class="auto-link" href="Chart-Annotation-Techniques-in-R.html" title="Chart Annotation in R: Arrows, Highlights, Direct Labels">Label lines directly</a> at their ends instead of using a legend.</strong> A legend forces the reader to match a color swatch to a line, over and over. A name sitting at the end of each line removes that lookup entirely, which is why direct labeling is the single biggest readability win for a bump chart.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> One end label is good, two are better for a busy chart. Add a second <code>geom_text()</code> that labels the "Jan" rows on the left as well, using <code>hjust = 1</code> and a small negative nudge so the names sit just outside the first points.</p>
+<div class="webr-container" data-block-title="Your turn: label both ends of each line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: label both ends of each line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: start from p_labeled and add a second geom_text() using
+# data = subset(sales, month == &quot;Jan&quot;), hjust = 1, nudge_x = -0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Both-end labels solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Both-end labels solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ex_ends &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category), linewidth = 1.2) +
+  geom_point(aes(color = category), size = 3) +
+  geom_text(
+    data = subset(sales, month == &quot;Jan&quot;),
+    aes(label = category, color = category),
+    hjust = 1, nudge_x = -0.1, size = 3.5
+  ) +
+  geom_text(
+    data = subset(sales, month == &quot;May&quot;),
+    aes(label = category, color = category),
+    hjust = 0, nudge_x = 0.1, size = 3.5
+  ) +
+  scale_y_reverse(breaks = 1:5) +
+  scale_x_discrete(expand = expansion(mult = c(0.3, 0.3))) +
+  guides(color = &quot;none&quot;) +
+  labs(x = NULL, y = &quot;Rank (1 = best)&quot;) +
+  theme_minimal()
+
+p_ex_ends</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The second <code>geom_text()</code> reads only the January rows and places names to the left with <code>hjust = 1</code>. We widened the left margin to 30 percent so those names fit. Labeling both ends lets the reader anchor each line at its start and its finish.</p>
+
+</details>
+</section>
+
+<h2>How do you highlight one line to tell a story?</h2>
+
+<p>When every line is a bright color, it is hard to know which one to follow, and the single movement you care about blends in with the rest. The fix is to grey out every line except the one group you want to feature. You do it by mapping color to a true-or-false test rather than to the category itself.</p>
+
+<p>Say the story is "Sports came from behind to take the lead." We map <code>color = category == &quot;Sports&quot;</code>, which is <code>TRUE</code> for the Sports rows and <code>FALSE</code> for every other row, then paint those two groups by hand.</p>
+
+<div class="webr-container" data-block-title="Highlight a single category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Highlight a single category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_highlight &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category == &quot;Sports&quot;), linewidth = 1.2) +
+  geom_point(aes(color = category == &quot;Sports&quot;), size = 3) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;grey80&quot;, &quot;TRUE&quot; = &quot;#d7301f&quot;)) +
+  scale_y_reverse(breaks = 1:5) +
+  guides(color = &quot;none&quot;) +
+  labs(x = NULL, y = &quot;Rank (1 = best)&quot;) +
+  theme_minimal()
+
+p_highlight</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The expression <code>category == &quot;Sports&quot;</code> runs once per row and returns <code>TRUE</code> or <code>FALSE</code>, so mapping it to color splits all the lines into just two groups: the featured one and everyone else. The <code>scale_color_manual()</code> call then assigns the actual colors, a soft <code>grey80</code> to the <code>FALSE</code> group and a strong red to the <code>TRUE</code> group. Against the grey background, the red Sports line stands out, and its late climb from the bottom of the chart to the top is easy to follow.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The ggbump package can draw the same chart with smooth, curved lines.</strong> Its <code>geom_bump()</code> swaps the straight segments for gentle S-curves, which some designers prefer for a polished look. It is an optional tidyverse-style add-on, and everything in this tutorial works without it, so reach for it only when you specifically want the curved style.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Feature a different category. Rebuild the highlight chart but spotlight "Toys" instead of "Sports", and give it a green color like <code>#1b7837</code> so it reads as a different story.</p>
+<div class="webr-container" data-block-title="Your turn: highlight Toys instead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: highlight Toys instead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here: change the test to category == &quot;Toys&quot; in both geoms,
+# and set TRUE to &quot;#1b7837&quot; in scale_color_manual()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Highlight Toys solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Highlight Toys solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_ex_toys &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category == &quot;Toys&quot;), linewidth = 1.2) +
+  geom_point(aes(color = category == &quot;Toys&quot;), size = 3) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;grey80&quot;, &quot;TRUE&quot; = &quot;#1b7837&quot;)) +
+  scale_y_reverse(breaks = 1:5) +
+  guides(color = &quot;none&quot;) +
+  labs(x = NULL, y = &quot;Rank (1 = best)&quot;) +
+  theme_minimal()
+
+p_ex_toys</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the test and the <code>TRUE</code> color changed. Now Toys stands out in green, revealing its spike to rank 1 in March before it slid back to last, a very different arc from the Sports climb.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's pull the best moves into one polished bump chart you could drop straight into a report. It draws colored lines, labels each category by name on the left, prints its final rank as a "#1"-style tag on the right, uses whole-number ticks, and carries a clear title. Every piece here appeared earlier in the tutorial.</p>
+
+<div class="webr-container" data-block-title="Build a polished, report-ready bump chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a polished, report-ready bump chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_final &lt;- ggplot(sales, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category), linewidth = 1.4) +
+  geom_point(aes(color = category), size = 3.5) +
+  geom_text(
+    data = subset(sales, month == &quot;Jan&quot;),
+    aes(label = category, color = category),
+    hjust = 1, nudge_x = -0.12, size = 3.4, fontface = &quot;bold&quot;
+  ) +
+  geom_text(
+    data = subset(sales, month == &quot;May&quot;),
+    aes(label = paste0(&quot;#&quot;, rank), color = category),
+    hjust = 0, nudge_x = 0.12, size = 3.4, fontface = &quot;bold&quot;
+  ) +
+  scale_y_reverse(breaks = 1:5) +
+  scale_x_discrete(expand = expansion(mult = c(0.28, 0.18))) +
+  guides(color = &quot;none&quot;) +
+  labs(
+    title = &quot;Product category rank by monthly revenue&quot;,
+    subtitle = &quot;Rank 1 = highest revenue that month&quot;,
+    x = NULL, y = &quot;Rank&quot;
+  ) +
+  theme_minimal()
+
+p_final</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two <code>geom_text()</code> layers do the direct labeling: the first prints each category's name to the left of its January point, and the second prints its final standing as a tag like <code>#1</code> to the right of its May point, built with <code>paste0(&quot;#&quot;, rank)</code>. The <code>fontface = &quot;bold&quot;</code> makes both sets of labels stand out, and the asymmetric <code>expand</code> gives more room on the left (for long names) than the right (for short tags). The result is a single figure that names every line, shows where each category finished, and needs no legend or caption to be understood.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each uses distinct variable names so it will not overwrite the objects we built above. Try each one before opening the solution.</p>
+
+<h3>Exercise 1: Find the most consistent top performer</h3>
+
+<p>A category can win one month and vanish the next. To find the steadiest strong performer, compute each category's average rank across all five months, then sort so the lowest average (the most consistently high) is on top. Save the result to <code>ex1_ranks</code>. The winner should be Home with an average rank of 2.2.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: average rank per category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: average rank per category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here
+# Hint: group_by(category), summarise a mean_rank = mean(rank),
+# then arrange() by mean_rank
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Average rank solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average rank solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex1_ranks &lt;- sales |&gt;
+  group_by(category) |&gt;
+  summarise(mean_rank = mean(rank)) |&gt;
+  arrange(mean_rank)
+
+ex1_ranks
+#&gt; # A tibble: 5 × 2
+#&gt;   category    mean_rank
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;
+#&gt; 1 Home              2.2
+#&gt; 2 Electronics       2.4
+#&gt; 3 Sports            2.8
+#&gt; 4 Toys              3.6
+#&gt; 5 Books             4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>group_by(category)</code> then <code>summarise(mean_rank = mean(rank))</code> collapses each category to a single average-rank number, and <code>arrange()</code> sorts them. Home never won a month, but it sat second or third every time, giving it the best average and the title of steadiest performer.</p>
+
+</details>
+
+<h3>Exercise 2: A bump chart of only the big movers</h3>
+
+<p>A crowded bump chart can bury the interesting lines. Build a focused chart of just three categories, Sports, Electronics, and Toys, which have the most dramatic swings. First filter <code>sales</code> to those three and save it to <code>three</code>, print it to confirm you have 15 rows, then draw a basic bump chart from that smaller table.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: filter to three categories, then plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: filter to three categories, then plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here
+# Hint: filter(category %in% c(&quot;Sports&quot;, &quot;Electronics&quot;, &quot;Toys&quot;)) into `three`,
+# print it, then reuse the geom_line + geom_point + scale_y_reverse recipe
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Big-movers bump chart solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Big-movers bump chart solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">three &lt;- sales |&gt;
+  filter(category %in% c(&quot;Sports&quot;, &quot;Electronics&quot;, &quot;Toys&quot;))
+
+three
+#&gt; # A tibble: 15 × 4
+#&gt;    category    month revenue  rank
+#&gt;    &lt;chr&gt;       &lt;fct&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt;  1 Electronics Jan        80     1
+#&gt;  2 Electronics Feb        76     1
+#&gt;  3 Electronics Mar        64     3
+#&gt;  4 Electronics Apr        70     3
+#&gt;  5 Electronics May        68     4
+#&gt;  6 Toys        Jan        42     5
+#&gt;  7 Toys        Feb        58     3
+#&gt;  8 Toys        Mar        70     1
+#&gt;  9 Toys        Apr        62     4
+#&gt; 10 Toys        May        50     5
+#&gt; 11 Sports      Jan        63     2
+#&gt; 12 Sports      Feb        49     5
+#&gt; 13 Sports      Mar        57     5
+#&gt; 14 Sports      Apr        81     1
+#&gt; 15 Sports      May        85     1
+
+p_cap2 &lt;- ggplot(three, aes(x = month, y = rank, group = category)) +
+  geom_line(aes(color = category), linewidth = 1.2) +
+  geom_point(aes(color = category), size = 3) +
+  scale_y_reverse(breaks = 1:5) +
+  labs(x = NULL, y = &quot;Rank (1 = best)&quot;) +
+  theme_minimal()
+
+p_cap2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>%in%</code> keeps rows whose category is any of the three names, leaving 15 rows (three categories times five months). Feeding that smaller table into the same recipe draws a less crowded chart where the three tangled arcs are easy to trace.</p>
+
+</details>
+
+<h3>Exercise 3: Which category's ranking swung the most?</h3>
+
+<p>Average rank (Exercise 1) hides how bumpy a category's ride was: a steady third-place finisher and a wild category that bounced between first and last can share the same average. Measure the swing instead. For each category find its best (lowest) rank, its worst (highest) rank, and the gap between them, then sort so the biggest swing is on top. Save the result to <code>ex3_swings</code>. Sports and Toys should tie at the top, each swinging a full four places.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: rank volatility per category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: rank volatility per category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here
+# Hint: group_by(category), then summarise best = min(rank), worst = max(rank),
+# and swing = worst - best, then arrange(desc(swing))
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank volatility solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank volatility solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex3_swings &lt;- sales |&gt;
+  group_by(category) |&gt;
+  summarise(best = min(rank), worst = max(rank), swing = worst - best) |&gt;
+  arrange(desc(swing))
+
+ex3_swings
+#&gt; # A tibble: 5 × 4
+#&gt;   category     best worst swing
+#&gt;   &lt;chr&gt;       &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1 Sports          1     5     4
+#&gt; 2 Toys            1     5     4
+#&gt; 3 Electronics     1     4     3
+#&gt; 4 Books           3     5     2
+#&gt; 5 Home            2     3     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>min(rank)</code> finds a category's best month and <code>max(rank)</code> its worst, so <code>worst - best</code> is how many places it moved between the two. Sports and Toys each swung a full four ranks, while Home stayed within a single place all season, which is why Exercise 1 found Home the steadiest performer.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Do I need the ggbump package to make a bump chart?</strong> No. Core ggplot2 draws a real bump chart from <code>geom_line()</code>, <code>geom_point()</code>, and <code>scale_y_reverse()</code>, as this whole tutorial does. The <code>ggbump</code> package only adds smooth, curved lines in place of the straight segments, so it is a style choice, not a requirement.</p>
+
+<p><strong>Why do I have to reverse the y-axis?</strong> Because the best rank is the smallest number. Rank 1 beats rank 5, but by default ggplot2 draws 5 higher up the page than 1. <code>scale_y_reverse()</code> flips the axis so rank 1 sits at the top, matching how people read a leaderboard from the top down.</p>
+
+<p><strong>How many groups and time points work well?</strong> Bump charts shine with a handful of groups (roughly three to eight) over a few time points. With many lines they tangle into spaghetti, and with many time points the crossings get hard to follow. If your chart looks like a knot, highlight one or two lines or split it into small multiples.</p>
+
+<p><strong>What happens if two groups tie in the same period?</strong> <code>min_rank()</code> gives tied values the same rank and then skips the next number, so two second-place ties become rank 2, rank 2, then rank 4. If you need every position to be unique, add a tiebreaker column to sort on, or use <code>dplyr::row_number()</code> on an ordered table.</p>
+
+<p><strong>My metric is best when it is lowest, like a finishing position. Does that break the chart?</strong> No, you just rank the other way. Drop the <code>desc()</code> and rank the raw value ascending with <code>min_rank(revenue)</code>, so the smallest value earns rank 1. The rest of the chart, including the reversed axis, stays exactly the same.</p>
+
+<h2>Summary</h2>
+
+<p>A bump chart turns a table of values into a picture of ranking over time. The trick is that the drawing is easy once the data is right: reshape to long, rank within each period, then draw lines and points on a reversed axis so the leader sits on top.</p>
+
+<p><img src="screenshots/Bump-Charts-in-R-workflow.webp" alt="The full bump-chart workflow at a glance." class="img-responsive img-zoomable" loading="lazy" width="1468" height="938" /></p>
+
+<p><em>Figure 3: The full bump-chart workflow at a glance.</em></p>
+
+<p>The workflow in one place:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reshape</td>
+<td><code>pivot_longer()</code> to one row per group per period</td>
+</tr>
+<tr>
+<td>Order time</td>
+<td>Make the time column a factor with explicit levels</td>
+</tr>
+<tr>
+<td>Rank</td>
+<td><code>group_by(period)</code> then <code>min_rank(desc(value))</code></td>
+</tr>
+<tr>
+<td>Draw</td>
+<td><code>geom_line(group = ...)</code> plus <code>geom_point()</code></td>
+</tr>
+<tr>
+<td>Flip axis</td>
+<td><code>scale_y_reverse(breaks = 1:5)</code> so rank 1 is on top</td>
+</tr>
+<tr>
+<td>Polish</td>
+<td>Direct end labels, hidden legend, <code>theme_minimal()</code>, optional highlight</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for a bump chart when the order of a small set of groups is your message and you want shifts and overtakes to jump off the page. Build it from core ggplot2 and you can restyle every layer, then add <code>ggbump</code> only if you want the curves.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation. geom_line() reference. <a href="https://ggplot2.tidyverse.org/reference/geom_path.html">Link</a></li>
+
+<li>ggplot2 documentation. scale_y_reverse() and continuous scales. <a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html">Link</a></li>
+
+<li>dplyr documentation. Ranking functions including min_rank(). <a href="https://dplyr.tidyverse.org/reference/row_number.html">Link</a></li>
+
+<li>tidyr documentation. pivot_longer() reference. <a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. R for Data Science, 2nd Edition, Data Visualization. <a href="https://r4ds.hadley.nz/data-visualize">Link</a></li>
+
+<li>Sjoberg, D. ggbump: A geom for creating bump charts in ggplot2. CRAN. <a href="https://cran.r-project.org/package=ggbump">Link</a></li>
+
+<li>The R Graph Gallery. Line charts for several groups in ggplot2, the base a bump chart is built on. <a href="https://r-graph-gallery.com/line-chart-several-groups-ggplot2.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Line-Charts.html">ggplot2 Line Charts</a>: the foundation a bump chart is built on, covering <code>geom_line()</code>, grouping, and styling in depth.</li>
+
+<li><a href="Dumbbell-and-Slope-Charts-in-R.html">Dumbbell and Slope Charts in R</a>: two more before-and-after chart types, including the slope chart, a two-point cousin of the bump chart.</li>
+
+<li><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html">Reshape Data with pivot_longer and pivot_wider</a>: the wide-to-long reshape every bump chart depends on, explained from scratch.</li>
+
+</ul>
+
+{% endraw %}
