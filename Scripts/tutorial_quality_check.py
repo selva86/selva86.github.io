@@ -304,15 +304,27 @@ def main():
         if not (5 <= len(urls) <= 10):
             (fail if len(urls) < 5 else warn)('%d reference links (want 5-10)' % len(urls))
         if not args.skip_links:
+            def _curl_ok(u):
+                # Cloudflare-fronted sites block urllib's TLS fingerprint while
+                # serving 200 to real clients; curl passes. Fallback, not first
+                # resort, so the cheap path still covers most links.
+                try:
+                    r = subprocess.run(['curl', '-sIL', '-o', os.devnull, '-w', '%{http_code}',
+                                        '--max-time', '15', u],
+                                       capture_output=True, text=True, timeout=25)
+                    code = int((r.stdout or '0').strip()[-3:] or 0)
+                    return 200 <= code < 400
+                except Exception:
+                    return False
             dead = []
             for u in urls[:10]:
                 try:
                     req = urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'})
                     with urllib.request.urlopen(req, timeout=12) as resp:
-                        if resp.status >= 400: dead.append(u)
+                        if resp.status >= 400 and not _curl_ok(u): dead.append(u)
                 except Exception:
-                    dead.append(u)
-            if dead: fail('reference link(s) not resolving: %s' % ', '.join(dead))
+                    if not _curl_ok(u): dead.append(u)
+            if dead: fail('reference link(s) not resolving (urllib and curl): %s' % ', '.join(dead))
             else: ok('all reference links resolve')
 
     # 11. internal links (info)
