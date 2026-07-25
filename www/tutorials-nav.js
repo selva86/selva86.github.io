@@ -11,7 +11,8 @@
   // and renames appear here without touching this module. Falls back to a
   // static list if the fetch fails.
   var FALLBACK_BOOKS = [
-    { href: "/tutorials/time-series.html", name: "The Time Series Forecasting Handbook", meta: "74 chapters, 13 parts" }
+    { href: "/tutorials/time-series.html", name: "The Time Series Forecasting Handbook", meta: "From raw data to reliable forecasts, every step runnable in your browser." },
+    { href: "/tutorials/ggplot2.html", name: "The ggplot2 Handbook", meta: "From your first scatter plot to publication-ready figures." }
   ];
 
   var CAR = '<svg class="nav-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -80,9 +81,7 @@
     fetch('/www/curricula.json?v=1').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
       if (!data || !data.books || !data.books.length) return;
       var rows = data.books.map(function (b) {
-        var n = 0;
-        (b.parts || []).forEach(function (p) { n += (p.chapters || []).length; });
-        return { href: b.index, name: b.title, meta: n + ' chapters, ' + (b.parts || []).length + ' parts' };
+        return { href: b.index, name: b.title, meta: b.tagline || '' };
       });
       var lab = drop.querySelector('.tn-lab');
       while (lab.nextSibling) drop.removeChild(lab.nextSibling);

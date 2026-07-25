@@ -105,8 +105,10 @@ def render_scripts(page_js=None):
     parts = [ANALYTICS,
              '  <script defer src="/www/auth-hydrate.js?v=15"></script>',
              '  <script defer src="/www/sections-v3.js?v=2"></script>',
-             '  <script defer src="/www/site-nav.js?v=2"></script>',
-             '  <script defer src="/www/practice-nav.js?v=10"></script>',
+             '  <script defer src="/www/site-nav.js?v=3"></script>',
+             '  <script defer src="/www/practice-nav.js?v=12"></script>',
+             '  <script defer src="/www/roadmap-nav.js?v=5"></script>',
+             '  <script defer src="/www/tutorials-nav.js?v=3"></script>',
              '  <script defer src="/www/signin-nudge.js?v=16"></script>']
     for src in (page_js or []):
         parts.append(f'  <script defer src="{src}"></script>')
