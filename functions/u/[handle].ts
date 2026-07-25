@@ -19,18 +19,29 @@ import {
 } from "../_lib/badges";
 import { isProActive, type User } from "../_lib/db";
 
+const ICON_WORK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>';
+const ICON_EDU = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>';
+const ICON_PIN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+
 const CSS = `
+  /* canonical-nav support on this Function-rendered page */
+  .auth-anon,.auth-user{display:none}
+  body.state-anon .auth-anon{display:inline-flex;align-items:center}
+  body.state-pro .auth-user{display:inline-flex;align-items:center;gap:8px}
+  .snav-burger{display:none!important}
+  html.dark body{background:#0f1115;color:#d7dce6}
+  html.dark .card{background:#171a21;border-color:#262a31;box-shadow:none}
+  html.dark h2, html.dark .bignum, html.dark .streakhead b{color:#e8ecf5}
+  html.dark .lbtn{background:#171a21;border-color:#262a31;color:#d7dce6}
+  html.dark .sbtn{background:#171a21;border-color:#262a31;color:#c3cad9}
+  html.dark .heronav a.on{background:#0f1115;color:#e8ecf5}
+  html.dark .heronav a.on:hover{color:#e8ecf5}
+  html.dark .weekstrip i{background:#232733}
+  html.dark .diffrow .bar,.meter .bar{background:#232733}
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:#f7f7f5;color:#16181d;font:14.5px/1.55 'IBM Plex Sans',-apple-system,'Segoe UI',Roboto,Arial,sans-serif}
   a{color:#2056d2;text-decoration:none} a:hover{text-decoration:underline}
-  .masthead{background:#101a30;padding:11px 24px;display:flex;align-items:center;gap:22px}
-  .wordmark{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:19px;color:#fff}
-  .wordmark b{color:#7da2ff}
-  .masthead nav{display:flex;gap:18px;font-size:13.5px}
-  .masthead nav a{color:#c7d2e8}
-  .masthead .grow{flex:1}
-  .masthead .cta{background:#fff;color:#101a30;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:600}
   .hero{background:linear-gradient(180deg,var(--hero-a,#101a30) 0%,var(--hero-b,#182644) 100%);color:#e8edf8;padding:34px 0 0}
   .hero-in{max-width:1180px;margin:0 auto;padding:0 22px;display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
   .ringwrap{position:relative;width:148px;height:148px;flex:none}
@@ -42,6 +53,10 @@ const CSS = `
   .hid h1{font-family:'Inter Tight',sans-serif;font-weight:800;font-size:34px;margin:0;letter-spacing:-.015em;color:#fff}
   .hid .handle{color:#9daac6;font-size:14px;margin-top:2px}
   .hid .bio{color:#c7d2e8;font-size:14.5px;max-width:520px;margin:10px 0 0}
+  .idline{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;color:#c7d2e8;font-size:13.5px}
+  .idline .idbit{display:inline-flex;align-items:center;gap:6px}
+  .idline svg{color:#7da2ff;flex:none}
+  .idline .vtag{font-style:normal;font-size:10.5px;font-weight:700;color:#7fd8ae;border:1px solid rgba(85,200,145,.4);border-radius:9px;padding:1px 8px;margin-left:6px;letter-spacing:.3px}
   .hchips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .hchip{font-size:12px;font-weight:600;padding:4px 12px;border-radius:11px;background:rgba(255,255,255,.09);color:#dbe4f5;border:1px solid rgba(255,255,255,.14)}
   .hchip.pro{background:#0f7a52;border-color:#0f7a52;color:#fff}
@@ -178,7 +193,6 @@ const CSS = `
   .private-card{max-width:520px;margin:60px auto;text-align:center;background:#fff;border:1px solid #e6e8ee;border-radius:16px;padding:26px}
   .report{color:#9aa0ab;font-size:11.5px;margin-top:8px}
   button:focus-visible,a:focus-visible{outline:2px solid #2056d2;outline-offset:2px}
-  @media(max-width:560px){.masthead nav{display:none}.masthead{gap:12px}}
   @media(max-width:560px){.hid h1{font-size:27px}.hstats{gap:8px 22px}.hstat b{font-size:24px}}
 `;
 
@@ -193,16 +207,31 @@ function shell(title: string, body: string, extraHead = ""): string {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="/www/site-nav.css?v=7" rel="stylesheet">
 ${extraHead}
 <style>${CSS}</style>
 </head><body>
-<div class="masthead">
-  <a class="wordmark" href="/">R<b>.</b></a>
-  <nav><a href="/roadmap/">Roadmap</a><a href="/tutorials/">Tutorials</a><a href="/exercises/">Exercises</a><a href="/tools/">Tools</a></nav>
-  <span class="grow"></span>
-  <a class="cta" href="/pricing.html">Get certified</a>
-</div>
+<nav class="sitenav" aria-label="Site">
+        <div class="snav-wrap">
+          <button id="mobile-menu-btn" class="snav-burger" type="button" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+          <a class="snav-brand" href="/"><span class="brand-mark">R</span><span>r&#8209;statistics<span class="co">.co</span></span></a>
+          <div class="snav-links">
+            <a href="/roadmap/">Roadmap <span class="ex-caret" aria-hidden="true">&#9662;</span></a>
+            <a href="/tutorials/">Tutorials</a>
+            <a href="/exercises/">Exercises <span class="ex-caret" aria-hidden="true">&#9662;</span></a>
+            <a href="/tools/">Tools</a>
+          </div>
+          <div class="snav-right">
+            <form class="snav-search" role="search" aria-label="Search r-statistics.co" onsubmit="var q=(this.q.value||'').trim();if(q)window.open('https://www.google.com/search?q='+encodeURIComponent(q+' site:r-statistics.co'));return false"><svg class="snav-sicon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><input type="search" name="q" placeholder="Search" aria-label="Search r-statistics.co"></form><button class="snav-sbtn" data-snav-search type="button" aria-label="Search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>
+            <a class="snav-btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a>
+            <span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>
+            <span class="auth-user"><!-- auth-hydrate.js fills with avatar + dropdown --></span>
+          </div>
+        </div>
+      </nav>
 ${body}
+<script defer src="/www/auth-hydrate.js?v=15"></script>
+<script defer src="/www/site-nav.js?v=3"></script>
 </body></html>`;
 }
 
@@ -254,16 +283,28 @@ function ownerScript(pageHandle: string): string {
     }
   } catch (e) {}
   var tok = null;
-  try {
-    for (var i = 0; i < localStorage.length; i++) {
-      var k = localStorage.key(i);
-      if (/^sb-.*-auth-token$/.test(k)) {
-        var v = JSON.parse(localStorage.getItem(k));
-        tok = (Array.isArray(v) ? v[0] : (v && v.access_token)) || null;
-        break;
+  var unlocked = false;
+  function scanTok() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (/^sb-.*-auth-token$/.test(k)) {
+          var v = JSON.parse(localStorage.getItem(k));
+          return (Array.isArray(v) ? v[0] : (v && v.access_token)) || null;
+        }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+    return null;
+  }
+  tok = scanTok();
+  // A stale localStorage token 401s silently; auth-hydrate refreshes state on
+  // every page, so retry the unlock once with its fresh token.
+  window.addEventListener('auth-hydrated', function (ev) {
+    var fresh = ev && ev.detail && ev.detail.token;
+    if (unlocked || !fresh || fresh === tok) return;
+    tok = fresh;
+    boot();
+  });
   if (!tok) return;
   function api(method, body){
     return fetch('/api/me/profile', {
@@ -274,9 +315,11 @@ function ownerScript(pageHandle: string): string {
       body: body ? JSON.stringify(body) : undefined
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); });
   }
+  function boot(){
   api('GET').then(function(res){
     var p = res.j;
-    if (!p || !p.handle || p.handle !== ${JSON.stringify(pageHandle)}) return;
+    if (!res.ok || !p || !p.handle || p.handle !== ${JSON.stringify(pageHandle)}) return;
+    unlocked = true;
     var bar = document.getElementById('ownbar');
     if (!bar) return;
     bar.style.display = 'block';
@@ -340,6 +383,11 @@ function ownerScript(pageHandle: string): string {
       document.getElementById('f-otw').checked = !!x.open_to_work;
       document.getElementById('f-role').value = x.role || '';
       document.getElementById('f-pref').value = x.work_pref || 'any';
+      document.getElementById('f-wtitle').value = (x.work && x.work.title) || '';
+      document.getElementById('f-worg').value = (x.work && x.work.org) || '';
+      document.getElementById('f-school').value = (x.education && x.education.school) || '';
+      document.getElementById('f-program').value = (x.education && x.education.program) || '';
+      document.getElementById('f-loc').value = x.location || '';
       document.getElementById('f-theme').value = x.theme || 'navy';
       var pins = (x.pinned && x.pinned.length) ? x.pinned
         : (x.snippet && x.snippet.code ? [{ title: x.snippet.title, code: x.snippet.code }] : []);
@@ -358,6 +406,30 @@ function ownerScript(pageHandle: string): string {
     if (editBtn) editBtn.addEventListener('click', function(){
       ed.style.display = ed.style.display === 'block' ? 'none' : 'block';
       if (ed.style.display === 'block') fill();
+    });
+    var vs = document.getElementById('f-vsend');
+    var vc = document.getElementById('f-vconfirm');
+    var vmsg = document.getElementById('f-vmsg');
+    function vpost(payload){
+      return fetch('/api/me/verify-work', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); });
+    }
+    if (vs) vs.addEventListener('click', function(){
+      vmsg.textContent = 'Sending...';
+      vpost({ email: (document.getElementById('f-vemail').value || '').trim() }).then(function(r){
+        vmsg.textContent = r.ok ? 'Code sent to that address. It verifies your ' + (r.j.kind === 'education' ? 'place of study.' : 'workplace.')
+          : ((r.j.error && r.j.error.message) || 'Could not send.');
+      }).catch(function(){ vmsg.textContent = 'Network error.'; });
+    });
+    if (vc) vc.addEventListener('click', function(){
+      vmsg.textContent = 'Checking...';
+      vpost({ code: (document.getElementById('f-vcode').value || '').trim() }).then(function(r){
+        if (r.ok) { vmsg.textContent = 'Verified. Reloading...'; location.reload(); }
+        else { vmsg.textContent = (r.j.error && r.j.error.message) || 'Wrong code.'; }
+      }).catch(function(){ vmsg.textContent = 'Network error.'; });
     });
     var avIn = document.getElementById('f-avatar');
     if (avIn) avIn.addEventListener('change', function(){
@@ -398,7 +470,10 @@ function ownerScript(pageHandle: string): string {
         github: val('f-github'), projects: projects,
         open_to_work: document.getElementById('f-otw').checked,
         role: val('f-role'), work_pref: val('f-pref'),
-        theme: val('f-theme')
+        theme: val('f-theme'),
+        work: (val('f-wtitle') || val('f-worg')) ? { title: val('f-wtitle'), org: val('f-worg') } : null,
+        education: val('f-school') ? { school: val('f-school'), program: val('f-program') } : null,
+        location: val('f-loc')
       };
       var pinned = [];
       [['f-sn-title','f-sn-code'],['f-sn2-title','f-sn2-code'],['f-sn3-title','f-sn3-code']].forEach(function(pair){
@@ -429,6 +504,8 @@ function ownerScript(pageHandle: string): string {
       });
     });
   }).catch(function(){});
+  }
+  boot();
 })();
 </script>`;
 }
@@ -457,6 +534,16 @@ function ownerBar(): string {
         <div><label>Project link 2</label><input type="text" id="f-p2" placeholder="https://..."></div>
         <div><label>Project link 3</label><input type="text" id="f-p3" placeholder="https://..."></div>
         <div><label>Work preference</label><select id="f-pref"><option value="any">Any</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option></select></div>
+        <div><label>Current role</label><input type="text" id="f-wtitle" maxlength="60" placeholder="Data Scientist"></div>
+        <div><label>Company / organization</label><input type="text" id="f-worg" maxlength="60" placeholder="Acme Analytics"></div>
+        <div><label>Place of study</label><input type="text" id="f-school" maxlength="80" placeholder="IIT Madras"></div>
+        <div><label>Program (optional)</label><input type="text" id="f-program" maxlength="60" placeholder="MSc Statistics"></div>
+        <div><label>Location</label><input type="text" id="f-loc" maxlength="60" placeholder="Chennai, India"></div>
+        <div><label>Verify with a work or university email</label>
+          <div style="display:flex;gap:6px"><input type="email" id="f-vemail" placeholder="you@company.com" style="flex:1"><button class="btn" id="f-vsend" type="button">Send code</button></div>
+          <div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="f-vcode" maxlength="6" placeholder="6-digit code" style="flex:1"><button class="btn" id="f-vconfirm" type="button">Confirm</button></div>
+          <div class="msg" id="f-vmsg"></div>
+        </div>
         <div><label>Profile picture (square works best)</label><input type="file" id="f-avatar" accept="image/jpeg,image/png,image/webp"><div class="msg" id="avatar-msg"></div></div>
         <div><label>Accent theme</label><select id="f-theme"><option value="navy">Navy (default)</option><option value="forest">Forest</option><option value="plum">Plum</option><option value="slate">Slate</option><option value="ember">Ember</option></select></div>
       </div>
@@ -579,6 +666,21 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   const themeVars = extras.theme && THEMES[extras.theme]
     ? `<style>:root{--hero-a:${THEMES[extras.theme][0]};--hero-b:${THEMES[extras.theme][1]}}</style>`
     : "";
+  const vWork = (u as { work_verified_domain?: string | null }).work_verified_domain;
+  const vEdu = (u as { edu_verified_domain?: string | null }).edu_verified_domain;
+  const idBits: string[] = [];
+  if (extras.work && (extras.work.title || extras.work.org)) {
+    const wtxt = [extras.work.title, extras.work.org].filter(Boolean).map((x) => escHtml(String(x))).join(" at ");
+    idBits.push(`<span class="idbit">${ICON_WORK}${wtxt}${vWork ? `<i class="vtag">verified @ ${escHtml(vWork)}</i>` : ""}</span>`);
+  }
+  if (extras.education?.school) {
+    const etxt = [extras.education.program, extras.education.school].filter(Boolean).map((x) => escHtml(String(x))).join(", ");
+    idBits.push(`<span class="idbit">${ICON_EDU}${etxt}${vEdu ? `<i class="vtag">verified @ ${escHtml(vEdu)}</i>` : ""}</span>`);
+  }
+  if (extras.location) {
+    idBits.push(`<span class="idbit">${ICON_PIN}${escHtml(extras.location)}</span>`);
+  }
+  const identityLine = idBits.length ? `<div class="idline">${idBits.join("")}</div>` : "";
   const showcaseItems: Array<{ title: string; code: string; note?: string }> =
     (extras.pinned && extras.pinned.length ? extras.pinned : (extras.snippet?.code
       ? [{ title: extras.snippet.title || "Pinned snippet", code: extras.snippet.code }] : [])).slice(0, 3);
@@ -781,7 +883,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
       <div class="hid">
         <h1>${name}</h1>
         <div class="handle">r-statistics.co/u/${escHtml(raw)}</div>
-        ${extras.bio ? `<p class="bio">${escHtml(extras.bio)}</p>` : ""}
+        ${extras.bio ? `<p class="bio">${escHtml(extras.bio)}</p>` : ""}${identityLine}
         <div class="hchips">${pro}${pctChips}${otw}${curr}</div>
         <div class="hmeta">
           <span>Member since <b>${memberSince}</b></span>

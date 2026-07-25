@@ -28,6 +28,8 @@ export async function ensureProfileColumns(DB: D1Database): Promise<void> {
     "ALTER TABLE users ADD COLUMN public_profile INTEGER DEFAULT 1",
     "ALTER TABLE users ADD COLUMN profile_json TEXT",
     "ALTER TABLE users ADD COLUMN avatar_key TEXT",
+    "ALTER TABLE users ADD COLUMN work_verified_domain TEXT",
+    "ALTER TABLE users ADD COLUMN edu_verified_domain TEXT",
     "ALTER TABLE users ADD COLUMN github_login TEXT",
     "ALTER TABLE users ADD COLUMN prev_handle TEXT",
     "ALTER TABLE users ADD COLUMN recap_opt_out INTEGER DEFAULT 0",
@@ -181,6 +183,9 @@ export interface ProfileExtras {
   work_pref?: string;        // remote | hybrid | onsite | any
   snippet?: { title?: string; code?: string };  // pinned runnable R snippet
   pinned?: Array<{ title: string; code: string; note?: string }>;  // up to 3 runnable pieces
+  work?: { title?: string; org?: string };       // current role
+  education?: { school?: string; program?: string };
+  location?: string;         // self-reported, plain text
   theme?: string;            // profile accent theme (THEME_IDS)
 }
 
@@ -286,6 +291,30 @@ export function mergeProfileExtras(
       const title = cleanText(s.title, 80) || "Pinned snippet";
       out.snippet = { title, code };
     }
+  }
+  if ("work" in body) {
+    if (body.work == null) delete out.work;
+    else {
+      const w = body.work as { title?: unknown; org?: unknown };
+      const title = cleanText(w.title, 60);
+      const org = cleanText(w.org, 60);
+      if (title || org) out.work = { ...(title ? { title } : {}), ...(org ? { org } : {}) };
+      else delete out.work;
+    }
+  }
+  if ("education" in body) {
+    if (body.education == null) delete out.education;
+    else {
+      const e = body.education as { school?: unknown; program?: unknown };
+      const school = cleanText(e.school, 80);
+      const program = cleanText(e.program, 60);
+      if (school) out.education = { school, ...(program ? { program } : {}) };
+      else delete out.education;
+    }
+  }
+  if ("location" in body) {
+    const loc = cleanText(body.location, 60);
+    if (loc) out.location = loc; else delete out.location;
   }
   if ("pinned" in body) {
     if (body.pinned == null) delete out.pinned;
