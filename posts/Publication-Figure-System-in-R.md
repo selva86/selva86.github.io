@@ -1,0 +1,799 @@
+---
+title: "A Publication Figure System in R: an End-to-End Case Study"
+slug: "Publication-Figure-System-in-R"
+description: "Build a complete publication figure system in R with ggplot2: one reusable theme, palette and scales applied across a full set of journal-ready figures."
+keywords: "publication figures in R, ggplot2 theme, custom ggplot2 theme, journal quality figures, reusable ggplot2 theme, colorblind palette ggplot2, figure system R, ggsave journal, reproducible figures R"
+auto_link_terms: "publication figure system|publication-ready figures|publication-quality figures|journal-quality figures|reusable ggplot2 theme|custom ggplot2 theme|figure system in R|colourblind-safe palette|shared ggplot2 scales|ggplot2 theme function|end-to-end figure workflow"
+auto_link_case_sensitive: false
+mathjax: false
+webr: true
+date: "2026-07-25"
+curriculum_id: "GG2-13.4"
+post_type: "C"
+sidebar_section: "Visualization"
+sidebar_title: "Publication Figure System"
+sidebar_order: "98"
+difficulty: "Advanced"
+---
+
+<p class="lead">A publication figure system is a small set of reusable pieces, one theme, one colour palette and one set of shared scales, that makes every figure in a study look like one designed object instead of a pile of one-off plots. In this case study you build that system once for a real analysis, then use it to produce a coherent set of six journal-ready figures. Everything runs as interactive code in your browser, so you can change a value and rebuild any figure on the spot.</p>
+
+## What is the study, and why does it need a figure system?
+
+Imagine you are the data person on a small paper about mammal sleep. The lead author hands you a question: does an animal's body size and its diet explain how much it sleeps? You have one dataset and, by the end, you will owe the journal a figure set: a main result, a group comparison, a distribution, a model summary and a supplementary check. If each of those figures uses a different font, a different grey, and a different colour for "carnivore", the reader spends energy re-learning the chart instead of reading the science.
+
+That is the whole reason a figure system exists. Before we design anything, let's meet the data and confirm there is a story worth telling. We will use `msleep`, a built-in dataset of sleep records for 83 mammals that comes with ggplot2, and keep the species whose diet is recorded. The first block loads the tools, trims the columns we need, and prints a one-line headline so we know the payoff before we plot anything.
+
+```r title="Load the study data and check the headline"
+library(ggplot2)
+library(dplyr)
+
+sleep <- msleep |>
+  select(name, vore, order, bodywt, sleep_total, sleep_rem) |>
+  filter(!is.na(vore))
+
+sleep |>
+  summarise(
+    mammals      = n(),
+    mean_sleep   = round(mean(sleep_total), 1),
+    r_mass_sleep = round(cor(log10(bodywt), sleep_total), 2)
+  )
+#> # A tibble: 1 × 3
+#>   mammals mean_sleep r_mass_sleep
+#>     <int>      <dbl>        <dbl>
+#> 1      76       10.5         -0.6
+```
+
+We kept 76 species with a recorded diet. The average mammal sleeps about 10.5 hours a day, and the correlation between sleep and body mass (on a log scale) is `-0.6`, a moderate negative link. In plain terms, heavier animals tend to sleep less. That single number is enough to build a main-result figure around, so there is a real result worth showing.
+
+The second question is whether diet adds anything. `vore` labels each species as a carnivore, herbivore, insectivore or omnivore. Let's compute the mean sleep for each diet group, sorted from sleepiest to least, so we can see whether the groups even differ.
+
+```r title="Summarise sleep by diet group"
+diet_summary <- sleep |>
+  group_by(vore) |>
+  summarise(
+    mammals    = n(),
+    mean_sleep = round(mean(sleep_total), 1),
+    sd_sleep   = round(sd(sleep_total), 1),
+    .groups    = "drop"
+  ) |>
+  arrange(desc(mean_sleep))
+
+diet_summary
+#> # A tibble: 4 × 4
+#>   vore    mammals mean_sleep sd_sleep
+#>   <chr>     <int>      <dbl>    <dbl>
+#> 1 insecti       5       14.9      5.9
+#> 2 omni         20       10.9      2.9
+#> 3 carni        19       10.4      4.7
+#> 4 herbi        32        9.5      4.9
+```
+
+Insectivores look like the sleepiest group at 14.9 hours, well above the herbivores at 9.5. That is a real gap worth a comparison figure. But look at the `mammals` column: there are only 5 insectivores, against 32 herbivores. Hold that thought, because the size of a group decides how much we can trust its average, and that tension will drive one of our most important design decisions later.
+
+[KEY INSIGHT]
+**A figure system is one edit that restyles every plot.** Because a paper needs several figures that share a look, defining the theme, palette and scales once means a single change (a font, a colour, a grid line) updates the whole set at once, instead of you hand-editing five separate plots and hoping they match.
+
+**Try it:** Each species belongs to a taxonomic `order` (Rodentia, Primates, and so on). Count how many species fall in each order and show the three largest groups.
+
+```r title="Your turn: count species per order"
+# ex_orders holds the species and their order.
+# Count rows per order and keep the top three. Fill in the pipe:
+ex_orders <- sleep |> select(name, order)
+# ex_orders |> count(order, sort = TRUE) |> head(3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Count species per order solution"
+sleep |>
+  count(order, sort = TRUE) |>
+  head(3)
+#> # A tibble: 3 × 2
+#>   order         n
+#>   <chr>     <int>
+#> 1 Rodentia     19
+#> 2 Carnivora    12
+#> 3 Primates     12
+```
+
+**Explanation:** `count(order, sort = TRUE)` tallies rows per order and sorts by the count, and `head(3)` keeps the three biggest. Rodents dominate the sample, which is worth remembering when you generalise any result.
+
+</details>
+
+## What do the default plots get wrong?
+
+Before we build anything polished, let's be honest about where a first draft lands. A reviewer sees the default plot before they see your analysis, so it pays to know what they will flag. We will make the two most obvious figures with plain ggplot2 defaults: a scatter of sleep against body mass, and a bar of mean sleep per diet.
+
+```r title="Draft the default scatter plot"
+p_default_scatter <- ggplot(sleep, aes(bodywt, sleep_total)) +
+  geom_point()
+p_default_scatter
+```
+
+```r title="Draft the default bar chart"
+p_default_bar <- ggplot(diet_summary, aes(vore, mean_sleep)) +
+  geom_col()
+p_default_bar
+```
+
+Run both, then compare them to the rendered versions below.
+
+![Two default ggplot2 plots side by side, a scatter with points crushed against the left edge and a plain grey bar chart](screenshots/Publication-Figure-System-in-R-audit-defaults.webp)
+
+*Figure 1: The defaults. A reviewer would reject both on sight.*
+
+Here is what a reviewer would circle in red. In the scatter, body mass runs from a 5-gram shrew to a 6,600-kilogram whale, so on a linear axis every small mammal is smashed into a vertical stripe at the left and the relationship is invisible. The grey panel background is chartjunk that print does not want, the axis titles are raw column names like `bodywt`, and nothing tells the reader which point is a carnivore.
+
+The bar chart is worse than it looks. The bars are ordered alphabetically rather than by value, so the eye has to hunt. The axis labels are again raw names. Most importantly, the tall insectivore bar looks like a confident, solid fact, yet it rests on just five animals. A bar draws a heavy block from zero up to the mean and shows nothing about how uncertain that mean is.
+
+[WARNING]
+**A bare bar chart hides both the sample size and the uncertainty.** The insectivore bar looks as authoritative as the herbivore bar, but one is built from 5 species and the other from 32. Bars of a mean should almost always be replaced by a point with an interval, so the reader can see how firm the estimate really is.
+
+**Try it:** The scatter's real problem is the linear x-axis. Put body mass on a log scale so the small mammals stop bunching up, and see the trend appear.
+
+```r title="Your turn: fix the crushed x-axis"
+# p_try is the default scatter. Add a log-10 x scale to it.
+p_try <- ggplot(sleep, aes(bodywt, sleep_total)) + geom_point()
+# p_try + scale_x_log10()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Log the x-axis solution"
+p_default_scatter + scale_x_log10()
+```
+
+**Explanation:** `scale_x_log10()` spreads the body-mass values across the axis by their order of magnitude, so a shrew and a whale sit at opposite ends instead of stacking up. The downward trend that was hidden is now easy to see. Logging a heavily skewed axis is the single most useful fix in this whole tutorial.
+
+</details>
+
+## How do you build one theme, one palette and shared scales?
+
+Now we design the system. It has three parts: a colour palette that names each diet, a theme function that sets every non-data detail, and a scale helper that applies the palette the same way every time. We build each once, then reuse it for the rest of the paper.
+
+Start with colour, because colour carries meaning here. We assign one fixed colour to each diet and reuse it in every figure, so "green" always means herbivore. The four hex codes below come from the Okabe-Ito palette, a set chosen to stay distinct for readers with colour-vision deficiency and to survive greyscale printing.
+
+```r title="Define the diet colour palette"
+pal_diet <- c(
+  herbi   = "#009E73",
+  carni   = "#D55E00",
+  omni    = "#0072B2",
+  insecti = "#E69F00"
+)
+pal_diet
+#>     herbi     carni      omni   insecti
+#> "#009E73" "#D55E00" "#0072B2" "#E69F00"
+```
+
+The vector is named, so ggplot2 can match each colour to its diet by name rather than by position. That naming is what keeps carnivores the same rust-orange whether they appear first or last in a plot. We also fix a display order and a set of human-readable labels, so every axis and legend reads "Herbivore" instead of "herbi" and lists the groups from least to most sleep.
+
+```r title="Set the diet order and labels"
+diet_levels <- c("herbi", "carni", "omni", "insecti")
+diet_labels <- c(herbi = "Herbivore", carni = "Carnivore",
+                 omni = "Omnivore", insecti = "Insectivore")
+diet_labels
+#>         herbi         carni          omni       insecti
+#>   "Herbivore"   "Carnivore"    "Omnivore" "Insectivore"
+```
+
+Next comes the theme, the part that controls every non-data mark: fonts, grid lines, the background, the legend. We wrap our choices in a function called `theme_paper()` so any figure can adopt them in one line. Read the comments as a rationale, because in a real style guide each of these lines is a decision you can defend to a co-author.
+
+```r title="Build the reusable paper theme"
+theme_paper <- function(base_size = 11, base_family = "sans") {
+  theme_minimal(base_size = base_size, base_family = base_family) +
+    theme(
+      # Title sits over the whole plot, not just the panel, so it lines up left
+      plot.title.position = "plot",
+      plot.title    = element_text(face = "bold", size = rel(1.15),
+                                   margin = margin(b = 4)),
+      plot.subtitle = element_text(colour = "grey35", margin = margin(b = 10)),
+      plot.caption  = element_text(colour = "grey45", hjust = 0,
+                                   margin = margin(t = 10)),
+      # Soft near-black text reads calmer in print than pure black
+      axis.title    = element_text(colour = "grey20"),
+      axis.text     = element_text(colour = "grey30"),
+      # Drop chartjunk: no minor grid, no vertical grid, one faint horizontal guide
+      panel.grid.minor   = element_blank(),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_line(colour = "grey88", linewidth = 0.3),
+      # Legend on top, left-aligned, so the plot area stays wide
+      legend.position      = "top",
+      legend.justification = "left",
+      legend.title         = element_text(colour = "grey20"),
+      plot.margin          = margin(12, 16, 12, 12)
+    )
+}
+```
+
+A few of those choices deserve a sentence each. We start from `theme_minimal()` because it already removes the grey panel that journals dislike. We keep only a faint horizontal grid, since most of our plots ask the reader to compare values up the y-axis, and a full grid would box the data in. We put the legend on top and left-aligned so the panel keeps its full width, and we use the plain `"sans"` font family because it is guaranteed to exist everywhere the code runs.
+
+The last piece is a scale helper, so applying the palette is one short call rather than a long `scale_colour_manual()` repeated in every figure. We register the theme as the session default with `theme_set()`, and from here on every plot picks it up automatically.
+
+```r title="Register the theme and a shared colour scale"
+theme_set(theme_paper())
+
+scale_colour_diet <- function(...) {
+  scale_colour_manual(values = pal_diet, labels = diet_labels,
+                      name = NULL, ...)
+}
+
+ggplot(sleep, aes(bodywt, sleep_total, colour = vore)) +
+  geom_point(size = 2.2) +
+  scale_x_log10() +
+  scale_colour_diet() +
+  labs(x = "Body mass (kg, log scale)", y = "Total sleep (hours per day)")
+```
+
+That is the same scatter from the audit, now wearing the system. The result below shows the payoff of a few lines of setup.
+
+![The mammal sleep scatter restyled with the paper theme, log x-axis, and the diet colour palette](screenshots/Publication-Figure-System-in-R-system-after.webp)
+
+*Figure 2: The same data through the system: clean theme, log axis, meaningful colour.*
+
+The three pieces fit together like this: the theme, the palette and the shared scale all feed into every figure, so one edit to any of them restyles the whole set.
+
+![A diagram showing theme_paper, the palette, and shared scales all feeding into every figure, where one edit restyles all](screenshots/Publication-Figure-System-in-R-system-architecture.webp)
+
+*Figure 3: One system feeds every figure in the paper.*
+
+[TIP]
+**Wrap your theme in a function, not a saved object.** Writing `theme_paper()` with a `base_size` argument lets you bump the text size for a poster or a slide without redefining anything. A plain saved theme object is fixed; a function is a reusable recipe you can tune per output.
+
+**Try it:** Our theme puts the legend on top. On one plot, override that and move the legend to the right, without touching `theme_paper()` itself.
+
+```r title="Your turn: move the legend"
+# p_sys uses theme_paper() by default (legend on top).
+# Add a theme() layer that sets legend.position to "right".
+p_sys <- ggplot(sleep, aes(bodywt, sleep_total, colour = vore)) +
+  geom_point() + scale_x_log10() + scale_colour_diet()
+# p_sys + theme(legend.position = "right")
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Legend on the right solution"
+p_sys + theme(legend.position = "right")
+```
+
+**Explanation:** A later `theme()` layer overrides the matching setting from `theme_paper()`, so the legend moves to the right for this one plot while every other figure keeps the top legend. That is the point of a system: sensible defaults you can override locally when a figure needs it.
+
+</details>
+
+## How do you build the main-result figure?
+
+The main result answers the paper's headline question in one picture: bigger mammals sleep less. We plot total sleep against body mass on the log axis, colour each species by diet, and lay a linear fit with a shaded 95% confidence band over the top. The band is our first honest signal of uncertainty, because it shows how tightly the data pin the trend.
+
+```r title="Build Figure 4, the main result"
+fig1 <- ggplot(sleep, aes(bodywt, sleep_total)) +
+  geom_smooth(method = "lm", formula = y ~ x,
+              colour = "grey25", fill = "grey80", linewidth = 0.6) +
+  geom_point(aes(colour = vore), size = 2.4, alpha = 0.9) +
+  scale_x_log10() +
+  scale_colour_diet() +
+  labs(
+    title    = "Larger mammals sleep less",
+    subtitle = "Total daily sleep versus body mass, 76 species",
+    x        = "Body mass (kg, log scale)",
+    y        = "Total sleep (hours per day)",
+    caption  = "Line: linear fit on log mass with 95% confidence band."
+  )
+fig1
+```
+
+![Scatter of total sleep against body mass on a log axis, coloured by diet, with a downward linear fit and a grey confidence band](screenshots/Publication-Figure-System-in-R-fig1-main.webp)
+
+*Figure 4: Total daily sleep falls as body mass rises, across 76 mammal species.*
+
+Read the figure from the line outward. The fitted line slopes down, and the narrow grey band around it tells us the slope is well determined, not a fluke of a few points. Because we drew the confidence band instead of just the line, a reader can see at a glance that the trend would survive a modest change in the sample. The diet colours add a second layer of information without extra clutter: insectivores (orange) sit high and light, big herbivores (green) trail off to the lower right.
+
+Notice how much the earlier setup is paying off now. Building this figure took only the geoms and the labels, because the theme, palette and log scale all came from the system. The caption is written the way it would appear under the figure in the paper, a habit worth keeping so captions never become an afterthought.
+
+**Try it:** In a dense cloud, smaller and more transparent points let the fitted line show through. Shrink the points and lower their opacity.
+
+```r title="Your turn: tune the point marks"
+# fig1_try draws the points at size 2.4 and alpha 0.9.
+# Rebuild it with smaller, more transparent points, for example size 1.6, alpha 0.6.
+fig1_try <- ggplot(sleep, aes(bodywt, sleep_total)) +
+  geom_point(aes(colour = vore), size = 2.4, alpha = 0.9) +
+  scale_x_log10() + scale_colour_diet()
+# fig1_try + geom_point(aes(colour = vore), size = 1.6, alpha = 0.6)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Lighter points solution"
+fig1_try <- ggplot(sleep, aes(bodywt, sleep_total)) +
+  geom_point(aes(colour = vore), size = 1.6, alpha = 0.6) +
+  scale_x_log10() + scale_colour_diet()
+fig1_try
+```
+
+**Explanation:** Smaller, semi-transparent points reduce overplotting where species pile up, so the shape of the cloud and any fitted line read more clearly. Point size and opacity are two of the cheapest levers you have for a crowded scatter.
+
+</details>
+
+## How do you compare groups and show their spread?
+
+The audit showed why a bar of group means is a trap: it hides the sample size and pretends every mean is equally solid. The fix is to plot the mean as a point, draw a 95% confidence interval around it, and scatter the individual species behind it so the reader sees the raw spread. First we compute the interval for each diet.
+
+```r title="Compute group means and 95% intervals"
+diet_ci <- sleep |>
+  group_by(vore) |>
+  summarise(
+    n    = n(),
+    mean = mean(sleep_total),
+    se   = sd(sleep_total) / sqrt(n()),
+    .groups = "drop"
+  ) |>
+  mutate(
+    lower = mean - qt(0.975, n - 1) * se,
+    upper = mean + qt(0.975, n - 1) * se
+  )
+
+diet_ci |> mutate(across(where(is.numeric), function(x) round(x, 1)))
+#> # A tibble: 4 × 6
+#>   vore        n  mean    se lower upper
+#>   <chr>   <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1 carni      19  10.4   1.1   8.1  12.6
+#> 2 herbi      32   9.5   0.9   7.8  11.3
+#> 3 insecti     5  14.9   2.6   7.6  22.3
+#> 4 omni       20  10.9   0.7   9.5  12.3
+```
+
+The interval is the mean plus or minus the standard error times a t-value from `qt()`, which is the standard 95% confidence interval for a group mean. Look at the two extremes. The omnivore mean of 10.9 comes with a tight interval of 9.5 to 12.3, because 20 species pin it down. The insectivore mean of 14.9 carries a huge interval of 7.6 to 22.3, because only 5 species stand behind it. The bar chart drew those two as equally tall, solid blocks; the interval shows that one of the two means is far less precise than the other.
+
+Now we draw the comparison. We put the mean as a fat point, the interval as an error bar, and the individual species as faint jittered dots behind each group. We order the groups by their mean, so the eye reads them in a natural sequence.
+
+```r title="Build Figure 5, the group comparison"
+diet_ci_f <- diet_ci |> mutate(vore = factor(vore, levels = diet_levels))
+sleep_f   <- sleep   |> mutate(vore = factor(vore, levels = diet_levels))
+
+fig2 <- ggplot(diet_ci_f, aes(vore, mean, colour = vore)) +
+  geom_jitter(data = sleep_f, aes(vore, sleep_total, colour = vore),
+              width = 0.12, alpha = 0.35, size = 1.6) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.14, linewidth = 0.7) +
+  geom_point(size = 3.2) +
+  scale_colour_manual(values = pal_diet, guide = "none") +
+  scale_x_discrete(labels = diet_labels) +
+  labs(
+    title    = "Diet groups differ, but small samples stay uncertain",
+    subtitle = "Group mean total sleep with 95% confidence intervals; points are species",
+    x        = NULL,
+    y        = "Total sleep (hours per day)",
+    caption  = "Insectivores (n = 5) carry a wide interval, so the gap is not conclusive."
+  )
+fig2
+```
+
+![Mean total sleep for each diet group with 95% confidence interval error bars and jittered species points behind each mean](screenshots/Publication-Figure-System-in-R-fig2-comparison.webp)
+
+*Figure 5: Diet-group means with 95% intervals. The insectivore interval is wide because n = 5.*
+
+This figure makes an honest claim. Yes, insectivores have the highest mean, but their interval is so wide that it overlaps every other group, so we cannot call the difference real from this sample alone. The jittered points add a second layer of information: you can see that omnivores cluster tightly around their mean while carnivores spread from short to long sleepers. We hid this figure's colour legend because the x-axis already names each group, avoiding a redundant key.
+
+A distribution figure completes the picture by characterising the outcome itself. Reviewers often ask "what does the response variable look like?", and a histogram answers it directly. We add a dashed line at the median so the centre is unmistakable.
+
+```r title="Build Figure 6, the outcome distribution"
+fig3 <- ggplot(sleep, aes(sleep_total)) +
+  geom_histogram(binwidth = 2, boundary = 0, fill = "grey72", colour = "white") +
+  geom_vline(xintercept = median(sleep$sleep_total),
+             colour = "#D55E00", linewidth = 0.8, linetype = "dashed") +
+  annotate("text", x = median(sleep$sleep_total) + 0.5, y = 16, hjust = 0,
+           label = paste0("Median ", round(median(sleep$sleep_total), 1), " h"),
+           colour = "#D55E00", size = 3.4) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  labs(
+    title    = "Most mammals sleep between 8 and 14 hours",
+    subtitle = "Distribution of total daily sleep across 76 species",
+    x        = "Total sleep (hours per day)",
+    y        = "Number of species"
+  )
+fig3
+```
+
+![Histogram of total daily sleep across species with a dashed line marking the median near ten hours](screenshots/Publication-Figure-System-in-R-fig3-distribution.webp)
+
+*Figure 6: Total sleep is roughly centred, with a median near ten hours.*
+
+The distribution is single-peaked and fairly symmetric, centred near the 10.1-hour median, with a thin tail of long sleepers past 18 hours. That tells the reader the mean is a fair summary here, since there is no wild skew pulling it around. The `expand` argument pins the bars to the baseline so there is no floating gap under the histogram, a small polish that print editors notice.
+
+**Try it:** A 90% interval is narrower than a 95% one. Compute the half-width of a 90% interval for each diet group and see how much it shrinks.
+
+```r title="Your turn: switch to a 90% interval"
+# The 95% interval uses qt(0.975, n - 1). A 90% interval uses qt(0.95, n - 1).
+ex_ci <- sleep |>
+  group_by(vore) |>
+  summarise(mean = mean(sleep_total),
+            se = sd(sleep_total) / sqrt(n()), n = n(), .groups = "drop")
+# ex_ci |> mutate(half_width90 = round(qt(0.95, n - 1) * se, 1))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="90% interval half-width solution"
+ex_ci |>
+  mutate(half_width90 = round(qt(0.95, n - 1) * se, 1)) |>
+  select(vore, n, half_width90)
+#> # A tibble: 4 × 3
+#>   vore        n half_width90
+#>   <chr>   <int>        <dbl>
+#> 1 carni      19          1.9
+#> 2 herbi      32          1.5
+#> 3 insecti     5          5.6
+#> 4 omni       20          1.1
+```
+
+**Explanation:** The half-width still balloons for insectivores (5.6 hours on 5 species) and stays small for the big groups. Lowering the confidence level narrows every interval a little, but it cannot rescue a tiny sample; only more data can.
+
+</details>
+
+## How do you present the model and a supplementary check?
+
+The comparison figure looked at diet on its own, but diet and body mass travel together, so we need a model that weighs them at the same time. We fit a linear model of sleep on log mass plus diet, with herbivores as the reference group, and read the coefficients with `broom::tidy()`. The `conf.int = TRUE` argument gives us a confidence interval for each effect.
+
+```r title="Fit the model and tidy the coefficients"
+library(broom)
+model_df <- sleep |>
+  mutate(diet = relevel(factor(vore), ref = "herbi"),
+         log_mass = log10(bodywt))
+fit <- lm(sleep_total ~ log_mass + diet, data = model_df)
+
+tidy(fit, conf.int = TRUE) |>
+  mutate(across(where(is.numeric), function(x) round(x, 2)))
+#> # A tibble: 5 × 7
+#>   term        estimate std.error statistic p.value conf.low conf.high
+#>   <chr>          <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
+#> 1 (Intercept)    10.4       0.65     16.1     0        9.13     11.7
+#> 2 log_mass       -1.98      0.31     -6.42    0       -2.6      -1.37
+#> 3 dietcarni       2.25      1.06      2.13    0.04     0.14      4.36
+#> 4 dietinsecti     3.59      1.74      2.06    0.04     0.11      7.07
+#> 5 dietomni        0.57      1.03      0.56    0.58    -1.47      2.62
+```
+
+Read the estimates in the model's own units. The `log_mass` coefficient of -1.98 means each tenfold increase in body mass costs about two hours of daily sleep, and its interval (-2.6 to -1.37) sits safely below zero, so the effect is solid. Compared with herbivores, carnivores sleep about 2.25 hours more and insectivores about 3.59 hours more, both with intervals that just clear zero. Omnivores are indistinguishable from herbivores once mass is accounted for, since their interval (-1.47 to 2.62) straddles zero.
+
+A table of coefficients is correct but slow to read. A coefficient plot, sometimes called a dot-and-whisker plot, shows the same numbers as points with their intervals, so the reader sees at once which effects clear zero. We drop the intercept, rename the terms into plain language, and put a dashed line at zero as the reference.
+
+```r title="Build Figure 7, the coefficient plot"
+coefs <- tidy(fit, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  mutate(term = recode(term,
+    log_mass    = "Body mass (log10)",
+    dietcarni   = "Carnivore vs herbivore",
+    dietinsecti = "Insectivore vs herbivore",
+    dietomni    = "Omnivore vs herbivore"))
+
+fig4 <- ggplot(coefs, aes(estimate, reorder(term, estimate))) +
+  geom_vline(xintercept = 0, colour = "grey60", linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high),
+                orientation = "y", width = 0.16, colour = "grey30") +
+  geom_point(size = 3, colour = "#0072B2") +
+  labs(
+    title    = "What predicts sleep, holding the rest constant",
+    subtitle = "Linear model coefficients with 95% confidence intervals",
+    x        = "Estimated change in daily sleep (hours)",
+    y        = NULL,
+    caption  = "Reference group: herbivores. Mass effect is per tenfold increase."
+  ) +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(colour = "grey88", linewidth = 0.3))
+fig4
+```
+
+![A dot-and-whisker plot of the four model coefficients with 95% intervals and a dashed line at zero](screenshots/Publication-Figure-System-in-R-fig4-model.webp)
+
+*Figure 7: Model coefficients. An interval that crosses the dashed zero line is not distinguishable from no effect.*
+
+This is uncertainty shown a third way. The body-mass effect sits far to the left of zero with a short interval, so it is the firmest finding. The insectivore effect has the widest whisker of all, which follows directly from its tiny sample, and it only just clears zero. Notice we overrode the theme's grid here: for a coefficient plot the reader compares against the vertical zero line, so we swapped the horizontal grid for a vertical one. The system gives you defaults, and a good figure bends them when the message calls for it.
+
+One supplementary figure rounds out the set. Papers often include a secondary check, and here we ask whether REM sleep tracks total sleep, using the 56 species that have a REM measurement.
+
+```r title="Build Figure 8, the supplementary check"
+rem_df <- sleep |> filter(!is.na(sleep_rem))
+fig5 <- ggplot(rem_df, aes(sleep_total, sleep_rem)) +
+  geom_point(aes(colour = vore), size = 2.2, alpha = 0.9) +
+  geom_smooth(method = "lm", formula = y ~ x,
+              colour = "grey25", fill = "grey80", linewidth = 0.6) +
+  scale_colour_diet() +
+  labs(
+    title    = "REM sleep scales with total sleep",
+    subtitle = "Supplementary check, 56 species with REM recorded",
+    x        = "Total sleep (hours per day)",
+    y        = "REM sleep (hours per day)",
+    caption  = "Species with no REM measurement are omitted."
+  )
+fig5
+```
+
+![Scatter of REM sleep against total sleep coloured by diet, with an upward linear fit and confidence band](screenshots/Publication-Figure-System-in-R-fig5-supplementary.webp)
+
+*Figure 8: Species that sleep more also spend more time in REM.*
+
+The relationship is clean and positive: animals that sleep longer also log more REM. Because this figure uses the same theme, palette and confidence band as the main result, it reads as a sibling of Figure 4 rather than a stranger, which is exactly the consistency the system buys.
+
+Finally, papers usually combine the strongest panels into one multi-panel figure. The `patchwork` package lets you place plots side by side with a shared title and panel tags. We strip the individual titles from the two panels, since one caption now covers both, and add tags "a" and "b".
+
+```r title="Compose the two-panel main figure"
+library(patchwork)
+fig_main <- ((fig1 + labs(title = NULL, subtitle = NULL, caption = NULL)) +
+             (fig2 + labs(title = NULL, subtitle = NULL, caption = NULL))) +
+  plot_layout(widths = c(1.2, 1)) +
+  plot_annotation(
+    tag_levels = "a",
+    title   = "Sleep declines with body mass and varies by diet",
+    caption = "76 mammal species. (a) Total sleep versus body mass, linear fit with 95% band. (b) Diet-group means with 95% intervals.",
+    theme = theme(plot.title = element_text(face = "bold", size = rel(1.2)),
+                  plot.caption = element_text(colour = "grey45", hjust = 0))
+  ) &
+  theme(plot.tag = element_text(face = "bold", size = rel(1.1)))
+fig_main
+```
+
+![A two-panel composite figure with the sleep versus mass scatter labelled a and the diet comparison labelled b, under one shared title](screenshots/Publication-Figure-System-in-R-fig6-composite.webp)
+
+*Figure 9: The paper's main figure. Panel (a) is the relationship, panel (b) the group comparison.*
+
+[NOTE]
+**Strip per-panel titles when you compose panels.** Each figure carried its own title while standing alone, but a composite needs a single title and one caption, with short tags to name the panels. Leaving three titles in a two-panel figure both clutters the image and clips the text, so remove them with `labs(title = NULL)` before combining.
+
+**Try it:** The model's overall fit tells you how much of the variation it explains. Pull the R-squared out of the fitted model.
+
+```r title="Your turn: read the model fit"
+# glance() returns one row of model-fit statistics.
+# Read r.squared, adj.r.squared and the sample size from it.
+model_glance <- broom::glance(fit)
+# model_glance$r.squared
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Model fit statistics solution"
+broom::glance(fit) |>
+  summarise(r_squared = round(r.squared, 2),
+            adj_r_squared = round(adj.r.squared, 2),
+            n = nobs)
+#> # A tibble: 1 × 3
+#>   r_squared adj_r_squared     n
+#>       <dbl>         <dbl> <int>
+#> 1      0.42          0.39    76
+```
+
+**Explanation:** The model explains 42% of the variation in sleep (`r_squared = 0.42`), a respectable share for a two-predictor model of animal behaviour. The adjusted value of 0.39 penalises the extra diet terms slightly, and `n = 76` confirms every species was used.
+
+</details>
+
+## How do you export figures to journal specification?
+
+A figure that looks right on screen still has to leave R at the exact size and resolution the journal demands. `ggsave()` handles this: you give it a size in millimetres (the unit publishers quote), a resolution in DPI, and it picks the file format from the extension. We save the main figure as a single-column raster PNG and as a vector PDF, both 90 mm square, then confirm both files exist.
+
+```r title="Export the main figure to journal size"
+fig_dir <- tempdir()
+ggsave(file.path(fig_dir, "fig1_sleep_mass.png"), plot = fig1,
+       width = 90, height = 90, units = "mm", dpi = 300)
+ggsave(file.path(fig_dir, "fig1_sleep_mass.pdf"), plot = fig1,
+       width = 90, height = 90, units = "mm")
+file.exists(file.path(fig_dir, c("fig1_sleep_mass.png", "fig1_sleep_mass.pdf")))
+#> [1] TRUE TRUE
+```
+
+Two files, two purposes. The PNG is a grid of pixels at 300 DPI, the usual floor for print, and is the safe choice for a Word document or a preview. The PDF is a vector file that stores the plot as shapes, so it stays razor sharp at any zoom, which is what most journals prefer for line art like ours. We wrote both into a temporary folder so nothing clutters your project, but in practice you would point them at a `figures/` directory with clear names like `fig1_sleep_mass.pdf`.
+
+For the sharpest text and a true 600-DPI TIFF, many labs reach for the `ragg` package, which renders fonts more crisply than the base devices and is the modern default for camera-ready output. It is a local add-on rather than part of the in-browser toolset, so the block below is written to run in your own RStudio session.
+
+```r-static title="Export a 600-DPI TIFF locally with ragg"
+# Run this in RStudio: ragg gives crisp text and a true 600-DPI TIFF
+library(ragg)
+
+agg_tiff(file.path(tempdir(), "fig1_sleep_mass.tiff"),
+         width = 90, height = 90, units = "mm", res = 600, compression = "lzw")
+print(fig1)
+invisible(dev.off())
+file.exists(file.path(tempdir(), "fig1_sleep_mass.tiff"))
+#> [1] TRUE
+```
+
+[TIP]
+**Fix fonts and sizes at export, not by eye.** The theme uses the plain `sans` family so it renders anywhere, but for a specific typeface locally, pair `ragg` or `svglite` with the systemfonts package and set `base_family` in `theme_paper()`. Always save at the journal's stated width in millimetres so text keeps its intended size when the figure is placed on the page.
+
+**Try it:** A two-column journal figure is often 180 mm wide. Save the main figure at that width.
+
+```r title="Your turn: export a double-column figure"
+# Save fig1 at 180 mm wide by 110 mm tall, 300 dpi.
+ex_path <- file.path(tempdir(), "fig1_wide.png")
+# ggsave(ex_path, plot = fig1, width = 180, height = 110, units = "mm", dpi = 300)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Double-column export solution"
+ex_path <- file.path(tempdir(), "fig1_wide.png")
+ggsave(ex_path, plot = fig1, width = 180, height = 110, units = "mm", dpi = 300)
+file.exists(ex_path)
+#> [1] TRUE
+```
+
+**Explanation:** Passing `width = 180, units = "mm"` matches a common double-column width, and `ggsave()` writes the file at 300 DPI. Because the size is fixed in millimetres, the figure will drop onto the page at the intended dimensions with no rescaling.
+
+</details>
+
+## How do you reuse the whole system in your next project?
+
+The real payoff of a figure system is that you never build it twice. The block below is the complete, self-contained system: the palette, the labels, the theme, the colour scale and a small `save_journal()` helper, followed by one figure that uses all of them. Lift this into any new analysis, swap the palette and the data, and every figure you draw will already share a house style.
+
+```r title="The complete figure system, ready to lift"
+library(ggplot2)
+library(dplyr)
+
+# 1. Palette and labels (edit these for a new project)
+pal_diet <- c(herbi = "#009E73", carni = "#D55E00",
+              omni  = "#0072B2", insecti = "#E69F00")
+diet_labels <- c(herbi = "Herbivore", carni = "Carnivore",
+                 omni = "Omnivore", insecti = "Insectivore")
+
+# 2. The reusable theme
+theme_paper <- function(base_size = 11, base_family = "sans") {
+  theme_minimal(base_size = base_size, base_family = base_family) +
+    theme(
+      plot.title.position = "plot",
+      plot.title    = element_text(face = "bold", size = rel(1.15)),
+      plot.subtitle = element_text(colour = "grey35"),
+      panel.grid.minor   = element_blank(),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_line(colour = "grey88", linewidth = 0.3),
+      legend.position = "top", legend.justification = "left"
+    )
+}
+
+# 3. Shared colour scale
+scale_colour_diet <- function(...) {
+  scale_colour_manual(values = pal_diet, labels = diet_labels, name = NULL, ...)
+}
+
+# 4. A one-line journal export helper
+save_journal <- function(plot, file, width_mm = 90, height_mm = 90, dpi = 300) {
+  ggsave(file, plot = plot, width = width_mm, height = height_mm,
+         units = "mm", dpi = dpi)
+  invisible(file)
+}
+
+# 5. Use the whole system on a figure
+theme_set(theme_paper())
+demo <- ggplot(filter(msleep, !is.na(vore)),
+               aes(bodywt, sleep_total, colour = vore)) +
+  geom_point(size = 2.2, alpha = 0.9) +
+  scale_x_log10() +
+  scale_colour_diet() +
+  labs(x = "Body mass (kg, log scale)", y = "Total sleep (hours per day)")
+demo
+```
+
+That single block is your handoff. It carries no analysis-specific logic beyond the palette and the demo plot, so it drops cleanly into a fresh project. Keep it in a file like `R/figure-system.R` and `source()` it at the top of every analysis script, and your figures will match from the first plot.
+
+[KEY INSIGHT]
+**Consistency is the deliverable, not any single chart.** A reader trusts a figure set that speaks one visual language, because the design fades and the data comes forward. The system you built here, one theme, one palette and shared scales, is what turns five separate plots into one coherent argument.
+
+## Practice Exercises
+
+These combine several ideas from the case study. Try each before opening the solution. They use their own variable names so they will not disturb the objects from the tutorial.
+
+### Exercise 1: Compare mass across two diets
+
+Using the full `msleep` data, keep only carnivores and herbivores, then report the count of species and the mean body weight for each group. Store the working data in `my_top`.
+
+```r title="Exercise 1 starter"
+# Keep species with a recorded diet, then carnivores and herbivores only
+my_top <- filter(msleep, !is.na(vore))
+
+# Filter to carni and herbi, group by vore, then summarise n and mean bodywt:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 1 solution"
+my_top |>
+  filter(vore %in% c("carni", "herbi")) |>
+  group_by(vore) |>
+  summarise(n = n(), mean_mass = round(mean(bodywt), 1), .groups = "drop")
+#> # A tibble: 2 × 3
+#>   vore      n mean_mass
+#>   <chr> <int>     <dbl>
+#> 1 carni    19      90.8
+#> 2 herbi    32     367.
+```
+
+**Explanation:** `filter(vore %in% c(...))` keeps the two groups, and `summarise()` reports the count and mean mass for each. Herbivores average far heavier because the group includes large grazers, which is exactly why the model needed body mass as well as diet.
+
+</details>
+
+### Exercise 2: Rebuild the mass-sleep slope from scratch
+
+Fit a simple linear model of total sleep on log-10 body mass across all of `msleep`, then read the slope with `broom::tidy()`. Store the model in `my_fit` and confirm the slope is negative.
+
+```r title="Exercise 2 starter"
+# Fit sleep_total on log10(bodywt), then tidy the coefficients
+# my_fit <- lm(sleep_total ~ log10(bodywt), data = msleep)
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 2 solution"
+my_fit <- lm(sleep_total ~ log10(bodywt), data = msleep)
+broom::tidy(my_fit) |>
+  mutate(across(where(is.numeric), function(x) round(x, 2)))
+#> # A tibble: 2 × 5
+#>   term          estimate std.error statistic p.value
+#>   <chr>            <dbl>     <dbl>     <dbl>   <dbl>
+#> 1 (Intercept)      11.1       0.42     26.5        0
+#> 2 log10(bodywt)    -1.79      0.29     -6.22       0
+```
+
+**Explanation:** The slope of -1.79 says each tenfold jump in body mass costs about 1.8 hours of sleep, close to the -1.98 from the fuller model. The two agree because body mass is the dominant driver, and diet only nudges the estimate once mass is in the model.
+
+</details>
+
+## Frequently Asked Questions
+
+**Why build a theme function instead of just using theme_minimal() each time?**
+A function bundles every decision (grid, legend, margins, text colour) into one name you reuse. When a co-author asks for a bigger font or a lighter grid, you change one function and every figure updates, rather than editing the same `theme()` block in five scripts and risking a mismatch.
+
+**Is the Okabe-Ito palette really necessary, or can I pick any colours?**
+You can pick any colours, but a colourblind-safe palette protects roughly one in twelve male readers who would otherwise confuse red and green. The Okabe-Ito set was designed to stay distinct for those readers and to survive greyscale printing, so it is a safe default that costs you nothing.
+
+**When should I use a bar chart at all?**
+Bars are honest for counts and for parts of a whole, where the length from zero is the actual quantity. They mislead for a mean, because the solid block implies a precision the data may not have. For group means, show a point with a confidence interval instead, as we did in Figure 5.
+
+**Why log the body-mass axis rather than the sleep axis?**
+Body mass spans five orders of magnitude, from grams to tonnes, so a linear axis crushes almost every species into a corner. Sleep spans a narrow 2 to 20 hours, which a linear axis handles fine. Log the axis whose values multiply, and leave alone the one whose values add.
+
+**How do I get a specific font like Arial or Helvetica into the figure?**
+The theme uses the generic `sans` family so it renders anywhere. For an exact typeface, install the systemfonts package, register the font, set `base_family` in `theme_paper()`, and export with `ragg` or `svglite`, which embed fonts reliably. That combination is the current recommended path for camera-ready fonts.
+
+**Can I reuse this system for a completely different dataset?**
+Yes, that is the point. Swap the palette and labels for your own categories, keep `theme_paper()` and `scale_colour_diet()` as they are, and the look carries over. The handoff block in the last section is written to be copied into a new project with only the palette and the data changed.
+
+## Summary
+
+A publication figure system turns a scattered set of plots into one coherent argument. You audit the defaults, build the reusable pieces once, then spend your effort on the data instead of the styling. The workflow below is the path this case study followed.
+
+![A workflow diagram running from auditing the defaults to building the system, constructing figures, showing uncertainty, exporting, and reusing](screenshots/Publication-Figure-System-in-R-workflow.webp)
+
+*Figure 10: The end-to-end figure-system workflow.*
+
+| Step | What you do | Why it matters |
+|---|---|---|
+| Audit | Render the naive defaults and critique them | Names the exact problems a reviewer would flag |
+| System | Build one theme, one palette and one scale helper | A single edit restyles every figure at once |
+| Figures | Construct each figure from the shared pieces | The set reads as one designed object |
+| Uncertainty | Draw bands, intervals and coefficient whiskers | Shows how firm each finding really is |
+| Export | Save at journal size in mm at 300 to 600 DPI | The file meets the spec with no manual fixes |
+| Handoff | Keep the system in one file and source it | You never rebuild the house style again |
+
+The habits that carry the most weight are three: log a heavily skewed axis, replace bars of a mean with a point and an interval, and define your look once so every figure inherits it. Master those and your figures will look like they belong together, because they will.
+
+## References
+
+1. Wickham, H., Navarro, D., and Pedersen, T. L. *ggplot2: Elegant Graphics for Data Analysis (3e), Themes.* [Link](https://ggplot2-book.org/themes.html)
+2. ggplot2 documentation. *theme(): modify components of a theme.* [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+3. scales package. *Scale functions for visualization.* [Link](https://scales.r-lib.org/)
+4. patchwork package. *The composer of plots.* [Link](https://patchwork.data-imaginist.com/)
+5. broom package. *Convert statistical objects into tidy tibbles.* [Link](https://broom.tidymodels.org/)
+6. R Core Team. *grDevices palette(): the built-in Okabe-Ito colourblind-safe palette.* [Link](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/palette.html)
+7. Wilke, C. O. *Fundamentals of Data Visualization.* [Link](https://clauswilke.com/dataviz/)
+
+## Continue Learning
+
+- [Publication-Ready ggplot2 Figures: The Checklist](/Publication-Quality-Figures-in-R.html) - the per-figure checklist of fonts, sizes and DPI that this system automates.
+- [ggplot2 Themes: From theme_classic to Your Own House Style](/ggplot2-Themes-in-R.html) - a deeper look at every theme element you can control.
+- [Export Plots in R: ggsave, Devices, DPI and Journal Specs](/Export-Plots-in-R.html) - a focused guide to saving figures at exactly the size and format you need.
