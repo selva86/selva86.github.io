@@ -1,0 +1,1086 @@
+---
+title: "Paired Designs in R: Before-After and Matched Pairs"
+description: "Paired designs compare the same subjects before and after, or matched pairs. Learn the paired t-test, Wilcoxon signed-rank, effect size, and power in R."
+keywords: "paired t-test in R, paired designs, before-after study, matched pairs, Wilcoxon signed-rank test, paired samples, repeated measures, effect size, power analysis, t.test paired"
+mathjax: true
+webr: true
+curriculum_id: "ST2-7.2"
+post_type: "C"
+auto_link_terms: "paired design|paired designs|before-after study|before-after design|matched pairs|matched-pairs design|paired samples|repeated measures design|within-subjects design|paired difference|pre-post design"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Paired Designs"
+sidebar_order: "40"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A paired design measures the same subject twice (before and after) or matches subjects into pairs, so each pair acts as its own control. Analyzing the within-pair differences strips out person-to-person noise, which gives a far more sensitive test than comparing two separate groups. This tutorial builds the whole workflow in base R, from the first test to effect size and <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">sample-size planning</a>.</p>
+
+<h2>What is a paired design, and when do you use one?</h2>
+
+<p>Suppose the same 10 patients each tried two different sleep drugs, and you recorded how many extra hours they slept on each. The question is simple: did one drug help more than the other? Because every patient took <em>both</em> drugs, the two columns of numbers are linked patient by patient. That link is what makes the design "paired", and R has a one-argument switch to use it. The <code>sleep</code> dataset ships with R, so you can run the test right now.</p>
+
+<div class="webr-container" data-block-title="A paired t-test on before and after data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A paired t-test on before and after data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 10 patients each tried two sleep drugs; extra = extra hours slept.
+# Because the SAME patients took both drugs, the two columns are paired.
+with(sleep, t.test(extra[group == 2], extra[group == 1], paired = TRUE))
+#&gt; 
+#&gt; 	Paired t-test
+#&gt; 
+#&gt; data:  extra[group == 2] and extra[group == 1]
+#&gt; t = 4.0621, df = 9, p-value = 0.002833
+#&gt; alternative hypothesis: true mean difference is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  0.7001142 2.4598858
+#&gt; sample estimates:
+#&gt; mean difference 
+#&gt;            1.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the result from the bottom up. The average difference is 1.58, so drug 2 added about 1.58 more hours of sleep per patient than drug 1. The p-value of 0.0028 is well below 0.05, so that difference is unlikely to be chance. The <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> runs from 0.70 to 2.46 hours and never touches zero, which tells the same story: the drugs really do differ.</p>
+
+<p>Now let us look at the data that produced that answer, so the structure is clear. Each patient appears in two rows, one per drug.</p>
+
+<div class="webr-container" data-block-title="Look at the paired data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at the paired data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Each patient (ID) appears twice, once per drug (group).
+head(sleep, 4)
+nrow(sleep); nlevels(sleep$ID)
+#&gt;   extra group ID
+#&gt; 1   0.7     1  1
+#&gt; 2  -1.6     1  2
+#&gt; 3  -0.2     1  3
+#&gt; 4  -1.2     1  4
+#&gt; [1] 20
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 20 rows but only 10 patients, because each patient contributes two measurements. A <strong>before-after</strong> design looks exactly like this: the same person, measured at two time points. A <strong>matched pairs</strong> design is its close cousin, where you pair up two <em>different</em> people who are alike (twins, or two customers with similar histories) and give each a different treatment. Both designs share one idea: compare within the pair, not across the whole sample.</p>
+
+<p><img src="screenshots/Paired-Designs-in-R-design-types.webp" alt="Two paired designs both reduce to one difference per pair" class="img-responsive img-zoomable" loading="lazy" width="1462" height="690" /></p>
+
+<p><em>Figure 1: The two paired designs both reduce to one difference per pair.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>In a paired design, each pair is its own control.</strong> Whatever makes a patient sleep more or less overall (age, health, mood) is present in both of their readings, so it cancels when you subtract one from the other. You are left with a cleaner measure of the treatment effect.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the mean extra sleep for each drug group so you can see the two averages behind that 1.58 difference.</p>
+<div class="webr-container" data-block-title="Your turn: mean extra sleep per drug">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean extra sleep per drug</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the mean of `extra` for each `group` in the sleep data.
+# Replace NULL with your answer, then run.
+ex_means &lt;- NULL   # hint: tapply(sleep$extra, sleep$group, mean)
+
+# Expected: group 1 around 0.75, group 2 around 2.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean extra sleep per drug solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean extra sleep per drug solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_means &lt;- tapply(sleep$extra, sleep$group, mean)
+ex_means
+#&gt;    1    2 
+#&gt; 0.75 2.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tapply()</code> splits <code>extra</code> by <code>group</code> and applies <code>mean()</code> to each piece. The gap of 2.33 minus 0.75 equals 1.58, the mean difference the paired test reported.</p>
+
+</details>
+</section>
+
+<h2>Why does pairing beat two independent samples?</h2>
+
+<p>It is tempting to think of the two drugs as two separate groups and reach for the ordinary <a class="auto-link" href="First-Hypothesis-Test-Three-Ways-in-R.html" title="Your First Hypothesis Test in R: Three Ways">two-sample t-test</a>. Let us do exactly that on the very same data and see what happens. This is the test you get if you forget the <code>paired = TRUE</code> switch.</p>
+
+<div class="webr-container" data-block-title="The wrong test ignores the pairing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The wrong test ignores the pairing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># If we (wrongly) treat the two drugs as independent groups:
+t.test(extra ~ group, data = sleep)
+#&gt; 
+#&gt; 	Welch Two Sample t-test
+#&gt; 
+#&gt; data:  extra by group
+#&gt; t = -1.8608, df = 17.776, p-value = 0.07939
+#&gt; alternative hypothesis: true difference in means between group 1 and group 2 is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -3.3654832  0.2054832
+#&gt; sample estimates:
+#&gt; mean in group 1 mean in group 2 
+#&gt;            0.75            2.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The group means are identical to before (0.75 and 2.33), yet the p-value jumped to 0.079, above the usual 0.05 line. The unpaired test would tell you there is <em>no</em> significant difference. Same numbers, opposite conclusion. The unpaired test threw away the pairing, and with it, the test's power.</p>
+
+<p>Why does that happen? The unpaired test measures each drug's spread across all patients, and patients vary a lot in how much they sleep. The paired test instead looks at each patient's <em>change</em>, and those changes are much tighter. The numbers below make the gap visible.</p>
+
+<div class="webr-container" data-block-title="Why pairing shrinks the noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Why pairing shrinks the noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g1 &lt;- sleep$extra[sleep$group == 1]
+g2 &lt;- sleep$extra[sleep$group == 2]
+diffs &lt;- g2 - g1                 # each patient's change from drug 1 to drug 2
+c(sd_all_readings = sd(sleep$extra),  # spread across all 20 readings
+  sd_of_changes   = sd(diffs),        # spread of the 10 per-patient changes
+  correlation     = cor(g1, g2))      # how aligned the two drugs are per patient
+#&gt; sd_all_readings   sd_of_changes     correlation 
+#&gt;       2.0179197       1.2299955       0.7951702</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The spread of the raw readings is about 2.02 hours, but the spread of the within-patient changes is only 1.23. The paired test divides by that smaller number, so the same 1.58 difference looks much bigger relative to the noise. The <a class="auto-link" href="Covariance-and-Correlation-in-R.html" title="Covariance and Correlation in R from First Principles">correlation</a> of 0.80 is the reason: patients who slept a lot on drug 1 also slept a lot on drug 2, so subtracting removes that shared tendency.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pairing wins when the two measurements are positively correlated.</strong> The stronger the within-pair correlation, the more between-subject noise subtraction removes, and the more powerful the paired test becomes. If the pairing is meaningless (correlation near zero), you gain nothing and lose a degree of freedom.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The paired test uses the standard error of the differences. Compute it as the standard deviation of <code>diffs</code> divided by the square root of the number of pairs.</p>
+<div class="webr-container" data-block-title="Your turn: standard error of the difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: standard error of the difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># n is the number of pairs = length(diffs).
+ex_se &lt;- NULL   # hint: sd(diffs) / sqrt(length(diffs))
+
+# Expected: about 0.389</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standard error of the difference solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard error of the difference solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_se &lt;- sd(diffs) / sqrt(length(diffs))
+ex_se
+#&gt; [1] 0.3889587</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dividing the mean difference (1.58) by this standard error (0.389) gives 4.06, exactly the t-statistic the paired test reported.</p>
+
+</details>
+</section>
+
+<h2>How do you run a paired t-test step by step?</h2>
+
+<p>Here is the idea that makes the <a class="auto-link" href="t-Test-Exercises-in-R.html" title="t-Test Exercises in R: 12 One, Two & Paired Sample Problems, Solved Step-by-Step">paired t-test</a> easy to understand: it is nothing more than a <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">one-sample t-test</a> run on the column of differences. You already built that column above as <code>diffs</code>. Testing whether its mean is zero is the same as testing whether the two conditions differ.</p>
+
+<div class="webr-container" data-block-title="A paired t-test is a one-sample t-test on the differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A paired t-test is a one-sample t-test on the differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># `diffs` holds drug 2 minus drug 1 for each patient. Test whether their mean is 0:
+t.test(diffs)
+#&gt; 
+#&gt; 	One Sample t-test
+#&gt; 
+#&gt; data:  diffs
+#&gt; t = 4.0621, df = 9, p-value = 0.002833
+#&gt; alternative hypothesis: true mean is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  0.7001142 2.4598858
+#&gt; sample estimates:
+#&gt; mean of x 
+#&gt;      1.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The t-statistic (4.0621), degrees of freedom (9), and p-value (0.002833) are identical to the paired test from the first section. That is not a coincidence, it is the definition. A paired t-test computes the differences for you and runs a one-sample test on them.</p>
+
+<p>If you like seeing the machinery, the t-statistic is the mean difference divided by its standard error. If formulas are not your thing, skip the next block; the code above is all you need.</p>
+
+<p>$$t = \frac{\bar{d}}{s_d / \sqrt{n}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{d}$ is the mean of the paired differences</li>
+
+<li>$s_d$ is the standard deviation of the differences</li>
+
+<li>$n$ is the number of pairs</li>
+
+</ul>
+
+<p>Let us plug the pieces in by hand and confirm they reproduce the statistic.</p>
+
+<div class="webr-container" data-block-title="The paired t-statistic by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The paired t-statistic by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_pairs &lt;- length(diffs)
+t_value &lt;- mean(diffs) / (sd(diffs) / sqrt(n_pairs))
+c(mean_diff = mean(diffs), t = t_value, df = n_pairs - 1)
+#&gt; mean_diff         t        df 
+#&gt;  1.580000  4.062128  9.000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand computation gives t = 4.0621 with 9 degrees of freedom, matching R's built-in output. This is why the test needs so little: just one column of differences plus its mean and spread.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The formula interface does not accept paired = TRUE in base R.</strong> Writing t.test(extra ~ group, data = sleep, paired = TRUE) throws the error "cannot use 'paired' in formula method". Always pass the two columns as separate vectors, as in t.test(after, before, paired = TRUE).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the 95% confidence interval for the mean difference out of a one-sample t-test on <code>diffs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: confidence interval for the mean difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confidence interval for the mean difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Extract just the confidence interval from the test object.
+ex_ci &lt;- NULL   # hint: t.test(diffs)$conf.int
+
+# Expected: roughly 0.70 to 2.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Confidence interval for the mean difference solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confidence interval for the mean difference solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci &lt;- t.test(diffs)$conf.int
+ex_ci
+#&gt; [1] 0.7001142 2.4598858
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every <code>t.test()</code> result is a list, and <code>$conf.int</code> grabs the interval directly, which is handy when you want to report it without printing the full test.</p>
+
+</details>
+</section>
+
+<h2>How do you get before-after data into the right shape?</h2>
+
+<p>Real datasets rarely arrive pre-split into two neat vectors. The most common shape is <strong>wide</strong>: one row per subject, with a <code>before</code> column and an <code>after</code> column. Let us build a small weight-loss study in that shape and run the test straight from the columns.</p>
+
+<div class="webr-container" data-block-title="Before and after in wide format">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Before and after in wide format</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One row per subject, two measurement columns.
+weight &lt;- data.frame(
+  subject = 1:8,
+  before  = c(80, 92, 75, 88, 69, 95, 83, 78),
+  after   = c(78, 89, 74, 83, 66, 90, 80, 77)
+)
+t.test(weight$before, weight$after, paired = TRUE)
+#&gt; 
+#&gt; 	Paired t-test
+#&gt; 
+#&gt; data:  weight$before and weight$after
+#&gt; t = 5.2373, df = 7, p-value = 0.001203
+#&gt; alternative hypothesis: true mean difference is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  1.576954 4.173046
+#&gt; sample estimates:
+#&gt; mean difference 
+#&gt;           2.875</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Subjects lost 2.875 kg on average (p = 0.0012), and the interval from 1.58 to 4.17 kg stays positive. The other common shape is <strong>long</strong>: one row per measurement, with a column saying whether it is a before or after value. Many plotting and modeling tools prefer long format, so it helps to reshape with <code>pivot_longer()</code>.</p>
+
+<div class="webr-container" data-block-title="Reshape wide data to long">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reshape wide data to long</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
+
+weight_long &lt;- weight |&gt;
+  pivot_longer(c(before, after), names_to = &quot;time&quot;, values_to = &quot;kg&quot;)
+head(as.data.frame(weight_long), 4)
+#&gt;   subject   time kg
+#&gt; 1       1 before 80
+#&gt; 2       1  after 78
+#&gt; 3       2 before 92
+#&gt; 4       2  after 89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each subject now spans two rows, tagged <code>before</code> or <code>after</code>. To run the paired test from long data, pull the two groups back out as vectors and keep them in subject order so the pairs line up.</p>
+
+<div class="webr-container" data-block-title="Run the paired test on long data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the paired test on long data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">before_kg &lt;- weight_long$kg[weight_long$time == &quot;before&quot;]
+after_kg  &lt;- weight_long$kg[weight_long$time == &quot;after&quot;]
+t.test(before_kg, after_kg, paired = TRUE)
+#&gt; 
+#&gt; 	Paired t-test
+#&gt; 
+#&gt; data:  before_kg and after_kg
+#&gt; t = 5.2373, df = 7, p-value = 0.001203
+#&gt; alternative hypothesis: true mean difference is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  1.576954 4.173046
+#&gt; sample estimates:
+#&gt; mean difference 
+#&gt;           2.875</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same t-statistic, same p-value. The shape of the data did not change the answer, only how you fed it to the test. A picture makes the pairing obvious: draw one line per subject connecting their before and after value.</p>
+
+<div class="webr-container" data-block-title="Visualize the paired structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize the paired structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(weight_long, aes(x = time, y = kg, group = subject)) +
+  geom_line(color = &quot;grey60&quot;) +
+  geom_point(size = 2, color = &quot;#4c6ef5&quot;) +
+  scale_x_discrete(limits = c(&quot;before&quot;, &quot;after&quot;)) +
+  labs(title = &quot;Each line is one subject&quot;, x = NULL, y = &quot;Weight (kg)&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Almost every line slopes downward, which is the visual signature of a real effect in a paired design. If the lines crossed randomly, the paired test would find little.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The two vectors must stay aligned pair by pair.</strong> R matches the first element of one vector to the first of the other, and so on. If you sort one column but not the other, or a subject has a missing value on only one side, the pairs break silently. Drop incomplete pairs before testing, or pass na.action carefully.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>weight_long</code>, compute the mean weight at each time point with <code>group_by()</code> and <code>summarise()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mean weight before and after">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean weight before and after</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Group by time, then summarise the mean of kg.
+ex_time_means &lt;- NULL   # hint: weight_long |&gt; group_by(time) |&gt; summarise(mean_kg = mean(kg))
+
+# Expected: before around 82.5, after around 79.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean weight before and after solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean weight before and after solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_time_means &lt;- weight_long |&gt;
+  group_by(time) |&gt;
+  summarise(mean_kg = mean(kg))
+as.data.frame(ex_time_means)
+#&gt;     time mean_kg
+#&gt; 1  after  79.625
+#&gt; 2 before  82.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two means differ by 2.875 kg, matching the paired test. <code>group_by()</code> plus <code>summarise()</code> is the tidyverse way to collapse each group to a single number.</p>
+
+</details>
+</section>
+
+<h2>How do you check assumptions, and what if they fail?</h2>
+
+<p>The paired t-test makes one real assumption, and it is easy to get wrong. The assumption is that the <em>differences</em> are roughly normally distributed. Not the before values, not the after values, only their difference. With eight differences that is a lot to ask of a formal test, but <code>shapiro.test()</code> gives a quick read.</p>
+
+<div class="webr-container" data-block-title="Check normality of the differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check normality of the differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">weight_diffs &lt;- weight$before - weight$after
+shapiro.test(weight_diffs)
+#&gt; 
+#&gt; 	Shapiro-Wilk normality test
+#&gt; 
+#&gt; data:  weight_diffs
+#&gt; W = 0.8832, p-value = 0.202</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Shapiro-Wilk p-value is 0.20, above 0.05, so there is no evidence the differences depart from normality. A picture helps confirm it. Plot the distribution of the differences and check that it is not wildly skewed or spiked.</p>
+
+<div class="webr-container" data-block-title="See the distribution of the differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the distribution of the differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(data.frame(diff = weight_diffs), aes(x = diff)) +
+  geom_histogram(bins = 6, fill = &quot;#4c6ef5&quot;, color = &quot;white&quot;) +
+  labs(title = &quot;Distribution of before - after differences&quot;,
+       x = &quot;Difference (kg)&quot;, y = &quot;Count&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Test the differences, not the raw before and after columns.</strong> A common mistake is running a normality check on the before values and again on the after values. The paired t-test never assumes those are normal. Only the single column of differences matters.</div></div>
+
+<p>When the differences are clearly non-normal, for example when an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> dominates or the sample is small and skewed, switch to the <strong>Wilcoxon signed-rank test</strong>. It ranks the size of the differences instead of using their raw values, so a single extreme point has far less influence on the result. The decision comes down to one question, shown below.</p>
+
+<p><img src="screenshots/Paired-Designs-in-R-test-choice.webp" alt="Normal differences point to the paired t-test, skewed ones to Wilcoxon" class="img-responsive img-zoomable" loading="lazy" width="748" height="1190" /></p>
+
+<p><em>Figure 2: Normal differences point to the paired t-test; skewed ones to Wilcoxon.</em></p>
+
+<p>Here is the <a class="auto-link" href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html" title="Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails">Wilcoxon test</a> on a small, skewed reaction-time sample where two values are far larger than the rest.</p>
+
+<div class="webr-container" data-block-title="Wilcoxon signed-rank test: the nonparametric backup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wilcoxon signed-rank test: the nonparametric backup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A small, skewed before/after sample (reaction time, ms) with two large values.
+rt_before &lt;- c(310, 305, 320, 480, 300, 315, 295, 500)
+rt_after  &lt;- c(290, 300, 305, 350, 285, 300, 290, 360)
+wilcox.test(rt_before, rt_after, paired = TRUE)
+#&gt; 
+#&gt; 	Wilcoxon signed rank exact test
+#&gt; 
+#&gt; data:  rt_before and rt_after
+#&gt; V = 36, p-value = 0.007812
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test reports V = 36 and p = 0.0078, so reaction times dropped after the change even though the sample was skewed. The Wilcoxon test gives you a p-value without trusting the normality assumption.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The Wilcoxon signed-rank test is the paired test's nonparametric partner.</strong> For a deeper look at how it ranks differences and handles ties, see the dedicated guide on the <a href="Wilcoxon-Signed-Rank-Test-in-R.html">Wilcoxon signed-rank test</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Shapiro-Wilk test</a> on the sleep <code>diffs</code> you built earlier to see whether the paired t-test was justified there.</p>
+<div class="webr-container" data-block-title="Your turn: test normality of the sleep differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test normality of the sleep differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># `diffs` holds the 10 within-patient sleep differences.
+ex_shap &lt;- NULL   # hint: shapiro.test(diffs)
+
+# Expected: W around 0.83, p-value around 0.03 (just under 0.05)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Normality of the sleep differences solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normality of the sleep differences solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_shap &lt;- shapiro.test(diffs)
+ex_shap
+#&gt; 
+#&gt; 	Shapiro-Wilk normality test
+#&gt; 
+#&gt; data:  diffs
+#&gt; W = 0.82987, p-value = 0.03334</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Here the p-value (0.033) dips just below 0.05, a mild warning that the differences are not perfectly normal. With only 10 pairs the paired t-test is fairly robust, but a cautious analyst would also report the Wilcoxon result as a cross-check.</p>
+
+</details>
+</section>
+
+<h2>How big is the effect, and how many pairs do you need?</h2>
+
+<p>A p-value tells you whether an effect exists, not how large it is. With enough pairs, even a trivial difference becomes "significant". So always report an <strong>effect size</strong> next to the p-value. For paired data the standard measure is Cohen's $d_z$: the mean difference divided by the standard deviation of the differences.</p>
+
+<p>$$d_z = \frac{\bar{d}}{s_d}$$</p>
+
+<p>It answers "how many standard deviations of change is the average change?" Rough guideposts are 0.2 (small), 0.5 (medium), and 0.8 (large).</p>
+
+<div class="webr-container" data-block-title="Effect size for paired data (Cohen&#x27;s dz)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effect size for paired data (Cohen&#x27;s dz)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># dz = mean of the differences / SD of the differences
+dz &lt;- mean(diffs) / sd(diffs)
+round(dz, 3)
+#&gt; [1] 1.285</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A $d_z$ of 1.29 is very large: the typical patient's change is more than one standard deviation of change. That is why the effect was significant even with just 10 patients. The flip side of that question is planning: if you were designing a new study, how many pairs would you need to detect this effect reliably? Base R's <code>power.t.test()</code> answers it.</p>
+
+<div class="webr-container" data-block-title="How many pairs for 80 percent power?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How many pairs for 80 percent power?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Given the effect we measured, how many pairs give 80% power?
+power.t.test(delta = mean(diffs), sd = sd(diffs), power = 0.80,
+             sig.level = 0.05, type = &quot;paired&quot;)
+#&gt; 
+#&gt;      Paired t test power calculation 
+#&gt; 
+#&gt;               n = 6.912532
+#&gt;           delta = 1.58
+#&gt;              sd = 1.229995
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt; 
+#&gt; NOTE: n is number of *pairs*, sd is std.dev. of *differences* within pairs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The answer is n = 6.9, which you round up to 7 pairs. Because the effect is so strong, a tiny study can detect it. For a <code>type = &quot;paired&quot;</code> calculation, remember that <code>sd</code> is the standard deviation of the <em>differences</em>, not of the raw scores, exactly as the note at the bottom of the output reminds you.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the effect size and confidence interval, not just the p-value.</strong> A significant p-value with a tiny dz means the effect is real but too small to matter in practice. Pairing dz with the mean difference and its interval tells the reader both whether the effect exists and whether it is worth acting on.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Cohen's $d_z$ for the weight-loss study using <code>weight_diffs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: effect size for the weight study">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: effect size for the weight study</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># weight_diffs holds the 8 before - after weight changes.
+ex_dz &lt;- NULL   # hint: mean(weight_diffs) / sd(weight_diffs)
+
+# Expected: a large effect, dz above 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Effect size for the weight study solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effect size for the weight study solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dz &lt;- mean(weight_diffs) / sd(weight_diffs)
+round(ex_dz, 3)
+#&gt; [1] 1.852</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A $d_z$ of 1.85 is a huge effect, which fits the near-parallel downward lines you saw in the slope plot.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: a full before-after analysis</h2>
+
+<p>Let us tie every step together on a fresh study. Imagine 15 people ran a reaction-time task before and after a training program, with times recorded in milliseconds. We will simulate the data with a fixed seed so your run matches exactly, then walk the full pipeline: build the data, check the assumption, run the test, then report the effect.</p>
+
+<div class="webr-container" data-block-title="A full paired analysis from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A full paired analysis from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 15
+rt_pre  &lt;- round(rnorm(n, mean = 420, sd = 40))
+rt_post &lt;- round(rt_pre - rnorm(n, mean = 18, sd = 15))   # training tends to lower RT
+train &lt;- data.frame(person = 1:n, pre = rt_pre, post = rt_post)
+head(train, 4)
+#&gt;   person pre post
+#&gt; 1      1 441  403
+#&gt; 2      2 377  350
+#&gt; 3      3 426  405
+#&gt; 4      4 417  411</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The data is in wide format, one row per person. Next, form the differences, check that they are normal, then run the paired test.</p>
+
+<div class="webr-container" data-block-title="Check the assumption, then run the test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the assumption, then run the test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train_diff &lt;- train$pre - train$post
+shapiro.test(train_diff)          # are the differences roughly normal?
+t.test(train$pre, train$post, paired = TRUE)
+#&gt; 
+#&gt; 	Shapiro-Wilk normality test
+#&gt; 
+#&gt; data:  train_diff
+#&gt; W = 0.95755, p-value = 0.65
+#&gt; 
+#&gt; 	Paired t-test
+#&gt; 
+#&gt; data:  train$pre and train$post
+#&gt; t = 6.7473, df = 14, p-value = 9.36e-06
+#&gt; alternative hypothesis: true mean difference is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  17.5989 34.0011
+#&gt; sample estimates:
+#&gt; mean difference 
+#&gt;            25.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Shapiro-Wilk p-value of 0.65 says the differences are comfortably normal, so the paired t-test is appropriate. The test finds a mean drop of 25.8 ms with a tiny p-value, and the confidence interval from 17.6 to 34.0 ms stays well away from zero. Finally, package the result the way you would in a report, with the effect size included.</p>
+
+<div class="webr-container" data-block-title="Report the effect size and a plain-English result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the effect size and a plain-English result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dz_train &lt;- mean(train_diff) / sd(train_diff)
+tt &lt;- t.test(train$pre, train$post, paired = TRUE)
+p_txt &lt;- ifelse(tt$p.value &lt; 0.001, &quot;&lt; 0.001&quot;, sprintf(&quot;= %.3f&quot;, tt$p.value))
+cat(sprintf(
+  &quot;Mean drop: %.1f ms (95%% CI %.1f to %.1f), t(%d) = %.2f, p %s, dz = %.2f\n&quot;,
+  mean(train_diff), tt$conf.int[1], tt$conf.int[2],
+  tt$parameter, tt$statistic, p_txt, dz_train))
+#&gt; Mean drop: 25.8 ms (95% CI 17.6 to 34.0), t(14) = 6.75, p &lt; 0.001, dz = 1.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single line is exactly what belongs in a results section: the size of the effect, its confidence interval, the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> with degrees of freedom, the p-value, and the standardized effect size. Any reader can judge both significance and practical importance from it.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several steps from the tutorial. Try each before opening the solution. The starter blocks define the data for you, so you only write the analysis.</p>
+
+<h3>Exercise 1: Reshape and run a paired test</h3>
+
+<p>A blood-pressure study measured six patients before and after a drug. Reshape the wide table to long format, then run a paired t-test comparing before against after.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: reshape and run a paired test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: reshape and run a paired test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Blood pressure (mmHg) before and after a drug, 6 patients.
+bp &lt;- data.frame(
+  patient = 1:6,
+  before  = c(145, 152, 138, 160, 149, 155),
+  after   = c(138, 145, 135, 150, 142, 148)
+)
+# 1) reshape bp to long with a `phase` column and a `bp_value` column
+# 2) run a paired t-test comparing before vs after
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bp_long &lt;- pivot_longer(bp, c(before, after),
+                        names_to = &quot;phase&quot;, values_to = &quot;bp_value&quot;)
+bp_before &lt;- bp_long$bp_value[bp_long$phase == &quot;before&quot;]
+bp_after  &lt;- bp_long$bp_value[bp_long$phase == &quot;after&quot;]
+t.test(bp_before, bp_after, paired = TRUE)
+#&gt; 
+#&gt; 	Paired t-test
+#&gt; 
+#&gt; data:  bp_before and bp_after
+#&gt; t = 7.5106, df = 5, p-value = 0.0006619
+#&gt; alternative hypothesis: true mean difference is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  4.494559 9.172108
+#&gt; sample estimates:
+#&gt; mean difference 
+#&gt;        6.833333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The drug lowered blood pressure by about 6.8 mmHg on average (p = 0.0007). Reshaping did not change the test, it just organized the data; the two vectors still had to be extracted in patient order.</p>
+
+</details>
+
+<h3>Exercise 2: Pick the right test</h3>
+
+<p>An income-change sample has one enormous outlier. Compute the differences, test them for normality, then run the appropriate test: a paired t-test if the differences look normal, otherwise the Wilcoxon signed-rank test.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: pick the right test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: pick the right test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Income before and after (in $1000s), 7 people, one huge value.
+inc_before &lt;- c(42, 45, 39, 41, 300, 44, 40)
+inc_after  &lt;- c(45, 47, 42, 44, 260, 46, 43)
+# 1) compute the differences and test them with shapiro.test()
+# 2) if normal use a paired t-test; if not, use wilcox.test(paired = TRUE)
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inc_diff &lt;- inc_before - inc_after
+shapiro.test(inc_diff)                     # the outlier wrecks normality
+wilcox.test(inc_before, inc_after, paired = TRUE)
+#&gt; 
+#&gt; 	Shapiro-Wilk normality test
+#&gt; 
+#&gt; data:  inc_diff
+#&gt; W = 0.47505, p-value = 7.967e-06
+#&gt; 
+#&gt; 	Wilcoxon signed rank exact test
+#&gt; 
+#&gt; data:  inc_before and inc_after
+#&gt; V = 7, p-value = 0.2656
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Shapiro-Wilk p-value is far below 0.05, so the differences are not normal and the paired t-test is unsafe. The Wilcoxon test reports p = 0.27, so once you stop letting the outlier dominate, the change is not significant.</p>
+
+</details>
+
+<h3>Exercise 3: Effect size and required sample size</h3>
+
+<p>Using the reaction-time <code>train_diff</code> from the Complete Example, compute Cohen's $d_z$, then use <code>power.t.test()</code> to find how many pairs would give 90% power at the observed effect.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: effect size and required sample size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: effect size and required sample size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># train_diff was created in the Complete Example.
+# 1) compute dz = mean(train_diff) / sd(train_diff)
+# 2) power.t.test(type = &quot;paired&quot;) with power = 0.90,
+#    delta = mean(train_diff), sd = sd(train_diff)
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dz3 &lt;- mean(train_diff) / sd(train_diff)
+round(dz3, 3)
+power.t.test(delta = mean(train_diff), sd = sd(train_diff),
+             power = 0.90, sig.level = 0.05, type = &quot;paired&quot;)
+#&gt; [1] 1.742
+#&gt; 
+#&gt;      Paired t test power calculation 
+#&gt; 
+#&gt;               n = 5.709197
+#&gt;           delta = 25.8
+#&gt;              sd = 14.80926
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.9
+#&gt;     alternative = two.sided
+#&gt; 
+#&gt; NOTE: n is number of *pairs*, sd is std.dev. of *differences* within pairs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The effect is large ($d_z$ = 1.74), so only about 6 pairs (rounding 5.7 up) are needed for 90% power. Strong effects need small samples; weak effects need large ones.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use a paired test instead of a two-sample test?</h3>
+
+<p>Use a paired test whenever each observation in one condition has a natural partner in the other: the same subject measured twice, or two subjects matched on key traits. If the two groups are unrelated people with no pairing, use the ordinary two-sample t-test.</p>
+
+<h3>Is a paired t-test really the same as a one-sample t-test on the differences?</h3>
+
+<p>Yes, exactly. The paired test computes each pair's difference and runs a one-sample t-test checking whether the mean difference is zero. You saw both routes give identical t, df, and p-values above.</p>
+
+<h3>What is the key assumption of the paired t-test?</h3>
+
+<p>That the paired differences are approximately normally distributed. The raw before and after values do not need to be normal, only their difference. Check it with <code>shapiro.test()</code> on the differences and a quick histogram.</p>
+
+<h3>What if my differences are not normal?</h3>
+
+<p>Use the Wilcoxon signed-rank test, <code>wilcox.test(x, y, paired = TRUE)</code>. It ranks the differences rather than using their raw magnitudes, so outliers and skew have far less influence. With large samples the paired t-test also becomes robust to non-normality.</p>
+
+<h3>Is the analysis different for before-after versus matched pairs?</h3>
+
+<p>No. Both designs produce one difference per pair, and the math from that point on is identical. The difference is only in how the pairing arises: repeated measurement of one subject, or matching of two subjects.</p>
+
+<h3>How do I report a paired t-test?</h3>
+
+<p>Report the mean difference with its 95% confidence interval, the t-statistic with degrees of freedom, the p-value, and an effect size such as Cohen's $d_z$. The one-line report in the Complete Example shows the standard format.</p>
+
+<h2>Summary</h2>
+
+<p>Paired designs are one of the simplest ways to get a more sensitive test: by making each pair its own control, they remove the person-to-person noise that weakens two-sample comparisons. The table below captures the workflow.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>R tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Recognize the design</td>
+<td>Same subject twice, or matched subjects</td>
+<td>before-after / matched pairs</td>
+</tr>
+<tr>
+<td>Shape the data</td>
+<td>Wide (two columns) or long (one per row)</td>
+<td><code>pivot_longer()</code></td>
+</tr>
+<tr>
+<td>Visualize</td>
+<td>One line per pair</td>
+<td><code>ggplot()</code> slope plot</td>
+</tr>
+<tr>
+<td>Check the assumption</td>
+<td>Differences roughly normal</td>
+<td><code>shapiro.test()</code> on differences</td>
+</tr>
+<tr>
+<td>Run the test</td>
+<td>Paired t-test, or Wilcoxon if skewed</td>
+<td><code>t.test(..., paired = TRUE)</code>, <code>wilcox.test(..., paired = TRUE)</code></td>
+</tr>
+<tr>
+<td>Report the effect</td>
+<td>Effect size and required <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a></td>
+<td>Cohen's $d_z$, <code>power.t.test()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Paired-Designs-in-R-workflow-mindmap.webp" alt="The full paired-analysis workflow at a glance" class="img-responsive img-zoomable" loading="lazy" width="1822" height="866" /></p>
+
+<p><em>Figure 3: The full paired-analysis workflow at a glance.</em></p>
+
+<p>The core habit to carry away: always analyze the differences, always report an effect size next to the p-value, and always pass your two columns as separate vectors because the formula interface will not take <code>paired = TRUE</code>.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>t.test: Student's t-Test</em> (stats package documentation). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">Link</a></li>
+
+<li>R Core Team. <em>wilcox.test: Wilcoxon Rank Sum and Signed Rank Tests</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html">Link</a></li>
+
+<li>R Core Team. <em>power.t.test: Power Calculations for Two-Sample t Test</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html">Link</a></li>
+
+<li>R Core Team. <em>shapiro.test: Shapiro-Wilk Normality Test</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/shapiro.test.html">Link</a></li>
+
+<li>R Core Team. <em>sleep: Student's Sleep Data</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/sleep.html">Link</a></li>
+
+<li>tidyr documentation. <em>pivot_longer()</em>. <a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., and Grolemund, G. <em>R for Data Science</em>, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>Wikipedia. <em>Paired difference test</em>. <a href="https://en.wikipedia.org/wiki/Paired_difference_test">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="t-Tests-in-R.html">t-Tests in R</a>: all four t-test variants, including how the paired test fits alongside one-sample and two-sample tests.</li>
+
+<li><a href="Wilcoxon-Signed-Rank-Test-in-R.html">Wilcoxon Signed-Rank Test in R</a>: the nonparametric partner for paired data, explained from scratch.</li>
+
+<li><a href="Effect-Size-in-R.html">Effect Size in R</a>: <a class="auto-link" href="Statistical-Power-Analysis-in-R.html" title="Power Analysis in R: Calculate the Sample Size You Need Before You Collect Any Data">Cohen's d</a> and related measures for reporting how big an effect really is.</li>
+
+<li><a href="Statistical-Power-Analysis-in-R.html">Statistical Power Analysis in R</a>: plan sample sizes before you collect data, for paired and unpaired designs.</li>
+
+</ul>
+
+{% endraw %}
