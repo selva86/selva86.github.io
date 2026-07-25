@@ -1,0 +1,842 @@
+---
+title: "Inset Plots and Magnifier Panels in ggplot2"
+description: "Learn to add inset plots and magnifier panels in ggplot2 with inset_element, annotation_custom, and coord_cartesian. Runnable R code and clear intuition."
+keywords: "inset plot ggplot2, magnifier panel R, inset_element, annotation_custom, ggmagnify, facet_zoom ggforce, zoom ggplot2, coord_cartesian, plot within a plot"
+mathjax: false
+webr: true
+curriculum_id: "GG2-8.2"
+post_type: "C"
+auto_link_terms: "inset plot|inset plots|inset_element()|magnifier panel|magnifier panels|plot within a plot|zoomed inset|annotation_custom()|facet_zoom()|geom_magnify()|zoom into a ggplot|coord_cartesian()"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Inset & Magnifier Plots"
+sidebar_order: "77"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">An <b>inset plot</b> is a small chart placed inside the plotting area of a larger one. A <b>magnifier panel</b> is a special inset that shows a zoomed-in view of a small region of the main chart, with that region marked on the full view. This tutorial builds both from scratch in ggplot2, using the <code>patchwork</code> companion package for placement.</p>
+
+<h2>What is an inset plot, and when should you reach for one?</h2>
+
+<p>Sometimes one chart cannot do two jobs at once. A <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> might show a 40-year trend beautifully while completely burying the sharp spike you actually want your reader to notice. An inset solves this by tucking a second, smaller chart inside the first, so the big picture and the interesting detail share a single figure.</p>
+
+<p>There are four common jobs an inset does well: a zoomed detail of a busy region, a context or overview map, a compact summary statistic, and a secondary distribution. A magnifier panel is the first of those, done carefully so the reader can see exactly which slice of the main chart is being enlarged.</p>
+
+<p>We will build everything on one dataset so the ideas stack up instead of resetting. The <code>economics</code> dataset ships with ggplot2 and records United States unemployment every month from 1967 to 2015. Let's load ggplot2 and take a quick look at the two columns we care about.</p>
+
+<div class="webr-container" data-block-title="Load ggplot2 and inspect the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load ggplot2 and inspect the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# economics ships with ggplot2: US monthly economic data, 1967 to 2015
+head(economics[, c(&quot;date&quot;, &quot;unemploy&quot;)], 3)
+#&gt; # A tibble: 3 × 2
+#&gt;   date       unemploy
+#&gt;   &lt;date&gt;        &lt;dbl&gt;
+#&gt; 1 1967-07-01     2944
+#&gt; 2 1967-08-01     2945
+#&gt; 3 1967-09-01     2958</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one month. The <code>date</code> column is a proper Date, and <code>unemploy</code> is the number of unemployed people in thousands. That peek confirms the shape of the data before we plot it, which is always a good habit.</p>
+
+<p>Now let's draw the full picture. We save the plot to <code>p_base</code> so we can reuse it as the background for every inset later in the tutorial.</p>
+
+<div class="webr-container" data-block-title="A full-range time series to work from">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A full-range time series to work from</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_base &lt;- ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;grey30&quot;) +
+  labs(x = NULL, y = &quot;Unemployed (thousands)&quot;,
+       title = &quot;US unemployment, 1967 to 2015&quot;)
+
+p_base</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The line rises and falls with every recession, and the tall peak near 2009 is the financial crisis. That peak is the perfect candidate for a magnifier later, because its month-to-month detail is squashed against the top of a chart that also has to show the previous 40 years.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>economics</code> data also has a <code>uempmed</code> column, the median number of weeks people stayed unemployed. Swap it in for <code>unemploy</code> and see a different story in the same date range.</p>
+<div class="webr-container" data-block-title="Your turn: plot median unemployment duration">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: plot median unemployment duration</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Swap unemploy for uempmed (median weeks unemployed)
+ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;grey30&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median duration solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median duration solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(economics, aes(date, uempmed)) +
+  geom_line(color = &quot;steelblue&quot;) +
+  labs(x = NULL, y = &quot;Median weeks unemployed&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the y aesthetic changed. <code>uempmed</code> climbs to a striking record after 2008, which is another region worth magnifying.</p>
+
+</details>
+</section>
+
+<h2>How do you place an inset with patchwork's inset_element()?</h2>
+
+<p>The cleanest way to drop one ggplot on top of another is <code>inset_element()</code> from the <a class="auto-link" href="patchwork-Package.html" title="patchwork in R: Combine Multiple ggplot2 Plots With Aligned Axes and Shared Legends">patchwork package</a>. You build the small plot as an ordinary ggplot, then add it to the base plot with four numbers that say where its corners go.</p>
+
+<p>Those four numbers are <code>left</code>, <code>bottom</code>, <code>right</code>, and <code>top</code>, and they run from 0 to 1 across the panel. So <code>left = 0</code> is the far left of the plotting area and <code>right = 1</code> is the far right. Let's build a compact histogram of the unemployment values and park it in the top-left corner.</p>
+
+<div class="webr-container" data-block-title="Overlay an inset with inset_element()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overlay an inset with inset_element()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(patchwork)
+
+# A compact summary plot to sit inside the main one
+p_dist &lt;- ggplot(economics, aes(unemploy)) +
+  geom_histogram(bins = 30, fill = &quot;steelblue&quot;, color = &quot;white&quot;) +
+  labs(title = &quot;Distribution&quot;, x = NULL, y = NULL) +
+  theme_minimal(base_size = 8)
+
+p_base + inset_element(p_dist, left = 0.02, bottom = 0.6, right = 0.4, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The small histogram now floats over the upper-left of the line chart, summarising how often each unemployment level occurred. Notice that <code>p_dist</code> uses <code>theme_minimal(base_size = 8)</code> so its text stays small enough to read without crowding the main plot. Shrinking the base font size is the single most useful trick for making an inset feel like a footnote rather than a competing headline.</p>
+
+<p>By default those 0-to-1 positions are measured against the panel, the grey drawing area inside the axes. You can change that reference frame with <code>align_to</code>. Here we push the inset into the top-right and align it to the whole figure instead.</p>
+
+<div class="webr-container" data-block-title="Position an inset with align_to = full">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Position an inset with align_to = full</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_base +
+  inset_element(p_dist, left = 0.62, bottom = 0.62, right = 0.98, top = 0.98,
+                align_to = &quot;full&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The align_to argument picks the reference frame for your coordinates.</strong> Use "panel" (the default) to position relative to the drawing area inside the axes, "plot" to include the axis titles and labels, or "full" to use the entire figure including its outer margins.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Move the same <code>p_dist</code> inset down into the bottom-right corner of the panel. You only need to change the four position numbers.</p>
+<div class="webr-container" data-block-title="Your turn: reposition the inset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reposition the inset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put the inset in the top-left; change it to bottom-right
+p_base + inset_element(p_dist, left = 0.02, bottom = 0.6, right = 0.4, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bottom-right inset solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom-right inset solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_base + inset_element(p_dist, left = 0.6, bottom = 0.05, right = 0.98, top = 0.45)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A bottom-right box needs a high <code>left</code>, a low <code>bottom</code>, and <code>right</code>/<code>top</code> near the edges. The width is <code>right</code> minus <code>left</code> and the height is <code>top</code> minus <code>bottom</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you build a magnifier panel that zooms into a region?</h2>
+
+<p>A magnifier panel is the most useful inset of all, and it takes just four steps: pick a region, mark it on the main chart, build a zoomed copy of that region, and place the zoom as an inset. The figure below lays out that flow before we write the code.</p>
+
+<p><img src="screenshots/ggplot2-Inset-Plots-in-R-magnifier-flow.webp" alt="The four steps that turn a crowded chart into a magnifier panel" class="img-responsive img-zoomable" loading="lazy" width="2248" height="360" /></p>
+
+<p><em>Figure 1: The four steps that turn a crowded chart into a magnifier panel.</em></p>
+
+<p>Step one is to decide what to magnify. We will zoom into the 2007 to 2010 window where unemployment spiked. Let's define that window and check the unemployment range it covers, because those numbers will size our marker rectangle.</p>
+
+<div class="webr-container" data-block-title="Define the zoom window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the zoom window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Zoom into the 2007 to 2010 financial crisis spike
+zoom_x &lt;- as.Date(c(&quot;2007-01-01&quot;, &quot;2010-06-01&quot;))
+zoom_win &lt;- subset(economics, date &gt;= zoom_x[1] &amp; date &lt;= zoom_x[2])
+
+# What unemployment range does that window cover?
+range(zoom_win$unemploy)
+#&gt; [1]  6731 15352</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So inside that window, unemployment runs from about 6.7 million to 15.4 million. Step two is to draw a rectangle on the main chart over exactly that box, so the reader knows which patch we are about to enlarge. The <code>annotate(&quot;rect&quot;, ...)</code> layer draws a single rectangle at data coordinates, and <code>fill = NA</code> keeps it hollow so the line shows through.</p>
+
+<div class="webr-container" data-block-title="Mark the zoom region on the main plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mark the zoom region on the main plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zoom_y &lt;- range(zoom_win$unemploy)
+
+p_context &lt;- p_base +
+  annotate(&quot;rect&quot;,
+           xmin = zoom_x[1], xmax = zoom_x[2],
+           ymin = zoom_y[1], ymax = zoom_y[2],
+           fill = NA, color = &quot;firebrick&quot;, linewidth = 0.7)
+
+p_context</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A red frame now sits around the crisis spike. Step three is to build the zoomed view itself. We plot the same data again, then use <code>coord_cartesian()</code> to restrict the visible x and y ranges to our window. This is the safe way to zoom.</p>
+
+<div class="webr-container" data-block-title="Build the zoomed detail with coord_cartesian()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the zoomed detail with coord_cartesian()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_zoom &lt;- ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;firebrick&quot;, linewidth = 0.8) +
+  coord_cartesian(xlim = zoom_x, ylim = zoom_y) +
+  labs(x = NULL, y = NULL, title = &quot;2007 to 2010&quot;) +
+  theme_minimal(base_size = 8)
+
+p_zoom</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The zoomed plot shows the crisis climb in full detail, month by month, instead of a cramped spike. It uses the whole dataset but only displays the slice inside the window.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><a class="auto-link" href="ggplot2-Coordinate-Systems.html" title="ggplot2 Coordinate Systems: coord_flip(), coord_polar(), and Beyond">coord_cartesian()</a> zooms the view without throwing any data away, which is why it is the right tool for a magnifier.</strong> The alternatives xlim() and scale limits actually delete every point outside the range before plotting, so a fitted line or smoother would bend to match only the survivors and mislead your reader.</div></div>
+
+<p>Step four is to <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> the two plots. We add the zoom as an inset over the context plot, placing it in the upper-left where the line chart has empty space.</p>
+
+<div class="webr-container" data-block-title="Compose the magnifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compose the magnifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_context +
+  inset_element(p_zoom, left = 0.05, bottom = 0.55, right = 0.5, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is a complete magnifier panel. The red rectangle tells the reader where the detail comes from, and the inset shows that detail at a comfortable size, all inside one figure that still keeps the 40-year context.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Point the magnifier at a different era. Rebuild the zoomed plot for the early-1980s recession, roughly 1980 to 1985, by changing the window dates.</p>
+<div class="webr-container" data-block-title="Your turn: magnify a different period">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: magnify a different period</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change the window to the 1980 to 1985 recession
+win2_x &lt;- as.Date(c(&quot;2007-01-01&quot;, &quot;2010-06-01&quot;))
+win2 &lt;- subset(economics, date &gt;= win2_x[1] &amp; date &lt;= win2_x[2])
+win2_y &lt;- range(win2$unemploy)
+
+ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;firebrick&quot;, linewidth = 0.8) +
+  coord_cartesian(xlim = win2_x, ylim = win2_y) +
+  theme_minimal(base_size = 8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="1980s recession solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">1980s recession solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">win2_x &lt;- as.Date(c(&quot;1980-01-01&quot;, &quot;1985-01-01&quot;))
+win2 &lt;- subset(economics, date &gt;= win2_x[1] &amp; date &lt;= win2_x[2])
+win2_y &lt;- range(win2$unemploy)
+
+ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;firebrick&quot;, linewidth = 0.8) +
+  coord_cartesian(xlim = win2_x, ylim = win2_y) +
+  theme_minimal(base_size = 8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the two window dates changed. Recomputing <code>win2_y</code> with <code>range()</code> keeps the y-axis snug around whatever the new window contains.</p>
+
+</details>
+</section>
+
+<h2>How do you make an inset without patchwork, using annotation_custom()?</h2>
+
+<p>You do not always need patchwork. Base ggplot2 can embed a plot with <code>annotation_custom()</code>, and it differs in one important way: you position the inset using your data's own units, not 0-to-1 fractions. That is handy when you want an inset anchored to a specific spot in the data, like a particular date range.</p>
+
+<p>The recipe has two parts. First convert the small plot into a drawable object (a grob, short for graphical object) with <code>ggplotGrob()</code>, then hand that object to <code>annotation_custom()</code> along with <code>xmin</code>, <code>xmax</code>, <code>ymin</code>, and <code>ymax</code> in data coordinates. Because our x-axis is dates, the x limits are dates too.</p>
+
+<div class="webr-container" data-block-title="Inset with annotation_custom() in data units">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inset with annotation_custom() in data units</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g_zoom &lt;- ggplotGrob(p_zoom)
+
+p_base +
+  annotation_custom(
+    grob = g_zoom,
+    xmin = as.Date(&quot;1969-06-01&quot;), xmax = as.Date(&quot;1994-01-01&quot;),
+    ymin = 9000, ymax = 15500
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The zoomed plot now sits in the region bounded by mid-1969 to early-1994 on the x-axis and 9,000 to 15,500 on the y-axis. Because the position is tied to data values, the inset stays put relative to the numbers even if you later change the axis limits.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>annotation_custom() reads its position in data units while inset_element() reads 0-to-1 fractions.</strong> Passing a value like 0.6 to annotation_custom on a <a class="auto-link" href="ggplot2-scale_x_date-in-R.html" title="ggplot2 scale_x_date() in R: Format Date Axis">date axis</a> would place the inset near 1st January 1970, not at 60 percent across, so always match the coordinate system to the function you chose.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Move the grob to the lower-right of the chart, roughly 1995 onward on the x-axis and 2,000 to 8,000 on the y-axis.</p>
+<div class="webr-container" data-block-title="Your turn: move the grob">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move the grob</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reposition g_zoom using data coordinates
+p_base +
+  annotation_custom(
+    grob = g_zoom,
+    xmin = as.Date(&quot;1969-06-01&quot;), xmax = as.Date(&quot;1994-01-01&quot;),
+    ymin = 9000, ymax = 15500
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lower-right grob solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lower-right grob solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_base +
+  annotation_custom(
+    grob = g_zoom,
+    xmin = as.Date(&quot;1995-01-01&quot;), xmax = as.Date(&quot;2014-06-01&quot;),
+    ymin = 2000, ymax = 8000
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The four numbers are read straight off the axes. Later dates push the inset right, and smaller unemployment values push it down.</p>
+
+</details>
+</section>
+
+<h2>Can you add a magnifier in one line with ggforce or ggmagnify?</h2>
+
+<p>Once you understand the manual recipe, two extension packages can automate it. The diagram below sums up all four methods so you can pick the right one for the job.</p>
+
+<p><img src="screenshots/ggplot2-Inset-Plots-in-R-methods.webp" alt="Pick an inset method by what you need to control" class="img-responsive img-zoomable" loading="lazy" width="1938" height="978" /></p>
+
+<p><em>Figure 2: Pick an inset method by what you need to control.</em></p>
+
+<p>The <code>ggforce</code> package adds <code>facet_zoom()</code>, which draws the full plot and a zoomed panel side by side and connects them automatically. You pass a condition that selects the rows to zoom into, and it handles the rest.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The ggforce and ggmagnify packages are not on the in-browser engine's supported list, so the next few blocks are marked to run locally in RStudio.</strong> Everything you have seen so far uses only ggplot2 and patchwork and runs right here in your browser.</div></div>
+
+<pre><code class="language-r">library(ggforce)
+
+ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;grey30&quot;) +
+  facet_zoom(x = date &gt;= as.Date(&quot;2007-01-01&quot;) &amp; date &lt;= as.Date(&quot;2010-06-01&quot;))</code></pre>
+
+<p>That single <code>facet_zoom()</code> line produces the full series on the left and the crisis window on the right, with guide lines linking the zoomed region back to its place in the whole. It is the fastest way to get a defensible zoom for exploratory work.</p>
+
+<p>The <code>ggmagnify</code> package goes the other way and draws a classic magnifying-glass inset directly on the plot. You give it a source region with <code>from</code> and a destination box with <code>to</code>, both as <code>c(xmin, xmax, ymin, ymax)</code> in data units. Here it is on the <code>faithful</code> geyser dataset, whose points form two tidy clusters.</p>
+
+<pre><code class="language-r">library(ggmagnify)
+
+# from = the region to magnify; to = where the inset lands (data units)
+from_r &lt;- c(1.5, 2.6, 40, 60)
+to_r   &lt;- c(3.2, 5.2, 45, 70)
+
+ggplot(faithful, aes(eruptions, waiting)) +
+  geom_point(alpha = 0.5) +
+  geom_magnify(from = from_r, to = to_r, axes = &quot;xy&quot;)</code></pre>
+
+<p>The short-eruption cluster is magnified into the empty upper-right of the plot, with lines drawn from the source box to the inset so the link is obvious. Setting <code>axes = &quot;xy&quot;</code> keeps axis ticks on the inset so readers can still read values off it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <code>facet_zoom()</code> can zoom the y-axis too. Zoom into the short eruptions of <code>faithful</code>, the ones under 3 minutes, by conditioning on <code>y</code> instead of <code>x</code>.</p>
+<pre><code class="language-r">library(ggforce)
+
+# Zoom on x here; switch it to zoom on y &lt; 3 minutes
+ggplot(faithful, aes(waiting, eruptions)) +
+  geom_point(alpha = 0.5) +
+  facet_zoom(x = waiting &gt; 80)</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ggplot(faithful, aes(waiting, eruptions)) +
+  geom_point(alpha = 0.5) +
+  facet_zoom(y = eruptions &lt; 3)</code></pre>
+
+<p><strong>Explanation:</strong> Swapping <code>x =</code> for <code>y =</code> tells <code>facet_zoom()</code> to enlarge a band of the vertical axis instead of the horizontal one.</p>
+
+</details>
+</section>
+
+<h2>How do you make insets and magnifiers look polished?</h2>
+
+<p>A working inset and a polished inset are different things. Three touches do most of the work: give the inset a solid background so the line underneath does not bleed through, add a thin border so it reads as its own panel, and drop any axis titles it does not need.</p>
+
+<p>Let's take the zoomed plot from before and clean it up. We keep the axis numbers, since a magnifier is more convincing when you can read values off it, but we add a white background with a grey frame and remove the redundant axis titles.</p>
+
+<div class="webr-container" data-block-title="Give the inset a clean, framed look">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Give the inset a clean, framed look</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_clean &lt;- p_zoom +
+  theme(plot.background = element_rect(fill = &quot;white&quot;, color = &quot;grey40&quot;),
+        axis.title = element_blank())
+
+p_context +
+  inset_element(p_clean, left = 0.05, bottom = 0.55, right = 0.5, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The inset now sits crisply on top of the line chart instead of blending into it. The white fill hides the main line where the inset overlaps it, and the grey frame gives the eye a clean boundary.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Give every floating inset a solid fill and a thin border.</strong> Without a background the base chart shows through the inset and both become hard to read, and without a border the inset edges melt into the plot; the two together make the inset read as a deliberate panel.</div></div>
+
+<p>By default <code>inset_element()</code> draws the inset on top of the base plot, which is usually what you want. If an inset ever covers data you need, move it to an emptier corner rather than fighting the layering, since a magnifier only works when the reader can see both the source and the detail.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the inset frame to a firebrick border on a very light background so it echoes the red marker rectangle.</p>
+<div class="webr-container" data-block-title="Your turn: restyle the inset frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: restyle the inset frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change the border colour and fill to match the red marker
+p_styled &lt;- p_zoom +
+  theme(plot.background = element_rect(fill = &quot;white&quot;, color = &quot;grey40&quot;),
+        axis.title = element_blank())
+
+p_context + inset_element(p_styled, left = 0.05, bottom = 0.55, right = 0.5, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Matching frame solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Matching frame solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_styled &lt;- p_zoom +
+  theme(plot.background = element_rect(fill = &quot;#fff5f5&quot;, color = &quot;firebrick&quot;),
+        axis.title = element_blank())
+
+p_context + inset_element(p_styled, left = 0.05, bottom = 0.55, right = 0.5, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Matching the inset frame colour to the marker rectangle visually ties the zoom to its source region, a small cue that helps the reader connect the two.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Let's put every idea into one figure you could drop into a report. It marks the crisis window on the full series, builds a framed detail view of that window, and places the detail as an inset, all in a single self-contained block.</p>
+
+<div class="webr-container" data-block-title="A complete crisis magnifier figure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A complete crisis magnifier figure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">crisis_x &lt;- as.Date(c(&quot;2007-01-01&quot;, &quot;2010-06-01&quot;))
+crisis_win &lt;- subset(economics, date &gt;= crisis_x[1] &amp; date &lt;= crisis_x[2])
+crisis_y &lt;- range(crisis_win$unemploy)
+
+main &lt;- ggplot(economics, aes(date, unemploy)) +
+  geom_line(color = &quot;grey30&quot;) +
+  annotate(&quot;rect&quot;, xmin = crisis_x[1], xmax = crisis_x[2],
+           ymin = crisis_y[1], ymax = crisis_y[2],
+           fill = NA, color = &quot;firebrick&quot;, linewidth = 0.7) +
+  labs(x = NULL, y = &quot;Unemployed (thousands)&quot;,
+       title = &quot;US unemployment with a magnified crisis view&quot;)
+
+detail &lt;- ggplot(crisis_win, aes(date, unemploy)) +
+  geom_line(color = &quot;firebrick&quot;, linewidth = 0.8) +
+  labs(x = NULL, y = NULL, title = &quot;2007 to 2010&quot;) +
+  theme_minimal(base_size = 8) +
+  theme(plot.background = element_rect(fill = &quot;white&quot;, color = &quot;grey40&quot;))
+
+main + inset_element(detail, left = 0.05, bottom = 0.55, right = 0.5, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This figure tells the whole story at a glance. A reader sees the long trend, spots the flagged region, and reads the crisis in detail without ever leaving the chart. Note that <code>detail</code> plots <code>crisis_win</code> directly rather than using <code>coord_cartesian()</code>; since the subset already contains only the window's rows, either approach draws the same line here.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine the ideas above. Each uses fresh variable names beginning with <code>my_</code> so your work never overwrites the tutorial plots.</p>
+
+<h3>Exercise 1: A boxplot inset on a scatter plot</h3>
+
+<p>Build a scatter plot of <code>mtcars</code> weight against miles per gallon, then add a boxplot of <code>mpg</code> grouped by cylinder count as an inset in the top-right corner. Save the scatter to <code>my_main</code> and the boxplot to <code>my_inset</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: boxplot inset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: boxplot inset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build my_main and my_inset, then combine with inset_element()
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_main &lt;- ggplot(mtcars, aes(wt, mpg)) + geom_point()
+
+my_inset &lt;- ggplot(mtcars, aes(factor(cyl), mpg)) +
+  geom_boxplot(fill = &quot;steelblue&quot;) +
+  labs(x = &quot;cyl&quot;, y = NULL) +
+  theme_minimal(base_size = 8)
+
+my_main + inset_element(my_inset, left = 0.55, bottom = 0.55, right = 0.98, top = 0.98)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The scatter carries the main relationship while the inset boxplot summarises how mileage falls as cylinders rise, a second view for free.</p>
+
+</details>
+
+<h3>Exercise 2: A magnifier on the geyser data</h3>
+
+<p>Use the <code>faithful</code> dataset (eruption duration against waiting time). Mark the short-eruption cluster with a rectangle over roughly <code>eruptions</code> 1.5 to 2.6 and <code>waiting</code> 40 to 68, then add a <code>coord_cartesian()</code> zoom of that box as an inset in the bottom-right.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: geyser magnifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: geyser magnifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: annotate(&quot;rect&quot;, ...) for the marker, coord_cartesian() for the zoom
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x &lt;- c(1.5, 2.6); my_y &lt;- c(40, 68)
+
+my_ctx &lt;- ggplot(faithful, aes(eruptions, waiting)) +
+  geom_point(alpha = 0.5) +
+  annotate(&quot;rect&quot;, xmin = my_x[1], xmax = my_x[2], ymin = my_y[1], ymax = my_y[2],
+           fill = NA, color = &quot;firebrick&quot;, linewidth = 0.7)
+
+my_zoom &lt;- ggplot(faithful, aes(eruptions, waiting)) +
+  geom_point(alpha = 0.5, color = &quot;firebrick&quot;) +
+  coord_cartesian(xlim = my_x, ylim = my_y) +
+  theme_minimal(base_size = 8)
+
+my_ctx + inset_element(my_zoom, left = 0.55, bottom = 0.05, right = 0.98, top = 0.5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The rectangle and the <code>coord_cartesian()</code> limits use the same <code>my_x</code> and <code>my_y</code> values, so the marker and the zoom always agree.</p>
+
+</details>
+
+<h3>Exercise 3: A side-by-side zoom without any inset</h3>
+
+<p>Sometimes a side-by-side layout reads better than an overlay. Recreate the <code>facet_zoom()</code> look with patchwork alone: a full <code>faithful</code> scatter with the cluster marked, placed next to a zoomed copy, joined with the <code>|</code> operator.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: side-by-side zoom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: side-by-side zoom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build my_full (marked) and my_side (zoomed), then use my_full | my_side
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x &lt;- c(1.5, 2.6); my_y &lt;- c(40, 68)
+
+my_full &lt;- ggplot(faithful, aes(eruptions, waiting)) +
+  geom_point(alpha = 0.5) +
+  annotate(&quot;rect&quot;, xmin = my_x[1], xmax = my_x[2], ymin = my_y[1], ymax = my_y[2],
+           fill = NA, color = &quot;firebrick&quot;, linewidth = 0.7) +
+  labs(title = &quot;Full data&quot;)
+
+my_side &lt;- ggplot(faithful, aes(eruptions, waiting)) +
+  geom_point(alpha = 0.5, color = &quot;firebrick&quot;) +
+  coord_cartesian(xlim = my_x, ylim = my_y) +
+  labs(title = &quot;Zoomed region&quot;)
+
+my_full | my_side</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>|</code> operator from patchwork places the two plots in one row. This layout gives the zoom its own space instead of covering the source, which suits print reports where overlap is risky.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use inset_element() versus annotation_custom()?</h3>
+
+<p>Reach for <code>inset_element()</code> when you want to position an inset by eye, since 0-to-1 fractions make "top-right corner" easy to express. Reach for <code>annotation_custom()</code> when the inset must sit at specific data values, such as a fixed date range, because it reads its position straight off the axes.</p>
+
+<h3>Why did coord_cartesian() zoom correctly but xlim() gave a weird result?</h3>
+
+<p><code>coord_cartesian()</code> changes only the visible window and keeps every data point, so lines and smoothers stay true. <code>xlim()</code> and scale limits remove points outside the range before anything is drawn, which can chop a line short or bend a fitted curve, so they are the wrong choice for a faithful zoom.</p>
+
+<h3>My inset is hiding behind the main plot. What happened?</h3>
+
+<p>By default <code>inset_element()</code> draws on top, so this usually means the inset has a transparent background and the base chart is showing through. Add a solid fill with <code>theme(plot.background = element_rect(fill = &quot;white&quot;))</code>, and if you built the inset with <code>annotation_custom()</code>, make sure its coordinates actually fall inside the panel.</p>
+
+<h3>Can I add more than one inset to a plot?</h3>
+
+<p>Yes. Chain several <code>inset_element()</code> calls, one per inset, and give each a different set of corners so they do not overlap. The same works for multiple <code>annotation_custom()</code> layers.</p>
+
+<h3>Do insets survive when I save the figure with ggsave()?</h3>
+
+<p>They do. Because the composed object is still a single plot, <code>ggsave()</code> writes it out like any other, though you may need a larger <code>width</code> and <code>height</code> so the inset text stays legible at the final size.</p>
+
+<h2>Summary</h2>
+
+<p>Insets and magnifiers let one figure carry both the overview and the detail. The table below sums up the tools, and the diagram recaps how they fit together.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Positioning</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inset_element()</code> (patchwork)</td>
+<td>0-to-1 fractions</td>
+<td>Overlays placed by eye</td>
+</tr>
+<tr>
+<td><code>annotation_custom()</code> (ggplot2)</td>
+<td>Data units</td>
+<td>Insets anchored to data values</td>
+</tr>
+<tr>
+<td><code>coord_cartesian()</code> (ggplot2)</td>
+<td>Axis limits</td>
+<td>The zoomed view inside a magnifier</td>
+</tr>
+<tr>
+<td><code>facet_zoom()</code> (ggforce)</td>
+<td>Row condition</td>
+<td>Fast side-by-side zoom panels</td>
+</tr>
+<tr>
+<td><code>geom_magnify()</code> (ggmagnify)</td>
+<td>Data units</td>
+<td>A classic connected magnifier</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/ggplot2-Inset-Plots-in-R-overview.webp" alt="The tools this tutorial covers, at a glance" class="img-responsive img-zoomable" loading="lazy" width="1436" height="1028" /></p>
+
+<p><em>Figure 3: The tools this tutorial covers, at a glance.</em></p>
+
+<p>The key mental model is that a magnifier is just an inset with a job: mark a region, zoom it with <code>coord_cartesian()</code> so no data is lost, and place the result where it does not cover the source. Get those three habits right and your insets will read clearly every time.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>patchwork documentation. <em>Create an inset to be added on top of the previous plot (inset_element)</em>. <a href="https://patchwork.data-imaginist.com/reference/inset_element.html">Link</a></li>
+
+<li>ggplot2 documentation. <em>Annotation: Custom grob (annotation_custom)</em>. <a href="https://ggplot2.tidyverse.org/reference/annotation_custom.html">Link</a></li>
+
+<li>ggplot2 documentation. <em>Cartesian coordinates (coord_cartesian)</em>. <a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html">Link</a></li>
+
+<li>Wickham, H., Navarro, D., Pedersen, T. L. <em>ggplot2: Elegant Graphics for Data Analysis</em>, Chapter 9: Arranging plots. <a href="https://ggplot2-book.org/arranging-plots">Link</a></li>
+
+<li>ggforce documentation. <em>facet_zoom: Facet data for zoom with context</em>. <a href="https://ggforce.data-imaginist.com/reference/facet_zoom.html">Link</a></li>
+
+<li>Jones, D. <em>ggmagnify: Create a magnified inset of part of a ggplot object</em>. <a href="https://hughjonesd.github.io/ggmagnify/">Link</a></li>
+
+<li>Chang, W. <em>R Graphics Cookbook</em>, 2nd Edition. <a href="https://r-graphics.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="patchwork-Package.html">patchwork in R: Combine Multiple ggplot2 Plots</a> - the full toolkit for arranging and overlaying plots, of which <code>inset_element()</code> is one piece.</li>
+
+<li><a href="ggplot2-Labels-and-Annotations.html">ggplot2 Labels and Annotations</a> - master <code>annotate()</code> and text layers that pair naturally with a marked magnifier region.</li>
+
+<li><a href="ggplot2-Facets.html">ggplot2 Facets</a> - understand faceting, the idea <code>facet_zoom()</code> builds on to draw its context panel.</li>
+
+<li><a href="Publication-Quality-Figures-in-R.html">Publication-Quality Figures in R</a> - polish, sizing, and export tips for figures with insets that need to survive print.</li>
+
+</ul>
+
+{% endraw %}
