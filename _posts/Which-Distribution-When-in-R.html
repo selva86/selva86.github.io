@@ -1,0 +1,1187 @@
+---
+title: "Which Distribution When: A Field Guide in R"
+description: "A field guide to choosing the right probability distribution in R. Answer 3 questions, then match your data to the Normal, Poisson, Gamma, Beta and more."
+keywords: "which probability distribution to use, choosing a distribution in R, probability distributions in R, dnorm dpois rnorm, fit distribution to data R, discrete vs continuous distribution, distribution decision guide"
+mathjax: true
+webr: true
+curriculum_id: "ST2-4.1"
+post_type: "C"
+auto_link_terms: "which distribution to use|choosing a distribution|probability distribution guide|which probability distribution|distribution field guide|discrete vs continuous distribution|dnorm()|dpois()|rnorm()|choose a distribution in R|distribution decision tree|fitting a distribution"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Which Distribution When"
+sidebar_order: "12"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Choosing a probability distribution in R comes down to a few plain questions about your data: do you count it or measure it, does it have a floor or a ceiling, and is it symmetric or lopsided. This field guide answers those questions, then matches each answer to the right distribution and the exact <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> that go with it.</p>
+
+<h2>How do you choose a probability distribution in R?</h2>
+
+<p>You open a statistics problem and face a wall of names: normal, binomial, Poisson, gamma, beta, Weibull. Which one models your data? The good news is that you rarely need the whole list. A short chain of questions about the data in front of you narrows it to one or two families. Let us start with the single most useful question and read the answer straight from the data.</p>
+
+<p>The question is this: <strong>do you count your data, or do you measure it?</strong> Counted data lands on whole numbers (0, 1, 2 cars, emails, defects). Measured data can take any value on a scale (7.4 mph, 36.7 degrees, 1.82 metres). To see how different that makes things, let us simulate three everyday quantities and print a small fingerprint of each.</p>
+
+<div class="webr-container" data-block-title="Fingerprint three everyday quantities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fingerprint three everyday quantities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+coin_heads &lt;- rbinom(1000, size = 10, prob = 0.5)   # heads in 10 coin flips
+complaints &lt;- rpois(1000, lambda = 3)                # complaints logged per day
+heights    &lt;- rnorm(1000, mean = 170, sd = 8)        # adult heights in cm
+
+fingerprint &lt;- function(x) data.frame(
+  whole_numbers = all(x == floor(x)),
+  min = round(min(x), 1),
+  max = round(max(x), 1),
+  mean = round(mean(x), 1)
+)
+
+rbind(
+  &quot;coin heads (out of 10)&quot; = fingerprint(coin_heads),
+  &quot;daily complaints&quot;       = fingerprint(complaints),
+  &quot;adult heights (cm)&quot;     = fingerprint(heights)
+)
+#&gt;                        whole_numbers min   max  mean
+#&gt; coin heads (out of 10)          TRUE   1  10.0   5.0
+#&gt; daily complaints                TRUE   0   9.0   2.9
+#&gt; adult heights (cm)             FALSE 144 199.1 169.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>fingerprint()</code> helper records three things about each quantity: whether every value is a whole number, plus the range and the average. The two count quantities (coin heads and complaints) are all whole numbers, and they live inside natural limits. Heights are not whole numbers at all, and they spread smoothly around their average. That single <code>whole_numbers</code> column already splits the world of distributions in two.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This whole guide uses base R plus one helper from the MASS package.</strong> Nothing extra to install, and every code block runs in your browser. Base R ships a full family of functions for each distribution, and MASS adds a single fitting function you will meet near the end.</div></div>
+
+<p>Once you know whether the data is counted or measured, two follow-up questions finish the job:</p>
+
+<ol>
+
+<li><strong>Is the range bounded?</strong> Some quantities cannot go below zero (waiting times, incomes), and some are trapped between 0 and 1 (proportions, rates). Bounds rule distributions in or out.</li>
+
+<li><strong>Is the shape symmetric or skewed?</strong> A symmetric bell points to the normal. A long right tail points to the skewed families such as the gamma or log-normal.</li>
+
+</ol>
+
+<p>Those three questions, count-or-measure, bounded-or-not, symmetric-or-skewed, are the whole field guide. The picture below turns them into a map you can follow top to bottom.</p>
+
+<p><img src="screenshots/Which-Distribution-When-in-R-decision-tree.webp" alt="Decision tree for choosing a distribution: count or measure, then the range" class="img-responsive img-zoomable" loading="lazy" width="1316" height="1462" /></p>
+
+<p><em>Figure 1: The whole guide in one picture: count or measure, then the range.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Count-versus-measure is the master fork, and it is almost always obvious.</strong> If you can imagine getting a value of 2.5, the quantity is measured and you are in the continuous families. If only whole numbers make sense, you are in the discrete families. Get this one right and half the wrong distributions disappear before you write any code.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Decide whether each quantity below is discrete (counted) or continuous (measured). Replace each <code>&quot;?&quot;</code> with your answer.</p>
+<div class="webr-container" data-block-title="Your turn: classify three quantities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify three quantities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># For each quantity, is it discrete (counts) or continuous (measured)?
+ex_emails_per_day  &lt;- &quot;?&quot;   # number of emails you get in a day
+ex_body_temp       &lt;- &quot;?&quot;   # a person's body temperature in Celsius
+ex_defective_bulbs &lt;- &quot;?&quot;   # defective bulbs in a box of 50
+
+cat(ex_emails_per_day, ex_body_temp, ex_defective_bulbs)
+# Expected: discrete continuous discrete</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Classify three quantities solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify three quantities solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_emails_per_day  &lt;- &quot;discrete&quot;    # you count whole emails: 0, 1, 2, ...
+ex_body_temp       &lt;- &quot;continuous&quot;  # temperature can be 36.7, 37.15, ...
+ex_defective_bulbs &lt;- &quot;discrete&quot;    # a count out of 50 trials
+
+cat(ex_emails_per_day, ex_body_temp, ex_defective_bulbs)
+#&gt; discrete continuous discrete</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Emails and defective bulbs are things you tally in whole units, so they are discrete. Body temperature sits on a <a class="auto-link" href="ggplot2-scale_x_continuous-in-R.html" title="ggplot2 scale_x_continuous() in R: Customize the X Axis">continuous scale</a> where any in-between value is possible.</p>
+
+</details>
+</section>
+
+<h2>What do R's d, p, q, and r functions do?</h2>
+
+<p>Before we tour the distributions, you need one piece of shared vocabulary, because every distribution in R follows the same naming pattern. Each family has a short root name (<code>norm</code> for normal, <code>pois</code> for Poisson, <code>binom</code> for binomial) and four prefixes you attach to it. Learn the four prefixes once and you can work with any distribution.</p>
+
+<p>Here is what each prefix means, shown on the normal with our height model (mean 170 cm, standard deviation 8 cm).</p>
+
+<div class="webr-container" data-block-title="The d, p and q functions on the normal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The d, p and q functions on the normal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dnorm(180, mean = 170, sd = 8)    # density: relative likelihood right at 180 cm
+pnorm(180, mean = 170, sd = 8)    # probability of being below 180 cm
+qnorm(0.975, mean = 170, sd = 8)  # the height with 97.5% of people below it
+#&gt; [1] 0.02283114
+#&gt; [1] 0.8943502
+#&gt; [1] 185.6797</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those three numbers as a sentence about heights. The density at 180 cm is 0.023, a relative height of the curve at that point. The probability of being below 180 cm is 0.894, so about 89% of adults are shorter than 180 cm. And 97.5% of adults are shorter than 185.7 cm, which is what <code>qnorm(0.975, ...)</code> returns: the quantile that leaves 97.5% below it. The <code>p</code> and <code>q</code> prefixes are inverses of each other.</p>
+
+<p>The fourth prefix, <code>r</code>, draws random values from the distribution. This is how you simulate data.</p>
+
+<div class="webr-container" data-block-title="Draw random values with rnorm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw random values with rnorm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+rnorm(5, mean = 170, sd = 8)      # five random heights drawn from this model
+#&gt; [1] 188.2980 160.4258 164.4457 166.7017 162.2346</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every one of those five heights is a plausible draw from a population averaging 170 cm. Setting the seed with <code>set.seed()</code> first makes the draw reproducible, so you and I get the same five numbers.</p>
+
+<p>There is one wrinkle worth stating clearly. For a <strong>continuous</strong> distribution, <code>d</code> gives a density, not a probability, because the chance of landing on any exact value is zero. For a <strong>discrete</strong> distribution, <code>d</code> gives an honest probability of an exact outcome. Watch the difference on the Poisson, where counts are whole numbers.</p>
+
+<div class="webr-container" data-block-title="The d and p functions on the Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The d and p functions on the Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dpois(2, lambda = 4)      # probability of EXACTLY 2 calls in an hour
+ppois(2, lambda = 4)      # probability of 2 or fewer calls
+#&gt; [1] 0.1465251
+#&gt; [1] 0.2381033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>dpois(2, lambda = 4)</code> is a real probability: there is a 14.7% chance of exactly 2 calls when the average is 4 per hour. And <code>ppois(2, ...)</code> adds up the chances of 0, 1, and 2 calls to give 23.8%.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The root names are short and consistent.</strong> Common ones are <code>norm</code>, <code>pois</code>, <code>binom</code>, <code>unif</code>, <code>exp</code>, <code>gamma</code>, <code>beta</code>, and <code>lnorm</code> for the log-normal. Attach <code>d</code>, <code>p</code>, <code>q</code>, or <code>r</code> to any of them and the function exists. Type <code>?Distributions</code> in the console for the full list.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the same height model (mean 170, sd 8), what fraction of adults are shorter than 160 cm? The <code>pnorm()</code> function gives the probability below a value.</p>
+<div class="webr-container" data-block-title="Your turn: probability below 160 cm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability below 160 cm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in a pnorm() call for the height below 160 cm.
+ex_below_160 &lt;- NA   # replace NA with a pnorm(...) call
+ex_below_160
+# Expected: about 0.106</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability below 160 cm solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability below 160 cm solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_below_160 &lt;- pnorm(160, mean = 170, sd = 8)
+round(ex_below_160, 3)
+#&gt; [1] 0.106</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pnorm(160, ...)</code> accumulates all the probability below 160 cm. About 10.6% of adults in this model are shorter than 160 cm.</p>
+
+</details>
+</section>
+
+<h2>Which distributions fit count data?</h2>
+
+<p>Count data is the discrete branch: whole numbers with a natural floor of zero. Two distributions cover the vast majority of count problems, and telling them apart comes down to one question: <strong>is there a fixed number of trials?</strong></p>
+
+<p>The <strong>binomial</strong> models a fixed number of independent yes/no trials, each with the same success probability. Think 20 quiz questions, 50 manufactured parts, 100 email sends. You count how many succeed. Suppose a student guesses on a 20-question quiz with 4 options each, so the chance of a correct guess is 0.25.</p>
+
+<div class="webr-container" data-block-title="Binomial probabilities for a guessed quiz">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Binomial probabilities for a guessed quiz</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 20; p &lt;- 0.25
+dbinom(8, size = n, prob = p)         # P(exactly 8 correct)
+sum(dbinom(8:20, size = n, prob = p)) # P(8 or more correct)
+c(mean = n * p, variance = n * p * (1 - p))
+#&gt; [1] 0.06088669
+#&gt; [1] 0.1018119
+#&gt;     mean variance
+#&gt;     5.00     3.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Guessing gives a 6.1% chance of exactly 8 correct and a 10.2% chance of 8 or more. The expected score is <code>n * p = 5</code> correct, and the variance is <code>n * p * (1 - p) = 3.75</code>. For the binomial, the mean and variance follow a fixed rule.</p>
+
+<p>$$\mu = np, \qquad \sigma^2 = np(1-p)$$</p>
+
+<p>Where $\mu$ is the mean number of successes, $\sigma^2$ is the variance, $n$ is the number of trials, and $p$ is the success probability. If formulas are not your thing, skip them, the numbers in the output already tell the story.</p>
+
+<p>The <strong>Poisson</strong> models counts of events over an interval of time or space when there is no fixed number of trials: sign-ups per hour, typos per page, potholes per mile. Its one parameter, lambda, is the average count per interval.</p>
+
+<div class="webr-container" data-block-title="Poisson probabilities for hourly sign-ups">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson probabilities for hourly sign-ups</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lambda &lt;- 4
+dpois(6, lambda)                     # P(exactly 6 sign-ups this hour)
+ppois(2, lambda)                     # P(2 or fewer sign-ups)
+c(mean = lambda, variance = lambda)  # Poisson's signature: mean equals variance
+#&gt; [1] 0.1041956
+#&gt; [1] 0.2381033
+#&gt;     mean variance
+#&gt;        4        4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With an average of 4 sign-ups per hour, there is a 10.4% chance of exactly 6 and a 23.8% chance of 2 or fewer. The Poisson has a famous signature: <strong>its mean equals its variance.</strong> That property is also its weak spot, and the diagram below shows where it fails.</p>
+
+<p><img src="screenshots/Which-Distribution-When-in-R-discrete-guide.webp" alt="Decision guide for count distributions" class="img-responsive img-zoomable" loading="lazy" width="1890" height="948" /></p>
+
+<p><em>Figure 2: Choosing among the count distributions.</em></p>
+
+<p>Real count data is often more spread out than a Poisson allows, a situation called <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a>. When the variance runs well above the mean, reach for the <strong>negative binomial</strong> instead. Let us simulate overdispersed counts and check.</p>
+
+<div class="webr-container" data-block-title="Detect overdispersion in counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect overdispersion in counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+overdispersed &lt;- rnbinom(500, size = 2, mu = 4)   # negative binomial counts
+c(mean = round(mean(overdispersed), 2),
+  variance = round(var(overdispersed), 2))
+#&gt;     mean variance
+#&gt;     4.21    11.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean is about 4.2 but the variance is 11.8, nearly three times larger. A Poisson would insist the variance equals the mean, so it would badly understate the spread. The negative binomial adds a second parameter precisely to let the variance grow.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>If the variance is far bigger than the mean, do not force a Poisson.</strong> The Poisson locks the variance to equal the mean, so it will report false confidence on overdispersed counts. Check the ratio of variance to mean first; a value well above 1 is your signal to switch to the negative binomial.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A factory line makes items with a 3% defect rate. In a box of 50, what is the probability of exactly 2 defects? This is a binomial with 50 trials and a success probability of 0.03.</p>
+<div class="webr-container" data-block-title="Your turn: probability of exactly 2 defects">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability of exactly 2 defects</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in a dbinom() call: 2 defects, size = 50, prob = 0.03.
+ex_defects &lt;- NA   # replace NA with a dbinom(...) call
+ex_defects
+# Expected: about 0.256</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability of 2 defects solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability of 2 defects solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_defects &lt;- dbinom(2, size = 50, prob = 0.03)
+round(ex_defects, 3)
+#&gt; [1] 0.256</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A fixed batch of 50 parts with the same defect probability is a textbook binomial. There is a 25.6% chance of finding exactly 2 defects.</p>
+
+</details>
+</section>
+
+<h2>Which distribution fits symmetric, bell-shaped data?</h2>
+
+<p>Now cross into measured data. The first continuous family to check is the one you already know: the <strong>normal</strong>, the symmetric bell curve. It shows up whenever many small effects add together, which is why measurements like heights, along with the averages of large samples, tend to look normal. A quick tell for normal-shaped data is that its mean and median sit close together, because a symmetric shape has no long tail to drag the mean away.</p>
+
+<p>Let us check daily temperatures from the built-in <code>airquality</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Check symmetry of temperature data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check symmetry of temperature data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">temp &lt;- airquality$Temp     # daily max temperature, no missing values
+c(mean = round(mean(temp), 1),
+  median = round(median(temp), 1),
+  sd = round(sd(temp), 1))
+#&gt;   mean median     sd
+#&gt;   77.9   79.0    9.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean (77.9) and median (79.0) are almost on top of each other, exactly what you expect from a roughly symmetric shape. A histogram with a matching normal curve makes the fit visible.</p>
+
+<div class="webr-container" data-block-title="Histogram of temperature with a normal curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Histogram of temperature with a normal curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(temp, breaks = 12, freq = FALSE, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;Daily temperature&quot;, xlab = &quot;Temperature (F)&quot;)
+curve(dnorm(x, mean = mean(temp), sd = sd(temp)),
+      add = TRUE, col = &quot;steelblue&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bars follow the blue normal curve reasonably well, with a slight lean but no dramatic tail. This is the continuous map you will be working through in the next few sections.</p>
+
+<p><img src="screenshots/Which-Distribution-When-in-R-continuous-guide.webp" alt="Decision guide for continuous distributions by shape" class="img-responsive img-zoomable" loading="lazy" width="1192" height="1138" /></p>
+
+<p><em>Figure 3: Choosing among the continuous distributions by shape.</em></p>
+
+<p>Sometimes data is bell-shaped but produces more extreme values than a normal expects. That is the job of <strong>Student's t</strong>, which looks like the normal but with heavier tails. Its one parameter, the degrees of freedom, controls how heavy those tails are: fewer degrees of freedom means heavier tails and more frequent extreme values. It is the safer choice for small samples and for data prone to occasional outliers. Compare how often each distribution produces a value more than 3 standard deviations from centre.</p>
+
+<div class="webr-container" data-block-title="Compare the tails of the normal and t">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the tails of the normal and t</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tail_normal &lt;- 2 * pnorm(-3)          # both tails, standard normal
+tail_t3     &lt;- 2 * pt(-3, df = 3)     # both tails, t with 3 degrees of freedom
+c(normal = round(tail_normal, 4),
+  t_df3  = round(tail_t3, 4))
+#&gt; normal  t_df3
+#&gt; 0.0027 0.0577</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The normal puts only 0.27% of its probability beyond 3 standard deviations, while a t with 3 degrees of freedom puts 5.77% out there, more than 20 times as much. That is why the t is the more realistic model when your data produces the occasional extreme value.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>A mean and median that nearly match is your fast symmetry check.</strong> When they agree, a symmetric family like the normal is a good starting bet. When the mean sits clearly above the median, the data is right-skewed and you should move to the skewed families in the next section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Is the fuel economy in <code>mtcars$mpg</code> roughly symmetric? Compare its mean and median.</p>
+<div class="webr-container" data-block-title="Your turn: is mpg symmetric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: is mpg symmetric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the mean and median of mtcars$mpg and compare them.
+ex_mean_mpg   &lt;- NA   # replace with mean(mtcars$mpg)
+ex_median_mpg &lt;- NA   # replace with median(mtcars$mpg)
+c(ex_mean_mpg, ex_median_mpg)
+# Expected: mean about 20.1, median about 19.2 (close, mildly right-skewed)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Is mpg symmetric solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Is mpg symmetric solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mean_mpg   &lt;- mean(mtcars$mpg)
+ex_median_mpg &lt;- median(mtcars$mpg)
+round(c(mean = ex_mean_mpg, median = ex_median_mpg), 1)
+#&gt;   mean median
+#&gt;   20.1   19.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean (20.1) sits a little above the median (19.2), a mild right skew. It is close enough that a normal is a reasonable first approximation, though a skewed family might fit slightly better.</p>
+
+</details>
+</section>
+
+<h2>Which distributions fit positive, skewed data?</h2>
+
+<p>A huge amount of real-world data is positive and right-skewed: waiting times, incomes, rainfall, insurance claims, file sizes. These values cannot go below zero, and they trail off in a long right tail. Several distributions live here, and the right one depends on how the data is generated.</p>
+
+<p>Start with the <strong>exponential</strong>, which models the waiting time between random events that happen at a steady rate. Its defining trait is memorylessness: how long you have already waited tells you nothing about how much longer you will wait. If buses arrive on average every 10 minutes, the rate is 1/10 per minute.</p>
+
+<div class="webr-container" data-block-title="Exponential waiting times for a bus">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponential waiting times for a bus</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rate &lt;- 1 / 10
+pexp(5, rate)         # P(next bus within 5 minutes)
+qexp(0.5, rate)       # median wait: half the time you wait less than this
+c(mean = 1 / rate)    # average wait in minutes
+#&gt; [1] 0.3934693
+#&gt; [1] 6.931472
+#&gt; mean
+#&gt;   10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is a 39.3% chance the next bus arrives within 5 minutes, the median wait is 6.9 minutes, and the average wait is 10 minutes. Notice the median is smaller than the mean, the fingerprint of a right skew.</p>
+
+<p>$$E[X] = \frac{1}{\lambda}$$</p>
+
+<p>Where $E[X]$ is the mean waiting time and $\lambda$ is the event rate. A faster rate means a shorter average wait.</p>
+
+<p>Next is the <strong>log-normal</strong>, the distribution for quantities built by multiplying many small effects rather than adding them. Incomes and city populations often look log-normal, as do stock prices. Its definition is simple: a quantity is log-normal when its logarithm is normal. Let us simulate incomes and confirm.</p>
+
+<div class="webr-container" data-block-title="Log-normal incomes and the log transform">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log-normal incomes and the log transform</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(33)
+income &lt;- rlnorm(1000, meanlog = 10, sdlog = 0.5)   # simulated annual incomes
+c(mean = round(mean(income)), median = round(median(income)))
+c(raw_mean_over_median = round(mean(income) / median(income), 2),
+  log_mean_over_median = round(mean(log(income)) / median(log(income)), 2))
+#&gt;   mean median
+#&gt;  25220  22587
+#&gt; raw_mean_over_median log_mean_over_median
+#&gt;                 1.12                 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the raw scale the mean sits 12% above the median, a clear right skew. Take logarithms and the ratio drops to 1.00, meaning the logged data is symmetric. That collapse of the skew after a log transform is the signature of log-normal data, and it is also why analysts model incomes on a log scale.</p>
+
+<p>The <strong>gamma</strong> is the flexible workhorse for positive, right-skewed quantities such as rainfall totals and insurance claim sizes. Its two parameters (shape and rate) let it stretch from a steep exponential-like curve to a gentle bell, and its mean is shape divided by rate.</p>
+
+<div class="webr-container" data-block-title="Gamma distribution for positive skewed data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gamma distribution for positive skewed data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g_shape &lt;- 2; g_rate &lt;- 0.5
+c(mean = g_shape / g_rate, variance = g_shape / g_rate^2)
+pgamma(6, shape = g_shape, rate = g_rate)   # P(value at most 6)
+#&gt;     mean variance
+#&gt;        4        8
+#&gt; [1] 0.8008517</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This gamma has a mean of 4 and a variance of 8, and 80% of its values fall at or below 6. When the exponential is too rigid but the data is still positive and skewed, the gamma is usually the answer.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Positive and right-skewed narrows you to the gamma family, then the mechanism picks the member.</strong> Waiting time between events points to the exponential, a multiplicative process points to the log-normal, and a general positive skew points to the gamma. You are choosing based on how the data was generated, not just its shape.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Calls arrive on average every 4 minutes, so the rate is 1/4 per minute. What is the probability the next call comes within 2 minutes? Use <code>pexp()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: probability of a call within 2 minutes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability of a call within 2 minutes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in a pexp() call with rate = 1/4 for a wait of 2 minutes.
+ex_call_2min &lt;- NA   # replace NA with a pexp(...) call
+ex_call_2min
+# Expected: about 0.393</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability of a call within 2 minutes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability of a call within 2 minutes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_call_2min &lt;- pexp(2, rate = 1/4)
+round(ex_call_2min, 3)
+#&gt; [1] 0.393</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With a rate of 1/4 per minute, the chance of waiting less than 2 minutes is 39.3%. Because the exponential is memoryless, this holds no matter how long you have already been waiting.</p>
+
+</details>
+</section>
+
+<h2>Which distributions fit proportions and bounded ranges?</h2>
+
+<p>Some data lives inside hard walls. Proportions and rates are trapped between 0 and 1, and some quantities are equally likely across a fixed range. Two distributions handle these bounded cases.</p>
+
+<p>The <strong>beta</strong> is the distribution for anything constrained to the interval from 0 to 1: conversion rates, click-through rates, the probability of an event, the fraction of a task completed. Its two shape parameters, a and b, bend it toward 0 or toward 1, or shape it into a hump in the middle. The mean is a divided by (a + <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>.</p>
+
+<div class="webr-container" data-block-title="Beta distribution for a conversion rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta distribution for a conversion rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- 8; b &lt;- 2
+c(mean = a / (a + b))                 # average proportion
+pbeta(0.9, a, b)                      # P(proportion below 0.9)
+set.seed(9)
+round(rbeta(5, a, b), 3)              # five simulated rates
+#&gt; mean
+#&gt;  0.8
+#&gt; [1] 0.774841
+#&gt; [1] 0.895 0.900 0.821 0.839 0.931</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This beta has a mean proportion of 0.8, there is a 77.5% chance the rate falls below 0.9, and the five simulated rates all land between 0.82 and 0.93. Every draw respects the 0-to-1 boundary automatically, which a normal never would.</p>
+
+<p>The <strong>uniform</strong> is the flat distribution: every value in a range is equally likely, with no peak. It models a genuinely random pick within known limits, and it is the default when you have no reason to prefer one value over another. Say a bus is equally likely to arrive at any minute within a 10-minute window.</p>
+
+<div class="webr-container" data-block-title="Uniform distribution over a fixed range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Uniform distribution over a fixed range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">punif(3, min = 0, max = 10)           # P(arrival in the first 3 minutes)
+c(mean = (0 + 10) / 2)                # the midpoint is the mean
+#&gt; [1] 0.3
+#&gt; mean
+#&gt;    5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because every minute is equally likely, the chance of arrival in the first 3 of 10 minutes is exactly 0.3, and the average arrival time is the midpoint, 5 minutes. The uniform has no skew and no peak, just a flat slab of equal probability.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The beta is the natural model for a probability itself.</strong> When the quantity you are studying is a rate or a proportion, the beta keeps every value between 0 and 1 by construction, which is why it is the standard prior for a success probability in Bayesian analysis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A beta with a = 2 and b = 5 models a low conversion rate. What is its mean proportion? The mean is a divided by (a + b).</p>
+<div class="webr-container" data-block-title="Your turn: mean of a beta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean of a beta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the mean of a Beta(a = 2, b = 5): mean = a / (a + b).
+ex_beta_mean &lt;- NA   # replace NA with the formula using a = 2, b = 5
+ex_beta_mean
+# Expected: about 0.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean of a beta solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of a beta solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_a &lt;- 2; ex_b &lt;- 5
+ex_beta_mean &lt;- ex_a / (ex_a + ex_b)
+round(ex_beta_mean, 3)
+#&gt; [1] 0.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With more weight on b than a, the beta leans toward 0, giving a mean proportion of 0.286, a plausible low conversion rate.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a distribution to your own data?</h2>
+
+<p>So far you have matched distributions to data by eye and by rule of thumb. To go further, you estimate the distribution's parameters from the data and then check how well it fits. The workflow has four steps: describe the data, guess a family from its shape, estimate the parameters by maximum likelihood, then confirm the fit. R's <code>fitdistr()</code> from the MASS package handles the estimation using maximum likelihood, which is a principled way of finding the parameter values that make your observed data most probable.</p>
+
+<p>Let us make this concrete by simulating 300 waiting times and pretending we do not know where they came from. Step one is to describe them.</p>
+
+<div class="webr-container" data-block-title="Describe an unknown positive sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Describe an unknown positive sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+set.seed(50)
+mystery &lt;- rgamma(300, shape = 2, rate = 0.4)   # 300 waiting times, treated as real data
+c(min = round(min(mystery), 2),
+  mean = round(mean(mystery), 2),
+  median = round(median(mystery), 2))
+#&gt;    min   mean median
+#&gt;   0.12   4.89   4.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The values are positive (the minimum is 0.12) and right-skewed (the mean of 4.89 sits above the median of 4.10). Step two is to guess a family: that positive skew points to the gamma. Step three is to estimate the gamma's parameters with <code>fitdistr()</code>.</p>
+
+<div class="webr-container" data-block-title="Fit a gamma with maximum likelihood">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a gamma with maximum likelihood</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_gamma &lt;- fitdistr(mystery, &quot;gamma&quot;)
+fit_gamma
+#&gt;      shape         rate
+#&gt;   2.08158696   0.42579746
+#&gt;  (0.15823422) (0.03657826)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fit recovers a shape of about 2.08 and a rate of about 0.43, close to the true values of 2 and 0.4 that generated the data. The numbers in parentheses are standard errors, a measure of how precise each estimate is. But how do we know gamma beats a simpler guess like the normal? Step four compares the candidates using log-likelihood, where a higher value means a better fit.</p>
+
+<div class="webr-container" data-block-title="Compare gamma and normal fits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare gamma and normal fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_norm &lt;- fitdistr(mystery, &quot;normal&quot;)
+c(gamma_logLik  = round(as.numeric(logLik(fit_gamma)), 1),
+  normal_logLik = round(as.numeric(logLik(fit_norm)), 1))
+#&gt;  gamma_logLik normal_logLik
+#&gt;        -737.8        -780.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gamma scores -737.8 against the normal's -780.2. Higher is better, so the gamma is the clear winner, which makes sense because the normal cannot capture the positive skew or the hard floor at zero.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not estimate parameters and then test them with the same data using a plain ks.test.</strong> Feeding fitted parameters into a <a class="auto-link" href="Kolmogorov-Smirnov-Two-Sample-Test-in-R.html" title="Kolmogorov-Smirnov Two-Sample Test in R: Compare Two Distributions">Kolmogorov-Smirnov test</a> makes its <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> too optimistic, because the parameters were tuned to that data. Compare candidate models with log-likelihood or <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> instead, or use a test designed for estimated parameters. A <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Q-Q plot</a> is a reliable visual check.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> to <code>mtcars$mpg</code> with <code>fitdistr()</code>. It returns the estimated <a class="auto-link" href="Mean-vs-Median-SD-vs-IQR.html" title="Mean vs Median, SD vs IQR: Choosing Center and Spread">mean and standard deviation</a>.</p>
+<div class="webr-container" data-block-title="Your turn: fit a normal to mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a normal to mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Replace NULL with fitdistr(mtcars$mpg, &quot;normal&quot;).
+ex_fit &lt;- NULL
+ex_fit
+# Expected: mean about 20.09, sd about 5.93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fit a normal to mpg solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a normal to mpg solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- fitdistr(mtcars$mpg, &quot;normal&quot;)
+ex_fit
+#&gt;       mean          sd
+#&gt;   20.0906250    5.9320296
+#&gt;  ( 1.0486446) ( 0.7415037)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fitdistr()</code> estimates a mean of 20.09 and a standard deviation of 5.93 for the fuel economy, matching the <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> you computed earlier.</p>
+
+</details>
+</section>
+
+<h2>Putting It All Together</h2>
+
+<p>Let us run the full field guide on a real dataset from start to finish. The <code>airquality$Wind</code> column holds daily wind speeds at a New York monitoring station, and we want the distribution that best describes them.</p>
+
+<p>Step one, walk the three questions. Wind speed is measured, not counted, so it is continuous. It cannot go below zero, so it is positive. And we need to see its shape. Let us describe it.</p>
+
+<div class="webr-container" data-block-title="Describe the wind speed data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Describe the wind speed data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wind &lt;- airquality$Wind
+cat(&quot;missing values:&quot;, sum(is.na(wind)), &quot;\n&quot;)
+c(min = min(wind), mean = round(mean(wind), 1), median = round(median(wind), 1))
+#&gt; missing values: 0
+#&gt;    min   mean median
+#&gt;    1.7   10.0    9.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are no <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, the minimum is 1.7 mph, and the mean (10.0) and median (9.7) are close, so the data is roughly symmetric. That gives us two reasonable candidates: the normal, because the shape is near-symmetric, and the Weibull, a flexible positive distribution often used for wind speeds. Let us fit both and compare them with AIC, where a lower value means a better fit after accounting for model complexity.</p>
+
+<div class="webr-container" data-block-title="Fit and compare normal and Weibull">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and compare normal and Weibull</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_n &lt;- fitdistr(wind, &quot;normal&quot;)
+fit_w &lt;- fitdistr(wind, &quot;weibull&quot;)
+c(normal_AIC  = round(AIC(fit_n), 1),
+  weibull_AIC = round(AIC(fit_w), 1))
+#&gt;  normal_AIC weibull_AIC
+#&gt;       822.5       821.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two AIC values are 822.5 and 821.0, a difference of just 1.5. A gap that small counts as a tie: the models fit about equally well. When two candidates are this close, the sensible move is to pick the simpler, more interpretable model and report its parameters.</p>
+
+<div class="webr-container" data-block-title="Report the chosen fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the chosen fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The AIC gap is under 2, which is a statistical tie. Prefer the simpler normal.
+fit_n
+#&gt;      mean         sd
+#&gt;   9.9575163   3.5114694
+#&gt;  (0.2838855) (0.2007373)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The normal fit gives a mean wind speed of about 9.96 mph and a standard deviation of about 3.51 mph. A final Q-Q plot confirms the choice: if the points hug the diagonal, the normal model fits.</p>
+
+<div class="webr-container" data-block-title="Q-Q plot for the wind fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Q-Q plot for the wind fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qqnorm(wind, main = &quot;Wind speed vs a normal model&quot;)
+qqline(wind, col = &quot;red&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points fall close to the red line through the middle of the data, with only mild deviation at the extremes, so the normal is a defensible, and simple, model for daily wind speed.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine several ideas from the guide. Try each one before opening the solution, and note that they use their own variable names so they will not disturb the earlier examples.</p>
+
+<h3>Exercise 1: Model a defect count and confirm by simulation</h3>
+
+<p>A machine produces parts with a 5% defect rate. In batches of 40, model the number of defects. Identify the distribution, compute the probability of a batch with no defects, and then confirm that probability by simulating 100000 batches.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: defect count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: defect count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># (a) Which distribution fits &quot;defects in a fixed batch of 40&quot;?
+# (b) Compute P(no defects in a batch of 40, defect rate 5%).
+# (c) Confirm (b) by simulating 100000 batches and counting the zero-defect ones.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Defect count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Defect count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># (a) Binomial: a fixed 40 trials, each defective with probability 0.05.
+p_none &lt;- dbinom(0, size = 40, prob = 0.05)
+round(p_none, 3)
+#&gt; [1] 0.129
+
+# (c) Confirm by simulation
+set.seed(2024)
+sim &lt;- rbinom(100000, size = 40, prob = 0.05)
+round(mean(sim == 0), 3)
+#&gt; [1] 0.128</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A fixed batch of 40 with a constant defect rate is a binomial. The exact probability of zero defects is 0.129, and simulating 100000 batches gives 0.128, confirming the formula.</p>
+
+</details>
+
+<h3>Exercise 2: Spot and fit a skewed distribution</h3>
+
+<p>The vector below holds 500 house prices (in thousands of dollars). Show that the data is right-skewed by comparing its mean and median, then fit both a log-normal and a normal distribution and compare them by AIC. The lower AIC wins.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: house prices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: house prices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(88)
+my_prices &lt;- rlnorm(500, meanlog = 5.8, sdlog = 0.4)
+# (a) Show the right skew: compare mean and median.
+# (b) Fit a log-normal and a normal with fitdistr(), then compare AIC.
+# Hint: fitdistr(x, &quot;lognormal&quot;) and fitdistr(x, &quot;normal&quot;).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="House prices solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">House prices solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(88)
+my_prices &lt;- rlnorm(500, meanlog = 5.8, sdlog = 0.4)
+
+# (a) Right skew: the mean sits above the median.
+c(mean = round(mean(my_prices)), median = round(median(my_prices)))
+#&gt;   mean median
+#&gt;    364    344
+
+# (b) Compare the two fits by AIC (lower is better).
+fit_ln &lt;- fitdistr(my_prices, &quot;lognormal&quot;)
+fit_no &lt;- fitdistr(my_prices, &quot;normal&quot;)
+c(lognormal_AIC = round(AIC(fit_ln), 1),
+  normal_AIC    = round(AIC(fit_no), 1))
+#&gt; lognormal_AIC    normal_AIC
+#&gt;        6317.1        6424.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean (364) sits above the median (344), the hallmark of a right skew. The log-normal AIC (6317.1) is more than 100 points below the normal AIC (6424.6), so the log-normal is the far better model, as expected for a multiplicative quantity like prices.</p>
+
+</details>
+
+<h3>Exercise 3: Diagnose overdispersion in counts</h3>
+
+<p>A support desk logs the daily ticket counts below. Compute the mean and variance, then decide whether a Poisson (which requires the mean to equal the variance) or a negative binomial is the better model.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: ticket counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: ticket counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tickets &lt;- c(2, 0, 5, 1, 9, 0, 3, 14, 1, 2, 7, 0, 11, 4, 1, 6, 0, 8, 3, 20)
+# (a) Compute the mean and variance of tickets.
+# (b) The Poisson assumes mean == variance. Does that hold here?
+# (c) Compute the dispersion ratio (variance / mean) and state your choice.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ticket counts solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ticket counts solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tickets &lt;- c(2, 0, 5, 1, 9, 0, 3, 14, 1, 2, 7, 0, 11, 4, 1, 6, 0, 8, 3, 20)
+
+# (a) mean and variance
+c(mean = round(mean(tickets), 2), variance = round(var(tickets), 2))
+#&gt;     mean variance
+#&gt;     4.85    28.77
+
+# (c) dispersion ratio: 1 means Poisson-like, much higher means overdispersed
+round(var(tickets) / mean(tickets), 1)
+#&gt; [1] 5.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The variance (28.77) is nearly six times the mean (4.85), so the dispersion ratio is 5.9. A Poisson would demand a ratio of 1, so it badly understates the spread here. The negative binomial, which allows extra variance, is the correct model.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between a PMF and a PDF?</strong></p>
+
+<p>A probability mass function (PMF) applies to discrete distributions and gives the exact probability of each whole-number outcome, so <code>dpois(2, 4)</code> is a genuine probability. A <a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">probability density function</a> (PDF) applies to continuous distributions and gives a density, not a probability, because the chance of any single exact value is zero. For <a class="auto-link" href="Types-of-Data-in-Statistics.html" title="Types of Data in Statistics: Categorical to Continuous">continuous data</a> you get probabilities by integrating the density over a range, which is what <code>pnorm()</code> and <code>pexp()</code> do for you.</p>
+
+<p><strong>Can I always just use the normal distribution?</strong></p>
+
+<p>Not safely. The normal assumes symmetric, unbounded data, so it misbehaves on counts (which are discrete), on waiting times and incomes (which are positive and skewed), and on proportions (which are bounded between 0 and 1). It is a fine default for symmetric measurements and for averages of large samples, thanks to the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Central Limit Theorem</a>, but forcing it onto skewed or bounded data produces impossible predictions like negative wait times.</p>
+
+<p><strong>How much data do I need to choose a distribution?</strong></p>
+
+<p>Enough to see the shape, which usually means at least 30 to 50 points, and more for the tails. With very few observations, several distributions will fit about equally well and the choice should lean on how the data is generated (for example, waiting times are exponential by mechanism) rather than on the sample shape alone.</p>
+
+<p><strong>What if two distributions fit equally well?</strong></p>
+
+<p>That is common and fine. When candidates are within about 2 AIC points, as the wind speed example showed, treat it as a tie and pick the simpler, more interpretable model. You lose almost nothing in fit and gain a lot in clarity.</p>
+
+<p><strong>Do I need to know the distribution before running a <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Sample-t-Test-in-R.html" title="t-Test in R: One-Sample, Two-Sample and Paired (With Examples)">t-test</a>?</strong></p>
+
+<p>For a t-test you mainly care whether the data (or the average of it) is roughly normal, which the Central Limit Theorem often delivers for larger samples even when individual values are not normal. Choosing a full distribution matters more when you are modelling the data itself or computing probabilities from its tails.</p>
+
+<h2>Summary</h2>
+
+<p>The whole field guide reduces to three questions and a lookup table. Ask whether the data is counted or measured, whether its range is bounded, and whether its shape is symmetric or skewed. Then read off the family.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Data situation</th>
+<th>Distribution</th>
+<th>R root</th>
+<th>Mean / spread signal</th>
+<th>Everyday example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Counts, fixed number of trials</td>
+<td>Binomial</td>
+<td><code>binom</code></td>
+<td>mean <code>n*p</code></td>
+<td>correct answers on a quiz</td>
+</tr>
+<tr>
+<td>Counts, events per interval</td>
+<td>Poisson</td>
+<td><code>pois</code></td>
+<td>mean equals variance</td>
+<td>sign-ups per hour</td>
+</tr>
+<tr>
+<td>Counts, variance far above mean</td>
+<td>Negative binomial</td>
+<td><code>nbinom</code></td>
+<td>variance greater than mean</td>
+<td>daily support tickets</td>
+</tr>
+<tr>
+<td>Measured, symmetric bell</td>
+<td>Normal</td>
+<td><code>norm</code></td>
+<td>mean near median</td>
+<td>heights, temperatures</td>
+</tr>
+<tr>
+<td>Measured, symmetric, heavy tails</td>
+<td>Student's t</td>
+<td><code>t</code></td>
+<td>more outliers than normal</td>
+<td>small-sample estimates</td>
+</tr>
+<tr>
+<td>Measured, positive, waiting time</td>
+<td>Exponential</td>
+<td><code>exp</code></td>
+<td>mean <code>1/rate</code></td>
+<td>time between arrivals</td>
+</tr>
+<tr>
+<td>Measured, positive, multiplicative</td>
+<td>Log-normal</td>
+<td><code>lnorm</code></td>
+<td>log is symmetric</td>
+<td>incomes, prices</td>
+</tr>
+<tr>
+<td>Measured, positive, general skew</td>
+<td>Gamma</td>
+<td><code>gamma</code></td>
+<td>mean <code>shape/rate</code></td>
+<td>rainfall, claim sizes</td>
+</tr>
+<tr>
+<td>Measured, bounded 0 to 1</td>
+<td>Beta</td>
+<td><code>beta</code></td>
+<td>mean <code>a/(a+b)</code></td>
+<td>conversion rates</td>
+</tr>
+<tr>
+<td>Measured, flat over a range</td>
+<td>Uniform</td>
+<td><code>unif</code></td>
+<td>midpoint is the mean</td>
+<td>a random pick in a window</td>
+</tr>
+</tbody>
+</table>
+
+<p>To go from a guess to a fitted model: describe the data, pick a family from its shape and mechanism, estimate parameters with <code>fitdistr()</code> from MASS, then confirm the choice with AIC and a Q-Q plot. When two families tie, prefer the simpler one.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team, Distributions in the stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html">Link</a></li>
+
+<li>Venables, W. N. & Ripley, B. D., fitdistr() in the MASS package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/fitdistr.html">Link</a></li>
+
+<li>Delignette-Muller, M. L. & Dutang, C., Overview of the fitdistrplus package. <a href="https://cran.r-project.org/web/packages/fitdistrplus/vignettes/fitdistrplus_vignette.html">Link</a></li>
+
+<li>NIST/SEMATECH, e-Handbook of Statistical Methods: Gallery of Distributions. <a href="https://www.itl.nist.gov/div898/handbook/eda/section3/eda366.htm">Link</a></li>
+
+<li>Penn State Eberly College of Science, STAT 414: Introduction to Probability Theory. <a href="https://online.stat.psu.edu/stat414/">Link</a></li>
+
+<li>Wikipedia, List of probability distributions. <a href="https://en.wikipedia.org/wiki/List_of_probability_distributions">Link</a></li>
+
+<li>Prabhakaran, S., Fitting Distributions to Data in R. <a href="https://r-statistics.co/Fitting-Distributions-to-Data-in-R.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Fitting-Distributions-to-Data-in-R.html">Fitting Distributions to Data in R</a></strong>, once you know which family to try, this tutorial goes deep on estimating parameters and running formal goodness-of-fit checks with fitdistrplus.</li>
+
+<li><strong><a href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html">Normal, t, F and Chi-Squared Distributions in R</a></strong>, a focused look at the four distributions that power most hypothesis tests, including how they relate to each other.</li>
+
+<li><strong><a href="Binomial-and-Poisson-Distributions-in-R.html">Binomial and Poisson Distributions in R</a></strong>, the two count distributions from this guide, worked through in full with more examples and the link between them.</li>
+
+</ul>
+
+{% endraw %}
