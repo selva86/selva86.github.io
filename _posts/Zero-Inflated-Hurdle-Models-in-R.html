@@ -1,0 +1,1058 @@
+---
+title: "Zero-Inflated and Hurdle Models in R"
+description: "Learn to model count data with too many zeros in R. Fit zero-inflated (ZIP, ZINB) and hurdle models with pscl, interpret both parts, and pick the best."
+keywords: "zero-inflated models in R, hurdle models in R, zero-inflated Poisson, ZIP model R, zeroinfl pscl, hurdle model count data, excess zeros regression, zero-inflated negative binomial, count data models R, pscl package"
+mathjax: true
+webr: true
+curriculum_id: "ST2-10.6"
+post_type: "C"
+auto_link_terms: "zero-inflated model|zero-inflated models in R|hurdle model|hurdle models in R|zero-inflated Poisson|ZIP model|zeroinfl|excess zeros|count data with excess zeros|zero-inflated negative binomial|pscl package|structural zeros|zero-inflated regression"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Zero-Inflated & Hurdle Models"
+sidebar_order: "169"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Zero-inflated and hurdle models are count models for data that piles up far more zeros than an ordinary Poisson model can explain. Both split the problem into two parts: one part decides whether a zero happens at all, and a second part explains the size of the counts. This guide builds both models from one small fishing dataset in R, shows how to read each half, and gives you a clear rule for choosing between them. It uses base R plus the <code>pscl</code> package, and every block runs right here in your browser.</p>
+
+<h2>Why do too many zeros break an ordinary Poisson model?</h2>
+
+<p>A Poisson model is the usual first choice for counting things, like fish caught, doctor visits, or insurance claims. It carries one strong assumption baked in: the average count and the spread of counts are the same number, which also fixes how many zeros it expects to see. When real data has far more zeros than the average can account for, the Poisson fit is wrong across the board, not just on the zeros. Let's build a small dataset and watch that happen.</p>
+
+<p>We will simulate 250 groups of visitors at a park. Each group has a size, a number of children, and a flag for whether they brought a camper. We deliberately build the fish counts from two hidden stories so we know the truth: some groups never fish at all, and the groups that do fish catch a Poisson number of fish.</p>
+
+<div class="webr-container" data-block-title="Build a dataset of park visitors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a dataset of park visitors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(pscl)   # zeroinfl() and hurdle() live here
+library(MASS)   # negative binomial helper
+
+set.seed(2026)
+n &lt;- 250
+persons &lt;- sample(1:4, n, replace = TRUE)                    # people in the group
+child   &lt;- sample(0:3, n, replace = TRUE, prob = c(.45, .30, .17, .08))
+camper  &lt;- rbinom(n, 1, 0.55)                                # 1 = brought a camper
+
+# Two hidden processes decide the fish counts
+not_fishing &lt;- rbinom(n, 1, plogis(-1.4 + 1.3 * child))      # some groups never fish
+lambda      &lt;- exp(-0.5 + 0.6 * persons + 0.7 * camper)      # rate for the ones who do
+fish        &lt;- ifelse(not_fishing == 1, 0, rpois(n, lambda))
+
+fishing &lt;- data.frame(fish, persons, child, camper)
+head(fishing)
+#&gt;   fish persons child camper
+#&gt; 1    4       1     1      1
+#&gt; 2    1       1     0      0
+#&gt; 3    1       1     0      0
+#&gt; 4    0       2     1      1
+#&gt; 5    2       1     0      1
+#&gt; 6   15       3     0      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one group and the <code>fish</code> column is what we want to model. Notice row 4 caught zero fish while row 6 caught fifteen. That mix of many zeros and a few large counts is the signature of the data we care about here.</p>
+
+<p>How common are the zeros? Let's just ask.</p>
+
+<div class="webr-container" data-block-title="What share of groups caught nothing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What share of groups caught nothing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(fishing$fish == 0)
+#&gt; [1] 0.456</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Almost half the groups, 45.6 percent, caught no fish. On its own that number means nothing, because a Poisson process can produce plenty of zeros too. The real question is whether it produces <em>this many</em> zeros. To answer that, we fit a plain Poisson model and ask it how many zeros it would expect.</p>
+
+<div class="webr-container" data-block-title="Compare observed zeros to what Poisson expects">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare observed zeros to what Poisson expects</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pois &lt;- glm(fish ~ persons + child + camper, data = fishing, family = poisson)
+
+# For each group, the Poisson chance of a zero is exp(-fitted rate). Sum them up.
+observed_zeros &lt;- sum(fishing$fish == 0)
+expected_zeros &lt;- sum(dpois(0, lambda = fitted(pois)))
+c(observed = observed_zeros, poisson_expected = round(expected_zeros, 1))
+#&gt;         observed poisson_expected
+#&gt;            114.0             51.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is the problem in one line. We saw 114 zeros, but the fitted Poisson model expected only about 51. It is off by more than sixty zeros. The model simply has no way to make that many zeros while also explaining the groups that caught ten or fifteen fish.</p>
+
+<p>There is a second warning sign hiding in the spread of the counts. A Poisson variable has its variance equal to its mean, so let's compare them.</p>
+
+<div class="webr-container" data-block-title="Check the mean against the variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the mean against the variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(mean = round(mean(fishing$fish), 2), variance = round(var(fishing$fish), 2))
+#&gt;     mean variance
+#&gt;     2.74    15.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The variance, 15.85, is almost six times the mean of 2.74. Data that is far more spread out than its average is called overdispersed, and excess zeros are one of the most common causes of it. Both signals point the same way: this is not a job for plain Poisson.</p>
+
+<p>So where do all those zeros come from? It helps to see that a zero can arrive by two very different routes.</p>
+
+<p><img src="screenshots/Zero-Inflated-Hurdle-Models-in-R-two-kinds-of-zeros.webp" alt="How a fishing group can end up with a zero: it either never fished, or it fished and caught nothing." class="img-responsive img-zoomable" loading="lazy" width="1762" height="718" /></p>
+
+<p><em>Figure 1: A zero can be structural (the group never fished) or a sampling zero (they fished but caught nothing).</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>There are two kinds of zeros, and they mean different things.</strong> A structural zero comes from a group that could never produce a positive count (they never fished), while a sampling zero comes from a group that was fishing but happened to catch nothing. Zero-inflated and hurdle models exist to keep these two kinds of zeros apart.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The Poisson model could not explain all the zeros we saw. Compute how many observed zeros it failed to account for, using the two objects from the block above.</p>
+<div class="webr-container" data-block-title="Your turn: count the unexplained zeros">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the unexplained zeros</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Uncomment the line below and fill in the two objects from the last block.
+# extra_zeros &lt;- observed_zeros - expected_zeros
+# extra_zeros</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unexplained zeros solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unexplained zeros solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">extra_zeros &lt;- observed_zeros - expected_zeros
+extra_zeros
+#&gt; [1] 62.90671</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 63 of the 114 zeros are extra zeros that a Poisson model cannot produce. That gap is exactly the hole the models in this guide are built to fill.</p>
+
+</details>
+</section>
+
+<h2>What is the real difference between zero-inflated and hurdle models?</h2>
+
+<p>Both models attach a second, smaller model to the count model, and that second model is in charge of the zeros. The difference is a subtle but important disagreement about where zeros are allowed to come from. Get this idea first and the R code afterwards will feel obvious.</p>
+
+<p>A zero-inflated model says zeros come from two places at once. There is a hidden on/off switch that turns some observations into guaranteed "always zero" cases (the <a class="auto-link" href="Zero-Inflated-and-Hurdle-Models-in-R.html" title="Zero-Inflated & Hurdle Models in R: pscl Package for Excess Zeros">structural zeros</a>), and separately the ordinary count process can also land on zero by chance (the sampling zeros). The zeros in your data are a blend of both.</p>
+
+<p>A hurdle model tells a cleaner story. There is a single gate, or hurdle. You are either a zero or you clear the hurdle and become a positive count, and one binary model decides which. Once you clear the hurdle, a special count model that can never produce a zero explains how high you go. In a hurdle model, all zeros come from the gate, never from the count part.</p>
+
+<p><img src="screenshots/Zero-Inflated-Hurdle-Models-in-R-zi-vs-hurdle.webp" alt="In a zero-inflated model both parts can produce zeros; in a hurdle model only the gate does, and the count part is truncated to positive values." class="img-responsive img-zoomable" loading="lazy" width="1240" height="856" /></p>
+
+<p><em>Figure 2: In a zero-inflated model both parts can make zeros; in a hurdle model only the gate does.</em></p>
+
+<p>Here is the same contrast as a quick reference.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Zero-inflated</th>
+<th>Hurdle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Where do zeros come from?</td>
+<td>A switch plus the count model</td>
+<td>The gate only</td>
+</tr>
+<tr>
+<td>Can the count part make a zero?</td>
+<td>Yes</td>
+<td>No, it is truncated at 1</td>
+</tr>
+<tr>
+<td>Natural reading of the zero part</td>
+<td>Chance of an always-zero case</td>
+<td>Chance of clearing the hurdle</td>
+</tr>
+<tr>
+<td>Good fit when</td>
+<td>Zeros are a mix of two sources</td>
+<td>Zero versus positive is a real threshold</td>
+</tr>
+</tbody>
+</table>
+
+<p>To see why children matter so much in our data, let's cross-tabulate the number of children against whether a group caught anything.</p>
+
+<div class="webr-container" data-block-title="Do groups with more children catch fewer fish">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Do groups with more children catch fewer fish</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(children = fishing$child, caught_fish = fishing$fish &gt; 0)
+#&gt;         caught_fish
+#&gt; children FALSE TRUE
+#&gt;        0    29   72
+#&gt;        1    43   49
+#&gt;        2    31   13
+#&gt;        3    11    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pattern is stark. Among groups with no children, most caught something (72 of 101). Among groups with three children, almost none did (2 of 13). Children are pushing groups into the zero state, which is exactly the kind of predictor the zero part of these models is designed to hold.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both models use the same two-part formula in R.</strong> You write the count predictors, then a vertical bar, then the zero predictors, as in <code>fish ~ persons + camper | child</code>. The left side models the counts and the right side models the zeros, and you can give each side a different set of predictors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Children clearly drive the zeros. Check whether the camper flag shows the same kind of split by making the same table for <code>camper</code> instead of <code>child</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cross-tabulate camper against catching fish">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cross-tabulate camper against catching fish</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Uncomment and complete the table() call for the camper column.
+# table(camper = fishing$camper, caught_fish = fishing$fish &gt; 0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Camper cross-tab solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Camper cross-tab solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(camper = fishing$camper, caught_fish = fishing$fish &gt; 0)
+#&gt;       caught_fish
+#&gt; camper FALSE TRUE
+#&gt;      0    52   59
+#&gt;      1    62   77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The camper split is mild (roughly half caught fish either way), so camper is a weak predictor of the zero state compared to children. That is a hint we should let children drive the zero part and let camper drive the count part.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a zero-inflated Poisson model in R?</h2>
+
+<p>The <code>zeroinfl()</code> function from the pscl package fits a zero-inflated model in one call. We will let <a class="auto-link" href="dplyr-n-in-R.html" title="dplyr n() in R: Count Rows Inside summarise or mutate">group size</a> and the camper flag drive the count of fish, and let the number of children drive the chance of being a structural zero. That is the <code>count ~ ... | zero</code> formula from the last section.</p>
+
+<div class="webr-container" data-block-title="Fit a zero-inflated Poisson model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a zero-inflated Poisson model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zip &lt;- zeroinfl(fish ~ persons + camper | child, data = fishing, dist = &quot;poisson&quot;)
+summary(zip)
+#&gt;
+#&gt; Call:
+#&gt; zeroinfl(formula = fish ~ persons + camper | child, data = fishing, dist = &quot;poisson&quot;)
+#&gt;
+#&gt; Pearson residuals:
+#&gt;     Min      1Q  Median      3Q     Max
+#&gt; -1.5494 -0.7491 -0.2524  0.5405  3.3540
+#&gt;
+#&gt; Count model coefficients (poisson with log link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -0.64031    0.15044  -4.256 2.08e-05 ***
+#&gt; persons      0.60923    0.03915  15.562  &lt; 2e-16 ***
+#&gt; camper       0.81405    0.08741   9.313  &lt; 2e-16 ***
+#&gt;
+#&gt; Zero-inflation model coefficients (binomial with logit link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  -1.1407     0.2212  -5.156 2.52e-07 ***
+#&gt; child         0.8953     0.1785   5.016 5.28e-07 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; Number of iterations in BFGS optimization: 12
+#&gt; Log-likelihood: -410.1 on 5 Df</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The summary prints two blocks of coefficients because you fit two models at once. Read them one at a time.</p>
+
+<p>The top block, the count model, is an ordinary <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a> on the log scale. The <code>persons</code> coefficient of 0.609 is positive and highly significant, so bigger groups catch more fish. The <code>camper</code> coefficient of 0.814 says camper groups catch more too. These are the numbers for groups that are actually in the fishing process.</p>
+
+<p>The bottom block, the zero-inflation model, is a logistic regression that predicts the probability of being a structural zero, that is, an "always zero" group. The <code>child</code> coefficient is positive, 0.895, so more children raises the chance that a group is one of those never-fishing cases. This is where the excess zeros are coming from, and the model recovers the story we built into the data.</p>
+
+<p>The log scale is hard to feel, so exponentiate the coefficients to get numbers you can talk about.</p>
+
+<div class="webr-container" data-block-title="Turn the coefficients into ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn the coefficients into ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp(coef(zip))
+#&gt; count_(Intercept)     count_persons      count_camper  zero_(Intercept)        zero_child
+#&gt;         0.5271281         1.8390108         2.2570311         0.3195928         2.4480814</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the count part reads as rate ratios. Each extra person multiplies the expected catch by about 1.84, and having a camper multiplies it by about 2.26, holding the other predictor fixed. The zero part reads as odds ratios: each additional child multiplies the odds of being a structural zero by about 2.45. A family with more kids is far more likely to be a group that was never going to fish.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The zero part predicts an extra zero, not a positive count.</strong> In a zero-inflated model a positive zero-part coefficient means more chance of an always-zero case, so it pushes the outcome down toward zero. Reading it backwards, as if a positive coefficient meant more fish, is the most common mistake with these models.</div></div>
+
+<p>If you like seeing the mechanics, the <a class="auto-link" href="Zero-Inflated-Distributions-in-R.html" title="Zero-Inflated Distributions in R: Handle Excess Zeros in Count Data">zero-inflated Poisson</a> splits the probability of each outcome like this. Skip to the next section if formulas are not your thing, since the code above already tells the whole story.</p>
+
+<p>$$P(Y = 0) = \pi + (1 - \pi)\,e^{-\lambda}$$</p>
+
+<p>$$P(Y = k) = (1 - \pi)\,\frac{\lambda^{k} e^{-\lambda}}{k!}, \quad k = 1, 2, 3, \dots$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\pi$ = the probability of being a structural zero (from the logistic zero part)</li>
+
+<li>$\lambda$ = the Poisson rate for the count part</li>
+
+<li>The zero row has two pieces: the structural zeros ($\pi$) plus the ordinary Poisson zeros $(1 - \pi)e^{-\lambda}$</li>
+
+</ul>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the rate ratio for <code>persons</code> out of the exponentiated coefficients. The name you want is <code>count_persons</code>, not <code>count_camper</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rate ratio for persons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rate ratio for persons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exponentiate the coefficients, then index the persons rate ratio.
+rate_ratios &lt;- exp(coef(zip))
+# rate_ratios[&quot;count_persons&quot;]   # &lt;- uncomment and run</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rate ratio for persons solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rate ratio for persons solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp(coef(zip))[&quot;count_persons&quot;]
+#&gt; count_persons
+#&gt;      1.839011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each extra person in a fishing group multiplies the expected number of fish by about 1.84, all else equal.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a hurdle model in R?</h2>
+
+<p>Fitting a hurdle model uses the same formula and the same package. Only the function name changes, from <code>zeroinfl()</code> to <code>hurdle()</code>. The story it tells about the zeros, though, flips around, so read the zero part carefully.</p>
+
+<div class="webr-container" data-block-title="Fit a hurdle model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a hurdle model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hp &lt;- hurdle(fish ~ persons + camper | child, data = fishing, dist = &quot;poisson&quot;)
+summary(hp)
+#&gt;
+#&gt; Call:
+#&gt; hurdle(formula = fish ~ persons + camper | child, data = fishing, dist = &quot;poisson&quot;)
+#&gt;
+#&gt; Pearson residuals:
+#&gt;     Min      1Q  Median      3Q     Max
+#&gt; -1.4305 -0.8154 -0.3556  0.6221  3.4926
+#&gt;
+#&gt; Count model coefficients (truncated poisson with log link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -0.77871    0.16509  -4.717 2.39e-06 ***
+#&gt; persons      0.63814    0.04188  15.239  &lt; 2e-16 ***
+#&gt; camper       0.86108    0.09123   9.438  &lt; 2e-16 ***
+#&gt; Zero hurdle model coefficients (binomial with logit link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)   0.9441     0.1980   4.767 1.87e-06 ***
+#&gt; child        -0.8734     0.1675  -5.214 1.85e-07 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; Number of iterations in BFGS optimization: 13
+#&gt; Log-likelihood: -406.3 on 5 Df</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The count block on top is almost the same as before, with one label change: it is now a <em>truncated</em> Poisson, meaning a Poisson that is not allowed to be zero. That truncation is what lets the gate own all the zeros.</p>
+
+<p>The zero block at the bottom is where the reading flips. In a hurdle model this part predicts the probability of <em>clearing the hurdle</em>, that is, catching at least one fish. The <code>child</code> coefficient is now negative, -0.873, which says more children lowers the chance of catching anything. Compare that to the zero-inflated fit, where the child coefficient was positive because it predicted the opposite event, the chance of being an always-zero case.</p>
+
+<div class="webr-container" data-block-title="Exponentiate the hurdle coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponentiate the hurdle coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp(coef(hp))
+#&gt; count_(Intercept)     count_persons      count_camper  zero_(Intercept)        zero_child
+#&gt;         0.4589959         1.8929585         2.3657200         2.5704559         0.4175132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The count ratios tell the same story as the zero-inflated model: more persons and a camper both raise the catch. The zero-part ratio for <code>child</code> is now 0.42, meaning each extra child multiplies the odds of catching any fish by about 0.42, so it cuts those odds by more than half. The same predictor points the opposite way here, because the two models are describing opposite events.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The sign of the zero part flips between the two models.</strong> A zero-inflated model's zero part predicts the probability of a zero, so a positive coefficient means more zeros. A hurdle model's zero part predicts the probability of a positive count, so a positive coefficient means fewer zeros. Always check which event the zero part is modeling before you interpret a sign.</div></div>
+
+<p>For completeness, the hurdle model factors each probability like this. Feel free to skip it, since the fitted output above is all you need to use the model.</p>
+
+<p>$$P(Y = 0) = 1 - p$$</p>
+
+<p>$$P(Y = k) = p \cdot \frac{\lambda^{k} e^{-\lambda}}{(1 - e^{-\lambda})\,k!}, \quad k = 1, 2, 3, \dots$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$p$ = the probability of clearing the hurdle (from the logistic zero part)</li>
+
+<li>$\lambda$ = the rate of the truncated Poisson count part</li>
+
+<li>Dividing by $(1 - e^{-\lambda})$ rescales the Poisson so it never returns a zero</li>
+
+</ul>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the hurdle model, find the probability that a group catches at least one fish when it has no children versus two children. The helper below sets up the two groups for you.</p>
+<div class="webr-container" data-block-title="Your turn: chance of catching any fish">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: chance of catching any fish</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">newk &lt;- data.frame(persons = 2, camper = 1, child = c(0, 2))
+# The prob column [, 1] is P(zero). Turn it into P(at least one fish).
+# 1 - predict(hp, newdata = newk, type = &quot;prob&quot;)[, 1]   # &lt;- uncomment</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Chance of any fish solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Chance of any fish solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">newk &lt;- data.frame(persons = 2, camper = 1, child = c(0, 2))
+1 - predict(hp, newdata = newk, type = &quot;prob&quot;)[, 1]
+#&gt;         1         2
+#&gt; 0.7199237 0.3094280</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A childless group clears the hurdle about 72 percent of the time, but a group with two children only about 31 percent of the time. Children more than halve the chance of catching anything.</p>
+
+</details>
+</section>
+
+<h2>How do you handle overdispersion with negative binomial versions?</h2>
+
+<p>Sometimes the counts that clear the hurdle are still more spread out than a Poisson allows. The fix is the same one you would use for any count model: swap the Poisson for a negative binomial, which adds a dispersion parameter that lets the variance grow past the mean. Both <code>zeroinfl()</code> and <code>hurdle()</code> accept <code>dist = &quot;negbin&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Fit the negative binomial versions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the negative binomial versions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zinb &lt;- zeroinfl(fish ~ persons + camper | child, data = fishing, dist = &quot;negbin&quot;)
+hnb  &lt;- hurdle(fish ~ persons + camper | child, data = fishing, dist = &quot;negbin&quot;)
+
+zinb$theta
+#&gt; [1] 240961.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That <code>theta</code> is the negative binomial's dispersion parameter, and a very large value is informative. As theta grows toward infinity the negative binomial becomes identical to a Poisson. A theta in the hundreds of thousands means the model found no leftover <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a> to absorb: once the excess zeros were handled, there was nothing extra for the negative binomial to do.</p>
+
+<p>The clean way to confirm that is to line all five models up by <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, a score where lower means a better trade-off between fit and complexity.</p>
+
+<div class="webr-container" data-block-title="Compare all five models by AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all five models by AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(pois, zip, hp, zinb, hnb)
+#&gt;      df       AIC
+#&gt; pois  4 1275.8241
+#&gt; zip   5  830.2973
+#&gt; hp    5  822.5364
+#&gt; zinb  6  832.2977
+#&gt; hnb   6  824.5372</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plain Poisson is far behind at 1275.8, which confirms it was the wrong model. The two-part models all cluster around 825 to 832, a massive improvement. The negative binomial versions (<code>zinb</code> and <code>hnb</code>) score slightly <em>worse</em> than their Poisson twins, because they spend an extra parameter on dispersion that this data does not need. Here the plain hurdle Poisson (<code>hp</code>) wins.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Modeling the excess zeros can make overdispersion disappear.</strong> Overdispersion and excess zeros often look alike in raw data. Once a two-part model explains the zeros directly, the leftover spread can shrink to nothing, which is why the negative binomial did not help here. On other datasets it will, so always check.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the AIC of the negative binomial hurdle model, <code>hnb</code>, and compare it in your head to the plain hurdle Poisson's 822.5.</p>
+<div class="webr-container" data-block-title="Your turn: AIC of the NB hurdle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: AIC of the NB hurdle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Uncomment to print the AIC of the negative binomial hurdle model.
+# AIC(hnb)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AIC of NB hurdle solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC of NB hurdle solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(hnb)
+#&gt; [1] 824.5372</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 824.5, the negative binomial hurdle scores about two points worse than the plain hurdle Poisson at 822.5. The extra dispersion parameter is not earning its keep on this data.</p>
+
+</details>
+</section>
+
+<h2>How do you choose between the models?</h2>
+
+<p>AIC gives you a single number, but you should never lean on one number alone. A second, more honest check for count data is to ask each model how many zeros it predicts and compare that to the 114 zeros you actually saw. A model built for excess zeros should get the zero count roughly right.</p>
+
+<div class="webr-container" data-block-title="How many zeros does each model predict">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How many zeros does each model predict</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zeros_pred &lt;- c(
+  Poisson = sum(dpois(0, fitted(pois))),
+  ZIP     = sum(predict(zip,  type = &quot;prob&quot;)[, 1]),
+  Hurdle  = sum(predict(hp,   type = &quot;prob&quot;)[, 1]),
+  ZINB    = sum(predict(zinb, type = &quot;prob&quot;)[, 1])
+)
+round(rbind(observed = observed_zeros, predicted = zeros_pred), 1)
+#&gt;           Poisson   ZIP Hurdle  ZINB
+#&gt; observed    114.0 114.0    114 114.0
+#&gt; predicted    51.1 117.3    114 117.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Poisson predicts only 51 zeros against 114 observed, a failure you already knew about. The zero-inflated models land close, at about 117. The hurdle model matches it exactly at 114, and that is not luck. A hurdle model reproduces the observed number of zeros by construction, because its gate is fit directly to the zero-versus-positive split. That reliability is one reason hurdle models are popular.</p>
+
+<p>You may have read about the Vuong test for comparing these models. Treat it with caution: its use for comparing zero-inflated against standard models has been criticized and is no longer recommended by many authors, including the pscl maintainers. AIC together with the predicted-zeros check is a more dependable pairing.</p>
+
+<p>That leaves the real decision, which is about your data's story rather than any single statistic.</p>
+
+<p><img src="screenshots/Zero-Inflated-Hurdle-Models-in-R-which-model.webp" alt="A short decision guide: choose zero-inflated or hurdle by where the zeros come from, then add a negative binomial only if the variance is still high." class="img-responsive img-zoomable" loading="lazy" width="2248" height="598" /></p>
+
+<p><em>Figure 3: A quick decision guide for choosing a count model when zeros pile up.</em></p>
+
+<p>Use this to guide the choice:</p>
+
+<ol>
+
+<li><strong>Can a zero come from the counting process itself?</strong> If a subject who is "in" the process could still record a zero by chance, a zero-inflated model fits the story. If a zero always means the subject never entered the process, a hurdle model fits better.</li>
+
+<li><strong>Is there a clean threshold between zero and positive?</strong> Cases like "signed up versus never signed up" are natural hurdles. Cases where zeros and low counts blur together lean zero-inflated.</li>
+
+<li><strong>Is the variance still above the mean after fitting?</strong> If the leftover spread is large, switch that model to its negative binomial form. If not, keep the simpler Poisson version.</li>
+
+</ol>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When two models fit almost equally well, pick the one whose story matches your data.</strong> A hurdle model says "getting started" and "how much" are separate decisions, while a zero-inflated model says some subjects are simply never at risk. Choosing the model that matches your subject-matter logic makes your coefficients easier to defend than chasing a one-point AIC difference.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Let R pick the winner for you by finding which of the five models has the lowest AIC.</p>
+<div class="webr-container" data-block-title="Your turn: find the lowest-AIC model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the lowest-AIC model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Uncomment to grab the row name of the smallest AIC.
+# mods &lt;- AIC(pois, zip, hp, zinb, hnb)
+# rownames(mods)[which.min(mods$AIC)]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lowest-AIC model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lowest-AIC model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mods &lt;- AIC(pois, zip, hp, zinb, hnb)
+rownames(mods)[which.min(mods$AIC)]
+#&gt; [1] &quot;hp&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The plain hurdle Poisson (<code>hp</code>) has the lowest AIC, matching what the predicted-zeros check told us.</p>
+
+</details>
+</section>
+
+<h2>How do you make predictions from the fitted model?</h2>
+
+<p>A fitted model is most useful when it makes predictions for new cases. The <code>predict()</code> function understands several <code>type</code> values, and each one answers a different question. The most useful are <code>&quot;response&quot;</code> for the expected count, <code>&quot;zero&quot;</code> for the probability of the zero state, and <code>&quot;prob&quot;</code> for the full probability of each possible count.</p>
+
+<p>Let's predict for a new group: three people, no children, with a camper.</p>
+
+<div class="webr-container" data-block-title="Predict for a new group with the zero-inflated model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict for a new group with the zero-inflated model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_group &lt;- data.frame(persons = 3, child = 0, camper = 1)
+
+predict(zip, newdata = new_group, type = &quot;response&quot;)   # expected number of fish
+#&gt;        1
+#&gt; 5.607466
+predict(zip, newdata = new_group, type = &quot;zero&quot;)       # chance of being a structural zero
+#&gt;         1
+#&gt; 0.2421905</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The zero-inflated model expects this group to catch about 5.6 fish on average, and it puts the probability that they are a never-fishing structural zero at about 24 percent. The expected count of 5.6 already blends both parts: it is the count-model rate scaled down by the chance of being an always-zero group.</p>
+
+<p>The hurdle model answers the same two questions with its own wording.</p>
+
+<div class="webr-container" data-block-title="Predict for the same group with the hurdle model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict for the same group with the hurdle model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(hp, newdata = new_group, type = &quot;response&quot;)    # expected number of fish
+#&gt;        1
+#&gt; 5.305872
+predict(hp, newdata = new_group, type = &quot;prob&quot;)[, 1]   # chance of catching zero fish
+#&gt; [1] 0.2800763</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hurdle model expects about 5.3 fish and gives this group a 28 percent chance of catching nothing. The two models land close on the expected count, which is reassuring, and they express the zero side in their own natural language: a structural-zero probability for zero-inflated, a plain probability of zero for hurdle.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use type equals response for the expected count, and do not multiply the parts by hand.</strong> The response prediction already combines the count part and the zero part correctly. Building the expected value yourself by multiplying rates and probabilities is a common source of off-by-a-factor errors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict the expected catch for a large group with children: four people, two children, and a camper. Use the zero-inflated model.</p>
+<div class="webr-container" data-block-title="Your turn: predict a big group with kids">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict a big group with kids</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Uncomment and fill in the new data frame for the zero-inflated model.
+# predict(zip, newdata = data.frame(persons = 4, child = 2, camper = 1), type = &quot;response&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Predict big group solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict big group solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(zip, newdata = data.frame(persons = 4, child = 2, camper = 1), type = &quot;response&quot;)
+#&gt;        1
+#&gt; 4.667666</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even though this group is larger, the two children pull the expected catch down to about 4.7 fish, because children raise the chance of the structural-zero state.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine several ideas from the guide. Try each one before opening the solution. They use their own variable names so they will not disturb the models you fit above.</p>
+
+<h3>Exercise 1: Diagnose and fit on new data</h3>
+
+<p>A subscription business counts monthly <code>purchases</code> for 300 customers and suspects that many customers are window-shoppers who never buy. The starter builds the data. Your job is to confirm the excess-zero problem by comparing observed zeros to what a Poisson expects, then fit a zero-inflated Poisson and check whether <code>tenure</code> significantly predicts the zero state.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: purchases data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: purchases data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+m &lt;- 300
+tenure    &lt;- sample(1:24, m, replace = TRUE)
+inactive  &lt;- rbinom(m, 1, plogis(1.2 - 0.18 * tenure))   # short-tenure customers never buy
+lam       &lt;- exp(0.5 + 0.04 * tenure)
+purchases &lt;- ifelse(inactive == 1, 0, rpois(m, lam))
+shop &lt;- data.frame(purchases, tenure)
+
+# 1. Fit a plain Poisson and compare observed zeros to expected zeros.
+# 2. Fit zeroinfl(purchases ~ tenure | tenure) and inspect the zero part.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Observed versus Poisson-expected zeros
+mp &lt;- glm(purchases ~ tenure, data = shop, family = poisson)
+c(observed = sum(shop$purchases == 0),
+  poisson_expected = round(sum(dpois(0, fitted(mp))), 1))
+#&gt;         observed poisson_expected
+#&gt;            104.0             68.8
+
+# 2. Zero-inflated Poisson: is tenure a real driver of the zero state?
+pzip &lt;- zeroinfl(purchases ~ tenure | tenure, data = shop, dist = &quot;poisson&quot;)
+round(summary(pzip)$coefficients$zero, 4)
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)   1.2196     0.3572  3.4148    6e-04
+#&gt; tenure       -0.2008     0.0319 -6.2932    0e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Poisson expects only about 69 zeros but the data has 104, so the excess is real. In the zero part, <code>tenure</code> has a strongly significant negative coefficient, meaning longer-tenured customers are much less likely to be in the never-buying state.</p>
+
+</details>
+
+<h3>Exercise 2: Does a predictor belong in the zero part?</h3>
+
+<p>Using the <code>fishing</code> data, you already fit a zero-inflated Poisson with only <code>child</code> in the zero part. Test whether adding <code>persons</code> to the zero part improves the model. Fit both, compare their AIC, and look at whether the new coefficient is significant.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit two zero-inflated models on the fishing data:
+#   small: fish ~ persons + camper | child
+#   big:   fish ~ persons + camper | child + persons
+# Then compare AIC and read the zero part of the bigger model.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">z_small &lt;- zeroinfl(fish ~ persons + camper | child, data = fishing, dist = &quot;poisson&quot;)
+z_big   &lt;- zeroinfl(fish ~ persons + camper | child + persons, data = fishing, dist = &quot;poisson&quot;)
+AIC(z_small, z_big)
+#&gt;         df      AIC
+#&gt; z_small  5 830.2973
+#&gt; z_big    6 830.5805
+
+round(summary(z_big)$coefficients$zero, 4)
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  -1.6064     0.4363 -3.6820   0.0002
+#&gt; child         0.9059     0.1813  4.9959   0.0000
+#&gt; persons       0.1727     0.1341  1.2878   0.1978</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>persons</code> to the zero part raises the AIC from 830.3 to 830.6, so it makes the model slightly worse, and the new coefficient is not significant (p = 0.20). Keep <code>persons</code> in the count part where it belongs and leave the zero part to <code>child</code>.</p>
+
+</details>
+
+<h3>Exercise 3: Interpret a hurdle model by hand</h3>
+
+<p>Confirm that you can reproduce <code>predict()</code> from the raw coefficients of the hurdle model <code>hp</code>. Compute the rate ratio for <code>camper</code> in the count part, then compute the probability that a group with one child clears the hurdle, and check it against <code>predict()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># From the fitted hurdle model hp:
+#   1. rate ratio for camper = exp of its count coefficient
+#   2. P(clear hurdle) for child = 1 using plogis() on the zero-part coefficients
+#   3. compare step 2 to 1 - predict(hp, ..., type = &quot;prob&quot;)[, 1]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cf &lt;- coef(hp)
+
+# 1. Rate ratio for camper in the count part
+exp(cf[&quot;count_camper&quot;])
+#&gt; count_camper
+#&gt;      2.36572
+
+# 2. and 3. P(clear the hurdle) for a group with one child, by hand and from predict()
+p_hand &lt;- plogis(cf[&quot;zero_(Intercept)&quot;] + cf[&quot;zero_child&quot;] * 1)
+p_pred &lt;- 1 - predict(hp, newdata = data.frame(persons = 2, camper = 1, child = 1),
+                      type = &quot;prob&quot;)[, 1]
+c(by_hand = unname(p_hand), from_predict = unname(p_pred))
+#&gt;      by_hand from_predict
+#&gt;    0.5176537    0.5176537</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Having a camper multiplies the expected catch by about 2.37. A group with one child clears the hurdle about 52 percent of the time, and the by-hand calculation matches <code>predict()</code> exactly, which shows the zero part really is just a logistic regression.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>When should I use a zero-inflated model instead of a hurdle model?</h3>
+
+<p>Use a zero-inflated model when a zero can come from two sources: subjects who are never at risk plus subjects who are at risk but happened to score zero. Use a hurdle model when every zero means the subject never crossed a threshold, so zero and positive are two clean states. When the two fit almost equally well, pick the one whose story matches your data.</p>
+
+<h3>What does the vertical bar in the formula mean?</h3>
+
+<p>The bar separates the two models. Everything before it, as in <code>fish ~ persons + camper</code>, are the predictors for the count part. Everything after it, as in <code>| child</code>, are the predictors for the zero part. You can use different predictors on each side, and if you leave the right side off, both parts share the same predictors.</p>
+
+<h3>Why did the negative binomial version not improve my model?</h3>
+
+<p>Excess zeros and overdispersion look similar in raw data, and both inflate the variance. Once a zero-inflated or hurdle model explains the zeros directly, the leftover overdispersion can vanish, so the negative binomial's extra parameter has nothing to absorb. A theta that shoots up to a huge value is the sign that the negative binomial has collapsed back to a Poisson.</p>
+
+<h3>Can I use the Vuong test to compare these models?</h3>
+
+<p>You can compute it, but treat it carefully. Its use for testing zero-inflated models against standard count models has been criticized and is no longer recommended by many statisticians, including the pscl authors. Comparing AIC and checking each model's predicted number of zeros against the observed count is a more reliable approach.</p>
+
+<h3>Do these models work in local RStudio the same way?</h3>
+
+<p>Yes. Everything in this guide uses base R plus the <code>pscl</code> and <code>MASS</code> packages, which are standard CRAN packages. The same code runs unchanged in RStudio; install pscl once with <code>install.packages(&quot;pscl&quot;)</code> and you are set.</p>
+
+<h2>Summary</h2>
+
+<p>Zero-inflated and hurdle models handle count data with more zeros than a Poisson can explain by splitting the process into a zero part and a count part. Diagnose the problem first by comparing observed zeros to Poisson-expected zeros, then fit both models, then choose with AIC and a predicted-zeros check.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>What it assumes about zeros</th>
+<th>R call</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Poisson</td>
+<td>Zeros come only from the count process</td>
+<td><code>glm(..., family = poisson)</code></td>
+<td>Mean and variance are close, zeros are not excessive</td>
+</tr>
+<tr>
+<td>Zero-inflated</td>
+<td>A switch adds structural zeros on top of count zeros</td>
+<td>`zeroinfl(y ~ x</td>
+<td>z)`</td>
+<td>Zeros mix two sources: never-at-risk plus at-risk-but-zero</td>
+</tr>
+<tr>
+<td>Hurdle</td>
+<td>One gate decides zero versus positive; counts are truncated</td>
+<td>`hurdle(y ~ x</td>
+<td>z)`</td>
+<td>Zero versus positive is a real threshold</td>
+</tr>
+<tr>
+<td>Negative binomial variants</td>
+<td>Same as above, plus extra spread in the counts</td>
+<td><code>dist = &quot;negbin&quot;</code></td>
+<td>Variance is still above the mean after fitting</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Zero-Inflated-Hurdle-Models-in-R-overview.webp" alt="An overview of the workflow: diagnose the excess zeros, fit zero-inflated and hurdle models, then choose the best one." class="img-responsive img-zoomable" loading="lazy" width="1578" height="900" /></p>
+
+<p><em>Figure 4: The whole workflow, from diagnosing the zeros to choosing a model.</em></p>
+
+<p>The biggest ideas to carry with you: excess zeros break a Poisson model in a way you can measure, the vertical-bar formula fits two models at once, and the sign of the zero part flips between zero-inflated and hurdle because they model opposite events.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Zeileis, A., Kleiber, C., & Jackman, S. (2008). <em>Regression Models for Count Data in R.</em> Journal of Statistical Software, 27(8). <a href="https://www.jstatsoft.org/article/view/v027i08">Link</a> - the canonical paper behind <code>pscl</code>, with the theory and R syntax for both <code>zeroinfl()</code> and <code>hurdle()</code>.</li>
+
+<li>pscl package reference: <code>zeroinfl()</code> and <code>hurdle()</code>. <a href="https://cran.r-project.org/web/packages/pscl/pscl.pdf">Link</a> - the official function docs, listing every argument used in this guide.</li>
+
+<li>UCLA OARC Statistical Consulting. <em>Zero-Inflated Poisson Regression.</em> <a href="https://stats.oarc.ucla.edu/r/dae/zip/">Link</a> - a worked ZIP walkthrough in R whose approach closely mirrors this one.</li>
+
+<li>Cameron, A. C., & Trivedi, P. K. (2013). <em>Regression Analysis of Count Data</em>, 2nd Edition. Cambridge University Press. - the standard textbook treatment of count models, excess zeros, and overdispersion.</li>
+
+<li>Venables, W. N., & Ripley, B. D. (2002). <em>Modern Applied Statistics with S</em> (MASS), 4th Edition. Springer. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a> - background on the negative binomial machinery that the <code>dist = &quot;negbin&quot;</code> variants rely on.</li>
+
+<li>Kleiber, C., & Zeileis, A. (2008). <em>Applied Econometrics with R.</em> Springer. <a href="https://link.springer.com/book/10.1007/978-0-387-77318-6">Link</a> - chapter-length examples of count-data models using the same R tooling.</li>
+
+<li>Feng, C. X. (2021). <em>A comparison of zero-inflated and hurdle models for modeling zero-inflated count data.</em> Journal of Statistical Distributions and Applications, 8(8). <a href="https://jsdajournal.springeropen.com/articles/10.1186/s40488-021-00121-4">Link</a> - a recent, direct comparison of the two model families to guide your choice.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Poisson-and-Negative-Binomial-Regression.html">Poisson and Negative Binomial Regression in R</a> - the base count models that these two-part models extend.</li>
+
+<li><a href="Offsets-and-Exposure-in-R.html">Offsets and Exposure in Poisson Models in R</a> - turn raw counts into rates when groups are observed for different lengths of time.</li>
+
+<li><a href="Read-Logistic-Output-in-R.html">How to Read Logistic Regression Output in R</a> - a deeper look at reading the logistic half that powers the zero part of both models.</li>
+
+</ul>
+
+{% endraw %}
