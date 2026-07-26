@@ -108,7 +108,7 @@ def render_scripts(page_js=None):
              '  <script defer src="/www/site-nav.js?v=4"></script>',
              '  <script defer src="/www/practice-nav.js?v=12"></script>',
              '  <script defer src="/www/roadmap-nav.js?v=5"></script>',
-             '  <script defer src="/www/tutorials-nav.js?v=6"></script>',
+             '  <script defer src="/www/tutorials-nav.js?v=7"></script>',
              '  <script defer src="/www/signin-nudge.js?v=16"></script>']
     for src in (page_js or []):
         parts.append(f'  <script defer src="{src}"></script>')

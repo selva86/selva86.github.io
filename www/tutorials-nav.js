@@ -11,7 +11,7 @@
   // and renames appear here without touching this module. Falls back to a
   // static list if the fetch fails.
   var FALLBACK_BOOKS = [
-    { href: "/tutorials/statistics.html", name: "The Statistics Handbook", meta: "From describing data to defensible inference and honest reporting." },
+    { href: "/tutorials/statistics.html", name: "The Statistics Handbook", meta: "A complete grounding in statistics for data analysis, taught in runnable R." },
     { href: "/tutorials/time-series.html", name: "The Time Series Forecasting Handbook", meta: "From raw data to reliable forecasts, every step runnable in your browser." },
     { href: "/tutorials/ggplot2.html", name: "The ggplot2 Handbook", meta: "From your first scatter plot to publication-ready figures." }
   ];
@@ -98,7 +98,7 @@
     window.__tnBooks = FALLBACK_BOOKS;
     wrap.appendChild(drop);
 
-    fetch('/www/curricula.json?v=4').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+    fetch('/www/curricula.json?v=5').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
       if (!data || !data.books || !data.books.length) return;
       var rows = data.books.map(function (b) {
         return { href: b.index, name: b.title, meta: b.tagline || '' };

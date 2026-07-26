@@ -361,7 +361,7 @@ function saveStarted(s) {
     if (slug !== '') return;
   }
 
-  fetch('/www/curricula.json?v=4').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+  fetch('/www/curricula.json?v=5').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
     if (!data || !data.books) return;
     var book = null, flat = [], cur = -1;
     data.books.forEach(function (b) {
