@@ -1,0 +1,984 @@
+---
+title: "Offsets and Exposure in Poisson Models in R"
+description: "Learn how offsets and exposure turn Poisson count models into rate models in R. Fit glm() with offset(log(exposure)), read rate ratios, and predict rates."
+keywords: "Poisson offset in R, exposure Poisson regression, offset glm R, rate ratio in R, incidence rate ratio, offset log exposure, Poisson rate model, modeling rates in R, glm offset argument, person-years offset"
+mathjax: true
+webr: true
+curriculum_id: "ST2-10.5"
+post_type: "C"
+auto_link_terms: "offset in Poisson model|Poisson offset|exposure in Poisson regression|offset log exposure|rate ratio in R|incidence rate ratio|Poisson rate model|glm offset|modeling rates in R|person-years offset|offset term|Poisson exposure"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Offsets & Exposure"
+sidebar_order: "168"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">An offset is a fixed term you add to a Poisson model so it predicts a rate (events per unit of exposure) instead of a raw count. It is the natural logarithm of the exposure, and its coefficient is locked at 1 rather than estimated. This guide builds the idea from a two-clinic example up to a full car-insurance model, all in base R with <code>glm()</code>, and shows how to read the results as rate ratios and turn them into predictions.</p>
+
+<h2>Why do raw counts mislead when exposure differs?</h2>
+
+<p>A count is only a fair comparison when every group had the same chance to accumulate events. The moment one group is observed longer, or contains more people, or covers more ground, it will log more events for no interesting reason. Exposure is that background amount of opportunity, and ignoring it is one of the most common mistakes in count modeling. Let's see it happen with two hospital clinics tracking infections over one year.</p>
+
+<div class="webr-container" data-block-title="Two clinics, two very different sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two clinics, two very different sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Infections recorded at two clinics over one year
+clinic &lt;- data.frame(
+  name       = c(&quot;Clinic A&quot;, &quot;Clinic B&quot;),
+  infections = c(24, 42),
+  patients   = c(200, 600)
+)
+# A rate puts both clinics on the same footing: infections per 100 patients
+clinic$per_100 &lt;- 100 * clinic$infections / clinic$patients
+clinic
+#&gt;       name infections patients per_100
+#&gt; 1 Clinic A         24      200      12
+#&gt; 2 Clinic B         42      600       7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the raw counts first: Clinic B recorded 42 infections against Clinic A's 24, so B looks worse. Now look at the last column. Clinic B saw 600 patients while A saw only 200, and once we express each as infections per 100 patients, B's rate is 7 and A's rate is 12. The clinic with more infections actually has the lower infection rate.</p>
+
+<p>The fix was to divide each count by its exposure, here the number of patients, to get a rate everyone can be compared on. That single division is the whole intuition behind offsets. The rest of this guide is about doing the same thing inside a model, so we can add predictors and get uncertainty estimates on the rates.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Health reports usually quote infections per 1000 patients, not per 100. Change the multiplier so <code>ex_per_1000</code> holds the rate per 1000 patients for each clinic.</p>
+<div class="webr-container" data-block-title="Your turn: rate per 1000 patients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rate per 1000 patients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The per-100 rate is 100 * infections / patients.
+# Change the multiplier to get the rate per 1000 patients instead.
+ex_per_1000 &lt;- 100 * clinic$infections / clinic$patients   # edit the 100
+ex_per_1000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: rate per 1000 patients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: rate per 1000 patients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_per_1000 &lt;- 1000 * clinic$infections / clinic$patients
+ex_per_1000
+#&gt; [1] 120  70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Swapping 100 for 1000 rescales the rate. Clinic A sits at 120 infections per 1000 patients and Clinic B at 70. The ranking is unchanged because the denominator is the same for both; only the units moved.</p>
+
+</details>
+</section>
+
+<h2>What is an offset in a Poisson model?</h2>
+
+<p>A Poisson <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> a count using a log link, which means it predicts the logarithm of the expected count from a straight-line combination of your predictors. If you have not met it yet, think of it as the count-data cousin of ordinary <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>, fitted with <code>glm(y ~ x, family = poisson)</code>. On its own it models counts, but we just saw that counts are the wrong target when exposure varies. We want it to model the rate.</p>
+
+<p>Here is the small piece of algebra that gets us there. If formulas are not your thing, skip to the code below: the three lines just say to drop <code>log(exposure)</code> into the model with its slope pinned to 1. Writing $\mu_i$ for the expected count of observation $i$, a plain Poisson model is:</p>
+
+<p>$$\log(\mu_i) = \beta_0 + \beta_1 x_i$$</p>
+
+<p>We actually care about the rate, which is the expected count divided by the exposure $t_i$. So put the rate inside the log instead:</p>
+
+<p>$$\log\!\left(\frac{\mu_i}{t_i}\right) = \beta_0 + \beta_1 x_i$$</p>
+
+<p>Using the rule that $\log(a/<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> = \log(a) - \log(b)$, move the exposure to the other side:</p>
+
+<p>$$\log(\mu_i) = \beta_0 + \beta_1 x_i + \log(t_i)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\mu_i$ = the expected event count for observation $i$</li>
+
+<li>$t_i$ = the exposure for observation $i$ (patient-days, person-years, population, area)</li>
+
+<li>$x_i$ = a predictor value</li>
+
+<li>$\beta_0, \beta_1$ = the coefficients R estimates</li>
+
+</ul>
+
+<p>That extra $\log(t_i)$ on the end is the offset. It looks like a predictor, but notice it has no coefficient of its own to estimate. Its multiplier is fixed at 1, because doubling the exposure should exactly double the expected count. Exposure shows up in many fields under different names, so it helps to see the pattern.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Field</th>
+<th>Event (the count)</th>
+<th>Exposure (the denominator)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Epidemiology</td>
+<td>new infections</td>
+<td>person-years at risk</td>
+</tr>
+<tr>
+<td>Insurance</td>
+<td>claims filed</td>
+<td>policies or policy-years</td>
+</tr>
+<tr>
+<td>Manufacturing</td>
+<td>defects found</td>
+<td>units produced</td>
+</tr>
+<tr>
+<td>Ecology</td>
+<td>animals seen</td>
+<td>area surveyed</td>
+</tr>
+<tr>
+<td>Traffic safety</td>
+<td>crashes</td>
+<td>miles driven</td>
+</tr>
+</tbody>
+</table>
+
+<p>To make the rest of this concrete, let's simulate a realistic dataset. Imagine 300 hospital wards, each observed for a different number of patient-days, where half used a new hygiene protocol that truly cuts the infection rate to 60% of the standard rate.</p>
+
+<div class="webr-container" data-block-title="Simulate ward infections with unequal exposure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate ward infections with unequal exposure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2010)
+n &lt;- 300
+# Exposure: how long each ward was observed, in patient-days
+patient_days &lt;- sample(30:600, n, replace = TRUE)
+# Half the wards used a new hygiene protocol (standard is the reference level)
+protocol &lt;- relevel(factor(sample(c(&quot;standard&quot;, &quot;new&quot;), n, replace = TRUE)), ref = &quot;standard&quot;)
+# True infection rate per patient-day: 0.03 standard, cut to 60% under the new protocol
+base_rate &lt;- ifelse(protocol == &quot;new&quot;, 0.03 * 0.6, 0.03)
+infections &lt;- rpois(n, lambda = patient_days * base_rate)
+wards &lt;- data.frame(infections, patient_days, protocol)
+head(wards)
+#&gt;   infections patient_days protocol
+#&gt; 1          7          462      new
+#&gt; 2          6          307 standard
+#&gt; 3          2          120 standard
+#&gt; 4         10          408 standard
+#&gt; 5          1          139      new
+#&gt; 6         15          598 standard</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one ward with its infection count, its exposure, and its protocol. Because every ward ran for a different number of patient-days, the raw <code>infections</code> column is not comparable across rows. Let's pool the wards by protocol and compute the rate the same way we did for the clinics.</p>
+
+<div class="webr-container" data-block-title="Empirical infection rate by protocol">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empirical infection rate by protocol</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">totals &lt;- aggregate(cbind(infections, patient_days) ~ protocol, data = wards, FUN = sum)
+totals$rate_per_1000 &lt;- 1000 * totals$infections / totals$patient_days
+totals
+#&gt;   protocol infections patient_days rate_per_1000
+#&gt; 1 standard       1419        48655      29.16453
+#&gt; 2      new        991        54220      18.27739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Standard wards ran up 1419 infections across 48655 patient-days, a rate of 29.2 per 1000 patient-days. The new-protocol wards recorded 991 infections over 54220 patient-days, a rate of 18.3. The ratio of the two rates, 18.3 divided by 29.2, is about 0.63, which is close to the true value of 0.60 we built into the simulation. An offset model will recover exactly this rate ratio while also giving us a confidence interval and room for more predictors.</p>
+
+<p><img src="screenshots/Offsets-and-Exposure-in-R-count-to-rate-flow.webp" alt="How a raw count becomes a rate model through the log link and an offset." class="img-responsive img-zoomable" loading="lazy" width="2248" height="632" /></p>
+
+<p><em>Figure 1: How a raw count becomes a rate model through the log link and an offset.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An offset is a known number, not a parameter to estimate.</strong> Ordinary predictors get a coefficient that R fits from the data; the offset enters the model already multiplied by 1, so it shifts the prediction without ever competing for a coefficient.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the <code>totals</code> table above, compute the rate ratio for the new protocol by dividing its rate by the standard rate. You should land near 0.63.</p>
+<div class="webr-container" data-block-title="Your turn: rate ratio from the totals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rate ratio from the totals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># totals has one row per protocol. Divide the new-protocol rate
+# by the standard-protocol rate to estimate the rate ratio.
+ex_ratio &lt;- totals$rate_per_1000[totals$protocol == &quot;new&quot;]   # divide this by the standard rate
+ex_ratio</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: rate ratio from the totals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: rate ratio from the totals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ratio &lt;- totals$rate_per_1000[totals$protocol == &quot;new&quot;] /
+            totals$rate_per_1000[totals$protocol == &quot;standard&quot;]
+round(ex_ratio, 3)
+#&gt; [1] 0.627</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dividing the two pooled rates gives 0.627, meaning the new protocol's infection rate is roughly 63% of the standard rate. This hand calculation is exactly what the model will estimate in a moment, only the model adds a confidence interval.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an offset with glm() in R?</h2>
+
+<p>You fit an offset with the same <code>glm()</code> you would use for any Poisson model, and you name the exposure inside an <code>offset()</code> wrapper in the formula. The exposure goes in on the log scale, so you write <code>offset(log(patient_days))</code>, matching the algebra above. Let's fit the ward model and read the summary.</p>
+
+<div class="webr-container" data-block-title="Fit a Poisson rate model with an offset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a Poisson rate model with an offset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- glm(infections ~ protocol + offset(log(patient_days)),
+         family = poisson, data = wards)
+summary(m)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = infections ~ protocol + offset(log(patient_days)),
+#&gt;     family = poisson, data = wards)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -3.53480    0.02655 -133.16   &lt;2e-16 ***
+#&gt; protocolnew -0.46729    0.04140  -11.29   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; (Dispersion parameter for poisson family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 416.69  on 299  degrees of freedom
+#&gt; Residual deviance: 286.87  on 298  degrees of freedom
+#&gt; AIC: 1381.9
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the coefficients on the log scale for now, we will convert them to rates in the next section. The intercept of -3.535 is the log baseline rate for the reference group, standard wards. The <code>protocolnew</code> coefficient of -0.467 is the change in log rate for switching to the new protocol, and its tiny <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> says that change is very unlikely to be chance. Everything here is the log of a rate per patient-day, because the offset accounts for the exposure.</p>
+
+<p>R gives you a second way to supply the offset: a dedicated <code>offset =</code> argument, separate from the formula. It fits the identical model, so use whichever reads more clearly to you.</p>
+
+<div class="webr-container" data-block-title="The offset = argument gives the same fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The offset = argument gives the same fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_arg &lt;- glm(infections ~ protocol,
+             family = poisson, offset = log(patient_days), data = wards)
+coef(m_arg)
+#&gt; (Intercept) protocolnew
+#&gt;  -3.5348022  -0.4672884</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficients match <code>m</code> to every decimal, confirming the two syntaxes are interchangeable. The formula version keeps the exposure visible next to your predictors, while the argument version keeps the formula short. Neither is more correct.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Always put exposure on the log scale.</strong> The offset must be the log of the exposure, not the raw exposure, because it slots into a model of the log rate. Writing <code>offset(patient_days)</code> instead of <code>offset(log(patient_days))</code> silently fits a different and wrong model, so double-check the log is there.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the ward model, but pass the exposure through the <code>offset =</code> argument instead of inside the formula. Confirm the coefficients still match <code>m</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit with the offset = argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit with the offset = argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit infections on protocol, but move the exposure into the offset = argument.
+ex_m &lt;- glm(infections ~ protocol, family = poisson, data = wards)   # add offset = log(patient_days)
+coef(ex_m)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: offset = argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: offset = argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m &lt;- glm(infections ~ protocol, family = poisson,
+            offset = log(patient_days), data = wards)
+coef(ex_m)
+#&gt; (Intercept) protocolnew
+#&gt;  -3.5348022  -0.4672884</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>offset = log(patient_days)</code> produces the same intercept and slope as the formula-based <code>m</code>. The starter code left the offset out, which would have fitted a count model that ignores how long each ward was watched.</p>
+
+</details>
+</section>
+
+<h2>Why fix the exposure coefficient at 1 instead of estimating it?</h2>
+
+<p>It is fair to ask why we bolt the exposure in with a fixed coefficient of 1 rather than letting the model estimate its effect like any other predictor. The answer is that fixing it at 1 is what makes the model a rate model. A coefficient of 1 on <code>log(exposure)</code> says that doubling the exposure doubles the expected count exactly, which is the definition of a constant rate. Let's test that assumption by freeing the coefficient and seeing where it lands.</p>
+
+<div class="webr-container" data-block-title="Estimate the exposure coefficient instead of fixing it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate the exposure coefficient instead of fixing it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_cov &lt;- glm(infections ~ protocol + log(patient_days),
+             family = poisson, data = wards)
+coef(m_cov)
+#&gt;       (Intercept)       protocolnew log(patient_days)
+#&gt;        -3.4344887        -0.4666903         0.9831720</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now <code>log(patient_days)</code> is an ordinary predictor with its own estimated coefficient, and that coefficient came out at 0.983, very close to 1. When the data really do behave like a rate, the freed coefficient hovers around 1, which is a reassuring check that the offset assumption fits. Let's confirm that 1 is a plausible value with a confidence interval.</p>
+
+<div class="webr-container" data-block-title="Is the exposure coefficient consistent with 1?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Is the exposure coefficient consistent with 1?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">confint.default(m_cov)[&quot;log(patient_days)&quot;, ]
+#&gt;     2.5 %    97.5 %
+#&gt; 0.8974298 1.0689143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 95% interval runs from 0.90 to 1.07, and it comfortably contains 1. That means the data give us no reason to reject the fixed-at-1 offset, so the simpler rate model is justified. If instead the interval sat well away from 1, it would be a signal that events do not scale proportionally with exposure, and you might keep exposure as a free predictor or rethink the exposure measure.</p>
+
+<p><img src="screenshots/Offsets-and-Exposure-in-R-offset-vs-covariate.webp" alt="The same log(exposure) term means two different models depending on whether its coefficient is fixed or estimated." class="img-responsive img-zoomable" loading="lazy" width="860" height="1246" /></p>
+
+<p><em>Figure 2: The same log(exposure) term means two different models depending on whether its coefficient is fixed or estimated.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Freeing the exposure coefficient changes what every other coefficient means.</strong> With the offset, the other coefficients are rate ratios you can report directly. Once exposure becomes a fitted predictor, the model no longer estimates a clean rate, and the remaining coefficients answer a subtly different question. Use the offset unless you have a specific reason not to.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull just the <code>log(patient_days)</code> coefficient out of <code>m_cov</code> and round it to two decimals, so you can quote how close the freed exposure effect is to 1.</p>
+<div class="webr-container" data-block-title="Your turn: read the exposure coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the exposure coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># m_cov estimated the exposure coefficient instead of fixing it.
+# Narrow coef(m_cov) down to only the log(patient_days) element.
+ex_exp_coef &lt;- coef(m_cov)   # index this to the &quot;log(patient_days)&quot; element
+ex_exp_coef</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: read the exposure coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: read the exposure coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_exp_coef &lt;- coef(m_cov)[&quot;log(patient_days)&quot;]
+round(ex_exp_coef, 2)
+#&gt; log(patient_days)
+#&gt;              0.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Indexing the coefficient vector by name isolates the exposure effect, which rounds to 0.98. That is close enough to 1 that fixing it as an offset costs almost nothing and buys a clean rate interpretation.</p>
+
+</details>
+</section>
+
+<h2>How do you read the coefficients as rate ratios?</h2>
+
+<p>Log-scale coefficients are hard to feel, so the standard move is to exponentiate them. Taking <code>exp()</code> of a coefficient turns it into a rate ratio, often called an <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression.html" title="Poisson & Negative Binomial Regression: Model Count Data in R">incidence rate ratio</a>: the factor by which the rate multiplies when that predictor changes by one unit. Doing the same to the confidence limits gives you an interval on the rate ratio. Let's convert the whole ward model at once.</p>
+
+<div class="webr-container" data-block-title="Turn coefficients into rate ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn coefficients into rate ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp(cbind(RateRatio = coef(m), confint.default(m)))
+#&gt;             RateRatio      2.5 %     97.5 %
+#&gt; (Intercept) 0.02916453 0.02768589 0.03072214
+#&gt; protocolnew 0.62669932 0.57785800 0.67966877</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Start with the intercept: its rate ratio of 0.0292 is the baseline rate itself, about 29 infections per 1000 patient-days for standard wards, which matches the pooled number we computed by hand earlier. The <code>protocolnew</code> rate ratio of 0.627 is the headline result. Switching to the new protocol multiplies the infection rate by 0.627, a reduction of about 37%. Because the confidence interval, 0.58 to 0.68, sits entirely below 1, we can say the drop is statistically clear, not noise.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report rate ratios with their interval, not the raw log coefficients.</strong> A reader understands "the new protocol cut the infection rate by 37%, 95% CI 32% to 42%" far better than "the log coefficient was -0.47". Exponentiate both the estimate and the confidence limits so the interval stays honest.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the <code>protocolnew</code> coefficient into a percentage change in the rate. A rate ratio of 0.627 should come out near a 37% reduction.</p>
+<div class="webr-container" data-block-title="Your turn: percentage change in the rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: percentage change in the rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># exp(coef) is a rate ratio. Turn the protocolnew rate ratio into a percentage change.
+ex_pct &lt;- exp(coef(m)[&quot;protocolnew&quot;])   # subtract 1, then multiply by 100
+ex_pct</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: percentage change in the rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: percentage change in the rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pct &lt;- (exp(coef(m)[&quot;protocolnew&quot;]) - 1) * 100
+round(ex_pct, 1)
+#&gt; protocolnew
+#&gt;       -37.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subtracting 1 from the rate ratio and multiplying by 100 converts it to a percentage change. The value of -37.3 means the new protocol is associated with a 37.3% lower infection rate, the plain-language version of the rate ratio 0.627.</p>
+
+</details>
+</section>
+
+<h2>How do you predict rates and counts from the model?</h2>
+
+<p>A fitted offset model can answer two different questions: how many events to expect, and at what rate. The key is that <code>predict(..., type = &quot;response&quot;)</code> returns an expected count and automatically includes whatever exposure you supply in the new data. So to predict a count, give the real exposure; to predict a rate, fix the exposure at a chosen unit. Let's predict counts first, for a standard and a new ward each watched for 500 patient-days.</p>
+
+<div class="webr-container" data-block-title="Predict expected infection counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict expected infection counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_wards &lt;- data.frame(
+  protocol = factor(c(&quot;standard&quot;, &quot;new&quot;), levels = levels(wards$protocol)),
+  patient_days = c(500, 500)
+)
+predict(m, newdata = new_wards, type = &quot;response&quot;)
+#&gt;         1         2
+#&gt; 14.582263  9.138694</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Over 500 patient-days, the model expects about 14.6 infections in a standard ward and 9.1 in a new-protocol ward. Those are counts, and they carry the exposure of 500 baked in. To get a rate instead, we fix the exposure at a fixed reference amount, say 1000 patient-days, so the offset becomes the same constant for every row and the prediction reads as a rate per 1000.</p>
+
+<div class="webr-container" data-block-title="Predict the rate per 1000 patient-days">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict the rate per 1000 patient-days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rate_data &lt;- data.frame(
+  protocol = factor(c(&quot;standard&quot;, &quot;new&quot;), levels = levels(wards$protocol)),
+  patient_days = 1000
+)
+predict(m, newdata = rate_data, type = &quot;response&quot;)
+#&gt;        1        2
+#&gt; 29.16453 18.27739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setting the exposure to 1000 turns the predicted count into a rate per 1000 patient-days: 29.2 for standard wards and 18.3 for new. These match the pooled rates from the very first ward table, confirming the model recovered the empirical rates exactly, now with the machinery to add predictors and intervals.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The exposure you put in the new data decides whether you get a count or a rate.</strong> Supply each unit's real exposure to forecast actual event counts; supply one common exposure value to read every group's rate on the same scale. Same model, two answers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict the expected number of infections for a single new-protocol ward observed for 250 patient-days.</p>
+<div class="webr-container" data-block-title="Your turn: predict counts for 250 patient-days">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict counts for 250 patient-days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a one-row new data frame for a new-protocol ward with 250 patient-days.
+ex_new &lt;- data.frame(protocol = factor(&quot;new&quot;, levels = levels(wards$protocol)),
+                     patient_days = 250)
+# Next step: call predict(m, newdata = ex_new, type = &quot;response&quot;)
+ex_new</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: predict counts for 250 patient-days">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: predict counts for 250 patient-days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_new &lt;- data.frame(protocol = factor(&quot;new&quot;, levels = levels(wards$protocol)),
+                     patient_days = 250)
+predict(m, newdata = ex_new, type = &quot;response&quot;)
+#&gt;        1
+#&gt; 4.569347</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 250 patient-days of exposure, the model expects about 4.6 infections in a new-protocol ward. That is half the 9.1 it predicted for 500 patient-days, exactly as a constant rate demands when you halve the exposure.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: Modeling Car Insurance Claim Rates</h2>
+
+<p>Let's put the whole workflow together on real data. The <code>Insurance</code> dataset in the MASS package records, for groups of British car-insurance policyholders in 1973, how many claims each group filed and how many policyholders it contained. The number of policyholders is the exposure, because a group with more drivers will file more claims even if each driver is no riskier. We coerce the two <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factors</a> to plain factors so the coefficients read as simple group comparisons.</p>
+
+<div class="webr-container" data-block-title="Load the car insurance claims data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the car insurance claims data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(Insurance, package = &quot;MASS&quot;)
+Insurance$Group &lt;- factor(Insurance$Group, ordered = FALSE)
+Insurance$Age   &lt;- factor(Insurance$Age, ordered = FALSE)
+head(Insurance)
+#&gt;   District  Group   Age Holders Claims
+#&gt; 1        1    &lt;1l   &lt;25     197     38
+#&gt; 2        1    &lt;1l 25-29     264     35
+#&gt; 3        1    &lt;1l 30-35     246     20
+#&gt; 4        1    &lt;1l   &gt;35    1680    156
+#&gt; 5        1 1-1.5l   &lt;25     284     63
+#&gt; 6        1 1-1.5l 25-29     536     84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is a group of policyholders described by district, engine size (<code>Group</code>), and driver age band, with <code>Holders</code> as the exposure and <code>Claims</code> as the count. We model the claim rate with district, engine size, and age as predictors, and <code>log(Holders)</code> as the offset.</p>
+
+<div class="webr-container" data-block-title="Model claim rates with an exposure offset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Model claim rates with an exposure offset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ins_fit &lt;- glm(Claims ~ District + Group + Age,
+               family = poisson, offset = log(Holders), data = Insurance)
+summary(ins_fit)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = Claims ~ District + Group + Age, family = poisson,
+#&gt;     data = Insurance, offset = log(Holders))
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -1.82174    0.07679 -23.724  &lt; 2e-16 ***
+#&gt; District2    0.02587    0.04302   0.601 0.547597
+#&gt; District3    0.03852    0.05051   0.763 0.445657
+#&gt; District4    0.23421    0.06167   3.798 0.000146 ***
+#&gt; Group1-1.5l  0.16134    0.05053   3.193 0.001409 **
+#&gt; Group1.5-2l  0.39281    0.05500   7.142 9.18e-13 ***
+#&gt; Group&gt;2l     0.56341    0.07232   7.791 6.65e-15 ***
+#&gt; Age25-29    -0.19101    0.08286  -2.305 0.021149 *
+#&gt; Age30-35    -0.34495    0.08137  -4.239 2.24e-05 ***
+#&gt; Age&gt;35      -0.53667    0.06996  -7.672 1.70e-14 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; (Dispersion parameter for poisson family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 236.26  on 63  degrees of freedom
+#&gt; Residual deviance:  51.42  on 54  degrees of freedom
+#&gt; AIC: 388.74
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The signs are already easy to read. Bigger engines carry positive coefficients that grow with engine size, so larger cars claim at a higher rate. Older age bands carry negative coefficients that grow more negative with age, so older drivers claim at a lower rate. To make those readable, exponentiate every coefficient into a rate ratio.</p>
+
+<div class="webr-container" data-block-title="Insurance rate ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Insurance rate ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(exp(coef(ins_fit)), 3)
+#&gt; (Intercept)   District2   District3   District4 Group1-1.5l Group1.5-2l    Group&gt;2l    Age25-29
+#&gt;       0.162       1.026       1.039       1.264       1.175       1.481       1.757       0.826
+#&gt;    Age30-35      Age&gt;35
+#&gt;       0.708       0.585</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now each number is a multiplier on the claim rate relative to its reference group. Drivers over 35 have a rate ratio of 0.585, meaning they claim at about 59% of the rate of the under-25 reference band, a 41% lower rate. The largest engines carry a rate ratio of 1.757, so they claim at roughly 76% above the smallest-engine reference. District 4 stands out among districts at 1.264. Finally, let's turn the model into a business forecast: the expected number of claims from a group of 3000 young drivers in District 1 with the smallest engines.</p>
+
+<div class="webr-container" data-block-title="Expected claims for a group of policyholders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Expected claims for a group of policyholders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">profile &lt;- data.frame(
+  District = factor(&quot;1&quot;,   levels = levels(Insurance$District)),
+  Group    = factor(&quot;&lt;1l&quot;, levels = levels(Insurance$Group)),
+  Age      = factor(&quot;&lt;25&quot;, levels = levels(Insurance$Age)),
+  Holders  = 3000
+)
+predict(ins_fit, newdata = profile, type = &quot;response&quot;)
+#&gt;        1
+#&gt; 485.2323</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model expects about 485 claims from those 3000 policyholders, which is a rate of roughly 0.16 claims per holder, the baseline rate for this highest-risk profile. Because we passed the real <code>Holders</code> count of 3000, this comes back as a count you could plug straight into a reserving calculation. Swap in a different exposure and you would get the forecast for a differently sized book of business.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These pull together fitting, rate ratios, prediction, and the offset-versus-covariate idea. Each uses distinct variable names so it will not overwrite the tutorial objects.</p>
+
+<h3>Exercise 1: Report a rate ratio with its interval</h3>
+
+<p>Using the <code>wards</code> data, fit a Poisson model of <code>infections</code> on <code>protocol</code> with <code>offset(log(patient_days))</code>, then report the new-protocol rate ratio together with its <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>. Save the fit as <code>my_fit</code>. You should recover a rate ratio near 0.63.</p>
+
+<div class="webr-container" data-block-title="Your turn: rate ratio with a confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rate ratio with a confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit an offset model of infections on protocol using the wards data,
+# then turn the protocol coefficient into a rate ratio with a 95% CI.
+# Hint: exp(cbind(coef(fit), confint.default(fit)))
+
+my_fit &lt;- glm(infections ~ protocol + offset(log(patient_days)),
+              family = poisson, data = wards)
+# Write your exp(...) line below:
+my_fit</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: rate ratio with a confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: rate ratio with a confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit &lt;- glm(infections ~ protocol + offset(log(patient_days)),
+              family = poisson, data = wards)
+exp(cbind(RateRatio = coef(my_fit), confint.default(my_fit)))[&quot;protocolnew&quot;, ]
+#&gt; RateRatio     2.5 %    97.5 %
+#&gt; 0.6266993 0.5778580 0.6796688</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Exponentiating the coefficient and its Wald interval gives a rate ratio of 0.627 with a 95% CI of 0.58 to 0.68. Because the interval is entirely below 1, the new protocol's rate reduction is statistically clear.</p>
+
+</details>
+
+<h3>Exercise 2: Rank age bands and forecast claims</h3>
+
+<p>Using the <code>Insurance</code> model, report the rate ratios for the three older age bands relative to the under-25 reference, then predict the expected claims for 5000 policyholders over 35 in District 1 with the smallest engines. Save the fit as <code>my_ins</code>.</p>
+
+<div class="webr-container" data-block-title="Your turn: age rate ratios and a prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: age rate ratios and a prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit Claims on District + Group + Age with offset(log(Holders)),
+# read the Age rate ratios, then predict for 5000 over-35 holders
+# in District 1 with the &lt;1l engine group.
+# Hint: round(exp(coef(fit)), 3) for the ratios; a one-row newdata for predict().
+
+my_ins &lt;- glm(Claims ~ District + Group + Age,
+              family = poisson, offset = log(Holders), data = Insurance)
+# Write your exp(coef()) and predict() lines below:
+my_ins$coefficients[&quot;Age&gt;35&quot;]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: age rate ratios and a prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: age rate ratios and a prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ins &lt;- glm(Claims ~ District + Group + Age,
+              family = poisson, offset = log(Holders), data = Insurance)
+round(exp(coef(my_ins))[c(&quot;Age25-29&quot;, &quot;Age30-35&quot;, &quot;Age&gt;35&quot;)], 3)
+#&gt; Age25-29 Age30-35   Age&gt;35
+#&gt;    0.826    0.708    0.585
+my_profile &lt;- data.frame(
+  District = factor(&quot;1&quot;,   levels = levels(Insurance$District)),
+  Group    = factor(&quot;&lt;1l&quot;, levels = levels(Insurance$Group)),
+  Age      = factor(&quot;&gt;35&quot;, levels = levels(Insurance$Age)),
+  Holders  = 5000
+)
+predict(my_ins, newdata = my_profile, type = &quot;response&quot;)
+#&gt;        1
+#&gt; 472.8521</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The claim rate falls steadily with age, from 0.826 for 25-29 down to 0.585 for over-35, each relative to the youngest band. The forecast for 5000 older, small-engine, District 1 drivers is about 473 claims, lower per holder than the young-driver profile despite the larger group.</p>
+
+</details>
+
+<h3>Exercise 3: Show what ignoring exposure does</h3>
+
+<p>This is the payoff exercise. Fit two models of <code>Claims</code> on <code>Age</code> alone: one with no offset, and one with <code>offset(log(Holders))</code>. Compare the age rate ratios. The no-offset model will give nonsense because older bands simply contain more policyholders.</p>
+
+<div class="webr-container" data-block-title="Your turn: what happens when you ignore exposure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: what happens when you ignore exposure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit two models of Claims on Age only: one WITHOUT an offset and one WITH
+# offset(log(Holders)). Compare the Age rate ratios from each.
+# Hint: exp(coef(model))[c(&quot;Age25-29&quot;, &quot;Age30-35&quot;, &quot;Age&gt;35&quot;)]
+
+no_off &lt;- glm(Claims ~ Age, family = poisson, data = Insurance)
+# Add the offset model below, then compare the two sets of ratios:
+exp(coef(no_off))[&quot;Age&gt;35&quot;]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: with and without the offset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: with and without the offset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">no_off   &lt;- glm(Claims ~ Age, family = poisson, data = Insurance)
+with_off &lt;- glm(Claims ~ Age, family = poisson, offset = log(Holders), data = Insurance)
+round(exp(coef(no_off))[c(&quot;Age25-29&quot;, &quot;Age30-35&quot;, &quot;Age&gt;35&quot;)], 3)
+#&gt; Age25-29 Age30-35   Age&gt;35
+#&gt;    1.764    1.978    9.017
+round(exp(coef(with_off))[c(&quot;Age25-29&quot;, &quot;Age30-35&quot;, &quot;Age&gt;35&quot;)], 3)
+#&gt; Age25-29 Age30-35   Age&gt;35
+#&gt;    0.859    0.749    0.608</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Without the offset, the over-35 band looks like it claims 9 times as often as the youngest, purely because it holds far more policyholders. Add <code>offset(log(Holders))</code> and the estimate flips to a rate ratio of 0.608, a 39% lower rate. Exposure was the confounder all along, and the offset removed it.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Is an offset the same as a weight in glm()?</h3>
+
+<p>No. An offset shifts the linear predictor by a known amount and is the right tool for exposure. A weight in the <code>weights =</code> argument changes how much each row influences the fit, which answers a different question. For rate modeling of counts, you want the offset.</p>
+
+<h3>Does the exposure always have to be logged?</h3>
+
+<p>Yes, when you use the standard log link for Poisson regression. The model works on the log scale, so the exposure must enter as <code>log(exposure)</code> to line up with the algebra. Passing the raw exposure fits a different, incorrect model.</p>
+
+<h3>Can I use an offset with negative binomial models too?</h3>
+
+<p>Yes. Overdispersed counts are often fitted with <code>MASS::glm.nb()</code>, which accepts the very same <code>offset(log(exposure))</code> term in the formula. The offset idea carries over unchanged; only the error distribution differs.</p>
+
+<h3>What if some rows have zero exposure?</h3>
+
+<p>You cannot log a zero, so <code>log(0)</code> is undefined and those rows break the model. A row with zero exposure also had no opportunity for an event, so it carries no rate information. Drop such rows before fitting.</p>
+
+<h3>Why not just model the rate directly as the response?</h3>
+
+<p>Because a rate is a ratio of a count to an exposure, and modeling it as a plain number throws away the count nature that makes the Poisson distribution appropriate. The offset lets you keep the integer count as the response while still targeting the rate, which is both more correct and better behaved for small counts.</p>
+
+<h2>Summary</h2>
+
+<p>Offsets are the bridge between counts and rates. When exposure varies across your rows, you fold <code>log(exposure)</code> into a Poisson model as an offset, a term whose coefficient is fixed at 1, and the model then estimates rates instead of raw counts. The table below is your quick reference.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit with offset in the formula</td>
+<td><code>glm(y ~ x + offset(log(E)), family = poisson)</code></td>
+</tr>
+<tr>
+<td>Fit with the offset argument</td>
+<td><code>glm(y ~ x, offset = log(E), family = poisson)</code></td>
+</tr>
+<tr>
+<td>Rate ratio for a predictor</td>
+<td><code>exp(coef(m))</code></td>
+</tr>
+<tr>
+<td>Rate ratio with interval</td>
+<td><code>exp(cbind(coef(m), confint.default(m)))</code></td>
+</tr>
+<tr>
+<td>Predict an expected count</td>
+<td><code>predict(m, newdata, type = &quot;response&quot;)</code> with the real exposure</td>
+</tr>
+<tr>
+<td>Predict a rate</td>
+<td>same call with exposure fixed at a common value</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Offsets-and-Exposure-in-R-workflow.webp" alt="The offset modeling workflow from raw counts to interpreted rate ratios." class="img-responsive img-zoomable" loading="lazy" width="1802" height="690" /></p>
+
+<p><em>Figure 3: The offset modeling workflow from raw counts to interpreted rate ratios.</em></p>
+
+<p>The core habits to keep: log the exposure, exponentiate coefficients into rate ratios you can explain in plain words, and decide between a count answer and a rate answer by what exposure you feed to <code>predict()</code>. Get those right and Poisson models with offsets become one of the most practical tools in applied statistics.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. glm() function documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">Link</a></li>
+
+<li>R Core Team. family() and link functions in R. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/family.html">Link</a></li>
+
+<li>Venables, W. N. and Ripley, B. D. Insurance dataset reference (MASS package). <a href="https://rdrr.io/cran/MASS/man/Insurance.html">Link</a></li>
+
+<li>Venables, W. N. and Ripley, B. D. Modern Applied Statistics with S, 4th Edition. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>MASS package on CRAN. <a href="https://cran.r-project.org/package=MASS">Link</a></li>
+
+<li>UCLA Office of Advanced Research Computing. Poisson Regression in R. <a href="https://stats.oarc.ucla.edu/r/dae/poisson-regression/">Link</a></li>
+
+<li>Musa, K. I. Poisson Regression, Data Analysis in Medicine and Health using R. <a href="https://bookdown.org/drki_musa/dataanalysis/poisson-regression.html">Link</a></li>
+
+<li>R Core Team. An Introduction to R. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a>: the foundation this guide builds on, covering the log link and count modeling from the start.</li>
+
+<li><a href="Poisson-and-Negative-Binomial-Regression.html">Poisson and Negative Binomial Regression</a>: what to do when counts are overdispersed and a plain Poisson model underestimates uncertainty.</li>
+
+<li><a href="Read-Logistic-Output-in-R.html">How to Read Logistic Regression Output in R</a>: the same coefficient-reading skills applied to the other workhorse GLM.</li>
+
+</ul>
+
+{% endraw %}
