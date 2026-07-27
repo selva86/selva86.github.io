@@ -456,6 +456,36 @@ def refresh_fr_parent_fragments(affected_parents, links_data, dry_run=False):
     return frag_count, legacy_count, skipped_manual, errors
 
 
+def build_rewrite_dates():
+    """Map posts/<slug>.md -> date of its most recent "Add tutorial:" commit.
+
+    One `git log --name-only` pass over the whole history replaces the old
+    per-post `git log -1 -- <path>` calls (1,476 path-filtered walks at
+    ~0.75s each was the bulk of every registry sync). Newest-first order +
+    setdefault gives the same date the old `-1` lookup returned. Posts with
+    no matching commit are simply absent (lookup yields None, as before).
+    """
+    import subprocess
+    dates = {}
+    try:
+        out = subprocess.check_output(
+            ['git', 'log', '--grep=^Add tutorial:', '--format=%x01%ad',
+             '--date=short', '--name-only', '--', 'posts/'],
+            stderr=subprocess.DEVNULL
+        ).decode('utf-8', 'replace')
+        cur = None
+        for line in out.splitlines():
+            if line.startswith('\x01'):
+                cur = line[1:].strip() or None
+            else:
+                p = line.strip().replace('\\', '/')
+                if cur and p.startswith('posts/') and p.endswith('.md'):
+                    dates.setdefault(p, cur)
+    except Exception:
+        pass
+    return dates
+
+
 def main():
     args = sys.argv[1:]
     dry_run = '--dry-run' in args
@@ -464,6 +494,8 @@ def main():
     if not os.path.exists(POSTS_DIR):
         print('No _posts/ directory found.')
         return
+
+    rewrite_dates = build_rewrite_dates()
 
     # Read all _posts/ front matter
     posts = []
@@ -476,20 +508,7 @@ def main():
             # that touched posts/<slug>.md — i.e. actual rewrites via
             # /write-and-publish-v2. Bulk formatting commits don't count.
             slug = f[:-5]
-            md_path = os.path.join('posts', slug + '.md')
-            meta['rewrite_date'] = None
-            if os.path.exists(md_path):
-                try:
-                    import subprocess
-                    out = subprocess.check_output(
-                        ['git', 'log', '--grep=^Add tutorial:', '-1',
-                         '--format=%ad', '--date=short', '--', md_path],
-                        stderr=subprocess.DEVNULL
-                    ).decode('utf-8').strip()
-                    if out:
-                        meta['rewrite_date'] = out
-                except Exception:
-                    pass
+            meta['rewrite_date'] = rewrite_dates.get('posts/' + slug + '.md')
             posts.append(meta)
 
     print(f'Found {len(posts)} posts in _posts/')
