@@ -1,0 +1,985 @@
+---
+title: "The Bayesian Workflow in R: All 5 Steps Explained"
+description: "The Bayesian workflow is iterative: set priors, fit, check predictions, then revise. Learn all 5 steps in R with one running example, from prior to report."
+keywords: "Bayesian workflow, Bayesian workflow in R, prior predictive check, posterior predictive check, rstanarm, Bayesian model checking, prior sensitivity analysis, Bayesian regression in R"
+mathjax: true
+webr: true
+curriculum_id: "5.2.10"
+post_type: "C"
+auto_link_terms: "Bayesian workflow|Bayesian workflow in R|the Bayesian workflow|full Bayesian workflow|iterative Bayesian workflow|Bayesian modeling workflow|Bayesian model building workflow|iterative model building|Bayesian workflow steps|model revision loop"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Bayesian Workflow"
+sidebar_order: "183"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">The Bayesian workflow is the disciplined loop that turns a single Bayesian model into a trustworthy answer: you set priors, fit the model, check whether the fit could have produced your real data, and revise when a check fails. It is iterative on purpose. This tutorial walks all five steps on one dataset in R, so by the end you can run the whole loop yourself, from prior to report.</p>
+
+<h2>What is the Bayesian workflow, and why is it a loop?</h2>
+
+<p>Most tutorials teach you to fit one Bayesian model and read off the numbers. Real analysis never works that way. Andrew Gelman and colleagues describe the honest practice as a loop: you propose a model, pit it against the data, then improve it wherever it falls short. The Bayesian workflow is that loop, done deliberately instead of by accident.</p>
+
+<p>We will follow one question the whole way through. In the built-in <code>mtcars</code> data, does a car's weight affect its fuel economy differently for manual versus automatic transmissions? Let us start by centering weight at its average (so the intercept means "mpg for a typical-weight car") and looking at the raw slope of miles-per-gallon against weight inside each transmission group.</p>
+
+<div class="webr-container" data-block-title="Set up the running example">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set up the running example</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One dataset carries the whole workflow: fuel economy vs weight in mtcars
+mt &lt;- mtcars
+mt$am     &lt;- factor(mt$am, labels = c(&quot;automatic&quot;, &quot;manual&quot;))
+mt$manual &lt;- as.integer(mt$am == &quot;manual&quot;)   # 1 = manual, 0 = automatic
+mt$wt_c   &lt;- mt$wt - mean(mt$wt)              # weight centered at its mean
+
+# How fast does mpg drop as weight rises, inside each transmission type?
+round(as.numeric(coef(lm(mpg ~ wt_c, data = subset(mt, am == &quot;automatic&quot;)))[2]), 1)
+#&gt; [1] -3.8
+round(as.numeric(coef(lm(mpg ~ wt_c, data = subset(mt, am == &quot;manual&quot;)))[2]), 1)
+#&gt; [1] -9.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two numbers. For automatic cars, every extra 1,000 pounds costs about 3.8 mpg. For manual cars, the same weight costs about 9.1 mpg, nearly two and a half times as much. That gap is the puzzle the whole workflow will test: is it a real difference the model must capture, or just noise from 32 cars? A single fit cannot answer that. The loop can.</p>
+
+<p>Here are the five steps we will run, and how they connect.</p>
+
+<p><img src="screenshots/Bayesian-Workflow-in-R-loop.webp" alt="The five workflow steps form a loop" class="img-responsive img-zoomable" loading="lazy" width="2248" height="524" /></p>
+
+<p><em>Figure 1: The five workflow steps form a loop: a failed check sends you back to revise and refit.</em></p>
+
+<ol>
+
+<li><strong>Set priors</strong> and check them by simulating fake data before you look at the real data.</li>
+
+<li><strong>Fit</strong> the model to the data.</li>
+
+<li><strong>Diagnose</strong> the sampler to make sure the computation actually worked.</li>
+
+<li><strong>Check</strong> the fitted model against the data, looking for places it cannot reproduce.</li>
+
+<li><strong>Revise</strong> the model when a check fails, then run the loop again.</li>
+
+</ol>
+
+<p>The arrow from step 5 back to step 2 is the whole point. A Bayesian analysis is finished not when the model runs, but when it survives the checks. Throughout, the model fitting itself uses the <code>rstanarm</code> package (which needs a local R session), while every prior and posterior check runs right here in your browser using base R.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Bayesian result is a loop, not a single fit.</strong> The value is not in running one model; it is in the discipline of checking that model against reality and improving it until the checks pass.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The manual slope is about 9.1 and the automatic slope is about 3.8. Compute how many times steeper the manual slope is, rounded to one decimal.</p>
+<div class="webr-container" data-block-title="Your turn: compare the two slopes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare the two slopes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Replace NA with a calculation using 9.1 and 3.8.
+ex_ratio &lt;- NA
+# ex_ratio should be about 2.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Slope ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Slope ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(9.1 / 3.8, 1)
+#&gt; [1] 2.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Manual cars lose fuel economy about 2.4 times faster per unit of weight. Whether that ratio is real is exactly what steps 4 and 5 will decide.</p>
+
+</details>
+</section>
+
+<h2>Step 1: How do you set priors and check them before seeing data?</h2>
+
+<p>A prior is your belief about a parameter before you see the data, written as a probability distribution. A weakly-informative prior is one that rules out absurd values but stays open-minded about anything reasonable. For our model, we need priors for the intercept (average mpg at average weight) and the weight slopes, plus a prior for the size of the noise. Good starting choices are a Normal centered at 20 for the intercept, a Normal centered at 0 for each slope, and a positive prior for the noise size.</p>
+
+<p>How do you know a prior is reasonable? You simulate. A prior predictive check draws parameter values from the priors alone, generates the fake datasets those priors imply, and asks a simple question: could this data plausibly exist? Let us draw 1,000 sets of parameters from weakly-informative priors and see what range of fuel economy they imply across the real weights.</p>
+
+<div class="webr-container" data-block-title="Simulate data from the priors alone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate data from the priors alone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+S  &lt;- 1000
+b0 &lt;- rnorm(S, 20, 10)   # intercept prior: mpg for an average-weight car
+bw &lt;- rnorm(S,  0, 10)   # slope prior: change in mpg per 1,000 lb
+
+# implied average mpg at every observed weight, for each prior draw
+implied &lt;- outer(bw, mt$wt_c) + b0
+round(quantile(implied, c(0.05, 0.95)))
+#&gt;  5% 95%
+#&gt;  -2  42
+round(100 * mean(implied &lt; 0), 1)
+#&gt; [1] 6.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The middle 90% of prior-implied mpg values runs from about -2 to 42. That is wide, which is the point of a weakly-informative prior: it does not pretend to know the answer. About 6% of the implied values dip below zero, which is impossible for real fuel economy. A small amount of leakage into impossible territory is acceptable here, because the data we are about to add will easily pull the estimates into a sensible range.</p>
+
+<p>Now watch what a careless prior does. If we make the slope prior vague, a Normal centered at 0 with a standard deviation of 100, the implied data becomes nonsense.</p>
+
+<div class="webr-container" data-block-title="Repeat the check with a vague prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repeat the check with a vague prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(70)
+b0v &lt;- rnorm(S, 20, 10)
+bwv &lt;- rnorm(S,  0, 100)   # a near-flat, &quot;let anything happen&quot; slope prior
+implied_vague &lt;- outer(bwv, mt$wt_c) + b0v
+round(quantile(implied_vague, c(0.05, 0.95)))
+#&gt;   5%  95%
+#&gt; -127  167
+round(100 * mean(implied_vague &lt; 0), 1)
+#&gt; [1] 31.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Under the vague prior, the implied mpg swings from -127 to 167, and nearly a third of the values are physically impossible. A prior that expects cars getting -127 mpg is not "letting the data speak"; it is asserting a belief that most possible worlds are absurd. The prior predictive check catches this before any fitting happens, which is exactly when it is cheapest to fix.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Priors are assumptions you can test, not fudge factors.</strong> Simulating from the prior turns an abstract choice into concrete fake datasets you can eyeball, so you can reject an absurd prior before it ever touches your data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose you wanted an even tighter slope prior with a standard deviation of 5. Set up the scaffold, then compute what percent of implied mpg values would be impossible.</p>
+<div class="webr-container" data-block-title="Your turn: try a tighter slope prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a tighter slope prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># You will draw slopes from a Normal(0, 5) instead of Normal(0, 10).
+ex_slope_sd &lt;- 5
+# Combine a fresh b0 and the new slopes, then compute the percent below 0.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+b0b &lt;- rnorm(S, 20, 10)
+bw5 &lt;- rnorm(S, 0, 5)
+round(100 * mean((outer(bw5, mt$wt_c) + b0b) &lt; 0), 1)
+#&gt; [1] 3.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A tighter slope prior halves the impossible fraction, from 6.4% to about 3.2%. Tightening priors is a legitimate response to a prior predictive check, as long as you are not sneaking in the answer you want.</p>
+
+</details>
+</section>
+
+<h2>Step 2: How do you fit the model and read it honestly?</h2>
+
+<p>We will start with the simplest model that could answer our question: mpg depends on weight and on transmission, but with a single common weight slope for both groups. In formula terms that is <code>mpg ~ wt_c + am</code>. We fit it with <code>stan_glm()</code>, which draws thousands of samples from the <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a>, the updated belief about each parameter after seeing the data.</p>
+
+<p>$$ \text{mpg}_i = \beta_0 + \beta_{\text{wt}}\, \text{wt\_c}_i + \beta_{\text{am}}\, \text{manual}_i + \varepsilon_i $$</p>
+
+<p>This additive form gives manual cars a different intercept (through the <code>am</code> term) but forces both transmission types to share the same weight slope. Let us fit it and read the summary.</p>
+
+<pre><code class="language-r">library(rstanarm)
+options(mc.cores = 1)
+
+fit_add &lt;- stan_glm(mpg ~ wt_c + am, data = mt,
+                    prior = normal(0, 10), prior_intercept = normal(20, 10),
+                    prior_aux = exponential(0.2),
+                    seed = 2027, refresh = 0)
+print(fit_add)
+#&gt; stan_glm
+#&gt;  family:       gaussian [identity]
+#&gt;  formula:      mpg ~ wt_c + am
+#&gt;  observations: 32
+#&gt;  predictors:   3
+#&gt; ------
+#&gt;             Median MAD_SD
+#&gt; (Intercept) 20.1    0.8
+#&gt; wt_c        -5.3    0.8
+#&gt; ammanual     0.0    1.6
+#&gt;
+#&gt; Auxiliary parameter(s):
+#&gt;       Median MAD_SD
+#&gt; sigma 3.1    0.4</code></pre>
+
+<p>Read this honestly. The weight slope is about -5.3 mpg per 1,000 pounds, tightly estimated. But look at the transmission term, <code>ammanual</code>: its posterior median is 0.0 with a spread of 1.6. Once the model already knows a car's weight, adding "is it manual?" does essentially nothing. The coefficient table shows that once weight is in the model, transmission does not matter.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The fit runs locally, the checks run here.</strong> The <code>stan_glm()</code> call above needs a local R session with rstanarm installed. Every check in the sections below is written in base R so you can run it in your browser. To do that we <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> the fitted posterior by its <a class="auto-link" href="Mean-vs-Median-SD-vs-IQR.html" title="Mean vs Median, SD vs IQR: Choosing Center and Spread">center and spread</a> and draw from that summary, which for a model like this is an excellent stand-in for the full posterior.</div></div>
+
+<p>A single number is not a Bayesian answer. The whole appeal of the Bayesian approach is that it gives you a full distribution for each parameter, so you can state a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a>: a range that contains the parameter with a stated probability. Let us draw from the fitted posterior and read off the 90% credible interval for the transmission effect. The four numbers in <code>mu_a</code> are the posterior means of the three coefficients plus log sigma, and <code>S_a</code> is their <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>; both are summaries of the local fit above.</p>
+
+<div class="webr-container" data-block-title="Read a credible interval from the posterior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read a credible interval from the posterior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+# posterior means and covariance of (intercept, wt_c, ammanual, log sigma)
+mu_a &lt;- c(20.087, -5.306, 0.039, 1.151)
+S_a  &lt;- matrix(c( 0.707, -0.341, -0.940,  0.000,
+                 -0.341,  0.623,  0.842,  0.004,
+                 -0.940,  0.842,  2.383,  0.006,
+                  0.000,  0.004,  0.006,  0.018), 4, 4, byrow = TRUE)
+
+set.seed(11)
+tha &lt;- mvrnorm(4000, mu_a, S_a)          # 4000 posterior draws
+round(quantile(tha[, 3], c(0.05, 0.95)), 2)   # column 3 = transmission effect
+#&gt;    5%   95%
+#&gt; -2.49  2.53</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 90% credible interval for the transmission effect runs from about -2.5 to +2.5 mpg. It straddles zero, and it is roughly symmetric around zero. In plain language: after accounting for weight, this model sees no evidence that transmission changes fuel economy in either direction. If you stopped here, you would report "transmission does not matter" and move on. Hold that thought, because it is wrong, and the workflow is about to show you why.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the same posterior draws in <code>tha</code>, estimate the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the transmission effect is positive.</p>
+<div class="webr-container" data-block-title="Your turn: posterior probability the effect is positive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: posterior probability the effect is positive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># tha[, 3] holds 4000 posterior draws of the transmission effect.
+# Compute the fraction that are greater than 0, rounded to 2 decimals.
+ex_prob &lt;- NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Posterior probability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Posterior probability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(tha[, 3] &gt; 0), 2)
+#&gt; [1] 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The probability is about 0.5, a coin flip. The posterior is centered on zero, so the model genuinely cannot tell whether the effect is positive or negative. That is what "no effect" looks like in a Bayesian summary.</p>
+
+</details>
+</section>
+
+<h2>Step 3: Did the sampler actually converge?</h2>
+
+<p>Before you trust a single number from a fitted model, you have to know the computation worked. <code>stan_glm()</code> does not solve the posterior with algebra; it explores it with a <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov chain</a> that wanders through parameter space. If that wandering has not settled down, the summaries are garbage no matter how sensible they look.</p>
+
+<p>Two numbers tell you whether it settled. R-hat compares the several chains the sampler runs in parallel: if they have all converged to the same distribution, R-hat sits at 1.00, and anything above about 1.01 is a warning. The effective <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a> (<code>n_eff</code>) estimates how many truly independent draws you have; you want it in the hundreds or thousands, not the tens. Here they are for our additive fit.</p>
+
+<pre><code class="language-r">diag &lt;- summary(fit_add)[c(&quot;(Intercept)&quot;, &quot;wt_c&quot;, &quot;ammanual&quot;, &quot;sigma&quot;),
+                         c(&quot;Rhat&quot;, &quot;n_eff&quot;)]
+round(diag, 2)
+#&gt;             Rhat n_eff
+#&gt; (Intercept)    1  2223
+#&gt; wt_c           1  2133
+#&gt; ammanual       1  2268
+#&gt; sigma          1  2413</code></pre>
+
+<p>Every R-hat is 1.00 and every effective sample size is over 2,000. The sampler converged and gave us plenty of independent information about each parameter. This is the step people skip, and skipping it is how wrong conclusions get published. For the full battery of convergence diagnostics, including trace plots that show the chains overlapping like a fuzzy caterpillar, see the companion tutorial on MCMC diagnostics.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never read coefficients from a model you have not diagnosed.</strong> A high R-hat means the chains disagree about the answer, so the <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">posterior summary</a> is meaningless. Check R-hat and effective sample size first, every time, before you interpret anything.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Imagine a model reports these four R-hat values, one per chain summary. Decide whether they all pass the usual threshold of being below 1.01.</p>
+<div class="webr-container" data-block-title="Your turn: judge these R-hat values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: judge these R-hat values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rhat &lt;- c(1.00, 1.00, 1.35, 1.00)
+# Write one line that returns TRUE only if every value is below 1.01.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="R-hat check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">R-hat check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rhat &lt;- c(1.00, 1.00, 1.35, 1.00)
+all(rhat &lt; 1.01)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The third value, 1.35, is far above 1.01, so the check returns FALSE. One bad chain is enough to reject the whole fit. You would need to rerun the sampler, often with more iterations or a reparameterized model, before trusting any result.</p>
+
+</details>
+</section>
+
+<h2>Step 4: Does the model reproduce the data?</h2>
+
+<p>Here is the heart of the workflow. A model can converge perfectly and still be wrong, because converging only means the computation matched the model you specified, not that the model matches reality. A posterior predictive check closes that gap. It asks: if this fitted model is true, what data would it generate, and does that fake data look like the data we actually saw?</p>
+
+<p>The recipe is simple. Draw parameters from the posterior, use them to simulate a replicated dataset the same size as the real one, compute some summary statistic on that replicate, and repeat thousands of times. Then compare the real data's statistic to the cloud of replicated statistics. Pick a statistic that targets what you care about. Our question is about group-specific slopes, so the natural statistic is the gap between the manual weight slope and the automatic weight slope.</p>
+
+<p>$$ T(y) = \text{slope}_{\text{manual}} - \text{slope}_{\text{automatic}} $$</p>
+
+<p>We already know the observed gap is about -5.3 (manuals lose mpg roughly 5.3 faster per 1,000 pounds). Let us simulate that gap from the additive model many times and see where the observed value falls.</p>
+
+<div class="webr-container" data-block-title="Posterior predictive check on the additive model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Posterior predictive check on the additive model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># test statistic: manual weight slope minus automatic weight slope
+slope_gap &lt;- function(y) {
+  a &lt;- coef(lm(y[mt$manual == 0] ~ mt$wt_c[mt$manual == 0]))[2]
+  m &lt;- coef(lm(y[mt$manual == 1] ~ mt$wt_c[mt$manual == 1]))[2]
+  as.numeric(m - a)
+}
+T_obs &lt;- slope_gap(mt$mpg)
+round(T_obs, 2)
+#&gt; [1] -5.3
+
+n &lt;- nrow(mt)
+set.seed(11)
+Trep_add &lt;- numeric(4000)
+for (d in 1:4000) {
+  mu &lt;- tha[d, 1] + tha[d, 2] * mt$wt_c + tha[d, 3] * mt$manual
+  Trep_add[d] &lt;- slope_gap(rnorm(n, mu, exp(tha[d, 4])))
+}
+hist(Trep_add, breaks = 30, main = &quot;Additive model: replicated slope gaps&quot;,
+     xlab = &quot;manual slope - automatic slope&quot;)
+abline(v = T_obs, col = &quot;red&quot;, lwd = 2)   # the observed gap
+round(mean(Trep_add), 2)
+#&gt; [1] -0.01
+round(mean(Trep_add &lt;= T_obs), 3)
+#&gt; [1] 0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what happened. The additive model replicates slope gaps centered on zero, because it forces both groups to share one slope, so any gap it produces is pure noise. The observed gap of -5.3 sits far out in the left tail. The fraction of replicates as extreme as the data, a posterior predictive p-value, is 0.002. That is a clear failure: the model almost never generates data with a slope gap like the one we actually see.</p>
+
+<p><img src="screenshots/Bayesian-Workflow-in-R-ppc-decision.webp" alt="How a posterior predictive check decides" class="img-responsive img-zoomable" loading="lazy" width="1904" height="594" /></p>
+
+<p><em>Figure 2: A posterior predictive check compares the data to what the fitted model would generate, and the verdict decides whether you revise.</em></p>
+
+<p>This is the decision point of the loop. The coefficient table in step 2 said transmission does not matter. The check says the model that assumes transmission does not matter cannot reproduce the data. When the summary and the check disagree, the check wins, because the check is looking at the actual data-generating behavior of the model, not just one parameter in isolation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A posterior predictive check catches failures that coefficient tables hide.</strong> The transmission coefficient looked like zero, but the model still could not reproduce the group-specific slopes. Checking predictions, not just reading estimates, is what turns a fit into a diagnosis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The p-value above counted replicates at least as low as the observed gap. Compute a two-sided version instead: the fraction of replicated gaps whose size (absolute value) is at least as large as the observed size.</p>
+<div class="webr-container" data-block-title="Your turn: a two-sided predictive p-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a two-sided predictive p-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Trep_add holds 4000 replicated slope gaps; T_obs is the observed gap.
+# Compute the fraction with abs(replicate) &gt;= abs(T_obs), rounded to 3 decimals.
+ex_pval &lt;- NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-sided p-value solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-sided p-value solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(abs(Trep_add) &gt;= abs(T_obs)), 3)
+#&gt; [1] 0.003</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even counting extremes in both directions, only about 0.3% of replicates are as far from zero as the real data. The additive model is decisively rejected by this check.</p>
+
+</details>
+</section>
+
+<h2>Step 5: How do you revise the model when a check fails?</h2>
+
+<p>A failed check is not a dead end; it is an instruction. The check told us the additive model cannot produce different slopes for different transmissions, so we revise the model to allow exactly that. We add an interaction between weight and transmission, written <code>mpg ~ wt_c * am</code>. The interaction term lets each group have its own weight slope.</p>
+
+<p>$$ \text{mpg}_i = \beta_0 + \beta_{\text{wt}}\, \text{wt\_c}_i + \beta_{\text{am}}\, \text{manual}_i + \beta_{\text{wt:am}}\, (\text{wt\_c}_i \times \text{manual}_i) + \varepsilon_i $$</p>
+
+<p>The new coefficient, the one multiplying weight-times-manual, is the extra slope manual cars get on top of the automatic slope. Let us refit and read it.</p>
+
+<pre><code class="language-r">fit_int &lt;- stan_glm(mpg ~ wt_c * am, data = mt,
+                    prior = normal(0, 10), prior_intercept = normal(20, 10),
+                    prior_aux = exponential(0.2),
+                    seed = 2027, refresh = 0)
+print(fit_int)
+#&gt; stan_glm
+#&gt;  family:       gaussian [identity]
+#&gt;  formula:      mpg ~ wt_c * am
+#&gt;  observations: 32
+#&gt;  predictors:   4
+#&gt; ------
+#&gt;               Median MAD_SD
+#&gt; (Intercept)   19.2    0.7
+#&gt; wt_c          -3.8    0.8
+#&gt; ammanual      -2.1    1.4
+#&gt; wt_c:ammanual -5.2    1.5
+#&gt;
+#&gt; Auxiliary parameter(s):
+#&gt;       Median MAD_SD
+#&gt; sigma 2.6    0.4</code></pre>
+
+<p>Now the story changes. The automatic weight slope is about -3.8, and the interaction term <code>wt_c:ammanual</code> is about -5.2, well separated from zero given its spread of 1.5. Manual cars lose roughly 5.2 mpg more per 1,000 pounds than automatics, which recovers the raw -3.8-versus-9.1 gap we saw at the very start. The transmission effect the additive model missed was never about the intercept; it was about the slope.</p>
+
+<p>But a smaller residual noise (sigma dropped from 3.1 to 2.6) and a plausible-looking coefficient are not proof. We revised because a check failed, so we are only done when the same check passes. Let us rerun the identical posterior predictive check on the interaction model.</p>
+
+<div class="webr-container" data-block-title="Re-run the same check on the revised model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Re-run the same check on the revised model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># posterior means and covariance for the interaction model
+mu_i &lt;- c(19.225, -3.779, -2.109, -5.242, 0.976)
+S_i  &lt;- matrix(c( 0.544, -0.331, -0.550,  0.309,  0.000,
+                 -0.331,  0.630,  0.321, -0.617,  0.000,
+                 -0.550,  0.321,  2.202,  1.037, -0.005,
+                  0.309, -0.617,  1.037,  2.258, -0.004,
+                  0.000,  0.000, -0.005, -0.004,  0.019), 5, 5, byrow = TRUE)
+
+set.seed(11)
+thi &lt;- mvrnorm(4000, mu_i, S_i)
+Trep_int &lt;- numeric(4000)
+for (d in 1:4000) {
+  mu &lt;- thi[d, 1] + thi[d, 2] * mt$wt_c + thi[d, 3] * mt$manual +
+        thi[d, 4] * mt$wt_c * mt$manual
+  Trep_int[d] &lt;- slope_gap(rnorm(n, mu, exp(thi[d, 5])))
+}
+round(mean(Trep_int), 2)
+#&gt; [1] -5.26
+round(mean(Trep_int &lt;= T_obs), 3)
+#&gt; [1] 0.489</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The replicated slope gaps now center on -5.26, right where the observed -5.3 lives, and the posterior predictive p-value is 0.489, almost exactly one half. The observed data is now completely typical of what the model generates. The revision worked, and we can prove it with the same check that rejected the old model. That is the loop closing: a failed check drove a specific change, and the change fixed the specific failure.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The manual weight slope equals the automatic slope plus the interaction term, that is <code>thi[, 2] + thi[, 4]</code>. Report its posterior median and 90% credible interval, rounded to one decimal.</p>
+<div class="webr-container" data-block-title="Your turn: the manual weight slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the manual weight slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add the automatic slope (column 2) and the interaction (column 4),
+# then take the 5%, 50%, and 95% quantiles.
+ex_slope &lt;- NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Manual slope solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(quantile(thi[, 2] + thi[, 4], c(0.05, 0.5, 0.95)), 1)
+#&gt;   5%   50%   95%
+#&gt; -11.1  -9.1  -7.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The manual weight slope has a median of -9.1, matching the raw slope from step 1, with a 90% credible interval from -11.1 to -7.0 that stays well below the automatic slope of -3.8. The two groups really do respond to weight differently.</p>
+
+</details>
+</section>
+
+<h2>How sensitive are your conclusions to the prior?</h2>
+
+<p>You chose those priors. A careful reader will wonder whether your conclusion is a fact about the data or an artifact of that choice. A <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">sensitivity analysis</a> answers the question directly: refit the model under a much wider prior and a much tighter one, and see whether the conclusion moves. If the answer barely changes, the data is doing the talking. If it swings, you must report that your result depends on your assumptions.</p>
+
+<p>We refit the interaction model three ways: a skeptical prior that strongly doubts large effects (Normal centered at 0 with standard deviation 2), our weakly-informative baseline (standard deviation 10), and a nearly <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">flat prior</a> (standard deviation 50). Then we compare the posterior for the interaction term.</p>
+
+<pre><code class="language-r">fit_tight &lt;- stan_glm(mpg ~ wt_c * am, data = mt, prior = normal(0, 2),
+                      prior_intercept = normal(20, 10), prior_aux = exponential(0.2),
+                      seed = 2027, refresh = 0)
+fit_wide  &lt;- stan_glm(mpg ~ wt_c * am, data = mt, prior = normal(0, 50),
+                      prior_intercept = normal(20, 10), prior_aux = exponential(0.2),
+                      seed = 2027, refresh = 0)
+
+pick &lt;- function(f) {
+  x &lt;- as.matrix(f)[, &quot;wt_c:ammanual&quot;]
+  round(c(median = median(x), q05 = quantile(x, 0.05), q95 = quantile(x, 0.95)), 2)
+}
+rbind(tight = pick(fit_tight), base = pick(fit_int), wide = pick(fit_wide))
+#&gt;       median q05.5% q95.95%
+#&gt; tight  -3.67  -5.60   -1.64
+#&gt; base   -5.24  -7.73   -2.86
+#&gt; wide   -5.28  -7.73   -2.78</code></pre>
+
+<p>Read the three rows. Under the skeptical prior the interaction shrinks toward zero, from -5.2 down to -3.7, exactly what a skeptical prior is supposed to do. But even then its 90% credible interval, -5.6 to -1.6, stays entirely below zero. The wide prior is almost identical to the baseline. Across an aggressive range of prior beliefs, the sign and the significance of the effect never change; only the magnitude wobbles a little under the most skeptical prior. That is a conclusion that holds up, and being able to say so honestly is worth more than any single point estimate.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the range, not just the winner.</strong> When a skeptical prior shrinks an effect but keeps its sign and interval on the same side of zero, say exactly that. A conclusion that survives a genuinely skeptical prior is far more convincing than one you only get with a prior tuned to produce it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the table, the three 90% upper bounds are -1.64, -2.86, and -2.78. Confirm that all three intervals exclude zero.</p>
+<div class="webr-container" data-block-title="Your turn: do all three intervals exclude zero?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: do all three intervals exclude zero?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hi &lt;- c(-1.64, -2.86, -2.78)   # the 95% upper bounds under the three priors
+# Return TRUE only if every upper bound is below 0.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Interval check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interval check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hi &lt;- c(-1.64, -2.86, -2.78)
+all(hi &lt; 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every upper bound sits below zero, so under all three priors the interaction is credibly negative. The conclusion does not hinge on the prior.</p>
+
+</details>
+</section>
+
+<h2>How do you report a Bayesian analysis honestly?</h2>
+
+<p>An honest Bayesian write-up shows its work at every step of the loop. It states the priors and why they are reasonable, confirms the sampler converged, presents the posterior predictive checks that the final model passes, reports a sensitivity analysis, and gives uncertainty as intervals rather than bare point estimates. A reader should be able to see not just your answer but every place the model could have failed and did not.</p>
+
+<p>One more tool belongs in the report: a fair comparison of the models you considered. <a class="auto-link" href="Compare-Bayesian-Models-in-R.html" title="Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits">Leave-one-out cross-validation</a> (LOO) estimates how well each model predicts data it has not seen, which is a better basis for comparison than in-sample fit. It is a large topic; here we use it only to confirm that the revision earned its extra complexity.</p>
+
+<pre><code class="language-r">loo_add &lt;- loo(fit_add)
+loo_int &lt;- loo(fit_int)
+loo_compare(loo_add, loo_int)
+#&gt;         elpd_diff se_diff
+#&gt; fit_int  0.0       0.0
+#&gt; fit_add -5.5       2.4</code></pre>
+
+<p>The interaction model (<code>fit_int</code>) sits at the top, and the additive model predicts about 5.5 units worse, with a standard error of 2.4 on that difference. The gap is a little over two standard errors, so LOO agrees with the predictive check: the interaction model is the better description, and its extra parameter pays for itself. With only 32 cars this comparison is suggestive rather than decisive, which is itself worth stating in a report.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>LOO ranks models; it does not bless them.</strong> A model can win a LOO comparison and still fail a posterior predictive check. Use predictive checks to decide whether a model is adequate, and use LOO to choose among adequate models. They answer different questions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The LOO difference is 5.5 with a standard error of 2.4. Compute how many standard errors that is, rounded to one decimal.</p>
+<div class="webr-container" data-block-title="Your turn: express the LOO gap in standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: express the LOO gap in standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Divide the difference by its standard error.
+ex_se_units &lt;- NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="LOO standard-error solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LOO standard-error solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(5.5 / 2.4, 1)
+#&gt; [1] 2.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The additive model predicts about 2.3 standard errors worse. A common rule of thumb treats a gap beyond about two standard errors as meaningful, so this comparison mildly favors the interaction model, consistent with everything else the workflow found.</p>
+
+</details>
+</section>
+
+<h3>The complete workflow in one script</h3>
+
+<p>Here is the entire loop in one place: fit the simple model, check it, revise when the check fails, then confirm the fix works. This block uses the real posterior draws from rstanarm (through <code>posterior_predict()</code>), so it complements the browser-friendly approximations above and gives the same verdict. Run it in a local R session with rstanarm installed.</p>
+
+<pre><code class="language-r">library(rstanarm)
+cars &lt;- mtcars
+cars$am   &lt;- factor(cars$am, labels = c(&quot;automatic&quot;, &quot;manual&quot;))
+cars$wt_c &lt;- cars$wt - mean(cars$wt)
+
+gap &lt;- function(y, d) {
+  a &lt;- coef(lm(y[d$am == &quot;automatic&quot;] ~ d$wt_c[d$am == &quot;automatic&quot;]))[2]
+  m &lt;- coef(lm(y[d$am == &quot;manual&quot;]    ~ d$wt_c[d$am == &quot;manual&quot;]))[2]
+  as.numeric(m - a)
+}
+obs &lt;- gap(cars$mpg, cars)
+
+# Step 1-2: priors + fit the simple additive model
+m_add &lt;- stan_glm(mpg ~ wt_c + am, data = cars, prior = normal(0, 10),
+                  prior_intercept = normal(20, 10), prior_aux = exponential(0.2),
+                  seed = 2027, refresh = 0)
+
+# Step 4: posterior predictive check on the group-slope gap
+set.seed(5)
+rep_add &lt;- apply(posterior_predict(m_add, draws = 2000), 1, gap, d = cars)
+cat(&quot;additive model check p-value:&quot;, round(mean(rep_add &lt;= obs), 2), &quot;\n&quot;)
+#&gt; additive model check p-value: 0
+
+# Step 5: revise (add interaction) and re-check
+m_int &lt;- stan_glm(mpg ~ wt_c * am, data = cars, prior = normal(0, 10),
+                  prior_intercept = normal(20, 10), prior_aux = exponential(0.2),
+                  seed = 2027, refresh = 0)
+set.seed(5)
+rep_int &lt;- apply(posterior_predict(m_int, draws = 2000), 1, gap, d = cars)
+cat(&quot;revised model check p-value:&quot;, round(mean(rep_int &lt;= obs), 2), &quot;\n&quot;)
+#&gt; revised model check p-value: 0.49</code></pre>
+
+<p>The simple model fails the check with a p-value of essentially 0; the revised model passes with a p-value near 0.5. That is the workflow in miniature: propose, check, revise, confirm.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several steps of the workflow. Each runs in your browser using the posterior draws you built above (<code>tha</code> for the additive model, <code>thi</code> for the interaction model). Use fresh variable names so you do not overwrite the tutorial's objects.</p>
+
+<h3>Exercise 1: Summarize and probe the interaction effect</h3>
+
+<p>Using the interaction draws in <code>thi</code>, report the 90% credible interval for the extra weight penalty manual cars pay (column 4, <code>wt_c:ammanual</code>), and the posterior probability that this penalty is steeper than -3 mpg per 1,000 pounds.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: interval and tail probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: interval and tail probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># thi[, 4] holds 4000 draws of the interaction term.
+# 1) 90% credible interval, rounded to 1 decimal
+# 2) posterior probability the draw is less than -3, rounded to 2 decimals
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(quantile(thi[, 4], c(0.05, 0.95)), 1)
+#&gt;   5%  95%
+#&gt; -7.7 -2.9
+round(mean(thi[, 4] &lt; -3), 2)
+#&gt; [1] 0.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 90% interval runs from -7.7 to -2.9, and there is a 94% posterior probability the manual penalty is steeper than -3. This is how you turn a fitted coefficient into a statement a stakeholder can act on.</p>
+
+</details>
+
+<h3>Exercise 2: Build a reusable posterior predictive check</h3>
+
+<p>Write a function that runs a posterior predictive check for any <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a>, then use it to check whether the interaction model reproduces the maximum mpg in the data. A good model should generate replicates whose maximum is similar to the observed maximum.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: a general PPC function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: a general PPC function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the body so ppc_stat() returns the fraction of replicated datasets
+# whose statistic is at least as large as the observed statistic.
+# Then call it with stat = max on the interaction draws thi.
+ppc_stat &lt;- function(draws, stat) {
+  # your code here
+}
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ppc_stat &lt;- function(draws, stat) {
+  reps &lt;- numeric(nrow(draws))
+  for (d in seq_len(nrow(draws))) {
+    mu &lt;- draws[d, 1] + draws[d, 2] * mt$wt_c + draws[d, 3] * mt$manual +
+          draws[d, 4] * mt$wt_c * mt$manual
+    reps[d] &lt;- stat(rnorm(n, mu, exp(draws[d, 5])))
+  }
+  mean(reps &gt;= stat(mt$mpg))
+}
+set.seed(3)
+round(ppc_stat(thi, max), 2)
+#&gt; [1] 0.49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value is about 0.49, so the observed maximum is completely typical of what the interaction model generates. A model can fail one check and pass another; a thorough workflow tries several statistics, not just one.</p>
+
+</details>
+
+<h3>Exercise 3: Interpret the effect at an average-weight car</h3>
+
+<p>The interaction changed the story about transmission. Using <code>thi</code>, compute the posterior probability that a manual car gets higher mpg than an automatic car of average weight (weight centered at zero). At that point the difference is just the <code>ammanual</code> term, column 3. Then say in one sentence what this means for the old claim that "manuals get better mileage."</p>
+
+<div class="webr-container" data-block-title="Exercise 3: manuals versus automatics at average weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: manuals versus automatics at average weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># At average weight, manual minus automatic mpg = thi[, 3].
+# Compute the posterior probability that this is positive, rounded to 2 decimals.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(thi[, 3] &gt; 0), 2)
+#&gt; [1] 0.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> There is only about an 8% chance a manual beats an automatic at average weight; if anything a manual is slightly worse. Once weight is in the model, the old "manuals get better mileage" story turns out to be mostly "manuals are lighter." The interaction did not just improve the fit; it corrected the interpretation.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h5>Is the Bayesian workflow the same as just fitting a Bayesian model?</h5>
+
+<p>No. Fitting is only step 2. The workflow is the full loop of setting and checking priors, fitting, diagnosing the sampler, checking predictions against data, and revising. The discipline lives in the checking and revising, not in the fit.</p>
+
+<h5>What is the difference between a prior predictive check and a posterior predictive check?</h5>
+
+<p>A prior predictive check simulates data from the priors alone, before fitting, to catch absurd assumptions early. A posterior predictive check simulates data from the fitted model, after seeing the data, to find where the model fails to reproduce reality. One guards the input, the other tests the output.</p>
+
+<h5>Is a posterior predictive p-value the same as a frequentist p-value?</h5>
+
+<p>No. A posterior predictive p-value measures how typical your observed data is among datasets the fitted model would generate. It is a model-checking tool rather than a <a class="auto-link" href="First-Hypothesis-Test-Three-Ways-in-R.html" title="Your First Hypothesis Test in R: Three Ways">hypothesis test</a>, and it has no fixed 0.05 threshold. Values near 0 or 1 flag a model that cannot reproduce the chosen statistic; values in the middle mean the model reproduces it well.</p>
+
+<h5>How many times should I go around the loop?</h5>
+
+<p>Until the checks you care about pass and a sensitivity analysis shows your conclusions are stable. In practice that is often two or three iterations. Stop when new revisions stop changing the checks that matter, not when the model runs without error.</p>
+
+<h5>Do I always need rstanarm, or can I use brms or Stan?</h5>
+
+<p>Any engine works. This tutorial uses rstanarm because it fits standard regressions with one function call, but the same five steps apply to brms and to raw Stan. The workflow is a discipline, not a package.</p>
+
+<h5>The tutorial fit models with rstanarm but ran checks in base R. Why?</h5>
+
+<p>The model fitting needs a local R session with rstanarm installed. The checks are written in base R so you can run them here in your browser, drawing from a compact summary of the fitted posterior. For linear models like this one, that summary behaves just like the full posterior, which is why the browser checks and the local <code>posterior_predict()</code> version give the same verdict.</p>
+
+<h2>Summary</h2>
+
+<p>The Bayesian workflow turns a single model into a defensible conclusion by looping through five steps and revising whenever a check fails. On the <code>mtcars</code> question, the loop moved us from a model that wrongly declared transmission irrelevant to one that correctly captured a weight-by-transmission interaction, and it did so because a posterior predictive check forced the revision.</p>
+
+<p><img src="screenshots/Bayesian-Workflow-in-R-recap-mindmap.webp" alt="The five steps at a glance" class="img-responsive img-zoomable" loading="lazy" width="1918" height="984" /></p>
+
+<p><em>Figure 3: Each step and the tool it produces, at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Question it answers</th>
+<th>Main tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Set priors</td>
+<td>Could this prior generate sensible data?</td>
+<td>Prior predictive check</td>
+</tr>
+<tr>
+<td>2. Fit</td>
+<td>What does the data say about the parameters?</td>
+<td>stan_glm and credible intervals</td>
+</tr>
+<tr>
+<td>3. Diagnose</td>
+<td>Did the computation actually work?</td>
+<td>R-hat and effective sample size</td>
+</tr>
+<tr>
+<td>4. Check</td>
+<td>Can the model reproduce the data?</td>
+<td>Posterior predictive check</td>
+</tr>
+<tr>
+<td>5. Revise</td>
+<td>Does a targeted change fix the failure?</td>
+<td>Refit and re-check</td>
+</tr>
+<tr>
+<td>Report</td>
+<td>Is the conclusion robust and honest?</td>
+<td>Sensitivity analysis and LOO</td>
+</tr>
+</tbody>
+</table>
+
+<p>The lesson that outlasts this example: a coefficient table can hide a model's failures, and only checking predictions reveals them. Set priors you can defend, always diagnose before interpreting, let the checks drive your revisions, and report the sensitivity of your conclusions. That loop is what makes a Bayesian analysis trustworthy.</p>
+
+<h5>Continue learning</h5>
+
+<ul>
+
+<li><a href="Prior-Predictive-Checks-in-R.html">Prior Predictive Checks in R</a>: go deeper on step 1, including how to elicit and calibrate priors before fitting.</li>
+
+<li><a href="Posterior-Predictive-Checks-in-R.html">Posterior Predictive Checks in R</a>: more test statistics and graphical checks for step 4.</li>
+
+<li><a href="MCMC-Diagnostics-in-R.html">MCMC Diagnostics in R</a>: the full set of convergence checks behind step 3, including trace plots and divergences.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gelman, A., Vehtari, A., Simpson, D., Margossian, C. C., Carpenter, B., Yao, Y., Kennedy, L., Gabry, J., Bürkner, P.-C., and Modrák, M. Bayesian Workflow. arXiv:2011.01808 (2020). <a href="https://arxiv.org/abs/2011.01808">Link</a> - the paper that named and organized the five-step loop this tutorial teaches.</li>
+
+<li>McElreath, R. Statistical Rethinking: A Bayesian Course with Examples in R and Stan, 2nd Edition. CRC Press (2020). <a href="https://xcelab.net/rm/statistical-rethinking/">Link</a> - a ground-up Bayesian course that builds the same modeling habits with worked R and Stan examples.</li>
+
+<li>rstanarm documentation: How to Use the rstanarm Package. <a href="https://mc-stan.org/rstanarm/articles/rstanarm.html">Link</a> - the package reference for stan_glm() and the prior arguments used throughout.</li>
+
+<li>Gabry, J., Simpson, D., Vehtari, A., Betancourt, M., and Gelman, A. Visualization in Bayesian workflow. Journal of the Royal Statistical Society A (2019). <a href="https://mc-stan.org/bayesplot/articles/graphical-ppcs.html">Link</a> - shows the graphical prior and posterior predictive checks behind steps 1 and 4.</li>
+
+<li>Vehtari, A., Gelman, A., and Gabry, J. Practical Bayesian model evaluation using leave-one-out cross-validation and WAIC. Statistics and Computing (2017). <a href="https://mc-stan.org/loo/articles/loo2-example.html">Link</a> - the method behind loo() and loo_compare() and how to read elpd_diff.</li>
+
+<li>Muth, C., Oravecz, Z., and Gabry, J. User-friendly Bayesian regression modeling: A tutorial with rstanarm and shinystan. The Quantitative Methods for Psychology (2018). <a href="https://www.tqmp.org/RegularArticles/vol14-2/p099/p099.pdf">Link</a> - a gentle applied walkthrough of Bayesian regression with rstanarm.</li>
+
+<li>Stan Development Team. Posterior and Prior Predictive Checks (Stan User's Guide). <a href="https://mc-stan.org/docs/stan-users-guide/posterior-predictive-checks.html">Link</a> - the reference explanation of prior and posterior predictive checks.</li>
+
+</ol>
+
+{% endraw %}
