@@ -1,0 +1,1243 @@
+---
+title: "Capstone: A Survey Analysis End to End in R"
+description: "Analyze survey data end to end in R: post-stratification weighting, Likert diverging bars, Cronbach's alpha, group tests with effect sizes, and the report."
+keywords: "survey analysis in R, post-stratification weighting, Likert scale analysis R, Cronbach's alpha R, diverging stacked bar R, survey response rate, effect size R, employee engagement survey R"
+mathjax: true
+webr: true
+curriculum_id: "ST2-13.1"
+post_type: "C"
+auto_link_terms: "survey analysis in R|survey data analysis|analyzing survey data|post-stratification|post-stratification weighting|survey weighting|Likert scale analysis|Likert data|diverging stacked bar|top-two-box|survey response rate|employee engagement survey|weighting survey data|survey capstone"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Survey Analysis Capstone"
+sidebar_order: "180"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A survey analysis is not one test, it is a pipeline. You recap the design, explore the responses, weight them so they reflect the real population, summarise Likert items without misleading anyone, check whether the scale holds together, compare groups with honest effect sizes, and hand a leader a report they can act on. This capstone walks the whole pipeline on one reproducible employee-engagement survey, and it builds the weights, the reliability score, and the effect sizes by hand so you can see exactly what each number means.</p>
+
+<h2>What did this survey measure, and who actually answered it?</h2>
+
+<p>Picture a company of 1,000 people. HR emails an engagement survey to everyone, and about 600 reply. That gap is the first trap of survey work: the people who reply are rarely a fair copy of the people who were asked. Before you analyze a single answer, you need to know who was invited, who answered, and how the two differ. We rebuild the whole survey from a known population so that every figure on this page is reproducible and you can trust where it came from. Everything here uses base R plus a little dplyr and tidyr, all stated as we go.</p>
+
+<p>Start with the sampling frame: the full workforce, split by department, with the headcount HR keeps on file. These department counts are our known population margins, and they will matter a lot once we weight.</p>
+
+<div class="webr-container" data-block-title="The workforce by department">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The workforce by department</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
+dept_levels &lt;- c(&quot;Engineering&quot;, &quot;Sales&quot;, &quot;Support&quot;, &quot;Operations&quot;, &quot;People&quot;)
+population &lt;- data.frame(
+  department = dept_levels,
+  headcount  = c(400, 250, 200, 100, 50)
+)
+population$pop_share &lt;- population$headcount / sum(population$headcount)
+population
+#&gt;    department headcount pop_share
+#&gt; 1 Engineering       400      0.40
+#&gt; 2       Sales       250      0.25
+#&gt; 3     Support       200      0.20
+#&gt; 4  Operations       100      0.10
+#&gt; 5      People        50      0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Engineering is 40% of the company, People (the HR team) just 5%. Hold onto those shares. If the survey respondents do not match them, our headline numbers will quietly tilt toward whichever department shows up the most.</p>
+
+<p><img src="screenshots/Survey-Analysis-Capstone-in-R-workflow.webp" alt="The seven stages of an end-to-end survey analysis." class="img-responsive img-zoomable" loading="lazy" width="2248" height="242" /></p>
+
+<p><em>Figure 1: The seven stages of an end-to-end survey analysis.</em></p>
+
+<p>Now simulate who responded. In real life you cannot choose the response pattern, so we bake in a realistic one: engaged departments answer more often. Engineering and the People team reply at high rates, Sales replies at a low rate. We draw a yes/no response for every one of the 1,000 employees using each department's response probability.</p>
+
+<div class="webr-container" data-block-title="Simulate who responded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate who responded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2027)
+resp_rate &lt;- c(Engineering = 0.75, Sales = 0.40, Support = 0.60,
+               Operations = 0.55, People = 0.80)
+employees &lt;- data.frame(department = rep(dept_levels, population$headcount))
+employees$responded &lt;- rbinom(nrow(employees), 1, resp_rate[employees$department])
+resp &lt;- employees[employees$responded == 1, , drop = FALSE]
+n &lt;- nrow(resp)
+cat(&quot;Invited:&quot;, nrow(employees), &quot; Responded:&quot;, n, &quot;\n&quot;)
+#&gt; Invited: 1000  Responded: 609</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>609 people answered. The <code>rbinom()</code> call flips a weighted coin for each employee, with the weight set by their department's response rate. Because those rates differ, the mix of respondents is already skewed away from the true workforce, and we will measure exactly how much in a moment.</p>
+
+<p>Next, give each respondent a work arrangement (on-site, hybrid, or remote) and their actual answers. Behind the scenes each person has a hidden level of engagement driven by their department and their work mode, and each of six survey questions turns that hidden level into a 1-to-5 rating with a little noise. You do not need to follow the simulation line by line; the point is that we now hold a realistic answer sheet whose truth we happen to know.</p>
+
+<div class="webr-container" data-block-title="Build the six Likert items">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the six Likert items</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">resp$work_mode &lt;- sample(c(&quot;On-site&quot;, &quot;Hybrid&quot;, &quot;Remote&quot;), n,
+                         replace = TRUE, prob = c(0.40, 0.35, 0.25))
+mode_eff &lt;- c(`On-site` = -0.30, Hybrid = 0.00, Remote = 0.30)
+dept_eff &lt;- c(Engineering = 0.45, Sales = -0.55, Support = -0.05,
+              Operations = -0.25, People = 0.35)
+latent &lt;- dept_eff[resp$department] + mode_eff[resp$work_mode] + rnorm(n, 0, 0.80)
+
+item_diff &lt;- c(valued = 0.10, growth = -0.35, recommend = 0.25,
+               manager = 0.30, tools = -0.10, voice = -0.30)
+cuts &lt;- c(-Inf, -1.1, -0.35, 0.45, 1.15, Inf)
+make_item &lt;- function(diff) as.integer(cut(latent + diff + rnorm(n, 0, 0.60),
+                                           breaks = cuts, labels = FALSE))
+items &lt;- sapply(item_diff, make_item)
+
+survey &lt;- cbind(
+  data.frame(respondent_id = seq_len(n), department = resp$department,
+             work_mode = resp$work_mode),
+  as.data.frame(items)
+)
+item_names &lt;- names(item_diff)
+dim(survey)
+#&gt; [1] 609   9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each of the six columns <code>valued</code>, <code>growth</code>, <code>recommend</code>, <code>manager</code>, <code>tools</code>, and <code>voice</code> is one survey question answered on a 1-to-5 scale, where 1 means "strongly disagree" and 5 means "strongly agree". The <code>respondent_id</code>, <code>department</code>, and <code>work_mode</code> columns describe who gave each answer. That is 609 respondents and 9 columns, the shape of a real survey export.</p>
+
+<p>Real surveys are never fully filled in: people skip questions. We add that too, with a bit more skipping on the <code>manager</code> item (people are cautious about rating their boss). This missingness is now part of the dataset we carry forward.</p>
+
+<div class="webr-container" data-block-title="Add realistic item non-response">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add realistic item non-response</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+miss_p &lt;- c(valued = 0.04, growth = 0.05, recommend = 0.06,
+            manager = 0.12, tools = 0.05, voice = 0.07)
+for (nm in names(miss_p)) {
+  survey[runif(n) &lt; miss_p[nm], nm] &lt;- NA
+}
+head(survey, 4)
+#&gt;   respondent_id  department work_mode valued growth recommend manager tools voice
+#&gt; 1             1 Engineering   On-site      1      1         2       1     1     1
+#&gt; 2             2 Engineering   On-site      4      3         3       4     4     3
+#&gt; 3             3 Engineering   On-site      4      1         4       3     4     4
+#&gt; 4             4 Engineering   On-site      3      2         3       3     3     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The data is ready. Before any statistics, one number decides how seriously to take the rest: the response rate, and how it varies by department.</p>
+
+<div class="webr-container" data-block-title="Response rate by department">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Response rate by department</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">invited &lt;- setNames(population$headcount, population$department)
+rr &lt;- data.frame(
+  department = dept_levels,
+  invited = as.integer(invited[dept_levels]),
+  responded = as.integer(table(resp$department)[dept_levels])
+)
+rr$response_rate &lt;- round(100 * rr$responded / rr$invited, 1)
+rr
+#&gt;    department invited responded response_rate
+#&gt; 1 Engineering     400       309          77.2
+#&gt; 2       Sales     250        97          38.8
+#&gt; 3     Support     200       102          51.0
+#&gt; 4  Operations     100        59          59.0
+#&gt; 5      People      50        42          84.0
+cat(&quot;Overall response rate:&quot;, round(100 * n / sum(invited), 1), &quot;%\n&quot;)
+#&gt; Overall response rate: 60.9 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The overall response rate is a healthy 60.9%, but the by-department rates tell the real story. Engineering answered at 77% and the People team at 84%, while Sales answered at only 39%. That gap in who chose to answer is the single most important fact in this dataset, and it is why a raw average will mislead us until we fix it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Non-response is almost never random.</strong> When the groups that reply differ from the groups that stay silent, the raw results describe the responders, not the organization. Diagnosing that gap is the job of the response-rate table, and closing it is the job of weighting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the response rate for the Support department on its own, straight from the <code>invited</code> and <code>resp</code> objects. The answer should be 51.0.</p>
+<div class="webr-container" data-block-title="Your turn: one department response rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one department response rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: 100 * (Support responders) / (Support invited), rounded to 1 decimal.
+# invited[&quot;Support&quot;] holds the headcount; table(resp$department) counts responders.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One department response rate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One department response rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_support &lt;- 100 * as.integer(table(resp$department)[&quot;Support&quot;]) / invited[&quot;Support&quot;]
+round(ex_support, 1)
+#&gt;  Support 
+#&gt;     51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>table(resp$department)</code> counts responders per department and <code>invited[&quot;Support&quot;]</code> is the headcount, so their ratio times 100 is the response rate. Support answered at 51%.</p>
+
+</details>
+</section>
+
+<h2>What do the raw responses look like before any modelling?</h2>
+
+<p>Exploration comes before inference. Before you weight, test, or model anything, look at the shape of every item and map where the data is missing. Two questions drive this stage: how did people answer each item, and where are the holes?</p>
+
+<p>Start with the full distribution of each item. A mean hides the shape; a count of every response level shows it.</p>
+
+<div class="webr-container" data-block-title="Response counts per item">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Response counts per item</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dist_tab &lt;- t(sapply(item_names, function(nm)
+  tabulate(factor(survey[[nm]], levels = 1:5), nbins = 5)))
+colnames(dist_tab) &lt;- c(&quot;SD&quot;, &quot;D&quot;, &quot;N&quot;, &quot;A&quot;, &quot;SA&quot;)
+dist_tab
+#&gt;           SD   D   N   A  SA
+#&gt; valued    73 110 161 147  98
+#&gt; growth   134 144 154  91  55
+#&gt; recommend 53 104 164 134 116
+#&gt; manager   44  89 163 128 126
+#&gt; tools     95 130 178 105  73
+#&gt; voice    130 134 149 100  52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one item; the columns run from strongly disagree (SD) to strongly agree (SA). Already the items behave differently. <code>manager</code> and <code>recommend</code> lean positive (fat right side), while <code>growth</code> and <code>voice</code> lean negative (fat left side). A single average per item would flatten all of that into one number.</p>
+
+<p>Speaking of which, here are those averages, plus the spread of each item.</p>
+
+<div class="webr-container" data-block-title="Naive item means and spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive item means and spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">item_means &lt;- round(sapply(item_names, function(nm) mean(survey[[nm]], na.rm = TRUE)), 2)
+item_sd    &lt;- round(sapply(item_names, function(nm) sd(survey[[nm]], na.rm = TRUE)), 2)
+rbind(mean = item_means, sd = item_sd)
+#&gt;      valued growth recommend manager tools voice
+#&gt; mean   3.15   2.63      3.27    3.37  2.88  2.66
+#&gt; sd     1.26   1.26      1.24    1.22  1.24  1.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The means range from 2.63 (<code>growth</code>) to 3.37 (<code>manager</code>), and every item has a standard deviation near 1.25, meaning opinions are genuinely spread out rather than clustered. We call these means "naive" for a reason: they ignore both the missing answers and the fact that some departments are over-represented. We will fix both.</p>
+
+<p>First, the holes. A missingness map counts how many answers are absent for each item, so you know which numbers rest on thinner data.</p>
+
+<div class="webr-container" data-block-title="Map the missing answers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map the missing answers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">miss_map &lt;- data.frame(
+  item = item_names,
+  n_missing = sapply(item_names, function(nm) sum(is.na(survey[[nm]]))),
+  pct_missing = round(100 * sapply(item_names, function(nm) mean(is.na(survey[[nm]]))), 1),
+  row.names = NULL
+)
+miss_map
+#&gt;        item n_missing pct_missing
+#&gt; 1    valued        20         3.3
+#&gt; 2    growth        31         5.1
+#&gt; 3 recommend        38         6.2
+#&gt; 4   manager        59         9.7
+#&gt; 5     tools        28         4.6
+#&gt; 6     voice        44         7.2
+cat(&quot;Complete cases (all 6 items):&quot;, sum(complete.cases(survey[item_names])), &quot;\n&quot;)
+#&gt; Complete cases (all 6 items): 422</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>manager</code> item is missing almost 10% of the time, more than any other, exactly the cautious pattern we built in. And though no single item is missing much, only 422 of 609 respondents answered all six. That gap matters later: any analysis that needs a complete row (like Cronbach's alpha) will run on 422 people, not 609.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A naive mean silently drops missing answers and ignores who is over-represented.</strong> Writing <code>mean(x, na.rm = TRUE)</code> throws away the non-responders and treats an over-sampled Engineering as if it were the whole company. Both problems are fixable, but only once you have seen them in the map above.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> How many respondents answered all three of <code>valued</code>, <code>manager</code>, and <code>voice</code>? Use <code>complete.cases()</code> on just those columns.</p>
+<div class="webr-container" data-block-title="Your turn: complete cases for three items">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: complete cases for three items</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: count rows with no NA across valued, manager, and voice.
+# complete.cases(survey[c(...)]) returns TRUE/FALSE per row; sum() counts the TRUEs.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Complete cases for three items solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete cases for three items solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_three &lt;- c(&quot;valued&quot;, &quot;manager&quot;, &quot;voice&quot;)
+sum(complete.cases(survey[ex_three]))
+#&gt; [1] 495</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only three items in play, fewer rows contain an NA, so 495 respondents are complete here versus 422 across all six items. The more items you require, the more people you lose.</p>
+
+</details>
+</section>
+
+<h2>Why weight the results, and how do you build the weights by hand?</h2>
+
+<p>Here is the fix for the over-representation problem. Weighting nudges each respondent's contribution up or down so that the weighted sample matches the known workforce. It is the difference between "what the responders think" and "what the company thinks".</p>
+
+<p>First, prove there is a problem. Compare each department's share of the actual workforce with its share of the respondents.</p>
+
+<div class="webr-container" data-block-title="Sample shares versus population shares">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample shares versus population shares</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_share &lt;- as.numeric(table(resp$department)[dept_levels]) / n
+share_cmp &lt;- data.frame(
+  department = dept_levels,
+  pop_share = round(population$pop_share, 3),
+  sample_share = round(sample_share, 3)
+)
+share_cmp
+#&gt;    department pop_share sample_share
+#&gt; 1 Engineering      0.40        0.507
+#&gt; 2       Sales      0.25        0.159
+#&gt; 3     Support      0.20        0.167
+#&gt; 4  Operations      0.10        0.097
+#&gt; 5      People      0.05        0.069</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Engineering is 40% of the company but 51% of the respondents, while Sales is 25% of the company and only 16% of the respondents. The survey is over-weighted toward Engineering and under-weighted toward Sales, purely because of who replied. If Engineering and Sales feel differently about work, the raw average will drift toward Engineering's view.</p>
+
+<p><img src="screenshots/Survey-Analysis-Capstone-in-R-weighting.webp" alt="A post-stratification weight is the population share divided by the sample share." class="img-responsive img-zoomable" loading="lazy" width="1660" height="594" /></p>
+
+<p><em>Figure 2: A post-stratification weight is the population share divided by the sample share.</em></p>
+
+<p>The fix, called post-stratification, is almost embarrassingly simple. For each department, the weight is the share it should have divided by the share it actually has.</p>
+
+<p>$$w_d = \frac{N_d / N}{n_d / n}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$N_d$ = the department's headcount in the workforce, and $N$ = the total workforce (1,000)</li>
+
+<li>$n_d$ = the department's respondents, and $n$ = the total respondents (609)</li>
+
+</ul>
+
+<p>A department that is over-represented gets a weight below 1 (its voices count for less), and an under-represented department gets a weight above 1 (its voices count for more). Let us compute them.</p>
+
+<div class="webr-container" data-block-title="Post-stratification weights by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Post-stratification weights by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w_by_dept &lt;- population$pop_share / sample_share
+names(w_by_dept) &lt;- dept_levels
+round(w_by_dept, 3)
+#&gt; Engineering       Sales     Support  Operations      People 
+#&gt;       0.788       1.570       1.194       1.032       0.725
+survey$weight &lt;- as.numeric(w_by_dept[survey$department])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Engineering's weight is 0.79 (dialled down) and Sales' is 1.57 (dialled up), exactly matching their over- and under-representation. Every respondent now carries their department's weight in a new <code>weight</code> column.</p>
+
+<p>To use those weights, replace the plain average with a weighted average. A weighted mean multiplies each value by its weight, adds them up, and divides by the total weight.</p>
+
+<p>$$\bar{y}_w = \frac{\sum_i w_i \, y_i}{\sum_i w_i}$$</p>
+
+<p>Now build the engagement score (each person's average across the six items) and compare the raw average with the weighted one. Watch what happens to the headline number.</p>
+
+<div class="webr-container" data-block-title="Unweighted versus weighted engagement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unweighted versus weighted engagement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey$engagement &lt;- rowMeans(survey[item_names], na.rm = TRUE)
+top2 &lt;- function(x, w = rep(1, length(x))) {
+  keep &lt;- !is.na(x)
+  round(100 * sum(w[keep] * (x[keep] &gt;= 4)) / sum(w[keep]), 1)
+}
+cat(&quot;Unweighted engagement:&quot;, round(mean(survey$engagement), 3), &quot;\n&quot;)
+#&gt; Unweighted engagement: 2.996
+cat(&quot;Weighted engagement:  &quot;, round(weighted.mean(survey$engagement, survey$weight), 3), &quot;\n&quot;)
+#&gt; Weighted engagement:   2.887
+cat(&quot;recommend, top-2-box unweighted:&quot;, top2(survey$recommend), &quot;%\n&quot;)
+#&gt; recommend, top-2-box unweighted: 43.8 %
+cat(&quot;recommend, top-2-box weighted:  &quot;, top2(survey$recommend, survey$weight), &quot;%\n&quot;)
+#&gt; recommend, top-2-box weighted:   40.4 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw engagement average is 3.00; the weighted average is 2.89. The share who would recommend the company drops from 43.8% to 40.4% once we account for who was really asked. The raw numbers flatter the company because the happiest departments answered the most. Weighting does not invent bad news; it just keeps the departments that answered most from counting for more than their share of the workforce.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Weighting corrects the composition of your sample, not the mood of your respondents.</strong> The weighted estimate answers "what would the whole workforce say", which is almost always the question a leader actually meant to ask, even when it returns a soberer number than the raw average.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Post-stratification only fixes imbalance on the variables you weight by.</strong> We weighted by department, so the sample now matches the company on department. If non-responders differ from responders in some way department does not capture (say, the disengaged stay silent within every department), weighting cannot see it or fix it. Weights buy honesty about known gaps, not a clean bill of health.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the weighted top-two-box (the share answering 4 or 5) for the <code>manager</code> item using the <code>top2()</code> helper and the <code>weight</code> column. The unweighted value is 46.2; the weighted value is lower.</p>
+<div class="webr-container" data-block-title="Your turn: weighted top-two-box">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: weighted top-two-box</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: call top2() on survey$manager, passing survey$weight as the second argument.
+# top2(x) gives the unweighted share; top2(x, w) gives the weighted share.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weighted top-two-box solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weighted top-two-box solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(unweighted = top2(survey$manager),
+  weighted   = top2(survey$manager, survey$weight))
+#&gt; unweighted   weighted 
+#&gt;       46.2       42.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>manager</code> item drops from 46.2% to 42.5% agreement once weighted, the same downward correction we saw on engagement: the over-represented departments were the more positive ones.</p>
+
+</details>
+</section>
+
+<h2>How do you summarise Likert items without misleading anyone?</h2>
+
+<p>A Likert item (strongly disagree to strongly agree, scored 1 to 5) looks like a number, so people average it. Sometimes that is fine. Often it hides the very thing a leader needs to see. Before you report a single mean, you have to know when the mean lies.</p>
+
+<p>Here is the classic trap, built from two imaginary teams answering one question.</p>
+
+<div class="webr-container" data-block-title="When the mean hides everything">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When the mean hides everything</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">team_a &lt;- rep(3, 100)                    # everyone sits on the fence
+team_b &lt;- c(rep(1, 50), rep(5, 50))      # half furious, half delighted
+c(mean_a = mean(team_a), mean_b = mean(team_b))
+#&gt; mean_a mean_b 
+#&gt;      3      3
+c(sd_a = sd(team_a), sd_b = round(sd(team_b), 2))
+#&gt;  sd_a  sd_b 
+#&gt;  0.00  2.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both teams average exactly 3.0, yet Team A is uniformly indifferent while Team B is violently split. A leader told "both teams scored 3" would miss a workforce on the edge of walking out. The mean is identical; the story is opposite. This is why a Likert summary needs the shape, not just the centre.</p>
+
+<p><img src="screenshots/Survey-Analysis-Capstone-in-R-summarise-likert.webp" alt="Pick the Likert summary that matches the question you are answering." class="img-responsive img-zoomable" loading="lazy" width="1292" height="930" /></p>
+
+<p><em>Figure 3: Pick the Likert summary that matches the question you are answering.</em></p>
+
+<p>The figure names the two jobs a Likert summary can do. When you are reporting a headline, show the full distribution and a top-two-box percentage. When you are comparing groups, use an ordinal test (we get to that next section). For the headline, the distribution is best shown as a diverging stacked bar: disagreement grows to the left of centre, agreement grows to the right, and the neutral middle straddles zero. First compute the percentages by hand so you see what the chart is drawing.</p>
+
+<div class="webr-container" data-block-title="Diverging percentages by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Diverging percentages by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lik_pct &lt;- t(sapply(item_names, function(nm) {
+  tab &lt;- table(factor(survey[[nm]], levels = 1:5))
+  round(100 * tab / sum(tab), 1)
+}))
+colnames(lik_pct) &lt;- c(&quot;SD&quot;, &quot;D&quot;, &quot;N&quot;, &quot;A&quot;, &quot;SA&quot;)
+lik_pct
+#&gt;            SD    D    N    A   SA
+#&gt; valued   12.4 18.7 27.3 25.0 16.6
+#&gt; growth   23.2 24.9 26.6 15.7  9.5
+#&gt; recommend 9.3 18.2 28.7 23.5 20.3
+#&gt; manager   8.0 16.2 29.6 23.3 22.9
+#&gt; tools    16.4 22.4 30.6 18.1 12.6
+#&gt; voice    23.0 23.7 26.4 17.7  9.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row now sums to 100%. For <code>growth</code>, 48% disagree (23.2 + 24.9) and only 25% agree, a clearly negative item. For <code>manager</code>, 46% agree and 24% disagree, a clearly positive one. Those two totals, the agree side and the disagree side, are what the diverging bar draws. Here is the chart.</p>
+
+<div class="webr-container" data-block-title="Draw the diverging stacked bar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw the diverging stacked bar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+labs &lt;- c(&quot;Strongly disagree&quot;, &quot;Disagree&quot;, &quot;Neutral&quot;, &quot;Agree&quot;, &quot;Strongly agree&quot;)
+pcts &lt;- survey |&gt;
+  select(all_of(item_names)) |&gt;
+  pivot_longer(everything(), names_to = &quot;item&quot;, values_to = &quot;score&quot;) |&gt;
+  filter(!is.na(score)) |&gt;
+  count(item, score) |&gt;
+  group_by(item) |&gt;
+  mutate(pct = 100 * n / sum(n)) |&gt;
+  ungroup()
+pcts$response &lt;- factor(pcts$score, levels = 1:5, labels = labs)
+
+# order items by net agreement, and split the neutral bar so it centres on zero
+net &lt;- pcts |&gt;
+  mutate(s = ifelse(score &gt;= 4, pct, ifelse(score &lt;= 2, -pct, 0))) |&gt;
+  group_by(item) |&gt; summarise(net = sum(s), .groups = &quot;drop&quot;)
+pcts$item &lt;- factor(pcts$item, levels = net$item[order(net$net)])
+dis &lt;- pcts |&gt; filter(score &lt;= 3) |&gt;
+  mutate(pct = ifelse(score == 3, pct / 2, pct), y = -pct)
+agr &lt;- pcts |&gt; filter(score &gt;= 3) |&gt;
+  mutate(pct = ifelse(score == 3, pct / 2, pct), y = pct)
+
+pal &lt;- c(&quot;Strongly disagree&quot; = &quot;#c0392b&quot;, &quot;Disagree&quot; = &quot;#e59866&quot;,
+         &quot;Neutral&quot; = &quot;#d5d8dc&quot;, &quot;Agree&quot; = &quot;#7fb3d5&quot;, &quot;Strongly agree&quot; = &quot;#1f618d&quot;)
+ggplot(mapping = aes(x = item, y = y, fill = response)) +
+  geom_col(data = dis, width = 0.7) +
+  geom_col(data = agr, width = 0.7, position = position_stack(reverse = TRUE)) +
+  geom_hline(yintercept = 0, colour = &quot;grey30&quot;) +
+  coord_flip() +
+  scale_fill_manual(values = pal, breaks = labs, name = NULL) +
+  labs(x = NULL, y = &quot;Percent of respondents&quot;, title = &quot;Agreement by item&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bar sorts the items from most to least positive: <code>manager</code> and <code>recommend</code> sit at the top with long agree tails, <code>growth</code> and <code>voice</code> at the bottom with long disagree tails. A reader grasps the whole survey in one glance, something six separate means could never deliver. For an even shorter headline, most survey teams quote the top-two-box: the single percentage who chose 4 or 5.</p>
+
+<div class="webr-container" data-block-title="Top-two-box percent per item">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-two-box percent per item</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t2box &lt;- sort(sapply(item_names, function(nm) top2(survey[[nm]])), decreasing = TRUE)
+t2box
+#&gt;   manager recommend    valued     tools     voice    growth 
+#&gt;      46.2      43.8      41.6      30.6      26.9      25.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that as "46% agree their manager supports them, but only 25% agree they have room to grow". Top-two-box is blunt (it ignores the difference between a 4 and a 5, and between a 1 and a 3), but it is the number executives remember, and paired with the diverging bar it is honest.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report a top-two-box percentage next to a diverging bar, never a bare Likert mean.</strong> The percentage gives the headline a leader can quote and the bar shows the shape behind it, so a split workforce like Team B can never hide inside an average of 3.0.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the top-two-box for the <code>tools</code> item with <code>top2()</code>. It should come out to 30.6.</p>
+<div class="webr-container" data-block-title="Your turn: top-two-box for one item">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: top-two-box for one item</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: pass survey$tools to top2() for the unweighted agree share.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Top-two-box for one item solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-two-box for one item solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top2(survey$tools)
+#&gt; [1] 30.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only 30.6% of respondents chose 4 or 5 on "I have the tools I need", making it one of the weaker items and a candidate for the report's watch-list.</p>
+
+</details>
+</section>
+
+<h2>Do the six items hang together? Cronbach's alpha</h2>
+
+<p>We have been treating the six items as one engagement scale, averaging them into a single score. That only makes sense if the items actually measure the same underlying thing. If people who agree with one tend to agree with the others, the items are internally consistent, and Cronbach's alpha puts a number on that consistency, from 0 (unrelated) to 1 (perfectly redundant).</p>
+
+<p>Alpha compares the spread of the total score against the spread of the individual items. When items move together, the total varies more than the items do on their own, and alpha climbs. We compute it by hand from the 422 <a class="auto-link" href="tidyr-drop_na-in-R.html" title="tidyr drop_na() in R: Remove Rows With NA Values">complete cases</a>.</p>
+
+<p>$$\alpha = \frac{k}{k-1}\left(1 - \frac{\sum_{i=1}^{k} \sigma^2_i}{\sigma^2_{\text{total}}}\right)$$</p>
+
+<p>Where $k$ is the number of items, $\sigma^2_i$ is the variance of item $i$, and $\sigma^2_{\text{total}}$ is the variance of each respondent's total score across the items.</p>
+
+<div class="webr-container" data-block-title="Cronbach&#x27;s alpha by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cronbach&#x27;s alpha by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cc &lt;- survey[complete.cases(survey[item_names]), item_names]
+k &lt;- ncol(cc)
+alpha &lt;- (k / (k - 1)) * (1 - sum(apply(cc, 2, var)) / var(rowSums(cc)))
+cat(&quot;Complete cases:&quot;, nrow(cc), &quot; Items:&quot;, k, &quot;\n&quot;)
+#&gt; Complete cases: 422  Items: 6
+cat(&quot;Cronbach's alpha:&quot;, round(alpha, 3), &quot;\n&quot;)
+#&gt; Cronbach's alpha: 0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Alpha is 0.91. As a rough guide, above 0.70 is usually called acceptable and above 0.80 good, so these six items clearly hang together as one engagement scale. That licenses the average we have been computing: it is measuring a single, coherent construct rather than six unrelated opinions.</p>
+
+<p>A useful follow-up asks whether any single item is dragging the scale down. We recompute alpha six times, each time dropping one item, and see if the scale would improve without it.</p>
+
+<div class="webr-container" data-block-title="Alpha if each item is dropped">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alpha if each item is dropped</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alpha_drop &lt;- sapply(item_names, function(drop) {
+  sub &lt;- cc[setdiff(item_names, drop)]
+  kk &lt;- ncol(sub)
+  (kk / (kk - 1)) * (1 - sum(apply(sub, 2, var)) / var(rowSums(sub)))
+})
+round(alpha_drop, 3)
+#&gt;    valued    growth recommend   manager     tools     voice 
+#&gt;     0.895     0.893     0.893     0.893     0.896     0.892</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every value is below the full-scale 0.91, which means dropping any item makes the scale worse. No item is redundant here; each of the six adds to the scale's consistency. If one row had come back higher than 0.91, that item would be a candidate to cut.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high alpha is not proof that your scale is valid or one-dimensional.</strong> Alpha mechanically rises as you add items, and it can look healthy even when the scale secretly measures two different things. It tells you the items are consistent, not that they measure what you named them. Confirm the meaning with the item wording and, for high-stakes scales, a factor analysis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute alpha for just the three items <code>valued</code>, <code>manager</code>, and <code>voice</code>, using their complete cases. It should be lower than the full-scale 0.91 (fewer items usually means lower alpha).</p>
+<div class="webr-container" data-block-title="Your turn: alpha for a three-item scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: alpha for a three-item scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: subset cc-style to these three items' complete cases, then apply the alpha formula.
+# sub &lt;- survey[complete.cases(survey[three]), three]; k3 &lt;- ncol(sub)
+# alpha = (k3/(k3-1)) * (1 - sum(apply(sub,2,var)) / var(rowSums(sub)))
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-item alpha solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-item alpha solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_three &lt;- c(&quot;valued&quot;, &quot;manager&quot;, &quot;voice&quot;)
+ex_sub &lt;- survey[complete.cases(survey[ex_three]), ex_three]
+ex_k &lt;- ncol(ex_sub)
+ex_alpha &lt;- (ex_k / (ex_k - 1)) * (1 - sum(apply(ex_sub, 2, var)) / var(rowSums(ex_sub)))
+round(ex_alpha, 3)
+#&gt; [1] 0.839</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three items give alpha 0.839, lower than the six-item 0.91. Alpha rewards more items, which is exactly why you should not compare alphas across scales of different lengths.</p>
+
+</details>
+</section>
+
+<h2>Which groups differ, and by how much?</h2>
+
+<p>The most common survey question is comparative: do remote workers feel differently from on-site workers? Answering it well means three things, not one. You need a test that fits <a class="auto-link" href="Types-of-Data-in-Statistics.html" title="Types of Data in Statistics: Categorical to Continuous">ordinal data</a>, an <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> that says how big the gap is, and a correction when you run many tests at once. We will do all three on the work-mode groups.</p>
+
+<p>Start by looking before testing. Summarise engagement by work mode.</p>
+
+<div class="webr-container" data-block-title="Engagement by work mode">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Engagement by work mode</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey |&gt;
+  group_by(work_mode) |&gt;
+  summarise(n = n(),
+            mean = round(mean(engagement), 2),
+            median = round(median(engagement), 2), .groups = &quot;drop&quot;)
+#&gt; # A tibble: 3 × 4
+#&gt;   work_mode     n  mean median
+#&gt;   &lt;chr&gt;     &lt;int&gt; &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 Hybrid      215  2.99   3   
+#&gt; 2 On-site     235  2.7    2.67
+#&gt; 3 Remote      159  3.44   3.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Remote workers average 3.44, on-site workers 2.70, with hybrid in between. That is a gap worth testing. Because Likert-based scores are ordinal and not perfectly normal, the safe omnibus test is <a class="auto-link" href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html" title="Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails">Kruskal-Wallis</a> (a rank-based cousin of <a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">one-way ANOVA</a>), and for the sharpest single contrast, remote versus on-site, a <a class="auto-link" href="t-Test-Exercises-in-R.html" title="t-Test Exercises in R: 12 One, Two & Paired Sample Problems, Solved Step-by-Step">Welch t-test</a> gives us a confidence interval on the difference in means.</p>
+
+<div class="webr-container" data-block-title="Omnibus test and the focal contrast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Omnibus test and the focal contrast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kruskal.test(engagement ~ factor(work_mode), data = survey)
+#&gt; 
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt; 
+#&gt; data:  engagement by factor(work_mode)
+#&gt; Kruskal-Wallis chi-squared = 47.948, df = 2, p-value = 3.874e-11
+rem &lt;- survey$engagement[survey$work_mode == &quot;Remote&quot;]
+ons &lt;- survey$engagement[survey$work_mode == &quot;On-site&quot;]
+tt &lt;- t.test(rem, ons)
+cat(&quot;Diff:&quot;, round(mean(rem) - mean(ons), 3),
+    &quot; 95% CI:&quot;, round(tt$conf.int[1], 3), &quot;to&quot;, round(tt$conf.int[2], 3),
+    &quot; p:&quot;, format.pval(tt$p.value, digits = 3), &quot;\n&quot;)
+#&gt; Diff: 0.742  95% CI: 0.55 to 0.934  p: 2.89e-13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Kruskal-Wallis says the three groups are not interchangeable (p is about 4e-11). The focal contrast is sharper still: remote workers score 0.74 points higher than on-site workers on the 1-to-5 scale, and the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> runs from 0.55 to 0.93, comfortably clear of zero. The gap is real. But "real" is not "big", so quantify the size.</p>
+
+<p>An effect size turns a difference into a standardized magnitude you can compare across studies. Cohen's d divides the mean gap by the pooled standard deviation. Its ordinal cousin, Cliff's delta, ignores the scores entirely and asks: pick a random remote worker and a random on-site worker, how much more often is the remote one higher?</p>
+
+<p>$$d = \frac{\bar{x}_1 - \bar{x}_2}{s_p}, \qquad s_p = \sqrt{\frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1 + n_2 - 2}}$$</p>
+
+<div class="webr-container" data-block-title="Effect sizes: Cohen&#x27;s d and Cliff&#x27;s delta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effect sizes: Cohen&#x27;s d and Cliff&#x27;s delta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cohen_d &lt;- function(a, b) {
+  sp &lt;- sqrt(((length(a)-1)*var(a) + (length(b)-1)*var(b)) / (length(a)+length(b)-2))
+  (mean(a) - mean(b)) / sp
+}
+cliffs_delta &lt;- function(a, b)
+  (sum(outer(a, b, &quot;&gt;&quot;)) - sum(outer(a, b, &quot;&lt;&quot;))) / (length(a) * length(b))
+cat(&quot;Cohen's d:&quot;, round(cohen_d(rem, ons), 3), &quot;\n&quot;)
+#&gt; Cohen's d: 0.769
+cat(&quot;Cliff's delta:&quot;, round(cliffs_delta(rem, ons), 3), &quot;\n&quot;)
+#&gt; Cliff's delta: 0.413</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cohen's d is 0.77, conventionally a medium-to-large effect, and Cliff's delta is 0.41, in the same medium-to-large range. Here the mean-based and rank-based effect sizes agree, which is reassuring: the remote-versus-on-site gap is a clean location shift, not an artefact of a few extreme scores. When those two measures disagree, trust the ordinal one for Likert data and go read the distributions to find out why.</p>
+
+<p>Now the multiple-comparisons trap. The moment you compare more than two groups, or test more than one item, some "significant" results appear by chance alone. Comparing all three work modes is three tests; a correction like Holm keeps the overall error rate honest.</p>
+
+<div class="webr-container" data-block-title="Pairwise comparison with a correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise comparison with a correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pairwise.wilcox.test(survey$engagement, survey$work_mode, p.adjust.method = &quot;holm&quot;)$p.value
+#&gt;              Hybrid      On-site
+#&gt; On-site 8.455841e-03           NA
+#&gt; Remote  3.406394e-05 9.521051e-12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three work-mode pairs survive correction, which strengthens the story. But corrections earn their keep when results are marginal. To see one bite, test the remote-versus-on-site gap on each of the six items separately (six tests), then correct.</p>
+
+<div class="webr-container" data-block-title="A correction that changes the answer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A correction that changes the answer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">is_hy &lt;- survey$work_mode == &quot;Hybrid&quot;; is_on &lt;- survey$work_mode == &quot;On-site&quot;
+raw_p &lt;- sapply(item_names, function(nm)
+  suppressWarnings(wilcox.test(survey[[nm]][is_hy], survey[[nm]][is_on])$p.value))
+corr_tab &lt;- data.frame(
+  item = item_names,
+  raw_p = round(raw_p, 4),
+  holm_p = round(p.adjust(raw_p, &quot;holm&quot;), 4),
+  sig_raw = ifelse(raw_p &lt; 0.05, &quot;yes&quot;, &quot;no&quot;),
+  sig_holm = ifelse(p.adjust(raw_p, &quot;holm&quot;) &lt; 0.05, &quot;yes&quot;, &quot;no&quot;),
+  row.names = NULL
+)
+corr_tab
+#&gt;        item  raw_p holm_p sig_raw sig_holm
+#&gt; 1    valued 0.1295 0.1295      no       no
+#&gt; 2    growth 0.0365 0.0730     yes       no
+#&gt; 3 recommend 0.0209 0.0628     yes       no
+#&gt; 4   manager 0.0134 0.0535     yes       no
+#&gt; 5     tools 0.0074 0.0372     yes      yes
+#&gt; 6     voice 0.0036 0.0216     yes      yes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the whole lesson in one table. Comparing hybrid with on-site, five of the six items look significant at the raw 0.05 threshold, but after correcting for six tests, only two survive. Three findings (<code>growth</code>, <code>recommend</code>, <code>manager</code>) evaporate. If you had reported the raw column, you would have shipped three "differences" that are most likely noise.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><a class="auto-link" href="First-Hypothesis-Test-Three-Ways-in-R.html" title="Your First Hypothesis Test in R: Three Ways">Statistical significance</a> is not effect size, and neither survives <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">multiple comparisons</a> for free.</strong> A capstone-quality comparison always reports the test, the size (with a confidence interval), and, whenever you run more than a couple of tests, a correction. Skip any one of the three and you will either overstate a trivial gap or ship a false alarm.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Cohen's d for hybrid versus on-site engagement using the <code>cohen_d()</code> helper. It will be far smaller than the remote-versus-on-site 0.77.</p>
+<div class="webr-container" data-block-title="Your turn: Cohen&#x27;s d for a weaker gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Cohen&#x27;s d for a weaker gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: pass the Hybrid and On-site engagement vectors to cohen_d().
+# survey$engagement[survey$work_mode == &quot;Hybrid&quot;] and == &quot;On-site&quot;
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cohen&#x27;s d for a weaker gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cohen&#x27;s d for a weaker gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hyb &lt;- survey$engagement[survey$work_mode == &quot;Hybrid&quot;]
+round(cohen_d(hyb, ons), 3)
+#&gt; [1] 0.277</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The hybrid-versus-on-site gap is d = 0.28, a small effect, versus the large 0.77 for remote-versus-on-site. Same scale, very different magnitude, which is exactly why an effect size belongs next to every p-value.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These pull several stages together. Each is solvable with the tools above, and each prints an expected output so you can check yourself. Use the <code>my_</code> prefix so your work never overwrites the tutorial's objects.</p>
+
+<h3>Exercise 1: Weighted top-two-box for the growth item</h3>
+
+<p>Report the weighted top-two-box percentage for the <code>growth</code> item, then compare it with the unweighted value. Use the existing <code>top2()</code> helper and the <code>weight</code> column.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Combine weighting with the top-two-box summary for one item.
+# Hint: top2(x) is unweighted; top2(x, w) is weighted.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_growth &lt;- c(unweighted = top2(survey$growth),
+               weighted   = top2(survey$growth, survey$weight))
+my_growth
+#&gt; unweighted   weighted 
+#&gt;       25.3       22.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>growth</code> agreement falls from 25.3% to 22.6% once weighted. It was already the weakest item, and correcting for over-represented departments makes it look weaker still, an honest signal for the report.</p>
+
+</details>
+
+<h3>Exercise 2: Weighted mean engagement by work mode</h3>
+
+<p>Build a single pipeline that returns, for each <code>work_mode</code> group, the weighted mean engagement. Use <code>weighted.mean()</code> inside <code>summarise()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Group by work_mode, then compute weighted.mean(engagement, weight) per group.
+# Hint: survey |&gt; group_by(work_mode) |&gt; summarise(...)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_wm &lt;- survey |&gt;
+  group_by(work_mode) |&gt;
+  summarise(w_mean = round(weighted.mean(engagement, weight), 2), .groups = &quot;drop&quot;)
+my_wm
+#&gt; # A tibble: 3 × 2
+#&gt;   work_mode w_mean
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;
+#&gt; 1 Hybrid      2.88
+#&gt; 2 On-site     2.59
+#&gt; 3 Remote      3.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Weighting lowers every group's mean a little (the over-represented departments were the more positive ones), but the remote-versus-on-site ordering and gap survive, so the headline conclusion is robust to weighting.</p>
+
+</details>
+
+<h3>Exercise 3: A three-item subscale and its weakest link</h3>
+
+<p>Treat <code>valued</code>, <code>manager</code>, and <code>voice</code> as a short "feeling supported" subscale. Compute its Cronbach's alpha, then find which of the three, if dropped, would most improve it (the largest alpha-if-dropped).</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: alpha for the three items on their complete cases.
+# Step 2: drop each item in turn (a 2-item alpha each time) and compare.
+# Hint: with 2 items, k/(k-1) = 2.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_items &lt;- c(&quot;valued&quot;, &quot;manager&quot;, &quot;voice&quot;)
+my_cc &lt;- survey[complete.cases(survey[my_items]), my_items]
+my_alpha_drop &lt;- sapply(my_items, function(drop) {
+  sub &lt;- my_cc[setdiff(my_items, drop)]
+  2 * (1 - sum(apply(sub, 2, var)) / var(rowSums(sub)))
+})
+round(my_alpha_drop, 3)
+#&gt;  valued manager   voice 
+#&gt;   0.776   0.767   0.785</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping <code>voice</code> yields the highest two-item alpha (0.785), meaning <code>voice</code> is the least consistent with the other two here. On a three-item scale that is a note to investigate, not an instruction to cut, since the full subscale alpha (0.839 from the earlier Try it) is already good and every drop stays below it.</p>
+
+</details>
+
+<h2>The deliverable: an executive summary and a technical appendix</h2>
+
+<p>An analysis nobody reads changes nothing. The final stage turns your work into a report a busy leader acts on in two minutes and a colleague can reproduce in an afternoon. The pattern is simple: a short executive summary on top, a technical appendix underneath. First, assemble the handful of numbers the summary will quote, so the report never contains a figure that is not backed by code.</p>
+
+<div class="webr-container" data-block-title="The headline numbers the report quotes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The headline numbers the report quotes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">headline &lt;- data.frame(
+  metric = c(&quot;Respondents&quot;, &quot;Response rate %&quot;, &quot;Weighted engagement (1-5)&quot;,
+             &quot;Cronbach's alpha&quot;, &quot;Remote vs On-site gap&quot;, &quot;Effect size (Cohen d)&quot;),
+  value  = c(n, round(100 * n / sum(invited), 1),
+             round(weighted.mean(survey$engagement, survey$weight), 2),
+             round(alpha, 2), round(mean(rem) - mean(ons), 2),
+             round(cohen_d(rem, ons), 2))
+)
+headline
+#&gt;                      metric  value
+#&gt; 1               Respondents 609.00
+#&gt; 2           Response rate %  60.90
+#&gt; 3 Weighted engagement (1-5)   2.89
+#&gt; 4          Cronbach's alpha   0.91
+#&gt; 5     Remote vs On-site gap   0.74
+#&gt; 6     Effect size (Cohen d)   0.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With those numbers fixed, the write-up almost drafts itself. A strong executive summary is three findings, one caveat, and one recommendation, in plain language, leading with the decision rather than the method.</p>
+
+<blockquote><p><strong>Executive summary.</strong> 609 employees responded (a 61% response rate). After weighting to the company's real department mix, three findings stand out. <strong>First</strong>, overall engagement is modest: on a 1-to-5 scale the weighted average is 2.89, and only 40% would recommend us as a place to work. <strong>Second</strong>, growth is our weakest area: just 23% of employees (weighted) agree they have room to grow, the lowest of any question. <strong>Third</strong>, work arrangement matters more than we assumed: remote employees are markedly more engaged than on-site employees (a 0.74-point gap, a large effect of d = 0.77), a difference that holds up under <a class="auto-link" href="Nonparametric-Tests-Exercises-in-R.html" title="Nonparametric Tests Exercises in R: 10 Practice Problems, Solved Step-by-Step">rank-based tests</a> and correction. <strong>One caveat</strong>: the survey heard far more from Engineering (77% replied) than from Sales (39%), and although we corrected for department mix, weighting cannot rule out that the least engaged employees stayed silent within every team, so the true picture may be a shade worse than 2.89. <strong>Recommendation</strong>: run a focused follow-up on growth and career pathing, starting with the on-site and Sales populations, and re-survey in two quarters to measure movement.</p></blockquote>
+
+<p>The technical appendix carries everything the summary compressed, so the analysis is reproducible and defensible. Keep it to a predictable checklist:</p>
+
+<ul>
+
+<li><strong>Instrument and scale.</strong> Six 1-to-5 agreement items; <a class="auto-link" href="Measurement-Reliability-in-R.html" title="Measurement Reliability in R: Alpha, ICC, Agreement">internal consistency</a> Cronbach's alpha = 0.91 on 422 complete cases; no item improves the scale if dropped.</li>
+
+<li><strong>Sample and response.</strong> <a class="auto-link" href="Populations-Samples-and-Bias-in-R.html" title="Populations, Samples and Sampling Bias in R">Census</a> of 1,000 employees, 609 respondents (60.9%); response rate ranged from 39% (Sales) to 84% (People), documented in the response-rate table.</li>
+
+<li><strong>Weighting.</strong> Post-stratification to department headcounts; weights ran from 0.73 (People) to 1.57 (Sales); weighting lowered mean engagement from 3.00 to 2.89.</li>
+
+<li><strong><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing data</a>.</strong> Item non-response 3% to 10% (highest on <code>manager</code>); scale scores use available items, alpha uses complete cases.</li>
+
+<li><strong>Comparisons.</strong> Kruskal-Wallis across work modes (p < 1e-10); remote vs on-site Welch t with 95% CI [0.55, 0.93]; effect sizes Cohen's d = 0.77 and Cliff's delta = 0.41; per-item tests Holm-corrected.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Lead with the decision, bury the methods in the appendix.</strong> A leader needs the three findings and the recommendation first; the weighting scheme and the confidence intervals belong in the appendix where a reviewer can check them. Same numbers, two audiences, one document.</div></div>
+
+<h2>Summary</h2>
+
+<p>You have run a survey analysis the way a professional does: not as a single test, but as a pipeline where each stage guards against a specific way of being wrong.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Stage</th>
+<th>What you do</th>
+<th>The honest trap it avoids</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Design recap</td>
+<td>Log who was invited and who replied</td>
+<td>Treating responders as the whole company</td>
+</tr>
+<tr>
+<td>EDA</td>
+<td>Distributions and a missingness map</td>
+<td>A mean that hides a split or a hole</td>
+</tr>
+<tr>
+<td>Weighting</td>
+<td>Post-stratify to known margins</td>
+<td>Optimism introduced by uneven non-response</td>
+</tr>
+<tr>
+<td>Likert summary</td>
+<td>Diverging bar plus top-two-box</td>
+<td>A bare mean that hides the shape</td>
+</tr>
+<tr>
+<td>Reliability</td>
+<td>Cronbach's alpha, alpha-if-dropped</td>
+<td>Averaging items that do not belong together</td>
+</tr>
+<tr>
+<td>Comparisons</td>
+<td>Test, effect size with CI, correction</td>
+<td>Confusing significant with big, or shipping false alarms</td>
+</tr>
+<tr>
+<td>Report</td>
+<td>Three findings, a caveat, a recommendation</td>
+<td>An analysis nobody reads or can reproduce</td>
+</tr>
+</tbody>
+</table>
+
+<p>The through-line is honesty. Every stage exists to stop a number from claiming more than the data supports, and the reason each computation here was done by hand is so you can always see exactly what it is claiming.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Do I always need to weight my survey?</strong> No. Weight when a known population margin exists (a headcount, a census) and your respondents visibly differ from it, as ours did on department. If your sample already matches the population, or you have no trustworthy margins to weight to, weighting adds noise for no gain. Always report both the weighted and unweighted numbers so readers can see the effect.</p>
+
+<p><strong>My subgroups are tiny. Can I still compare them?</strong> You can run the test, but treat small-group results with suspicion: wide confidence intervals, unstable effect sizes, and little power to detect real gaps. Report the <a class="auto-link" href="dplyr-n-in-R.html" title="dplyr n() in R: Count Rows Inside summarise or mutate">group size</a> next to every estimate, lean on the confidence interval rather than the p-value, and resist splitting into ever-finer segments, which multiplies the comparison problem.</p>
+
+<p><strong>How should I handle missing answers?</strong> First map the missingness, as we did, because the pattern is itself a finding (people skipped the manager item most). For scale scores, averaging the available items is fine when missingness is light. When it is heavy or clearly non-random, a bare complete-case analysis can bias results, and <a class="auto-link" href="Multiple-Imputation-mice-in-R.html" title="Multiple Imputation with mice in R">multiple imputation</a> is the sturdier tool.</p>
+
+<p><strong>Is alpha above 0.7 always good enough?</strong> It is a common rule of thumb, not a law. Alpha climbs simply by adding items, so a long scale can clear 0.7 while measuring two different things, and a short, sharp scale can be useful below it. Read alpha alongside the item wording and, for anything high-stakes, a factor analysis, rather than treating 0.7 as a pass-fail gate.</p>
+
+<p><strong>Should I report the mean or the median for a Likert item?</strong> For a single item, prefer the full distribution (a diverging bar) and a top-two-box percentage, because both the mean and the median throw away shape. When you must pick one number for an ordinal item, the median is more faithful than the mean, but a percentage agreeing is usually the most decision-useful of all.</p>
+
+<p><strong>Which multiple-comparison correction should I use?</strong> Holm (used here) is a safe, general default: it controls the chance of any <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> and is uniformly more powerful than the older Bonferroni. When you are running very many tests and can tolerate a known false-discovery rate rather than zero false positives, the Benjamini-Hochberg (<code>p.adjust</code> method <code>&quot;BH&quot;</code>) correction is more powerful. Both beat reporting raw p-values.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Lumley, T. <em>Complex Surveys: A Guide to Analysis Using R</em>. Wiley (2010). The standard R reference for survey design and post-stratification. <a href="https://r-survey.r-forge.r-project.org/svybook/">Link</a></li>
+
+<li>survey package documentation. <code>postStratify</code> and <code>rake</code> reference. <a href="https://cran.r-project.org/web/packages/survey/survey.pdf">Link</a></li>
+
+<li>Cronbach, L. J. "Coefficient alpha and the internal structure of tests." <em>Psychometrika</em> 16, 297-334 (1951). <a href="https://link.springer.com/article/10.1007/BF02310555">Link</a></li>
+
+<li>Robbins, N. B. & Heiberger, R. M. "Plotting Likert and Other Rating Scales." <em>JSM Proceedings</em> (2011). The design case for diverging stacked bars. <a href="http://www.asasrms.org/Proceedings/y2011/Files/300784_64164.pdf">Link</a></li>
+
+<li>Wickham, H. & Grolemund, G. <em>R for Data Science</em>, 2nd Edition. Chapter on data transformation with dplyr. <a href="https://r4ds.hadley.nz/data-transform">Link</a></li>
+
+<li>tidyr documentation. <code>pivot_longer</code> reference, used to reshape items for plotting. <a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">Link</a></li>
+
+<li>R Core Team. <code>p.adjust</code> reference: Holm, Bonferroni, and Benjamini-Hochberg corrections. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/p.adjust.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Measurement-Reliability-in-R.html">Measurement Reliability in R</a>: go deeper on Cronbach's alpha, the <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">intraclass correlation</a>, and rater agreement, with <code>psych</code> verification.</li>
+
+<li><a href="Sampling-Methods-in-R.html">Sampling Methods in R</a>: how the sampling frame and design that we recapped here are chosen in the first place.</li>
+
+<li><a href="Statistical-vs-Practical-Significance.html">Statistical vs Practical Significance</a>: the effect-size mindset behind reporting a d and a confidence interval, not just a p-value.</li>
+
+</ul>
+
+{% endraw %}
