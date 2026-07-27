@@ -1,0 +1,1170 @@
+---
+title: "Measurement Reliability in R: Alpha, ICC, Agreement"
+description: "Learn measurement reliability in R. Compute Cronbach's alpha, the intraclass correlation (ICC), and Cohen's kappa by hand, then verify with psych and irr."
+keywords: "measurement reliability in R, Cronbach's alpha R, intraclass correlation R, ICC in R, Cohen's kappa R, inter-rater reliability R, internal consistency, psych package, irr package, weighted kappa"
+mathjax: true
+webr: true
+curriculum_id: "ST2-12.3"
+post_type: "C"
+auto_link_terms: "measurement reliability|reliability in R|Cronbach's alpha|internal consistency|intraclass correlation|ICC in R|Cohen's kappa|inter-rater reliability|inter-rater agreement|weighted kappa|Fleiss kappa|test-retest reliability|rater agreement|reliability coefficient"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Measurement Reliability"
+sidebar_order: "161"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Measurement reliability is the degree to which a measurement reflects a real, stable signal instead of random noise. In R you quantify it three ways: Cronbach's alpha for the internal consistency of a multi-item scale, the <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">intraclass correlation</a> (ICC) for agreement between raters on numeric scores, and Cohen's or Fleiss' kappa for agreement on categories.</p>
+
+<h2>What is measurement reliability, and why does it matter?</h2>
+
+<p>Every score you record is part real signal and part random noise. Reliability is simply the share that is signal. If two attempts to measure the same thing disagree wildly, the number is mostly noise, and any conclusion you build on it is unreliable too. The fastest way to feel this is to measure the same people twice and see how well the two attempts agree.</p>
+
+<p>Let's build that demonstration. We invent 50 people with a fixed true ability, then measure each person twice with a precise instrument (small random error) and twice more with a sloppy one (large random error). Everything on this page uses base R unless a block says otherwise.</p>
+
+<div class="webr-container" data-block-title="Compare a precise and a noisy instrument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare a precise and a noisy instrument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+true_score &lt;- rnorm(50, mean = 100, sd = 15)
+reliable_1 &lt;- true_score + rnorm(50, sd = 3)
+reliable_2 &lt;- true_score + rnorm(50, sd = 3)
+noisy_1 &lt;- true_score + rnorm(50, sd = 15)
+noisy_2 &lt;- true_score + rnorm(50, sd = 15)
+cat(&quot;Reliable instrument, test-retest r:&quot;, round(cor(reliable_1, reliable_2), 2), &quot;\n&quot;)
+cat(&quot;Noisy instrument, test-retest r:   &quot;, round(cor(noisy_1, noisy_2), 2), &quot;\n&quot;)
+#&gt; Reliable instrument, test-retest r: 0.95
+#&gt; Noisy instrument, test-retest r:    0.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That correlation between two attempts at the same measurement is called test-retest reliability. The precise instrument reproduces itself almost perfectly (0.95), while the noisy one barely agrees with itself (0.39). Same 50 people, same true abilities: the only difference is how much random error each instrument adds.</p>
+
+<p><img src="screenshots/Measurement-Reliability-in-R-true-score-model.webp" alt="Every observed score splits into a true part and a random error part; reliability is the true part's share of the total." class="img-responsive img-zoomable" loading="lazy" width="1416" height="594" /></p>
+
+<p><em>Figure 1: Every observed score splits into a true part and a random error part; reliability is the true part's share of the total.</em></p>
+
+<p>The figure names the model behind that demo. An observed score equals a true score plus random error, and because the two are independent, the observed variance is the true variance plus the error variance. Reliability is the true variance divided by the observed variance. We simulated the data, so we actually know each person's true score and can compute that ratio directly.</p>
+
+<div class="webr-container" data-block-title="Reliability as a share of true variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reliability as a share of true variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rel_reliable &lt;- var(true_score) / var(reliable_1)
+rel_noisy    &lt;- var(true_score) / var(noisy_1)
+cat(&quot;Reliability of the precise instrument:&quot;, round(rel_reliable, 2), &quot;\n&quot;)
+cat(&quot;Reliability of the noisy instrument:  &quot;, round(rel_noisy, 2), &quot;\n&quot;)
+#&gt; Reliability of the precise instrument: 0.93
+#&gt; Reliability of the noisy instrument:   0.52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The precise instrument is 93% signal, the noisy one only 52%. In real studies you never see the true score, so you cannot compute this ratio directly. The rest of this tutorial estimates that same signal share from data you can actually collect: several items answered by one person, or several raters judging the same subjects.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Reliability is the signal's share of the total.</strong> A measurement is reliable when most of its variation comes from real differences between the things you measure, not from random noise added each time you measure.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a third instrument that is noisier than the precise one but cleaner than the sloppy one by using <code>rnorm(50, sd = 8)</code> for its error, then report its test-retest correlation. Reuse <code>true_score</code> and remember to seed for reproducibility.</p>
+<div class="webr-container" data-block-title="Your turn: a middling instrument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a middling instrument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: two measurements of true_score, each with sd = 8 error, then their correlation.
+# set.seed(202) first so your result is reproducible.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Middling instrument solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Middling instrument solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+ex_meas1 &lt;- true_score + rnorm(50, sd = 8)
+ex_meas2 &lt;- true_score + rnorm(50, sd = 8)
+round(cor(ex_meas1, ex_meas2), 2)
+#&gt; [1] 0.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With error sd of 8, the test-retest correlation lands at 0.74, between the precise 0.95 and the noisy 0.39. More measurement error always lowers reliability.</p>
+
+</details>
+</section>
+
+<h2>How do you measure internal consistency with Cronbach's alpha?</h2>
+
+<p>Often you cannot measure someone twice, but you can ask several related questions at once. A questionnaire that measures job satisfaction might have seven items. If they all tap the same underlying idea, people who score high on one should tend to score high on the others. That "hang-togetherness" is internal consistency, and Cronbach's alpha is its most common summary.</p>
+
+<p>R ships with a real survey dataset called <code>attitude</code>: 30 departments rated on seven aspects of workplace experience, each on a 0 to 100 scale. Let's look at the first three rows.</p>
+
+<div class="webr-container" data-block-title="Inspect the survey items">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the survey items</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(attitude)
+head(attitude, 3)
+#&gt;   rating complaints privileges learning raises critical advance
+#&gt; 1     43         51         30       39     61       92      45
+#&gt; 2     63         64         51       54     63       73      47
+#&gt; 3     71         70         68       69     76       86      48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each column is one item, each row is one department. Alpha asks a simple question: relative to the spread of the total score, how much of the variation is shared across items rather than private to each one. We can compute it straight from variances. Add up the variance of each item, compare that to the variance of the row totals, and scale by the number of items.</p>
+
+<div class="webr-container" data-block-title="Compute Cronbach&#x27;s alpha by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Cronbach&#x27;s alpha by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">items &lt;- attitude
+k &lt;- ncol(items)
+item_variances &lt;- apply(items, 2, var)
+total_variance &lt;- var(rowSums(items))
+cronbach_alpha &lt;- (k / (k - 1)) * (1 - sum(item_variances) / total_variance)
+cat(&quot;Number of items:&quot;, k, &quot;\n&quot;)
+cat(&quot;Sum of item variances:&quot;, round(sum(item_variances), 1), &quot;\n&quot;)
+cat(&quot;Variance of total score:&quot;, round(total_variance, 1), &quot;\n&quot;)
+cat(&quot;Cronbach's alpha:&quot;, round(cronbach_alpha, 3), &quot;\n&quot;)
+#&gt; Number of items: 7
+#&gt; Sum of item variances: 924.8
+#&gt; Variance of total score: 3334.9
+#&gt; Cronbach's alpha: 0.843</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The seven items produce an alpha of 0.843. Here is the logic behind the arithmetic you just ran. If items were unrelated, the total variance would sit close to the sum of the item variances, the fraction inside the parentheses would fall near zero, and alpha would collapse toward zero. When items move together they reinforce each other, so the total variance grows well past the sum of the item variances. That shrinks the fraction and pushes alpha toward one.</p>
+
+<p>$$\alpha = \frac{k}{k-1}\left(1 - \frac{\sum_{i=1}^{k} \sigma^2_{i}}{\sigma^2_{\text{total}}}\right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$k$ = the number of items (here 7)</li>
+
+<li>$\sigma^2_i$ = the variance of item $i$</li>
+
+<li>$\sigma^2_{\text{total}}$ = the variance of the summed total score</li>
+
+</ul>
+
+<p>A close cousin, standardized alpha, ignores the raw variances and works only from the average correlation between items. It answers the same question on a cleaner footing when items use different scales.</p>
+
+<div class="webr-container" data-block-title="Standardized alpha from item correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardized alpha from item correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">item_cor &lt;- cor(items)
+mean_r &lt;- mean(item_cor[lower.tri(item_cor)])
+alpha_std &lt;- (k * mean_r) / (1 + (k - 1) * mean_r)
+cat(&quot;Average inter-item correlation:&quot;, round(mean_r, 3), &quot;\n&quot;)
+cat(&quot;Standardized alpha:&quot;, round(alpha_std, 3), &quot;\n&quot;)
+#&gt; Average inter-item correlation: 0.427
+#&gt; Standardized alpha: 0.839</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The average item pair correlates at 0.427, and standardized alpha is 0.839, right next to the raw value. In practice you would reach for a package rather than retype these formulas every time.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The psych and irr packages do not run in the browser here.</strong> Every by-hand block on this page runs live as you read, but blocks marked to run locally rely on packages that are not part of the in-browser toolkit. Paste those into your own R session, after <code>install.packages(c(&quot;psych&quot;, &quot;irr&quot;))</code>, to reproduce the numbers.</div></div>
+
+<p>The <code>alpha()</code> function in the psych package returns the same coefficient plus a diagnostic you will want: what alpha would become if each item were dropped. Run this locally.</p>
+
+<pre><code class="language-r">library(psych)
+rel &lt;- alpha(attitude)
+round(rel$total[, c(&quot;raw_alpha&quot;, &quot;std.alpha&quot;, &quot;average_r&quot;)], 3)
+#&gt;  raw_alpha std.alpha average_r
+#&gt;      0.843     0.839     0.427
+round(rel$alpha.drop[, &quot;raw_alpha&quot;, drop = FALSE], 3)
+#&gt;            raw_alpha
+#&gt; rating         0.810
+#&gt; complaints     0.797
+#&gt; privileges     0.828
+#&gt; learning       0.803
+#&gt; raises         0.795
+#&gt; critical       0.864
+#&gt; advance        0.840</code></pre>
+
+<p>The headline numbers match your hand calculation exactly (0.843 and 0.839). The drop table is the useful part: alpha stays near 0.80 no matter which item you remove, except that dropping <code>critical</code> would push alpha up to 0.864. That item is the weak link, contributing little shared signal. How do you read the coefficient itself? Use this common guide.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Cronbach's alpha</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>below 0.60</td>
+<td>Poor</td>
+</tr>
+<tr>
+<td>0.60 to 0.69</td>
+<td>Questionable</td>
+</tr>
+<tr>
+<td>0.70 to 0.79</td>
+<td>Acceptable</td>
+</tr>
+<tr>
+<td>0.80 to 0.89</td>
+<td>Good</td>
+</tr>
+<tr>
+<td>0.90 and above</td>
+<td>Excellent</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high alpha does not prove your scale measures one single thing.</strong> Alpha rises automatically as you add items, so a long questionnaire can post an impressive number while quietly blending two unrelated ideas. Confirm that the items share one dimension with factor analysis before you trust a high alpha.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Cronbach's alpha for just three of the columns, <code>complaints</code>, <code>learning</code>, and <code>raises</code>, using the same by-hand recipe. Store the three-column data frame first.</p>
+<div class="webr-container" data-block-title="Your turn: alpha of a three-item subset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: alpha of a three-item subset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: subset attitude to complaints, learning, raises, then apply the alpha formula.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-item alpha solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-item alpha solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_items &lt;- attitude[, c(&quot;complaints&quot;, &quot;learning&quot;, &quot;raises&quot;)]
+ex_k &lt;- ncol(ex_items)
+ex_alpha &lt;- (ex_k / (ex_k - 1)) * (1 - sum(apply(ex_items, 2, var)) / var(rowSums(ex_items)))
+round(ex_alpha, 3)
+#&gt; [1] 0.833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three strong items already reach 0.833, close to the full seven-item scale, which tells you those three carry most of the shared signal.</p>
+
+</details>
+</section>
+
+<h2>How do you measure rater agreement on numeric scores with the ICC?</h2>
+
+<p>Now change the setup. Instead of one person answering many items, several raters each score the same subjects on a numeric scale: judges scoring gymnasts, doctors rating scan severity, coders scoring essays. You want to know whether the subjects can be told apart reliably despite differences between raters. The intraclass correlation, or ICC, answers this by asking what share of the total variation comes from real differences between subjects rather than from rater disagreement or noise.</p>
+
+<p>We use a small, published example from Shrout and Fleiss (1979): six targets each rated by four judges. Working with a known dataset lets you check the results against the literature.</p>
+
+<div class="webr-container" data-block-title="Ratings of six targets by four judges">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ratings of six targets by four judges</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ratings &lt;- matrix(c(9, 2, 5, 8,
+                    6, 1, 3, 2,
+                    8, 4, 6, 8,
+                    7, 1, 2, 6,
+                    10, 5, 6, 9,
+                    6, 2, 4, 7),
+                  nrow = 6, byrow = TRUE)
+colnames(ratings) &lt;- paste0(&quot;Judge&quot;, 1:4)
+rownames(ratings) &lt;- paste0(&quot;Target&quot;, 1:6)
+ratings
+#&gt;         Judge1 Judge2 Judge3 Judge4
+#&gt; Target1      9      2      5      8
+#&gt; Target2      6      1      3      2
+#&gt; Target3      8      4      6      8
+#&gt; Target4      7      1      2      6
+#&gt; Target5     10      5      6      9
+#&gt; Target6      6      2      4      7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Scan the rows and you can see the judges disagree a lot on the raw numbers (Judge2 is consistently harsh), yet they mostly rank the targets the same way. The ICC turns that impression into a number. The tool that separates the sources of variation is a two-way analysis of variance with target and judge as factors.</p>
+
+<div class="webr-container" data-block-title="Partition the variance with a two-way ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Partition the variance with a two-way ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- nrow(ratings)
+k &lt;- ncol(ratings)
+long &lt;- data.frame(score = as.vector(ratings),
+                   target = factor(rep(1:n, times = k)),
+                   judge = factor(rep(1:k, each = n)))
+fit &lt;- aov(score ~ target + judge, data = long)
+summary(fit)
+MSR &lt;- summary(fit)[[1]][&quot;target&quot;, &quot;Mean Sq&quot;]
+MSC &lt;- summary(fit)[[1]][&quot;judge&quot;, &quot;Mean Sq&quot;]
+MSE &lt;- summary(fit)[[1]][&quot;Residuals&quot;, &quot;Mean Sq&quot;]
+cat(&quot;MSR =&quot;, round(MSR, 2), &quot; MSC =&quot;, round(MSC, 2), &quot; MSE =&quot;, round(MSE, 2), &quot;\n&quot;)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; target       5  56.21   11.24   11.03 0.000135 ***
+#&gt; judge        3  97.46   32.49   31.87 9.45e-07 ***
+#&gt; Residuals   15  15.29    1.02
+#&gt; MSR = 11.24  MSC = 32.49  MSE = 1.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ANOVA hands us three mean squares. <code>MSR</code> (11.24) measures how much the targets differ from each other, the real signal we hope dominates. <code>MSC</code> (32.49) measures how much the judges differ in overall strictness. <code>MSE</code> (1.02) is the leftover noise. The ICC formulas combine these three numbers, and the exact recipe depends on the question you are asking.</p>
+
+<p>$$\text{ICC(3,1)} = \frac{MS_R - MS_E}{MS_R + (k-1)\,MS_E} \qquad \text{ICC(2,1)} = \frac{MS_R - MS_E}{MS_R + (k-1)\,MS_E + \frac{k}{n}(MS_C - MS_E)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$MS_R$ = the between-subjects mean square (real target differences)</li>
+
+<li>$MS_C$ = the between-raters mean square (judge strictness)</li>
+
+<li>$MS_E$ = the residual mean square (noise)</li>
+
+<li>$n$ = the number of subjects, $k$ = the number of raters</li>
+
+</ul>
+
+<p>The two formulas differ in one place: the consistency version, ICC(3,1), ignores $MS_C$, while the absolute-agreement version, ICC(2,1), adds it as a penalty. Consistency forgives a judge who is harsh as long as they rank targets correctly; agreement demands that raters land on the same actual number. Let's compute both, plus the version for the average of all four judges.</p>
+
+<div class="webr-container" data-block-title="Compute ICC by hand from the mean squares">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute ICC by hand from the mean squares</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">icc_consistency &lt;- (MSR - MSE) / (MSR + (k - 1) * MSE)
+icc_agreement   &lt;- (MSR - MSE) / (MSR + (k - 1) * MSE + (k / n) * (MSC - MSE))
+icc_avg_consistency &lt;- (MSR - MSE) / MSR
+cat(&quot;ICC(3,1) consistency, single rater:&quot;, round(icc_consistency, 3), &quot;\n&quot;)
+cat(&quot;ICC(2,1) agreement, single rater:  &quot;, round(icc_agreement, 3), &quot;\n&quot;)
+cat(&quot;ICC(3,k) consistency, mean of 4:   &quot;, round(icc_avg_consistency, 3), &quot;\n&quot;)
+#&gt; ICC(3,1) consistency, single rater: 0.715
+#&gt; ICC(2,1) agreement, single rater:   0.29
+#&gt; ICC(3,k) consistency, mean of 4:    0.909</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at how far apart these are for the very same ratings. Judged on ranking alone, a single rater is fairly reliable (0.715). Demand that raters agree on the exact score and reliability drops to 0.29, because Judge2's harshness now counts against them. Average all four judges together and reliability jumps to 0.909, since pooling cancels individual quirks. The psych package computes all six standard forms at once, with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>. Run this locally.</p>
+
+<pre><code class="language-r">res &lt;- psych::ICC(ratings)$results
+data.frame(form  = res$type,
+           ICC   = round(res$ICC, 3),
+           lower = round(res$`lower bound`, 3),
+           upper = round(res$`upper bound`, 3))
+#&gt;    form   ICC  lower upper
+#&gt; 1  ICC1 0.166 -0.133 0.723
+#&gt; 2  ICC2 0.290  0.019 0.761
+#&gt; 3  ICC3 0.715  0.342 0.946
+#&gt; 4 ICC1k 0.443 -0.884 0.912
+#&gt; 5 ICC2k 0.620  0.071 0.927
+#&gt; 6 ICC3k 0.909  0.676 0.986</code></pre>
+
+<p>Your hand-computed values sit right in this table: ICC3 is 0.715, ICC2 is 0.290, ICC3k is 0.909. The six forms come from three yes-or-no choices, laid out below.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>psych label</th>
+<th>Model</th>
+<th>Type</th>
+<th>Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ICC1</td>
+<td>One-way random</td>
+<td>Absolute</td>
+<td>Single rater</td>
+</tr>
+<tr>
+<td>ICC2</td>
+<td>Two-way random</td>
+<td>Agreement</td>
+<td>Single rater</td>
+</tr>
+<tr>
+<td>ICC3</td>
+<td>Two-way mixed</td>
+<td>Consistency</td>
+<td>Single rater</td>
+</tr>
+<tr>
+<td>ICC1k</td>
+<td>One-way random</td>
+<td>Absolute</td>
+<td>Average</td>
+</tr>
+<tr>
+<td>ICC2k</td>
+<td>Two-way random</td>
+<td>Agreement</td>
+<td>Average</td>
+</tr>
+<tr>
+<td>ICC3k</td>
+<td>Two-way mixed</td>
+<td>Consistency</td>
+<td>Average</td>
+</tr>
+</tbody>
+</table>
+
+<p>The irr package lets you request one specific form directly, which is handy when a journal asks for exactly the absolute-agreement single-rater value. Run this locally.</p>
+
+<pre><code class="language-r">library(irr)
+icc(ratings, model = &quot;twoway&quot;, type = &quot;agreement&quot;, unit = &quot;single&quot;)
+#&gt;  Single Score Intraclass Correlation
+#&gt;    Model: twoway
+#&gt;    Type : agreement
+#&gt;    Subjects = 6
+#&gt;      Raters = 4
+#&gt;    ICC(A,1) = 0.29
+#&gt;    F(5,15) = 11 , p = 0.000135
+#&gt;  95%-Confidence Interval for ICC Population Values:
+#&gt;   0.019 &lt; ICC &lt; 0.761</code></pre>
+
+<p>That confirms the by-hand agreement value of 0.29 once more. To interpret any ICC, the widely used Koo and Li (2016) guideline is a good default.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>ICC</th>
+<th>Reliability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>below 0.50</td>
+<td>Poor</td>
+</tr>
+<tr>
+<td>0.50 to 0.75</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>0.75 to 0.90</td>
+<td>Good</td>
+</tr>
+<tr>
+<td>above 0.90</td>
+<td>Excellent</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report which ICC you used, not just the number.</strong> State clearly whether you chose the consistency or the absolute-agreement type, and whether the value describes a single rater or the average of several, because those choices can move the same ratings from "poor" to "good".</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have <code>MSR</code>, <code>MSC</code>, <code>MSE</code>, and <code>n</code> in memory from the ANOVA. Compute the absolute-agreement ICC for the average of the four judges, ICC(2,k), whose formula is <code>(MSR - MSE) / (MSR + (MSC - MSE) / n)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: average-rater agreement ICC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: average-rater agreement ICC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: plug MSR, MSC, MSE, n into the ICC(2,k) agreement formula and round to 3 digits.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Average-rater agreement ICC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average-rater agreement ICC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_icc2k &lt;- (MSR - MSE) / (MSR + (MSC - MSE) / n)
+round(ex_icc2k, 3)
+#&gt; [1] 0.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Averaging the four judges lifts absolute agreement from 0.29 for a single rater to 0.62 for the panel mean, matching ICC2k in the psych table. More raters, averaged, cancel individual bias.</p>
+
+</details>
+</section>
+
+<h2>How do you measure agreement on categories with Cohen's kappa?</h2>
+
+<p>Sometimes raters do not give numbers at all: they assign categories. Two examiners grade essays as Fail, Pass, Merit, or Distinction; two doctors label a scan as benign or malignant. The obvious measure is the percentage of cases the raters label the same way, but that number overstates agreement, because raters agree by pure luck a fair amount of the time. Cohen's kappa fixes this by subtracting the agreement expected from chance.</p>
+
+<p>Here are two examiners grading the same 20 essays. We store the grades as <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factors</a> and cross-tabulate them into a confusion table.</p>
+
+<div class="webr-container" data-block-title="Two examiners grade twenty essays">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two examiners grade twenty essays</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levels_grade &lt;- c(&quot;Fail&quot;, &quot;Pass&quot;, &quot;Merit&quot;, &quot;Distinction&quot;)
+examiner_A &lt;- factor(c(&quot;Pass&quot;,&quot;Fail&quot;,&quot;Merit&quot;,&quot;Pass&quot;,&quot;Distinction&quot;,&quot;Merit&quot;,&quot;Fail&quot;,&quot;Pass&quot;,
+                       &quot;Merit&quot;,&quot;Distinction&quot;,&quot;Pass&quot;,&quot;Fail&quot;,&quot;Merit&quot;,&quot;Pass&quot;,&quot;Distinction&quot;,
+                       &quot;Merit&quot;,&quot;Pass&quot;,&quot;Fail&quot;,&quot;Distinction&quot;,&quot;Merit&quot;), levels = levels_grade)
+examiner_B &lt;- factor(c(&quot;Pass&quot;,&quot;Fail&quot;,&quot;Merit&quot;,&quot;Merit&quot;,&quot;Distinction&quot;,&quot;Pass&quot;,&quot;Fail&quot;,&quot;Pass&quot;,
+                       &quot;Merit&quot;,&quot;Merit&quot;,&quot;Pass&quot;,&quot;Pass&quot;,&quot;Merit&quot;,&quot;Pass&quot;,&quot;Distinction&quot;,
+                       &quot;Distinction&quot;,&quot;Pass&quot;,&quot;Fail&quot;,&quot;Distinction&quot;,&quot;Merit&quot;), levels = levels_grade)
+conf &lt;- table(examiner_A, examiner_B)
+conf
+#&gt;              examiner_B
+#&gt; examiner_A    Fail Pass Merit Distinction
+#&gt;   Fail           3    1     0           0
+#&gt;   Pass           0    5     1           0
+#&gt;   Merit          0    1     4           1
+#&gt;   Distinction    0    0     1           3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The diagonal counts the essays both examiners graded identically. Everything off the diagonal is a disagreement. Adding up the diagonal and dividing by 20 gives the raw agreement.</p>
+
+<div class="webr-container" data-block-title="Why raw percent agreement misleads">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Why raw percent agreement misleads</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_essays &lt;- length(examiner_A)
+p_observed &lt;- sum(diag(conf)) / n_essays
+cat(&quot;Essays graded the same by both examiners:&quot;, sum(diag(conf)), &quot;out of&quot;, n_essays, &quot;\n&quot;)
+cat(&quot;Observed (raw) agreement:&quot;, round(p_observed, 3), &quot;\n&quot;)
+#&gt; Essays graded the same by both examiners: 15 out of 20
+#&gt; Observed (raw) agreement: 0.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>They agree on 15 of 20 essays, or 75%. That sounds decent, but part of it is luck. If both examiners hand out Pass often, they will land on Pass together sometimes even without reading the essays. Kappa asks how much of the 75% is real skill beyond that chance floor.</p>
+
+<p>$$\kappa = \frac{p_o - p_e}{1 - p_e}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$p_o$ = the observed proportion of agreement (0.75 here)</li>
+
+<li>$p_e$ = the proportion of agreement expected by chance, from the row and column totals</li>
+
+</ul>
+
+<p>To get the chance floor, multiply each grade's row share by its column share and add across grades. That is the agreement you would expect if each examiner threw grades independently while keeping their overall habits.</p>
+
+<div class="webr-container" data-block-title="Cohen&#x27;s kappa by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cohen&#x27;s kappa by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">row_share &lt;- rowSums(conf) / n_essays
+col_share &lt;- colSums(conf) / n_essays
+p_expected &lt;- sum(row_share * col_share)
+cohen_kappa &lt;- (p_observed - p_expected) / (1 - p_expected)
+cat(&quot;Agreement expected by chance:&quot;, round(p_expected, 3), &quot;\n&quot;)
+cat(&quot;Cohen's kappa:&quot;, round(cohen_kappa, 3), &quot;\n&quot;)
+#&gt; Agreement expected by chance: 0.265
+#&gt; Cohen's kappa: 0.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Chance alone would produce about 27% agreement, so the raw 75% is a lot better than luck. Kappa rescales the gap into 0.66, meaning the examiners captured about two thirds of the possible agreement above chance.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Kappa measures how far you beat blind guessing.</strong> Two raters who both label almost everything the same category will agree often by luck alone, so kappa subtracts that expected luck before crediting the agreement that remains.</div></div>
+
+<p>The irr package computes kappa directly, and it can also weight disagreements. For ordered grades, a Fail-versus-Distinction mix-up is worse than a Merit-versus-Distinction slip, and squared weights penalize far-apart disagreements more heavily. Run this locally.</p>
+
+<pre><code class="language-r">grades &lt;- data.frame(examiner_A, examiner_B)
+kappa2(grades, weight = &quot;unweighted&quot;)
+#&gt;  Cohen's Kappa for 2 Raters (Weights: unweighted)
+#&gt;  Subjects = 20
+#&gt;    Raters = 2
+#&gt;     Kappa = 0.66
+kappa2(grades, weight = &quot;squared&quot;)
+#&gt;  Cohen's Kappa for 2 Raters (Weights: squared)
+#&gt;     Kappa = 0.718</code></pre>
+
+<p>The unweighted kappa reproduces your 0.66. The squared-weight version rises to 0.718, because the examiners' disagreements were all near misses between neighbouring grades rather than wild swings, and weighting rewards that. When you have three or more raters, Cohen's kappa no longer applies, but Fleiss' kappa extends the same chance-corrected idea to a whole panel. Run this locally.</p>
+
+<pre><code class="language-r">set.seed(9)
+ticket_ratings &lt;- matrix(c(
+  1, 1, 1, 2, 2, 2, 3, 3, 3, 1, 1, 2, 2, 2, 3,
+  3, 3, 3, 1, 1, 1, 2, 3, 2, 1, 1, 1, 2, 2, 2,
+  3, 3, 3, 1, 2, 1, 2, 2, 2, 3, 3, 3, 1, 1, 1),
+  ncol = 3, byrow = TRUE)
+kappam.fleiss(ticket_ratings)
+#&gt;  Fleiss' Kappa for m Raters
+#&gt;  Subjects = 15
+#&gt;    Raters = 3
+#&gt;     Kappa = 0.733</code></pre>
+
+<p>Three coders labelling 15 support tickets into three categories reach a Fleiss' kappa of 0.733. To judge any kappa, the Landis and Koch (1977) scale is the classic reference.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Kappa</th>
+<th>Agreement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>below 0.00</td>
+<td>Poor</td>
+</tr>
+<tr>
+<td>0.00 to 0.20</td>
+<td>Slight</td>
+</tr>
+<tr>
+<td>0.21 to 0.40</td>
+<td>Fair</td>
+</tr>
+<tr>
+<td>0.41 to 0.60</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>0.61 to 0.80</td>
+<td>Substantial</td>
+</tr>
+<tr>
+<td>0.81 to 1.00</td>
+<td>Almost perfect</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>When one category is rare, high agreement can still give a low kappa.</strong> If most cases fall in one bucket, raters agree most of the time just by naming that common bucket, so kappa can look weak even when raw agreement looks excellent. You will meet this trap in the last practice exercise.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Two coders labelled 10 emails as Spam or Ham. Build the confusion table with <code>table()</code>, then compute both raw agreement and Cohen's kappa by hand. The two label vectors are provided.</p>
+<div class="webr-container" data-block-title="Your turn: kappa for two spam coders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: kappa for two spam coders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_c1 &lt;- c(&quot;Spam&quot;,&quot;Ham&quot;,&quot;Spam&quot;,&quot;Spam&quot;,&quot;Ham&quot;,&quot;Ham&quot;,&quot;Spam&quot;,&quot;Ham&quot;,&quot;Spam&quot;,&quot;Ham&quot;)
+ex_c2 &lt;- c(&quot;Spam&quot;,&quot;Ham&quot;,&quot;Spam&quot;,&quot;Ham&quot;,&quot;Ham&quot;,&quot;Ham&quot;,&quot;Spam&quot;,&quot;Ham&quot;,&quot;Spam&quot;,&quot;Spam&quot;)
+# 1. ex_tab &lt;- table(ex_c1, ex_c2)
+# 2. observed agreement = sum(diag(ex_tab)) / length(ex_c1)
+# 3. expected = sum(row shares * col shares)
+# 4. kappa = (observed - expected) / (1 - expected)
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Spam coder kappa solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spam coder kappa solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tab &lt;- table(ex_c1, ex_c2)
+ex_po &lt;- sum(diag(ex_tab)) / length(ex_c1)
+ex_pe &lt;- sum(rowSums(ex_tab) / length(ex_c1) * colSums(ex_tab) / length(ex_c1))
+round(c(percent_agreement = ex_po, kappa = (ex_po - ex_pe) / (1 - ex_pe)), 3)
+#&gt; percent_agreement             kappa
+#&gt;               0.8               0.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The coders agree on 8 of 10 emails (0.8 raw), but after removing the chance floor the kappa is 0.6, moderate agreement. The correction matters even for a tidy binary task.</p>
+
+</details>
+</section>
+
+<h2>How do you choose the right reliability measure?</h2>
+
+<p>The three coefficients are not competitors; each fits a different shape of data. The deciding question is what your ratings look like, as the figure and table below lay out.</p>
+
+<p><img src="screenshots/Measurement-Reliability-in-R-choose-measure.webp" alt="Pick the reliability measure from the kind of ratings you have." class="img-responsive img-zoomable" loading="lazy" width="1644" height="882" /></p>
+
+<p><em>Figure 2: Pick the reliability measure from the kind of ratings you have.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>You have</th>
+<th>You want to know</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Many items, one construct</td>
+<td>Internal consistency</td>
+<td>Cronbach's alpha</td>
+</tr>
+<tr>
+<td>Numeric scores, several raters</td>
+<td>Rater reliability</td>
+<td>Intraclass correlation</td>
+</tr>
+<tr>
+<td>Category labels, two raters</td>
+<td>Agreement beyond chance</td>
+<td>Cohen's kappa</td>
+</tr>
+<tr>
+<td>Category labels, three or more raters</td>
+<td>Agreement beyond chance</td>
+<td>Fleiss' kappa</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match the coefficient to the decision you will make.</strong> If future cases will be scored by the average of several raters, report the average-measures ICC; if a lone rater will score them, report the single-measures ICC, because that is the reliability you will actually get in production.</div></div>
+
+<h2>Complete Example: an end-to-end reliability check</h2>
+
+<p>Let's put ICC and kappa on the same dataset to see how the lens changes the answer. Three interviewers score 10 job candidates on a 0 to 10 scale. First we generate and view the panel.</p>
+
+<div class="webr-container" data-block-title="Three interviewers score ten candidates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three interviewers score ten candidates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(88)
+quality &lt;- round(runif(10, 2, 9))
+panel &lt;- sapply(1:3, function(j) pmin(10, pmax(0, round(quality + rnorm(10, sd = 1.4)))))
+colnames(panel) &lt;- paste0(&quot;Interviewer&quot;, 1:3)
+rownames(panel) &lt;- paste0(&quot;Cand&quot;, 1:10)
+panel
+#&gt;        Interviewer1 Interviewer2 Interviewer3
+#&gt; Cand1             5            4            4
+#&gt; Cand2             3            3            2
+#&gt; Cand3             4            8            5
+#&gt; Cand4             3            5            5
+#&gt; Cand5            10           10            8
+#&gt; Cand6             8            9            8
+#&gt; Cand7             3            1            3
+#&gt; Cand8             9            6            6
+#&gt; Cand9             7            5            8
+#&gt; Cand10            9           10           10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Treating the scores as numbers, we ask how reliable the panel is when we average all three interviewers, using the absolute-agreement ICC for the mean of the raters.</p>
+
+<div class="webr-container" data-block-title="Panel reliability as an average-rater ICC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Panel reliability as an average-rater ICC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">np &lt;- nrow(panel)
+kp &lt;- ncol(panel)
+long_p &lt;- data.frame(score = as.vector(panel),
+                     cand = factor(rep(1:np, times = kp)),
+                     rater = factor(rep(1:kp, each = np)))
+tp &lt;- summary(aov(score ~ cand + rater, data = long_p))[[1]]
+MSR_p &lt;- tp[&quot;cand&quot;, &quot;Mean Sq&quot;]
+MSC_p &lt;- tp[&quot;rater&quot;, &quot;Mean Sq&quot;]
+MSE_p &lt;- tp[&quot;Residuals&quot;, &quot;Mean Sq&quot;]
+icc_panel &lt;- (MSR_p - MSE_p) / (MSR_p + (MSC_p - MSE_p) / np)
+cat(&quot;Panel ICC(2,k), average of 3 interviewers, absolute agreement:&quot;, round(icc_panel, 3), &quot;\n&quot;)
+#&gt; Panel ICC(2,k), average of 3 interviewers, absolute agreement: 0.926</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>As a numeric panel, reliability is excellent at 0.926. Now suppose the company only cares about a yes-or-no call: recommend a candidate whose score is 6 or higher. We collapse two interviewers' scores into that decision and measure agreement with Cohen's kappa.</p>
+
+<div class="webr-container" data-block-title="Turn scores into a hire decision and check agreement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn scores into a hire decision and check agreement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_1 &lt;- ifelse(panel[, 1] &gt;= 6, &quot;Recommend&quot;, &quot;Reject&quot;)
+rec_2 &lt;- ifelse(panel[, 2] &gt;= 6, &quot;Recommend&quot;, &quot;Reject&quot;)
+decision &lt;- table(rec_1, rec_2)
+decision
+d_po &lt;- sum(diag(decision)) / np
+d_pe &lt;- sum(rowSums(decision) / np * colSums(decision) / np)
+cat(&quot;Raw agreement on the decision:&quot;, round(d_po, 2), &quot;\n&quot;)
+cat(&quot;Cohen's kappa on the decision:&quot;, round((d_po - d_pe) / (1 - d_pe), 3), &quot;\n&quot;)
+#&gt;            rec_2
+#&gt; rec_1       Recommend Reject
+#&gt;   Recommend         4      1
+#&gt;   Reject            1      4
+#&gt; Raw agreement on the decision: 0.8
+#&gt; Cohen's kappa on the decision: 0.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is the lesson. The same interviewers whose numeric scores were 0.926 reliable drop to a kappa of 0.6, only moderate, once you flatten the scores into a yes-or-no verdict. Dichotomizing throws away the fine gradations that made the panel look strong. When a numeric scale exists, keep it and report the ICC rather than reducing everything to a coarse label.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each solution runs on its own, so try it before you reveal the answer.</p>
+
+<h3>Exercise 1: Find the weakest item in a scale</h3>
+
+<p>Build a five-item scale from the columns <code>complaints</code>, <code>privileges</code>, <code>learning</code>, <code>raises</code>, and <code>advance</code>. Compute Cronbach's alpha for the full scale, then compute alpha with each item removed in turn. Which single item, if dropped, raises alpha the most, and what does that tell you about that item?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: write a helper alpha_of(m) that applies the alpha formula to a matrix,
+# then loop over columns dropping one at a time with m[, -j].
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scale_items &lt;- attitude[, c(&quot;complaints&quot;, &quot;privileges&quot;, &quot;learning&quot;, &quot;raises&quot;, &quot;advance&quot;)]
+alpha_of &lt;- function(m) {
+  kk &lt;- ncol(m)
+  (kk / (kk - 1)) * (1 - sum(apply(m, 2, var)) / var(rowSums(m)))
+}
+full_alpha &lt;- alpha_of(scale_items)
+drop_alpha &lt;- sapply(seq_len(ncol(scale_items)), function(j) alpha_of(scale_items[, -j]))
+names(drop_alpha) &lt;- colnames(scale_items)
+cat(&quot;Alpha with all 5 items:&quot;, round(full_alpha, 3), &quot;\n&quot;)
+round(drop_alpha, 3)
+#&gt; Alpha with all 5 items: 0.835
+#&gt; complaints privileges   learning     raises    advance
+#&gt;      0.799      0.818      0.775      0.773      0.837</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping <code>advance</code> lifts alpha to 0.837, just above the full-scale 0.835. Every other removal lowers alpha. That makes <code>advance</code> the weakest contributor: it adds items to the scale without adding much shared signal.</p>
+
+</details>
+
+<h3>Exercise 2: Compute an ICC from scratch</h3>
+
+<p>Three raters scored six subjects, giving the matrix below. Using only base R, run a <a class="auto-link" href="Two-Way-ANOVA-in-R.html" title="Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted">two-way ANOVA</a> and compute the single-rater consistency ICC, ICC(3,1), from the mean squares. Its formula is <code>(MSR - MSE) / (MSR + (k - 1) * MSE)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_r &lt;- matrix(c(4, 5, 4,
+                  7, 8, 7,
+                  3, 3, 4,
+                  9, 8, 9,
+                  6, 7, 6,
+                  5, 4, 5),
+                nrow = 6, byrow = TRUE)
+# Reshape to long form, fit aov(score ~ subject + rater), pull the mean squares,
+# then apply the ICC(3,1) formula.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cn &lt;- nrow(cap_r)
+ck &lt;- ncol(cap_r)
+cap_long &lt;- data.frame(y = as.vector(cap_r),
+                       subj = factor(rep(1:cn, times = ck)),
+                       rtr = factor(rep(1:ck, each = cn)))
+cap_ms &lt;- summary(aov(y ~ subj + rtr, data = cap_long))[[1]]
+cap_MSR &lt;- cap_ms[&quot;subj&quot;, &quot;Mean Sq&quot;]
+cap_MSE &lt;- cap_ms[&quot;Residuals&quot;, &quot;Mean Sq&quot;]
+cat(&quot;ICC(3,1):&quot;, round((cap_MSR - cap_MSE) / (cap_MSR + (ck - 1) * cap_MSE), 3), &quot;\n&quot;)
+#&gt; ICC(3,1): 0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> These raters barely disagree, so almost all the variation reflects real subject differences, giving an excellent single-rater ICC of 0.91.</p>
+
+</details>
+
+<h3>Exercise 3: The base-rate trap</h3>
+
+<p>Two radiologists screened 100 scans for a rare disease. Their agreement is summarized in the 2-by-2 table below: both radiologists called 80 scans negative and 5 positive, and they disagreed on 10 scans split evenly in each direction. Compute the raw agreement and Cohen's kappa, then explain why they tell such different stories.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scan_tab &lt;- matrix(c(80, 5, 10, 5), nrow = 2, byrow = TRUE,
+                   dimnames = list(RadiologistA = c(&quot;Neg&quot;, &quot;Pos&quot;),
+                                   RadiologistB = c(&quot;Neg&quot;, &quot;Pos&quot;)))
+# raw agreement = sum(diag) / total; expected = sum(row shares * col shares);
+# kappa = (raw - expected) / (1 - expected)
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">N &lt;- sum(scan_tab)
+p_obs &lt;- sum(diag(scan_tab)) / N
+p_exp &lt;- sum(rowSums(scan_tab) / N * colSums(scan_tab) / N)
+cat(&quot;Raw agreement:&quot;, round(p_obs, 3), &quot;\n&quot;)
+cat(&quot;Cohen's kappa:&quot;, round((p_obs - p_exp) / (1 - p_exp), 3), &quot;\n&quot;)
+#&gt; Raw agreement: 0.85
+#&gt; Cohen's kappa: 0.318</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Raw agreement is a comfortable 0.85, but kappa is only 0.318, merely fair. Because the disease is rare, both radiologists say "negative" most of the time and agree by default, so the chance floor is high and little genuine skill is left to credit. This is exactly why kappa, not raw percentage, is the honest measure for skewed categories.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Measurement reliability is one idea, the signal's share of the total variation, measured three ways depending on the shape of your data. The mindmap below is your recap, and the table pins each family to its R tools.</p>
+
+<p><img src="screenshots/Measurement-Reliability-in-R-families.webp" alt="The three families of reliability and their coefficients." class="img-responsive img-zoomable" loading="lazy" width="1738" height="1152" /></p>
+
+<p><em>Figure 3: The three families of reliability and their coefficients.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>Question it answers</th>
+<th>By hand in R</th>
+<th>Package function</th>
+<th>Rule of thumb</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Internal consistency</td>
+<td>Do these items measure one thing?</td>
+<td>item and total variances</td>
+<td>psych::alpha()</td>
+<td>alpha 0.80 or higher is good</td>
+</tr>
+<tr>
+<td>Rater reliability (numeric)</td>
+<td>Do raters score subjects alike?</td>
+<td>two-way ANOVA mean squares</td>
+<td>psych::ICC(), irr::icc()</td>
+<td>ICC 0.75 or higher is good</td>
+</tr>
+<tr>
+<td>Rater agreement (categorical)</td>
+<td>Do raters pick the same category?</td>
+<td>confusion table, chance correction</td>
+<td>irr::kappa2(), irr::kappam.fleiss()</td>
+<td>kappa 0.61 or higher is substantial</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways to carry forward:</p>
+
+<ul>
+
+<li>Reliability is a proportion of variance, so it always sits between 0 and 1, and higher means less noise.</li>
+
+<li>Cronbach's alpha rewards items that move together, but a high alpha does not guarantee the scale is one-dimensional.</li>
+
+<li>The ICC has several forms; always state the model, and whether it describes a single rater or an average.</li>
+
+<li>Kappa beats raw percent agreement because it removes the agreement raters would reach by chance.</li>
+
+<li>Collapsing numeric ratings into categories can turn an excellent ICC into a merely moderate kappa, so keep the finer scale when you can.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<h3>What counts as a good Cronbach's alpha?</h3>
+
+<p>A common rule treats 0.70 as acceptable, 0.80 as good, and 0.90 as excellent for research scales. Values above 0.95 can actually signal redundant items that ask the same question twice, so higher is not always better.</p>
+
+<h3>What is the difference between Cronbach's alpha and the ICC?</h3>
+
+<p>Alpha summarizes how well several items on one questionnaire hang together to measure a single construct. The ICC summarizes how well several raters agree when they each score the same subjects. They answer different questions, though both express reliability as a share of variance.</p>
+
+<h3>Why use Cohen's kappa instead of raw percent agreement?</h3>
+
+<p>Raw percent agreement counts every match, including the ones raters would hit by chance. Kappa subtracts that expected chance agreement, so it is not inflated when one category is very common. The base-rate exercise above shows raw agreement of 0.85 shrinking to a kappa of 0.318.</p>
+
+<h3>Which ICC form should I report?</h3>
+
+<p>Pick the form that matches your design and use. Choose two-way if the same raters score every subject, absolute agreement if the exact score matters (not just the ranking), and single-rater if one rater will score future cases alone. Report the choice alongside the value.</p>
+
+<h3>Does a high reliability score mean my measurement is accurate?</h3>
+
+<p>No. Reliability is about consistency, not correctness. A scale that reads five pounds heavy gives the same wrong number every time, so it is perfectly reliable yet completely inaccurate. Reliability is necessary for a good measure but not sufficient: to show that a measure captures the right thing, you also need validity evidence, such as a factor analysis that the items load on the intended construct or a comparison against an external standard.</p>
+
+<h3>Can a reliability coefficient be negative?</h3>
+
+<p>Yes. Cronbach's alpha and the ICC can dip below zero when items or raters disagree more than chance would predict, which usually points to a reverse-coded item or a genuine measurement problem rather than a low-but-valid reliability.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cronbach, L. J. (1951). Coefficient alpha and the internal structure of tests. Psychometrika. <a href="https://link.springer.com/article/10.1007/BF02310555">Link</a></li>
+
+<li>Shrout, P. E., & Fleiss, J. L. (1979). Intraclass correlations: uses in assessing rater reliability. Psychological Bulletin. <a href="https://pubmed.ncbi.nlm.nih.gov/18839484/">Link</a></li>
+
+<li>Koo, T. K., & Li, M. Y. (2016). A guideline of selecting and reporting intraclass correlation coefficients. Journal of Chiropractic Medicine. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4913118/">Link</a></li>
+
+<li>Landis, J. R., & Koch, G. G. (1977). The measurement of observer agreement for categorical data. Biometrics. <a href="https://pubmed.ncbi.nlm.nih.gov/843571/">Link</a></li>
+
+<li>McHugh, M. L. (2012). Interrater reliability: the kappa statistic. Biochemia Medica. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3900052/">Link</a></li>
+
+<li>Revelle, W. psych: Procedures for Psychological, Psychometric, and Personality Research. CRAN. <a href="https://cran.r-project.org/package=psych">Link</a></li>
+
+<li>Gamer, M., et al. irr: Various Coefficients of Interrater Reliability and Agreement. CRAN. <a href="https://cran.r-project.org/package=irr">Link</a></li>
+
+<li>R Core Team. An Introduction to R. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Factor-Analysis.html">Factor Analysis in R</a>: confirm that your questionnaire items really measure one underlying construct before you trust their alpha.</li>
+
+<li><a href="Correlation-Analysis-in-R.html">Correlation Analysis in R</a>: the pairwise correlation is the building block underneath both alpha and the ICC.</li>
+
+<li><a href="Statistical-Tests-in-R.html">Statistical Tests in R</a>: round out your toolkit for comparing groups and validating measures.</li>
+
+</ul>
+
+{% endraw %}
