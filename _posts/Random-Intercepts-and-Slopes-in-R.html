@@ -1,0 +1,896 @@
+---
+title: "Random Intercepts and Slopes with lme4 in R"
+description: "Learn random intercepts and slopes in R with lme4. Fit lmer models on grouped data, read the random-effects table, get p-values, and understand partial pooling."
+keywords: "random intercepts and slopes, lme4, mixed models in R, random slope model, lmer, partial pooling, random effects, sleepstudy example, hierarchical model, multilevel model"
+mathjax: true
+webr: true
+curriculum_id: "ST2-11.2"
+post_type: "C"
+auto_link_terms: "random intercepts and slopes|random intercept|random slope|mixed model|mixed models in R|linear mixed model|lme4|lmer|partial pooling|random effects|multilevel model|hierarchical model|variance components"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Random Intercepts & Slopes"
+sidebar_order: "171"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead"><a class="auto-link" href="Mixed-Effects-Models-Exercises-in-R.html" title="Mixed Effects Models Exercises in R: 15 Practice Problems">Random intercepts</a> and slopes let a single model give every group in your data its own baseline and its own trend, while still sharing what all the groups have in common. This guide builds that idea from scratch on one small dataset, shows you how to fit the model with the <code>lme4</code> package, and walks through every line of the output so you can read it with confidence. It uses base R plus <code>lme4</code>, and the examples run right here in your browser.</p>
+
+<h2>Why do repeated measurements need random intercepts and slopes?</h2>
+
+<p>Most real datasets are not a flat list of independent rows. They come in groups: several test scores per student, many visits per patient, repeated readings per sensor. When you measure the same subject more than once, those measurements are related to each other, and pretending they are independent leads you astray. Random intercepts and slopes are the tool that respects that grouping.</p>
+
+<p>We will work with <code>sleepstudy</code>, a dataset that ships with <code>lme4</code>. It records the reaction time (in milliseconds) of 18 people across 10 days of restricted sleep. Each person was measured once per day, so every person contributes 10 related rows. Let's load it and look.</p>
+
+<div class="webr-container" data-block-title="Load lme4 and the sleepstudy data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lme4 and the sleepstudy data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lme4)
+data(&quot;sleepstudy&quot;)
+head(sleepstudy, 4)
+#&gt;   Reaction Days Subject
+#&gt; 1 249.5600    0     308
+#&gt; 2 258.7047    1     308
+#&gt; 3 250.8006    2     308
+#&gt; 4 321.4398    3     308</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one measurement. <code>Reaction</code> is the outcome we want to explain, <code>Days</code> is how long the person has been sleep-deprived, and <code>Subject</code> is the person's ID. The first four rows are all subject 308, which is the grouping we care about. Let's confirm the shape of the data.</p>
+
+<div class="webr-container" data-block-title="Count subjects and measurements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count subjects and measurements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(subjects = nlevels(sleepstudy$Subject), measurements = nrow(sleepstudy))
+#&gt;     subjects measurements
+#&gt;           18          180
+range(table(sleepstudy$Subject))
+#&gt; [1] 10 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So we have 18 subjects and 180 measurements, which works out to exactly 10 rows per person. That balanced, repeated structure is the classic setting for mixed models. The naive approach is to ignore <code>Subject</code> entirely and fit one straight line to all 180 points.</p>
+
+<div class="webr-container" data-block-title="Fit one pooled line for everyone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit one pooled line for everyone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pooled &lt;- lm(Reaction ~ Days, data = sleepstudy)
+round(coef(pooled), 1)
+#&gt; (Intercept)        Days
+#&gt;       251.4        10.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This says the average person starts around 251 ms and slows by about 10.5 ms per day. Treating all 180 rows as one pile is called complete pooling, because it pools every subject together and forgets who is who. The problem is that people are not the same, and forcing them onto one line hides that.</p>
+
+<p>To see how different people really are, we can go to the opposite extreme and fit a separate line for each subject. The <code>lmList()</code> helper in <code>lme4</code> does exactly that.</p>
+
+<div class="webr-container" data-block-title="Fit a separate line per subject">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a separate line per subject</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_subject &lt;- lmList(Reaction ~ Days | Subject, data = sleepstudy)
+round(coef(by_subject)[1:5, ], 1)
+#&gt;     (Intercept) Days
+#&gt; 308       244.2 21.8
+#&gt; 309       205.1  2.3
+#&gt; 310       203.5  6.1
+#&gt; 330       289.7  3.0
+#&gt; 331       285.7  5.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the range. Subject 308 starts at 244 ms and degrades fast, at 21.8 ms per day, while subject 309 starts lower at 205 ms and barely changes, at 2.3 ms per day. The intercepts differ and the slopes differ. Fitting 18 completely separate lines is called no pooling, because each subject is estimated on its own with no help from the others.</p>
+
+<p><img src="screenshots/Random-Intercepts-and-Slopes-in-R-pooling-spectrum.webp" alt="Three ways to handle grouped data: complete pooling, no pooling, and the partial pooling that mixed models use." class="img-responsive img-zoomable" loading="lazy" width="1366" height="1130" /></p>
+
+<p><em>Figure 1: Three ways to handle grouped data; mixed models take the middle path.</em></p>
+
+<p>Neither extreme is satisfying. Complete pooling throws away real differences between people, and no pooling throws away the fact that all 18 people are still humans doing the same task, so their lines should not be wildly independent. A mixed model takes the middle road, called partial pooling, and that is what random intercepts and slopes give you.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A mixed model sits between one line for everyone and a separate line for each group.</strong> It gives each subject its own intercept and slope, but pulls those personal estimates toward the group average, <a class="auto-link" href="Bayesian-Hierarchical-Models-in-R.html" title="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">borrowing strength</a> across subjects. That balance is why mixed models handle repeated measurements so well.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull out subject 309's own intercept and slope from the <code>by_subject</code> fit above. The row name you want is <code>&quot;309&quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: one subject&#x27;s own line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one subject&#x27;s own line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Uncomment and fill in the row name for subject 309.
+# round(coef(by_subject)[&quot;___&quot;, ], 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One subject line solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One subject line solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(by_subject)[&quot;309&quot;, ], 1)
+#&gt;     (Intercept) Days
+#&gt; 309       205.1  2.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subject 309 starts at about 205 ms and slows by only 2.3 ms per day. Indexing the <code>lmList</code> coefficients by the subject ID gives that subject's private OLS line.</p>
+
+</details>
+</section>
+
+<h2>What is a random intercept?</h2>
+
+<p>A random intercept is the simplest mixed model. It says every subject shares the same slope, but each one gets to shift the whole line up or down by their own amount. In plain terms, everyone degrades at the same rate, but some people are naturally faster or slower to begin with.</p>
+
+<p>You fit it with <code>lmer()</code>, the mixed-model workhorse in <code>lme4</code>. The formula looks like an ordinary regression, <code>Reaction ~ Days</code>, plus a new piece in parentheses: <code>(1 | Subject)</code>. Read that as "give each Subject its own intercept," because <code>1</code> is R's shorthand for the intercept.</p>
+
+<div class="webr-container" data-block-title="Fit a random-intercept model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a random-intercept model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ri &lt;- lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+summary(ri)
+#&gt; Linear mixed model fit by REML ['lmerMod']
+#&gt; Formula: Reaction ~ Days + (1 | Subject)
+#&gt;    Data: sleepstudy
+#&gt;
+#&gt; REML criterion at convergence: 1786.5
+#&gt;
+#&gt; Scaled residuals:
+#&gt;     Min      1Q  Median      3Q     Max
+#&gt; -3.2257 -0.5529  0.0109  0.5188  4.2506
+#&gt;
+#&gt; Random effects:
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  Subject  (Intercept) 1378.2   37.12
+#&gt;  Residual              960.5   30.99
+#&gt; Number of obs: 180, groups:  Subject, 18
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error t value
+#&gt; (Intercept) 251.4051     9.7467   25.79
+#&gt; Days         10.4673     0.8042   13.02
+#&gt;
+#&gt; Correlation of Fixed Effects:
+#&gt;      (Intr)
+#&gt; Days -0.371</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This output has two halves, and telling them apart is the key skill. The bottom half, "Fixed effects," is the part that looks like ordinary regression. The average person starts at 251 ms and slows by 10.5 ms per day, which matches the pooled line from earlier. These are the effects that apply to everyone, so they are called fixed effects.</p>
+
+<p>The top half, "Random effects," is the new part and it describes variation, not a single line. It reports two variances. The <code>Subject (Intercept)</code> standard deviation of 37.1 ms says that individual starting points scatter around the average intercept with a spread of about 37 ms. The <code>Residual</code> standard deviation of 31 ms is the day-to-day noise left over within a subject after the model accounts for the person.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A random effect is summarized by a variance, not by 18 separate numbers.</strong> Instead of estimating an intercept for every subject as free parameters, the model estimates a single number, the spread of the subject intercepts, and assumes they follow a <a class="auto-link" href="The-Normal-Distribution-Explained-in-R.html" title="The Normal Distribution in R: Where It Comes From">bell curve</a> around the average. That is why the summary shows one standard deviation for <code>Subject</code>, not eighteen coefficients like the fixed effects in <a href="Read-lm-Output-in-R.html">Read-lm-Output-in-R</a>.</div></div>
+
+<p>You can still recover each subject's own line. The <code>coef()</code> function combines the shared fixed effects with each subject's personal deviation.</p>
+
+<div class="webr-container" data-block-title="See each subject&#x27;s fitted line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See each subject&#x27;s fitted line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(coef(ri)$Subject, 4)
+#&gt;     (Intercept)     Days
+#&gt; 308    292.1888 10.46729
+#&gt; 309    173.5556 10.46729
+#&gt; 310    188.2965 10.46729
+#&gt; 330    255.8115 10.46729</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the <code>Days</code> column is identical for every subject, at 10.47. That is the point of a random intercept model: the slope is shared, so the fitted lines are parallel, and only the intercept moves up or down. Subject 308 sits high at 292 ms and subject 309 sits low at 174 ms, but both slow at the same rate.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>ranef()</code> function shows each subject's intercept deviation from the average, rather than the full intercept. Print the deviation for subject 330.</p>
+<div class="webr-container" data-block-title="Your turn: one subject&#x27;s intercept shift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one subject&#x27;s intercept shift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ranef() returns deviations from the average intercept.
+# ranef(ri)$Subject[&quot;___&quot;, , drop = FALSE]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Intercept deviation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intercept deviation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ranef(ri)$Subject[&quot;330&quot;, , drop = FALSE]
+#&gt;     (Intercept)
+#&gt; 330    4.406442</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subject 330 sits about 4.4 ms above the average intercept of 251.4 ms, which gives their personal intercept of about 255.8 ms, exactly what <code>coef()</code> reported.</p>
+
+</details>
+</section>
+
+<h2>How do you add a random slope?</h2>
+
+<p>A random intercept lets people start in different places, but our earlier per-subject fit showed that people also degrade at different rates. Subject 308 lost 21.8 ms per day while subject 309 lost only 2.3. To let the slope vary by subject, you add the predictor inside the parentheses: <code>(Days | Subject)</code>. Read that as "give each Subject its own intercept and its own slope for Days."</p>
+
+<div class="webr-container" data-block-title="Fit a random-slope model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a random-slope model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rs &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+summary(rs)
+#&gt; Linear mixed model fit by REML ['lmerMod']
+#&gt; Formula: Reaction ~ Days + (Days | Subject)
+#&gt;    Data: sleepstudy
+#&gt;
+#&gt; REML criterion at convergence: 1743.6
+#&gt;
+#&gt; Scaled residuals:
+#&gt;     Min      1Q  Median      3Q     Max
+#&gt; -3.9536 -0.4634  0.0231  0.4634  5.1793
+#&gt;
+#&gt; Random effects:
+#&gt;  Groups   Name        Variance Std.Dev. Corr
+#&gt;  Subject  (Intercept) 612.10   24.741
+#&gt;           Days         35.07    5.922   0.07
+#&gt;  Residual             654.94   25.592
+#&gt; Number of obs: 180, groups:  Subject, 18
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error t value
+#&gt; (Intercept)  251.405      6.825  36.838
+#&gt; Days          10.467      1.546   6.771
+#&gt;
+#&gt; Correlation of Fixed Effects:
+#&gt;      (Intr)
+#&gt; Days -0.138</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fixed effects barely moved: the average person still starts at 251 ms and slows by 10.5 ms per day. What changed is the random-effects block, which now has three lines instead of one. There is a spread for the intercept (24.7 ms), a brand new spread for the slope (5.9 ms per day), and a <code>Corr</code> column.</p>
+
+<p>That slope spread is the heart of this model. It says subjects differ in their day-to-day degradation with a standard deviation of about 5.9 ms per day. Some people barely slow down while others slow much faster, and the model now measures how much that varies. The <code>Corr</code> value of 0.07 is the <a class="auto-link" href="Covariance-and-Correlation-in-R.html" title="Covariance and Correlation in R from First Principles">correlation</a> between a subject's intercept and slope, telling you whether people who start slow also tend to degrade fast; here it is near zero, so the two are roughly unrelated.</p>
+
+<p>The formula piece <code>(Days | Subject)</code> is doing several jobs at once, so it helps to break it apart.</p>
+
+<p><img src="screenshots/Random-Intercepts-and-Slopes-in-R-formula-anatomy.webp" alt="What (Days given Subject) tells lmer to estimate: a random intercept plus a random slope, along with the correlation between them." class="img-responsive img-zoomable" loading="lazy" width="1394" height="1130" /></p>
+
+<p><em>Figure 2: What each piece of (Days | Subject) tells lmer to estimate.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The bar term always adds a random intercept, even when you only name a slope.</strong> Writing <code>(Days | Subject)</code> gives you a random slope for <code>Days</code>, a random intercept, and the correlation between them, all three at once. If you truly want a random slope with no random intercept, which is rare, you must write <code>(0 + Days | Subject)</code>. Most of the time the default with the intercept is what you want.</div></div>
+
+<p>If you like seeing the model written out, here is what a random-intercept-and-slope model says for reaction time $y$ of subject $j$ on day $i$. If formulas are not your thing, skip past the equation to the next code block; the summary above already gives you the same information.</p>
+
+<p>$$y_{ij} = (\beta_0 + b_{0j}) + (\beta_1 + b_{1j})\,x_{ij} + \epsilon_{ij}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\beta_0$ and $\beta_1$ = the fixed intercept and slope, shared by everyone</li>
+
+<li>$b_{0j}$ and $b_{1j}$ = subject $j$'s random shifts away from that shared intercept and slope</li>
+
+<li>$x_{ij}$ = the number of days of sleep deprivation</li>
+
+<li>$\epsilon_{ij}$ = the leftover within-subject noise</li>
+
+</ul>
+
+<p>The random shifts $b_{0j}$ and $b_{1j}$ are the numbers summarized by those two standard deviations in the output. Now let's see each subject's full line, intercept and slope together.</p>
+
+<div class="webr-container" data-block-title="See each subject&#x27;s intercept and slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See each subject&#x27;s intercept and slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(coef(rs)$Subject, 4)
+#&gt;     (Intercept)      Days
+#&gt; 308    253.6637 19.666262
+#&gt; 309    211.0064  1.847605
+#&gt; 310    212.4447  5.018429
+#&gt; 330    275.0957  5.652936</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the <code>Days</code> column varies. Subject 308 degrades at 19.7 ms per day while subject 309 barely moves at 1.8. Compare these to the separate-lines fit from the first section: 308 was 21.8 and 309 was 2.3. The mixed model gives numbers in the same neighborhood but nudged toward the group, which is the partial pooling we will unpack soon.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the random-slope model, read subject 308's personal slope for <code>Days</code> out of <code>coef(rs)$Subject</code>. Round it to two decimals.</p>
+<div class="webr-container" data-block-title="Your turn: one subject&#x27;s slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one subject&#x27;s slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Index coef(rs)$Subject by the subject row and the &quot;Days&quot; column.
+# round(coef(rs)$Subject[&quot;___&quot;, &quot;Days&quot;], 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One subject slope solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One subject slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(rs)$Subject[&quot;308&quot;, &quot;Days&quot;], 2)
+#&gt; [1] 19.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subject 308 slows by about 19.7 ms per day, the steepest degradation among the people we have looked at, and well above the average of 10.5.</p>
+
+</details>
+</section>
+
+<h2>How do you read the random-effects table and get p-values?</h2>
+
+<p>The random-effects table is where beginners get stuck, so let's slow down on it. The cleanest way to see just those numbers is <code>VarCorr()</code>, which strips away the rest of the summary.</p>
+
+<div class="webr-container" data-block-title="Show the variance components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the variance components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">print(VarCorr(rs), comp = c(&quot;Variance&quot;, &quot;Std.Dev.&quot;))
+#&gt;  Groups   Name        Variance Std.Dev. Corr
+#&gt;  Subject  (Intercept) 612.100  24.7407
+#&gt;           Days         35.072   5.9221  0.066
+#&gt;  Residual             654.940  25.5918</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is a source of variation. The intercept standard deviation of 24.7 ms is how much people differ in their starting reaction time. The <code>Days</code> standard deviation of 5.9 is how much they differ in their daily degradation. The residual of 25.6 ms is the noise left inside a subject once their personal line is accounted for. Reading these standard deviations, rather than the variances, keeps everything in the original millisecond units.</p>
+
+<p>You may have noticed the summary printed no p-values for the fixed effects, only <code>t value</code>. That is deliberate. The author of <code>lme4</code> argues that the exact degrees of freedom for these t statistics are not well defined for mixed models, so the package refuses to guess. You have two solid ways to get significance instead.</p>
+
+<p>The first is a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>, which many statisticians prefer anyway. The <code>confint()</code> function computes intervals for both the fixed effects and the <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">variance components</a>.</p>
+
+<div class="webr-container" data-block-title="Confidence intervals for every parameter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confidence intervals for every parameter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">confint(rs, oldNames = FALSE)
+#&gt;                                    2.5 %      97.5 %
+#&gt; sd_(Intercept)|Subject        14.3813850  37.7158318
+#&gt; sd_Days|Subject                3.8011641   8.7533825
+#&gt; cor_Days.(Intercept)|Subject  -0.4815008   0.6849863
+#&gt; sigma                         22.8982669  28.8579965
+#&gt; (Intercept)                  237.6806955 265.1295147
+#&gt; Days                           7.3586533  13.5759188</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the bottom two rows first, since they are the fixed effects. The <code>Days</code> interval runs from 7.4 to 13.6 and does not include zero, so the average degradation is clearly real. The <code>sd_Days|Subject</code> interval runs from 3.8 to 8.8 and also stays well above zero, which is early evidence that subjects genuinely differ in their slopes, not just their intercepts.</p>
+
+<p>If you want an actual p-value in the familiar format, the <code>lmerTest</code> package adds one by approximating the degrees of freedom. It is a standard CRAN package, but it is not part of the browser sandbox here, so run this block in a local R session.</p>
+
+<pre><code class="language-r">library(lmerTest)
+rs_p &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+coef(summary(rs_p))
+#&gt;              Estimate Std. Error       df   t value     Pr(&gt;|t|)
+#&gt; (Intercept) 251.40510   6.824597 16.99973 36.838090 1.171558e-17
+#&gt; Days         10.46729   1.545790 16.99998  6.771481 3.263824e-06</code></pre>
+
+<p>Now the <code>Days</code> effect carries a p-value of about 0.000003, comfortably significant. Notice the estimates and standard errors are identical to the plain <code>lme4</code> fit; <code>lmerTest</code> only adds the degrees-of-freedom column and the resulting p-value, so nothing else about your model changes.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report a confidence interval alongside or instead of a p-value.</strong> An interval like "10.5 ms per day, 95 percent CI 7.4 to 13.6" tells the reader the <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> and its uncertainty in one line, which is more informative than a bare p-value. The <code>confint()</code> output above gives you these for free.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The residual standard deviation is the within-subject noise. Pull it straight out of the fitted model with <code>sigma()</code> and round it to two decimals.</p>
+<div class="webr-container" data-block-title="Your turn: the residual noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the residual noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sigma() returns the residual standard deviation of a fitted model.
+# round(sigma(___), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Residual noise solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual noise solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sigma(rs), 2)
+#&gt; [1] 25.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> After each subject's own line is fit, about 25.6 ms of day-to-day scatter remains. That matches the <code>Residual</code> row in the variance table.</p>
+
+</details>
+</section>
+
+<h2>Random intercepts vs random slopes: which do you need?</h2>
+
+<p>You now have two models: <code>ri</code> with only random intercepts, and <code>rs</code> with random intercepts and slopes. Adding a random slope costs extra parameters, so you should only keep it if it earns its place. The clean way to decide is a <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">likelihood ratio test</a>, which asks whether the bigger model fits significantly better than the smaller one. The <code>anova()</code> function runs it.</p>
+
+<div class="webr-container" data-block-title="Compare the two models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anova(ri, rs)
+#&gt; Data: sleepstudy
+#&gt; Models:
+#&gt; ri: Reaction ~ Days + (1 | Subject)
+#&gt; rs: Reaction ~ Days + (Days | Subject)
+#&gt;    npar    AIC    BIC  logLik -2*log(L)  Chisq Df Pr(&gt;Chisq)
+#&gt; ri    4 1802.1 1814.8 -897.04    1794.1
+#&gt; rs    6 1763.9 1783.1 -875.97    1751.9 42.139  2  7.072e-10 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> is a chi-square of 42.1 on 2 degrees of freedom, with a p-value of 7e-10. That is tiny, so the random-slope model fits far better and you should keep it. In plain terms, subjects really do differ in how fast they degrade, not just in where they start, so forcing a shared slope would be wrong here.</p>
+
+<p><img src="screenshots/Random-Intercepts-and-Slopes-in-R-choose-flow.webp" alt="A short decision guide for choosing between a random intercept and a random slope." class="img-responsive img-zoomable" loading="lazy" width="1028" height="1390" /></p>
+
+<p><em>Figure 3: Deciding between a random intercept and a random slope.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="Two-Way-ANOVA-in-R.html" title="Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted">anova()</a> on lme4 models refits with maximum likelihood, so its <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> differs from AIC().</strong> The comparison above prints AIC values of 1802 and 1764, while calling <code>AIC(ri, rs)</code> directly gives 1794 and 1756. The gap is because <code>lmer</code> fits with REML by default for accurate variance estimates, but a likelihood ratio test needs plain maximum likelihood, so <code>anova()</code> quietly refits both models that way. Both routes agree the random-slope model wins.</div></div>
+
+<p>There is one subtlety worth knowing. This test checks whether a variance is zero, and zero sits on the edge of what a variance can be, since variances cannot go negative. That makes the standard p-value slightly conservative, meaning the true p-value is even smaller than reported. So when <code>anova()</code> says the random slope is significant, you can trust it comfortably.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the two models by AIC instead, using <code>AIC()</code> directly on both fitted objects. Lower AIC is better.</p>
+<div class="webr-container" data-block-title="Your turn: compare by AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare by AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pass both fitted models to AIC() in one call.
+# AIC(___, ___)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare by AIC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare by AIC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(ri, rs)
+#&gt;    df      AIC
+#&gt; ri  4 1794.465
+#&gt; rs  6 1755.628</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The random-slope model scores 1756 against 1794 for the intercept-only model, an improvement of nearly 40 points, which strongly favors keeping the random slope.</p>
+
+</details>
+</section>
+
+<h2>How does partial pooling shrink each subject's line?</h2>
+
+<p>We keep saying a mixed model pulls each subject toward the group average. Now let's actually watch it happen by lining up the two extremes: the no-pooling slopes from the separate per-subject fits, and the partial-pooling slopes from the mixed model.</p>
+
+<div class="webr-container" data-block-title="Compare no-pooling and partial-pooling slopes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare no-pooling and partial-pooling slopes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">no_pool &lt;- coef(by_subject)[c(&quot;308&quot;, &quot;335&quot;, &quot;331&quot;), ]
+partial &lt;- coef(rs)$Subject[c(&quot;308&quot;, &quot;335&quot;, &quot;331&quot;), ]
+round(data.frame(no_pool_slope = no_pool$Days, partial_slope = partial$Days,
+                 row.names = c(&quot;308&quot;, &quot;335&quot;, &quot;331&quot;)), 2)
+#&gt;     no_pool_slope partial_slope
+#&gt; 308         21.76         19.67
+#&gt; 335         -2.88         -0.28
+#&gt; 331          5.27          7.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every partial-pooling slope is closer to the group average than its no-pooling twin. The population slope is 10.5 ms per day, so watch the pull toward it. Subject 308's steep 21.8 is reined in to 19.7, subject 335's odd negative slope of -2.9 is pulled up to -0.3, and subject 331's shallow 5.3 is nudged up to 7.4. Extreme subjects move the most, and subjects near the average barely move.</p>
+
+<div class="webr-container" data-block-title="The population average line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The population average line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(fixef(rs), 2)
+#&gt; (Intercept)        Days
+#&gt;      251.41       10.47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>fixef()</code> values are the center of gravity that every subject is pulled toward. This is why partial pooling is so useful: a subject with a noisy or extreme personal estimate gets stabilized by the group, while a subject with a clear signal keeps most of their own character.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Shrinkage borrows strength from the whole group to protect against overreacting to one subject.</strong> A subject who happens to look extreme on 10 noisy days is probably not as extreme as they appear, so the model discounts the surprise and pulls them back toward what everyone else is doing. This is the single biggest reason mixed models predict new data better than fitting each group alone.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute how far subject 335's slope was shrunk, the no-pooling slope minus the partial-pooling slope. Use the row names from the block above.</p>
+<div class="webr-container" data-block-title="Your turn: measure the shrinkage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure the shrinkage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Subtract the partial-pooling slope from the no-pooling slope for subject 335.
+# round(coef(by_subject)[&quot;335&quot;, &quot;Days&quot;] - coef(rs)$Subject[&quot;335&quot;, &quot;Days&quot;], 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Measure the shrinkage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the shrinkage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(by_subject)[&quot;335&quot;, &quot;Days&quot;] - coef(rs)$Subject[&quot;335&quot;, &quot;Days&quot;], 2)
+#&gt; [1] -2.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subject 335's slope moved by 2.6 ms per day toward the group average. The negative sign shows the no-pooling estimate was below the pooled one, so shrinkage pulled it upward.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine several ideas from the guide. Try each before opening the solution. They use their own variable names, prefixed with <code>my_</code>, so they will not disturb the models you fit above.</p>
+
+<h3>Exercise 1: Fit, compare, and find the steepest subject</h3>
+
+<p>Using <code>sleepstudy</code>, fit both a random-intercept model and a random-slope model, compare them with AIC, then find which subject has the steepest fitted slope in the random-slope model.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit my_ri with (1 | Subject) and my_rs with (Days | Subject).
+# 2. Compare them with AIC().
+# 3. From coef(my_rs)$Subject, find the row name with the largest Days value.
+#    Hint: which.max() returns the position of the maximum.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ri &lt;- lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+my_rs &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+AIC(my_ri, my_rs)
+#&gt;       df      AIC
+#&gt; my_ri  4 1794.465
+#&gt; my_rs  6 1755.628
+my_slopes &lt;- coef(my_rs)$Subject
+rownames(my_slopes)[which.max(my_slopes$Days)]
+#&gt; [1] &quot;308&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The random-slope model wins on AIC by nearly 40 points, and subject 308 has the steepest degradation of all 18 people, slowing fastest under sleep deprivation.</p>
+
+</details>
+
+<h3>Exercise 2: A random slope on a different dataset</h3>
+
+<p>The built-in <code>ChickWeight</code> data tracks the <code>weight</code> of chicks over <code>Time</code>, grouped by <code>Chick</code>. Fit a random-intercept-and-slope model of weight on time, then print the fixed effects and the variance components. This proves the same recipe works on any grouped dataset.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit weight ~ Time + (Time | Chick) with lmer on ChickWeight.
+# Then print fixef() and VarCorr() of the fit.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_chick &lt;- lmer(weight ~ Time + (Time | Chick), data = ChickWeight)
+round(fixef(my_chick), 2)
+#&gt; (Intercept)        Time
+#&gt;       29.18        8.45
+print(VarCorr(my_chick), comp = &quot;Std.Dev.&quot;)
+#&gt;  Groups   Name        Std.Dev. Corr
+#&gt;  Chick    (Intercept) 11.8549
+#&gt;           Time         3.7608  -0.951
+#&gt;  Residual             12.7869</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The average chick starts near 29 grams and gains about 8.5 grams per unit time. The <code>Time</code> standard deviation of 3.76 shows chicks differ a lot in growth rate, and the strong negative correlation of -0.95 means chicks that start heavier tend to grow more slowly.</p>
+
+</details>
+
+<h3>Exercise 3: Rebuild a subject's line by hand</h3>
+
+<p>Confirm you understand where each subject's line comes from. For subject 309 in the random-slope model <code>rs</code>, add the fixed effects to that subject's random deviations from <code>ranef()</code>, and check that the result matches <code>coef(rs)$Subject</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Get fixef(rs) for the shared intercept and slope.
+# 2. Get ranef(rs)$Subject[&quot;309&quot;, ] for subject 309's deviations.
+# 3. Add them element by element, then compare to coef(rs)$Subject[&quot;309&quot;, ].</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fix &lt;- fixef(rs)
+my_re  &lt;- ranef(rs)$Subject[&quot;309&quot;, ]
+my_line &lt;- c(intercept = my_fix[[&quot;(Intercept)&quot;]] + my_re[[&quot;(Intercept)&quot;]],
+             slope     = my_fix[[&quot;Days&quot;]] + my_re[[&quot;Days&quot;]])
+round(my_line, 2)
+#&gt; intercept     slope
+#&gt;    211.01      1.85
+round(unlist(coef(rs)$Subject[&quot;309&quot;, ]), 2)
+#&gt; (Intercept)        Days
+#&gt;      211.01        1.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding subject 309's random deviations to the fixed effects reproduces <code>coef()</code> exactly. This is the whole idea in one line: a subject's fitted line is the population line plus that subject's personal shifts.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between a fixed effect and a random effect?</h3>
+
+<p>A fixed effect is a single value estimated for the whole dataset, like the average slope of 10.5 ms per day that applies to everyone. A random effect is a set of group-specific deviations that are assumed to follow a bell curve, summarized by a variance rather than by one coefficient per group. Use a fixed effect when you care about the specific levels, and a random effect when the levels are a sample from a larger population, like these 18 subjects standing in for people in general.</p>
+
+<h3>When should I use (1 | group) versus (x | group)?</h3>
+
+<p>Use <code>(1 | group)</code> when groups differ only in their baseline level, so parallel lines are enough. Use <code>(x | group)</code>, which is short for <code>(1 + x | group)</code>, when the effect of <code>x</code> itself varies by group, so the lines need different slopes. A likelihood ratio test with <code>anova()</code> tells you whether the extra random slope is worth its cost, as it was in this guide.</p>
+
+<h3>Why does lme4 not print p-values?</h3>
+
+<p>The exact degrees of freedom for the t statistics in a mixed model are not well defined, so <code>lme4</code> deliberately reports the t value without a p-value rather than print a number it cannot justify. To get a p-value, load the <code>lmerTest</code> package, which approximates the degrees of freedom, or report a confidence interval from <code>confint()</code> instead. Many analysts prefer the confidence interval because it shows the effect size and its uncertainty together.</p>
+
+<h3>What does a singular fit or boundary warning mean?</h3>
+
+<p>A "boundary (singular) fit" warning means the model pushed a variance to zero or a correlation to plus or minus one, usually because the random-effects structure is too complex for the data to support. The fix is to simplify: drop the correlation with <code>(Days || Subject)</code>, or remove the random slope and keep only <code>(1 | Subject)</code>. The full random-slope model on <code>sleepstudy</code> fits cleanly, so you will not see the warning here, but you will meet it on smaller datasets.</p>
+
+<h3>How many groups do I need for a random effect?</h3>
+
+<p>A rough rule of thumb is at least 5 to 10 groups, and ideally more than 20, before a variance component is estimated reliably. With very few groups, the spread of the random effect is hard to pin down, and you are often better off treating the grouping variable as a fixed effect with dummy variables. The 18 subjects in <code>sleepstudy</code> sit comfortably in the workable range. Everything in this guide also runs unchanged in a local RStudio session; install <code>lme4</code> once with <code>install.packages(&quot;lme4&quot;)</code>.</p>
+
+<h2>Summary</h2>
+
+<p>Random intercepts and slopes let one model give every group its own line while sharing an overall trend, which is exactly what repeated-measurement data needs. You fit them with <code>lmer()</code>, choose the random structure with a likelihood ratio test, and read variation from the random-effects table rather than from a coefficient per group.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Formula piece</th>
+<th>What it does</th>
+<th>When to use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Days</code></td>
+<td>Fixed effect: one shared slope for everyone</td>
+<td>Always, for the average trend</td>
+</tr>
+<tr>
+<td>`(1 \</td>
+<td>Subject)`</td>
+<td>Random intercept: each group shifts up or down</td>
+<td>Groups differ in baseline only</td>
+</tr>
+<tr>
+<td>`(Days \</td>
+<td>Subject)`</td>
+<td>Random intercept and slope, correlated</td>
+<td>Groups differ in the effect too</td>
+</tr>
+<tr>
+<td>`(0 + Days \</td>
+<td>Subject)`</td>
+<td>Random slope with no random intercept</td>
+<td>Rare, only when baseline is truly shared</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Random-Intercepts-and-Slopes-in-R-overview.webp" alt="An overview of the whole workflow, from why mixed models to reading the output and choosing a structure." class="img-responsive img-zoomable" loading="lazy" width="1500" height="880" /></p>
+
+<p><em>Figure 4: The whole workflow at a glance.</em></p>
+
+<p>The biggest ideas to carry with you: fixed effects describe the average and random effects describe the spread, the bar term <code>(x | group)</code> quietly adds a random intercept too, and partial pooling shrinks extreme groups toward the average so your estimates stay sensible.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Bates, D., Mächler, M., Bolker, B., & Walker, S. (2015). <em>Fitting Linear Mixed-Effects Models Using lme4.</em> Journal of Statistical Software, 67(1). <a href="https://www.jstatsoft.org/article/view/v067i01">Link</a> - the canonical paper behind <code>lme4</code>, with the theory and syntax for <code>lmer()</code>.</li>
+
+<li>lme4 package vignette: <em>Fitting Linear Mixed-Effects Models Using lme4.</em> <a href="https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf">Link</a> - the official walkthrough, including the <code>sleepstudy</code> example used here.</li>
+
+<li>lme4 on CRAN. <a href="https://cran.r-project.org/package=lme4">Link</a> - the package home, with the reference manual and installation notes.</li>
+
+<li>Clark, M. <em>Mixed Models with R: More Random Effects.</em> <a href="https://m-clark.github.io/mixed-models-with-R/random_slopes.html">Link</a> - a clear, extended treatment of random slopes and variance components.</li>
+
+<li>Mahr, T. <em>Plotting Partial Pooling in Mixed-Effects Models.</em> <a href="https://www.tjmahr.com/plotting-partial-pooling-in-mixed-effects-models/">Link</a> - the best visual explanation of shrinkage, built on <code>sleepstudy</code>.</li>
+
+<li>DeBruine, L., & Barr, D. J. <em>Learning Statistical Models Through Simulation in R.</em> <a href="https://psyteachr.github.io/stat-models-v1/introducing-linear-mixed-effects-models.html">Link</a> - a simulation-first introduction to mixed models.</li>
+
+<li>Bolker, B. <em>GLMM FAQ.</em> <a href="https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html">Link</a> - practical answers on p-values and singular fits, plus how many groups you really need.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Read-lm-Output-in-R.html">How to Read lm() Output in R</a> - the fixed-effects half of a mixed model is just ordinary regression, and this covers how to read it.</li>
+
+<li><a href="Linear-Regression.html">Linear Regression in R</a> - the straight-line model that random intercepts and slopes extend to grouped data.</li>
+
+<li><a href="GLM-Diagnostics-in-R.html">GLM Diagnostics in R</a> - once your model is fit, these checks confirm its assumptions hold.</li>
+
+</ul>
+
+{% endraw %}
