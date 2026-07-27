@@ -1,0 +1,947 @@
+---
+title: "Advanced Faceting in R: ggh4x, Nested and Per-Panel Axes"
+description: "Learn advanced faceting in R: control panel layout and free scales, restyle and move facet strips, then use ggh4x for nested facets and per-panel axes."
+keywords: "advanced faceting in R, ggh4x, facet_nested, facetted_pos_scales, facet_grid2, nested facets, per-panel axes, free scales, ggplot2 facets, strip labels"
+mathjax: false
+webr: true
+curriculum_id: "GG2-6.2"
+post_type: "C"
+auto_link_terms: "advanced faceting|advanced faceting in R|nested facets|nested faceting|facet_nested|facetted_pos_scales|facet_grid2|per-panel axes|per-panel scales|free scales in facets|facet strip labels|ggh4x"
+auto_link_case_sensitive: false
+sidebar_section: "Visualization"
+sidebar_title: "Advanced Faceting"
+sidebar_order: "86"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Advanced faceting is the set of ggplot2 techniques for controlling a multi-panel plot beyond a plain <code>facet_wrap()</code>: free per-panel scales, panel sizing, strip placement and styling, panel order, and, with the ggh4x package, truly nested strips and a different axis on every panel.</p>
+
+<p>Faceting splits one plot into a grid of small panels, one per group, so you can compare groups side by side. If you have met <code>facet_wrap()</code> and <code>facet_grid()</code> before, you already know the basic move. This tutorial picks up right after that and gives you fine control over how those panels look and behave.</p>
+
+<p>Everything here builds on ggplot2 and the built-in <code>mpg</code> dataset (fuel economy for 234 cars). The main sections run in your browser, so you can edit and re-run every example as you read. The final section uses an add-on package called ggh4x, which you run in your own R session; its output is shown as rendered images so you can still see exactly what it produces.</p>
+
+<h2>How do you control panel layout and free scales in facet_wrap?</h2>
+
+<p>A plain <code>facet_wrap(~ class)</code> already splits <code>mpg</code> into one panel per vehicle class. The catch is that every panel is forced to share a single x and y scale at one fixed size. Advanced faceting begins the moment you want each panel to size itself to its own data rather than share one cramped scale, or to sit in an order you choose. Let us start from the payoff and add one control at a time.</p>
+
+<p>Here is the baseline. We build a scatter of highway mileage (<code>hwy</code>) against engine size (<code>displ</code>), store it as an object called <code>p</code>, then split it by <code>class</code>.</p>
+
+<div class="webr-container" data-block-title="Facet a scatter plot by vehicle class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Facet a scatter plot by vehicle class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+library(scales)
+# mpg has seven vehicle classes; faceting gives each its own panel
+table(mpg$class)
+#&gt; 2seater    compact    midsize    minivan     pickup subcompact        suv
+#&gt;       5         47         41         11         33         35         62
+
+p &lt;- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(alpha = 0.6, colour = &quot;#2c7fb8&quot;)
+
+p + facet_wrap(vars(class))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>table()</code> count confirms the seven groups we are about to split on, from just five 2-seaters up to sixty-two SUVs. We then saved the base plot once as <code>p</code>, so from now on we can bolt a facet layer onto it with a single <code>+</code>, where <code>vars(class)</code> names the column to split on (writing <code>~ class</code> does the same thing). The result is seven panels sharing identical axes, which makes cross-panel comparison honest: a point in the same spot means the same thing in every panel.</p>
+
+<p>That shared axis is sometimes the problem. The 2-seater panel has only a few cars clustered in one corner, so most of its panel is empty. When each group lives in a different range, let each panel set its own limits with <code>scales</code>.</p>
+
+<div class="webr-container" data-block-title="Give each panel its own axis range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Give each panel its own axis range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p + facet_wrap(vars(class), scales = &quot;free&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>scales = &quot;free&quot;</code> frees both axes so every panel zooms to its own data. Use <code>&quot;free_x&quot;</code> or <code>&quot;free_y&quot;</code> to free just one axis. Notice how each panel now fills its space, but the axes no longer line up, so you can no longer eyeball differences between panels at a glance.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Free scales trade comparison for detail.</strong> With free scales each panel has a different axis range, so a point that looks high in one panel may be lower in absolute terms than a point that looks low in another. Reach for free scales when the shape within each group matters more than comparing across groups.</div></div>
+
+<p>You also control the grid shape. <code>ncol</code> and <code>nrow</code> set how many columns or rows of panels you get, and <code>dir</code> decides whether panels fill by row (<code>&quot;h&quot;</code>, the default) or by column (<code>&quot;v&quot;</code>).</p>
+
+<div class="webr-container" data-block-title="Set the number of columns and fill direction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set the number of columns and fill direction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p + facet_wrap(vars(class), ncol = 4, dir = &quot;v&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setting <code>ncol = 4</code> forces four panels per row, and <code>dir = &quot;v&quot;</code> fills them top to bottom before moving right. Layout control matters for reports: a wide 4-column grid fits a landscape page, while a tall 2-column grid suits a phone screen.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Put each drivetrain (<code>drv</code>) in its own panel, all on a single row. Start from the scaffold and change the faceting variable and the layout.</p>
+<div class="webr-container" data-block-title="Your turn: facet by drivetrain in one row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: facet by drivetrain in one row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: one panel per drv, arranged in a single row.
+# Change the variable inside vars() and add nrow = 1.
+p + facet_wrap(vars(class))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Facet by drivetrain in one row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Facet by drivetrain in one row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p + facet_wrap(vars(drv), nrow = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>vars(drv)</code> splits on drivetrain (four-wheel, front, rear) and <code>nrow = 1</code> lines the three panels up in one row for an easy left-to-right read.</p>
+
+</details>
+</section>
+
+<h2>When should you use facet_grid with free scales and space = "free"?</h2>
+
+<p><code>facet_wrap()</code> lays panels out in a flowing grid. <code>facet_grid()</code> is different: it crosses one variable against another, so rows mean one thing and columns mean another. Use it when both splitting variables matter and you want a true matrix of panels.</p>
+
+<p>The formula reads <code>rows ~ columns</code>. Here we cross drivetrain (rows) against cylinder count (columns).</p>
+
+<div class="webr-container" data-block-title="Cross two variables in a panel grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross two variables in a panel grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every cell is one drivetrain-and-cylinder combination. Empty cells (like a rear-wheel 4-cylinder, which does not exist in the data) stay blank on purpose, which itself shows which drivetrain-and-cylinder combinations occur.</p>
+
+<p><code>facet_grid()</code> adds a second lever that <code>facet_wrap()</code> lacks: <code>space</code>. While <code>scales</code> frees each panel's axis range, <code>space</code> frees each panel's physical size so a panel with more categories gets more room. This pairing is especially useful for categorical summaries like boxplots.</p>
+
+<div class="webr-container" data-block-title="Free both the scale and the panel size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Free both the scale and the panel size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(hwy, reorder(class, hwy))) +
+  geom_boxplot() +
+  facet_grid(drv ~ ., scales = &quot;free_y&quot;, space = &quot;free_y&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We put <code>class</code> on the y axis, ordered by its average <code>hwy</code> with <code>reorder()</code> so the boxes run low to high, and split into drivetrain rows with <code>drv ~ .</code> (the dot means "no column split"). <code>scales = &quot;free_y&quot;</code> lets each row show only the classes it actually contains, and <code>space = &quot;free_y&quot;</code> sizes each row to match how many classes it holds, so no box gets squashed. Without <code>space</code>, every row would be the same height and rows with few classes would waste space.</p>
+
+<p><img src="screenshots/Advanced-Faceting-in-R-scales-space.webp" alt="Choosing between the scales and space arguments in facet_grid" class="img-responsive img-zoomable" loading="lazy" width="936" height="1534" /></p>
+
+<p><em>Figure 1: How the scales and space decisions differ in facet_grid.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>scales frees the range, space frees the size.</strong> Setting <code>scales = &quot;free_y&quot;</code> changes what numbers each panel's axis spans; setting <code>space = &quot;free_y&quot;</code> changes how tall the panel is drawn. They are independent, and for ragged <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a> you usually want both.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take a boxplot of <code>hwy</code> by <code>class</code> split into drivetrain columns, and free the x axis range and width per column.</p>
+<div class="webr-container" data-block-title="Your turn: free the x scale and space by column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: free the x scale and space by column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: add scales = &quot;free_x&quot; and space = &quot;free_x&quot;.
+ggplot(mpg, aes(hwy, class)) +
+  geom_boxplot() +
+  facet_grid(. ~ drv)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Free the x scale and space by column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Free the x scale and space by column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(hwy, class)) +
+  geom_boxplot() +
+  facet_grid(. ~ drv, scales = &quot;free_x&quot;, space = &quot;free_x&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>. ~ drv</code> splits into one column per drivetrain, and the two <code>free_x</code> settings let each column set its own x range and width instead of being stretched to a shared one.</p>
+
+</details>
+</section>
+
+<h2>How do you build nested-looking strip labels in base ggplot2?</h2>
+
+<p>The strip is the little labelled bar on top of each panel. When two variables define your panels, you often want both names to show. Base ggplot2 can stack them, giving a nested look, without any extra package.</p>
+
+<p>Pass two variables to <code>vars()</code> and use a labeller. <code>label_both</code> prints the variable name alongside its value, and by default it puts each variable on its own line.</p>
+
+<div class="webr-container" data-block-title="Show both variables in stacked strip labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show both variables in stacked strip labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(drv, cyl), labeller = label_both)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each strip now reads like <code>drv: 4</code> on one line and <code>cyl: 6</code> on the next. That two-line strip is what people mean by a "nested look": the outer grouping (drivetrain) sits above the inner grouping (cylinders). The panels themselves are still a flat wrap; only the labels are layered.</p>
+
+<p>Long strip labels are a common headache because they get clipped. <code>label_wrap_gen()</code> wraps them onto multiple lines at a width you choose.</p>
+
+<div class="webr-container" data-block-title="Wrap long strip labels onto multiple lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap long strip labels onto multiple lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg$class_long &lt;- paste(&quot;Vehicle class:&quot;, mpg$class)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(class_long), labeller = label_wrap_gen(width = 16))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We made a deliberately long label by pasting a prefix onto each class name. <code>label_wrap_gen(width = 16)</code> then breaks any label longer than 16 characters across lines so nothing is cut off. This is the cleanest fix for descriptive labels that would otherwise overflow their strip.</p>
+
+<p>Sometimes you want the two variables merged into a single strip rather than stacked. <code>interaction()</code> glues them into one factor you can facet on.</p>
+
+<div class="webr-container" data-block-title="Merge two variables into one strip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Merge two variables into one strip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(~ interaction(drv, cyl, sep = &quot; / &quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>interaction(drv, cyl, sep = &quot; / &quot;)</code> creates labels like <code>4 / 6</code> in one line per panel. This keeps strips compact when a two-line label would be too tall.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Base ggplot2 stacks strips but does not draw a nesting line.</strong> The layered <code>label_both</code> strips look grouped, yet there is no line or bracket tying the panels of one drivetrain together. Drawing that true hierarchy is exactly what the ggh4x package adds later in this tutorial.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Facet by both <code>year</code> and <code>drv</code>, and label each strip with its variable name using <code>label_both</code>.</p>
+<div class="webr-container" data-block-title="Your turn: label year and drv in the strips">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: label year and drv in the strips</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: add labeller = label_both so both names show.
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(year, drv))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Label year and drv in the strips">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label year and drv in the strips</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(year, drv), labeller = label_both)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>label_both</code> turns each strip into a two-line label such as <code>year: 1999</code> over <code>drv: f</code>, making the two grouping variables unmistakable.</p>
+
+</details>
+</section>
+
+<h2>How do you move and restyle facet strips?</h2>
+
+<p>By default strips sit on the top and right of the grid. You can move them and restyle them so the plot reads the way you want. Moving comes first.</p>
+
+<p>In <code>facet_grid()</code>, the <code>switch</code> argument flips strips to the opposite side. <code>switch = &quot;both&quot;</code> moves the row strips to the left and the column strips to the bottom.</p>
+
+<div class="webr-container" data-block-title="Switch strips to the left and bottom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch strips to the left and bottom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl, switch = &quot;both&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the cylinder labels run along the bottom and the drivetrain labels down the left, which some readers find more natural because the labels sit next to the axes they relate to.</p>
+
+<p>In <code>facet_wrap()</code>, the equivalent control is <code>strip.position</code>, and you pair it with <code>theme(strip.placement = &quot;outside&quot;)</code> so the strip sits beyond the axis rather than crowding the panel.</p>
+
+<div class="webr-container" data-block-title="Place wrap strips at the bottom, outside the axis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Place wrap strips at the bottom, outside the axis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(drv), strip.position = &quot;bottom&quot;) +
+  theme(strip.placement = &quot;outside&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>strip.position = &quot;bottom&quot;</code> drops the strips under each panel, and <code>strip.placement = &quot;outside&quot;</code> pushes them past the axis text so they act like a second, per-panel axis title.</p>
+
+<p>Styling is pure theme work. <code>strip.background</code> controls the strip's fill and border, and <code>strip.text</code> controls the label font.</p>
+
+<div class="webr-container" data-block-title="Style the strip background and text">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Style the strip background and text</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl) +
+  theme(
+    strip.background = element_rect(fill = &quot;#2c3e50&quot;),
+    strip.text = element_text(colour = &quot;white&quot;, face = &quot;bold&quot;)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We filled the strips with a dark slate colour and set the text to white and bold. The strips now read as clear section headers, which helps a busy grid feel organised.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>A dark strip with white bold text reads as a section header.</strong> Pairing <code>strip.background</code> fill with a contrasting <code>strip.text</code> colour turns the strip from a faint label into a strong visual divider, which is worth doing whenever a grid has many panels.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Move the <code>class</code> strips to the left of each panel and place them outside the axis.</p>
+<div class="webr-container" data-block-title="Your turn: move class strips to the left">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move class strips to the left</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: add strip.position = &quot;left&quot; and strip.placement = &quot;outside&quot;.
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(class))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Move class strips to the left, outside the axis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move class strips to the left, outside the axis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(class), strip.position = &quot;left&quot;) +
+  theme(strip.placement = &quot;outside&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>strip.position = &quot;left&quot;</code> rotates the strips to the left edge, and <code>strip.placement = &quot;outside&quot;</code> moves them beyond the y axis so they never overlap the panel.</p>
+
+</details>
+</section>
+
+<h2>How do you reorder panels and add total panels?</h2>
+
+<p>Panels appear in the order of the faceting variable's factor levels. For a plain character column like <code>class</code>, that means alphabetical order, which is rarely the most useful. Let us confirm the default, then change it.</p>
+
+<div class="webr-container" data-block-title="Check the default alphabetical panel order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the default alphabetical panel order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levels(factor(mpg$class))
+#&gt; [1] &quot;2seater&quot; &quot;compact&quot; &quot;midsize&quot; &quot;minivan&quot; &quot;pickup&quot; &quot;subcompact&quot; &quot;suv&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The classes come out alphabetically, so <code>pickup</code> sits in the middle even though it has the worst mileage. To order panels by a meaningful number, use <code>reorder()</code>, which sets the factor levels by a summary statistic.</p>
+
+<div class="webr-container" data-block-title="Reorder classes by median highway mileage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reorder classes by median highway mileage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg$class_ord &lt;- reorder(mpg$class, mpg$hwy, FUN = median)
+levels(mpg$class_ord)
+#&gt; [1] &quot;pickup&quot; &quot;suv&quot; &quot;minivan&quot; &quot;2seater&quot; &quot;subcompact&quot; &quot;compact&quot; &quot;midsize&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>reorder(mpg$class, mpg$hwy, FUN = median)</code> builds a factor whose levels run from the lowest median <code>hwy</code> to the highest. The printed levels confirm it: pickups and SUVs (thirsty) now come first and compacts and midsize cars (efficient) come last. Faceting on this new column arranges the panels as a ranking.</p>
+
+<div class="webr-container" data-block-title="Facet in the reordered sequence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Facet in the reordered sequence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(class_ord))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The panels now run from worst to best mileage, left to right, top to bottom. Reordering is one of the highest-value faceting tweaks because it lets the layout itself carry the message.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reorder panels by a statistic to turn a facet grid into a ranking.</strong> Passing a numeric column and a summary function to <code>reorder()</code> sorts the panels so the reader sees the ordering you care about without reading a single number.</div></div>
+
+<p>A different need is a totals panel that shows every group combined next to the split panels. <code>facet_grid()</code> does this with <code>margins = TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="Add an all-groups totals panel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add an all-groups totals panel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_grid(drv ~ ., margins = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>margins = TRUE</code> adds one extra panel labelled <code>(all)</code> that pools every drivetrain, so readers can compare each group against the overall pattern in the same view. This is handy for dashboards where the total matters as much as the parts.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split by <code>drv</code> <a class="auto-link" href="dplyr-across-in-R.html" title="dplyr across() in R: Apply Functions to Many Columns">across columns</a> and add a combined column that shows all drivetrains together.</p>
+<div class="webr-container" data-block-title="Your turn: add a totals column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a totals column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: add margins = TRUE to the facet_grid call.
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_grid(. ~ drv)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Add a totals column with margins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a totals column with margins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_grid(. ~ drv, margins = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>margins = TRUE</code> appends an <code>(all)</code> column pooling every drivetrain, so the combined view sits right beside the per-drivetrain panels.</p>
+
+</details>
+</section>
+
+<h2>How do you highlight one panel against the full dataset?</h2>
+
+<p>A faceted plot answers "what does each group look like on its own", but it hides "how does each group compare to everyone else". The fix is a classic trick: draw the entire dataset in grey behind every panel, then draw each panel's own subset in colour on top.</p>
+
+<p>The key move is a background layer whose data has the faceting variable removed. Because that layer has no <code>class</code> column, it cannot be split, so ggplot2 repeats it in every panel.</p>
+
+<div class="webr-container" data-block-title="Show each class against a grey backdrop of all cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show each class against a grey backdrop of all cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_all &lt;- transform(mpg, class = NULL)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(data = mpg_all, colour = &quot;grey80&quot;) +
+  geom_point(colour = &quot;#d95f0e&quot;) +
+  facet_wrap(vars(class))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>transform(mpg, class = NULL)</code> copies the data and drops the <code>class</code> column, giving us <code>mpg_all</code>. The first <code>geom_point()</code> draws that full backdrop in light grey; the second draws the faceted subset in orange. Every panel now shows its own cars in context, so you can see instantly that 2-seaters sit in the high-power, low-mileage corner while compacts cluster the other way.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A layer without the faceting variable is repeated in every panel.</strong> Faceting only splits layers that contain the <a class="auto-link" href="tidyr-separate-in-R.html" title="tidyr separate() in R: Split One Column Into Many">split column</a>. Strip that column from a layer's data and ggplot2 has nothing to split on, so the whole layer shows up identically behind each panel, which is exactly what you want for a shared reference.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the same highlight effect for <code>drv</code> instead of <code>class</code>.</p>
+<div class="webr-container" data-block-title="Your turn: highlight each drivetrain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: highlight each drivetrain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: make a grey backdrop with drv removed, then colour on top.
+bg &lt;- transform(mpg, drv = NULL)
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(drv))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Highlight each drivetrain against all cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Highlight each drivetrain against all cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bg &lt;- transform(mpg, drv = NULL)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(data = bg, colour = &quot;grey80&quot;) +
+  geom_point(colour = &quot;#1b9e77&quot;) +
+  facet_wrap(vars(drv))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping <code>drv</code> from <code>bg</code> makes the grey layer facet-free, so all cars appear behind each drivetrain panel while the coloured points mark the current group.</p>
+
+</details>
+</section>
+
+<h2>When do you need ggh4x, and what does it add?</h2>
+
+<p>Base ggplot2 took us a long way: free scales, panel sizing, strip control, panel ordering and the highlight trick. Three things it genuinely cannot do are draw a true nesting line above grouped strips, put a different scale on individual panels, or free scales fully independently in a grid. The ggh4x package fills exactly those gaps.</p>
+
+<p><img src="screenshots/Advanced-Faceting-in-R-decision-flow.webp" alt="A decision path for choosing base ggplot2 versus ggh4x" class="img-responsive img-zoomable" loading="lazy" width="1264" height="1802" /></p>
+
+<p><em>Figure 2: Base ggplot2 first, ggh4x only when you need it.</em></p>
+
+<p>The examples below use ggh4x, which is not one of the packages available in the interactive runner on this page. Install it once with <code>install.packages(&quot;ggh4x&quot;)</code> and run these snippets in your own R session such as RStudio or the R console. Each block is followed by its real rendered output so you can see the effect without running anything.</p>
+
+<p>The first gap is real nesting. <code>facet_nested()</code> reads a formula like <code>outer + inner</code> and draws a spanning strip for the outer group above the inner strips, with a connecting line. Here manufacturers are nested inside a region.</p>
+
+<pre><code class="language-r">library(ggh4x)
+
+mpg_eu &lt;- subset(mpg, manufacturer %in%
+                   c(&quot;audi&quot;, &quot;volkswagen&quot;, &quot;toyota&quot;, &quot;honda&quot;))
+mpg_eu$origin &lt;- ifelse(mpg_eu$manufacturer %in% c(&quot;audi&quot;, &quot;volkswagen&quot;),
+                        &quot;Europe&quot;, &quot;Asia&quot;)
+
+ggplot(mpg_eu, aes(displ, hwy)) +
+  geom_point(colour = &quot;#2c7fb8&quot;) +
+  facet_nested(~ origin + manufacturer)</code></pre>
+
+<p><img src="screenshots/Advanced-Faceting-in-R-facet-nested.png" alt="facet_nested draws a region strip spanning its manufacturers" class="img-responsive img-zoomable" loading="lazy" width="990" height="396" /></p>
+
+<p><em>Figure 3: facet_nested() draws hierarchy lines above grouped strips.</em></p>
+
+<p>The <code>origin</code> strip now spans its manufacturers with a clear bar, so the two-level grouping is unmistakable. Base ggplot2 could stack these labels but never draw that spanning header.</p>
+
+<p>The second gap is per-panel axes. <code>facetted_pos_scales()</code> lets you hand it a list of scales, one per panel, so each panel can use a different transformation or label format.</p>
+
+<pre><code class="language-r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point(colour = &quot;#2c7fb8&quot;) +
+  facet_wrap(vars(drv), scales = &quot;free_x&quot;) +
+  facetted_pos_scales(x = list(
+    scale_x_continuous(limits = c(1, 7)),
+    scale_x_reverse(),
+    scale_x_continuous(labels = scales::label_number(suffix = &quot;L&quot;))
+  ))</code></pre>
+
+<p><img src="screenshots/Advanced-Faceting-in-R-pos-scales.png" alt="Each drivetrain panel uses a different x scale" class="img-responsive img-zoomable" loading="lazy" width="990" height="374" /></p>
+
+<p><em>Figure 4: facetted_pos_scales() gives each panel its own x scale.</em></p>
+
+<p>The three panels now use three different x scales: a fixed 1-to-7 range, a reversed axis, and an axis whose labels carry an "L" suffix for litres. You must set <code>scales = &quot;free_x&quot;</code> first so ggplot2 allows per-panel scales, then <code>facetted_pos_scales()</code> assigns them in order.</p>
+
+<p>The third gap is fully independent grid scales. Base <code>facet_grid()</code> shares scales along each row and column even when free; <code>facet_grid2()</code> with <code>independent = &quot;all&quot;</code> frees every panel completely.</p>
+
+<pre><code class="language-r">ggplot(mpg, aes(displ, hwy)) +
+  geom_point(colour = &quot;#2c7fb8&quot;) +
+  facet_grid2(vars(drv), vars(year),
+              scales = &quot;free&quot;, independent = &quot;all&quot;)</code></pre>
+
+<p><img src="screenshots/Advanced-Faceting-in-R-facet-grid2.png" alt="Every panel in the grid has its own independent axes" class="img-responsive img-zoomable" loading="lazy" width="825" height="550" /></p>
+
+<p><em>Figure 5: facet_grid2(independent = "all") frees every panel's axes.</em></p>
+
+<p>Every panel now has its own x and y range, even panels in the same row or column. That is impossible in base <code>facet_grid()</code>, where free scales are still shared down each column and across each row.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>ggh4x swaps only the facet layer, so your plot code is unchanged.</strong> Notice that the <code>ggplot()</code>, <code>aes()</code>, and <code>geom_point()</code> lines are identical to the base examples. You only replace <code>facet_wrap()</code> or <code>facet_grid()</code> with the ggh4x version, which makes ggh4x cheap to adopt when a plot truly needs it.</div></div>
+
+<p><strong>Try it locally:</strong> In your own R session, take the nested example and add <code>nest_line = element_line(colour = &quot;grey40&quot;)</code> inside <code>facet_nested()</code> to draw a visible connector between the region strip and its manufacturers. Compare it to the default and decide which reads better for your data.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone exercises combine several techniques from the tutorial. They all use base ggplot2, so you can run and check them in your browser. Each starter block runs as-is; edit it toward the goal, then reveal the solution.</p>
+
+<h3>Exercise 1: Rank panels and brand them</h3>
+
+<p>Reorder the <code>class</code> panels by their median <code>hwy</code>, free the y scale per panel, and give the strips a dark background with white bold text.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: rank and brand panels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: rank and brand panels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reorder class by median hwy, free the y axis, and style the strips.
+# Start from this plain version and add the three pieces.
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(colour = &quot;#2c7fb8&quot;) +
+  facet_wrap(vars(class))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution: ranked, branded panels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution: ranked, branded panels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg$cap_class &lt;- reorder(mpg$class, mpg$hwy, FUN = median)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(colour = &quot;#2c7fb8&quot;) +
+  facet_wrap(vars(cap_class), scales = &quot;free_y&quot;) +
+  theme(
+    strip.background = element_rect(fill = &quot;#2c3e50&quot;),
+    strip.text = element_text(colour = &quot;white&quot;, face = &quot;bold&quot;)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>reorder()</code> orders the panels worst-to-best mileage, <code>scales = &quot;free_y&quot;</code> lets each panel size its own y range, and the two theme lines turn the strips into dark headers. Three independent techniques combine cleanly on one plot.</p>
+
+</details>
+
+<h3>Exercise 2: Highlight with relocated strips</h3>
+
+<p>Draw every <code>class</code> against a grey backdrop of all cars (the highlight trick), and move the strips to the bottom, outside the axis.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: highlight plus strip move">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: highlight plus strip move</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Make a grey backdrop with class removed, colour each panel on top,
+# then move the strips to the bottom and outside the axis.
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  facet_wrap(vars(class))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution: highlight with bottom strips">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution: highlight with bottom strips</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_bg &lt;- transform(mpg, class = NULL)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(data = cap_bg, colour = &quot;grey80&quot;) +
+  geom_point(colour = &quot;#d95f0e&quot;) +
+  facet_wrap(vars(class), strip.position = &quot;bottom&quot;) +
+  theme(strip.placement = &quot;outside&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Removing <code>class</code> from <code>cap_bg</code> makes the grey layer repeat in every panel, the orange layer marks the current class, and the two strip settings drop the labels below each panel outside the axis.</p>
+
+</details>
+
+<h3>Exercise 3: A ragged categorical grid</h3>
+
+<p>Build a boxplot of <code>hwy</code> by <code>class</code>, split into drivetrain rows, and use free scales, free space, and a totals row so each row is sized to its classes and an <code>(all)</code> row pools everything.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter: ragged boxplot grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter: ragged boxplot grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add scales = &quot;free_y&quot;, space = &quot;free_y&quot;, and margins = TRUE
+# to the facet_grid call.
+ggplot(mpg, aes(hwy, class)) +
+  geom_boxplot() +
+  facet_grid(drv ~ .)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution: ragged boxplot grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution: ragged boxplot grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(mpg, aes(hwy, class)) +
+  geom_boxplot() +
+  facet_grid(drv ~ ., scales = &quot;free_y&quot;, space = &quot;free_y&quot;, margins = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scales = &quot;free_y&quot;</code> shows only the classes present in each drivetrain, <code>space = &quot;free_y&quot;</code> sizes each row to its class count, and <code>margins = TRUE</code> adds an <code>(all)</code> row pooling every drivetrain for reference.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>When should I use free scales instead of fixed scales?</strong> Use fixed scales (the default) when comparing groups against each other is the point, because shared axes make positions directly comparable. Switch to free scales when the shape or trend within each group matters more and the groups live in very different ranges. Free scales make each panel readable but remove the ability to compare across panels at a glance.</p>
+
+<p><strong>What is the difference between scales and space in facet_grid?</strong> <code>scales</code> controls the axis range shown in each panel, while <code>space</code> controls how much physical room each panel gets. Freeing <code>scales</code> lets a panel zoom to its data; freeing <code>space</code> lets a panel with more categories be drawn larger. For ragged categorical data such as boxplots with different numbers of categories per panel, you usually free both together.</p>
+
+<p><strong>Can I get nested strip labels without ggh4x?</strong> Yes, up to a point. Passing two variables to <code>vars()</code> with <code>labeller = label_both</code> stacks both labels, giving a nested look. What base ggplot2 cannot do is draw the spanning bar and connecting line that visually group the inner panels under one outer label. For that true hierarchy you need <code>facet_nested()</code> from ggh4x.</p>
+
+<p><strong>Does ggh4x replace ggplot2?</strong> No. ggh4x is a small extension that adds new <code>facet_*</code> functions and a few scale helpers on top of ggplot2. Your <code>ggplot()</code>, <code>aes()</code>, and <code>geom_*</code> code stays exactly the same; you only swap the faceting layer. You still load and use ggplot2 as usual.</p>
+
+<p><strong>How do I show axis labels on inner panels of a grid?</strong> Base ggplot2 draws axes only on the outer edges of a facet grid. The <code>facet_grid2()</code> and <code>facet_wrap2()</code> functions in ggh4x accept an <code>axes = &quot;all&quot;</code> argument that draws ticks and labels on inner panels too, with a <code>remove_labels</code> option to keep the ticks but drop repeated labels. This helps when a large grid makes readers scan far to find the nearest axis.</p>
+
+<p><strong>My plot has too many panels to read. What should I do?</strong> First cut the number of groups, for example by collapsing rare categories into an "Other" bucket before faceting. If every group must stay, use <code>ncol</code> and <code>nrow</code> to shape the grid to your page, free scales so small panels stay legible, and consider the grey-backdrop highlight so each panel still carries context. A grid of 30 tiny panels rarely communicates better than a well-chosen six.</p>
+
+<h2>Summary</h2>
+
+<p>Advanced faceting is mostly about control: which panels appear, in what order, at what size, carrying which labels. Base ggplot2 handles the large majority of that, and ggh4x covers the few things it cannot.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Technique</th>
+<th>Function or argument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Panel layout</td>
+<td><code>facet_wrap(ncol=, nrow=, dir=)</code></td>
+</tr>
+<tr>
+<td>Free per-panel scales</td>
+<td><code>scales = &quot;free&quot;</code>, <code>&quot;free_x&quot;</code>, <code>&quot;free_y&quot;</code></td>
+</tr>
+<tr>
+<td>Free per-panel size</td>
+<td><code>facet_grid(space = &quot;free_y&quot;)</code></td>
+</tr>
+<tr>
+<td>Stacked nested-look labels</td>
+<td><code>facet_wrap(vars(a, b), labeller = label_both)</code></td>
+</tr>
+<tr>
+<td>Wrap long labels</td>
+<td><code>label_wrap_gen(width = )</code></td>
+</tr>
+<tr>
+<td>Move strips</td>
+<td><code>switch=</code> (grid), <code>strip.position=</code> (wrap)</td>
+</tr>
+<tr>
+<td>Style strips</td>
+<td><code>theme(strip.background, strip.text)</code></td>
+</tr>
+<tr>
+<td>Reorder panels</td>
+<td><code>reorder()</code> or <code>forcats::fct_reorder()</code></td>
+</tr>
+<tr>
+<td>Totals panel</td>
+<td><code>facet_grid(margins = TRUE)</code></td>
+</tr>
+<tr>
+<td>Highlight against all data</td>
+<td>grey layer with the facet variable removed</td>
+</tr>
+<tr>
+<td>True nested strips</td>
+<td><code>ggh4x::facet_nested()</code></td>
+</tr>
+<tr>
+<td>Per-panel axes</td>
+<td><code>ggh4x::facetted_pos_scales()</code></td>
+</tr>
+<tr>
+<td>Fully independent grid scales</td>
+<td><code>ggh4x::facet_grid2(independent = &quot;all&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Advanced-Faceting-in-R-overview-mindmap.webp" alt="The advanced faceting toolkit as a mind map" class="img-responsive img-zoomable" loading="lazy" width="1560" height="878" /></p>
+
+<p><em>Figure 6: The advanced-faceting toolkit at a glance.</em></p>
+
+<p>The workflow is reliable: reach for base ggplot2 first, and add ggh4x only when you hit true nesting, per-panel axes, or fully independent scales. Because ggh4x changes only the facet layer, you can start in base ggplot2 and upgrade a single line when the plot demands it.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>ggplot2 documentation. <em>Wrap a 1d ribbon of panels into 2d: facet_wrap()</em>. <a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html">Link</a></li>
+
+<li>ggplot2 documentation. <em>Lay out panels in a grid: facet_grid()</em>. <a href="https://ggplot2.tidyverse.org/reference/facet_grid.html">Link</a></li>
+
+<li>ggplot2 documentation. <em>Labeller functions, including label_both and label_wrap_gen</em>. <a href="https://ggplot2.tidyverse.org/reference/labeller.html">Link</a></li>
+
+<li>Wickham, H., Navarro, D., Pedersen, T. L. <em>ggplot2: Elegant Graphics for Data Analysis</em>, Faceting chapter. <a href="https://ggplot2-book.org/facet">Link</a></li>
+
+<li>Brand, T. van den. <em>ggh4x: Facets vignette</em>. <a href="https://teunbrand.github.io/ggh4x/articles/Facets.html">Link</a></li>
+
+<li>Brand, T. van den. <em>ggh4x reference: facet_nested()</em>. <a href="https://teunbrand.github.io/ggh4x/reference/facet_nested.html">Link</a></li>
+
+<li>Brand, T. van den. <em>ggh4x reference: facetted_pos_scales()</em>. <a href="https://teunbrand.github.io/ggh4x/reference/facetted_pos_scales.html">Link</a></li>
+
+<li>Brand, T. van den. <em>ggh4x reference: facet_grid2()</em>. <a href="https://teunbrand.github.io/ggh4x/reference/facet_grid2.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ggplot2-Facets.html">ggplot2 Facets</a>: the foundations of <code>facet_wrap()</code> and <code>facet_grid()</code> that this tutorial builds on.</li>
+
+<li><a href="Small-Multiples-in-R.html">Small Multiples in R</a>: design principles for reading a grid of related panels well.</li>
+
+<li><a href="Multi-Panel-Figures-in-R.html">Multi-Panel Figures in R</a>: combine several different plots into one figure with <a class="auto-link" href="patchwork-Package.html" title="patchwork in R: Combine Multiple ggplot2 Plots With Aligned Axes and Shared Legends">patchwork</a>.</li>
+
+<li><a href="ggplot2-Themes-in-R.html">ggplot2 Themes</a>: go deeper on theming, including the strip elements you styled here.</li>
+
+</ul>
+
+{% endraw %}
