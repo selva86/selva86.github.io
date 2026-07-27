@@ -1,0 +1,882 @@
+---
+title: "Multiple Imputation with mice in R"
+description: "Handle missing data in R with the mice package: impute, analyze, and pool with Rubin's rules. Runnable examples plus MAR/MCAR/MNAR and diagnostics."
+keywords: "multiple imputation R, mice package R, missing data imputation R, mice R tutorial, pool mice R, Rubin's rules R, predictive mean matching, MAR MCAR MNAR, impute missing values R"
+mathjax: true
+webr: true
+curriculum_id: "ST2-12.2"
+post_type: "C"
+auto_link_terms: "multiple imputation|mice package|mice()|missing data imputation|impute missing values|predictive mean matching|Rubin's rules|pool()|md.pattern()|MAR assumption|complete()|listwise deletion|fraction of missing information"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Multiple Imputation with mice"
+sidebar_order: "174"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Multiple imputation fills each missing value several times to build several complete datasets, analyzes each one, then pools the answers so your standard errors reflect the uncertainty the missing data really carries. The mice package in R runs this whole workflow with a handful of functions, and this guide walks through every step on a real dataset.</p>
+
+<h2>What problem does multiple imputation actually solve?</h2>
+
+<p>Almost every real dataset has holes in it. A sensor drops out, a survey question gets skipped, a lab result never comes back. The two reflexes most people reach for, deleting the incomplete rows or filling the blanks with a column average, both quietly bend your results. Before we fix that, let's see the damage with our own eyes.</p>
+
+<p>We will use <code>airquality</code>, a dataset built into R that records daily air-quality readings in New York in 1973. It ships with genuine <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, so nothing here is staged. Our first job is simply to find the holes.</p>
+
+<div class="webr-container" data-block-title="Count the missing values in each column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the missing values in each column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(airquality)
+dim(airquality)
+colSums(is.na(airquality))
+#&gt; [1] 153   6
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;      37       7       0       0       0       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dataset has 153 rows and 6 columns. The <code>colSums(is.na(...))</code> line counts the <code>NA</code> (missing) entries per column: 37 missing <code>Ozone</code> values and 7 missing <code>Solar.R</code> values, with the rest complete. That is a lot of missing ozone for a dataset this size.</p>
+
+<p>The oldest fix is to keep only the rows that are complete, an approach called listwise deletion (also known as complete-case analysis). Let's measure what that costs us.</p>
+
+<div class="webr-container" data-block-title="Measure the cost of dropping incomplete rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the cost of dropping incomplete rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_all &lt;- nrow(airquality)
+n_complete &lt;- nrow(na.omit(airquality))
+c(all_rows = n_all, complete_rows = n_complete, dropped = n_all - n_complete)
+#&gt;      all_rows complete_rows       dropped
+#&gt;           153           111            42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Dropping every row with any gap throws away 42 of 153 rows, about 27 percent of the data. That waste matters, because smaller samples give wider, less certain estimates. Here is the regression we will return to throughout this guide, fit on the 111 complete rows.</p>
+
+<div class="webr-container" data-block-title="Fit a complete-case regression as a baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a complete-case regression as a baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cc_model &lt;- lm(Ozone ~ Temp + Wind + Solar.R, data = airquality)
+round(summary(cc_model)$coefficients, 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  -64.342     23.055  -2.791    0.006
+#&gt; Temp           1.652      0.254   6.516    0.000
+#&gt; Wind          -3.334      0.654  -5.094    0.000
+#&gt; Solar.R        0.060      0.023   2.580    0.011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Temp</code> row says ozone rises about 1.65 units for each extra degree, with a standard error of 0.254. The standard error is our measure of how precise that estimate is: smaller means more certain. Hold onto the value 0.254, because we will watch it change as we try better and worse ways of handling the gaps.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This first section uses base R only.</strong> The imputation engine we introduce later, the <code>mice</code> package, runs in a local R session rather than in your browser, so those blocks are labelled "run locally". Everything in the browser-runnable blocks works as you read.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Instead of raw counts, show the percentage of values missing in each column. The helper <code>colMeans(is.na(x))</code> gives the fraction missing per column.</p>
+<div class="webr-container" data-block-title="Your turn: percent missing per column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: percent missing per column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: print the PERCENT missing in each column of airquality.
+# Hint: colMeans(is.na(airquality)) gives the fraction; multiply by 100.
+# ex_pct &lt;- round(colMeans(is.na(airquality)) * 100, 1)
+# ex_pct</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Percent missing solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Percent missing solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pct &lt;- round(colMeans(is.na(airquality)) * 100, 1)
+ex_pct
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;    24.2     4.6     0.0     0.0     0.0     0.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>is.na()</code> turns each column into TRUE/FALSE, and the mean of TRUE/FALSE values is the fraction that are TRUE. Almost a quarter of the ozone readings are missing.</p>
+
+</details>
+</section>
+
+<h2>Why does filling in the mean give you the wrong answer?</h2>
+
+<p>The next reflex after deleting rows is to keep them and paste the column average into every blank. It feels harmless, since the mean is a reasonable central guess. The problem is that it pretends every guess is a known fact, and that pretense quietly distorts three things at once: the spread of the data, the relationships between variables, and the honesty of your standard errors.</p>
+
+<p>Start with spread. When you drop the same number into 37 slots, you pile up a spike of identical values at the mean, which shrinks the variability.</p>
+
+<div class="webr-container" data-block-title="Mean imputation shrinks the spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean imputation shrinks the spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oz &lt;- airquality$Ozone
+oz_filled &lt;- oz
+oz_filled[is.na(oz_filled)] &lt;- mean(oz, na.rm = TRUE)
+c(observed_sd = round(sd(oz, na.rm = TRUE), 2),
+  mean_filled_sd = round(sd(oz_filled), 2))
+#&gt;    observed_sd mean_filled_sd
+#&gt;          32.99          28.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard deviation of ozone falls from 32.99 to 28.69 the moment we fill the blanks with the mean. The data now looks less variable than it truly is. Relationships suffer too, because those flat, identical fills carry no information about the other columns.</p>
+
+<div class="webr-container" data-block-title="Mean imputation weakens the correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean imputation weakens the correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">temp &lt;- airquality$Temp
+c(complete_case = round(cor(oz, temp, use = &quot;complete.obs&quot;), 3),
+  mean_filled   = round(cor(oz_filled, temp), 3))
+#&gt; complete_case   mean_filled
+#&gt;         0.698         0.609</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The real <a class="auto-link" href="Covariance-and-Correlation-in-R.html" title="Covariance and Correlation in R from First Principles">correlation</a> between ozone and temperature is 0.698, but after mean-filling it drops to 0.609. We have weakened a real relationship between the two variables. Now the part that matters most for any analysis: what mean imputation does to the regression coefficient you actually care about.</p>
+
+<div class="webr-container" data-block-title="Mean imputation biases the regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean imputation biases the regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq_mean &lt;- airquality
+for (v in c(&quot;Ozone&quot;, &quot;Solar.R&quot;)) {
+  aq_mean[[v]][is.na(aq_mean[[v]])] &lt;- mean(aq_mean[[v]], na.rm = TRUE)
+}
+mean_model &lt;- lm(Ozone ~ Temp + Wind + Solar.R, data = aq_mean)
+round(summary(mean_model)$coefficients, 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  -38.223     18.883  -2.024    0.045
+#&gt; Temp           1.241      0.209   5.937    0.000
+#&gt; Wind          -2.717      0.543  -5.006    0.000
+#&gt; Solar.R        0.058      0.020   2.883    0.005</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the <code>Temp</code> estimate: it has fallen from 1.65 in the complete-case model to 1.24 here, a drop of about a quarter. The flat imputed points bias the slope toward zero. At the same time the standard error shrank to 0.209, smaller than the complete-case 0.254, so the model reports more confidence in a coefficient that is now further from the truth.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Single imputation treats a guess as if it were a fact.</strong> That single mistake bends the point estimate toward zero and reports a standard error that is too small, so you end up more confident in a more wrong answer. The fix is not a smarter single guess; it is admitting there are many plausible guesses.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the spread check for <code>Solar.R</code>. Mean-fill its 7 missing values and compare the standard deviation before and after.</p>
+<div class="webr-container" data-block-title="Your turn: mean-fill Solar.R and check spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean-fill Solar.R and check spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: mean-impute Solar.R, then compare sd before vs after.
+# ex_solar &lt;- airquality$Solar.R
+# ex_solar[is.na(ex_solar)] &lt;- mean(ex_solar, na.rm = TRUE)
+# c(observed = sd(airquality$Solar.R, na.rm = TRUE), filled = sd(ex_solar))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solar.R spread solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solar.R spread solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_solar &lt;- airquality$Solar.R
+ex_solar[is.na(ex_solar)] &lt;- mean(ex_solar, na.rm = TRUE)
+c(observed = round(sd(airquality$Solar.R, na.rm = TRUE), 2),
+  filled   = round(sd(ex_solar), 2))
+#&gt; observed   filled
+#&gt;    90.06    87.96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The spread shrinks less here (90.06 to 87.96) because only 7 values were filled, versus 37 for ozone. The more you impute with a flat value, the more damage it does.</p>
+
+</details>
+</section>
+
+<h2>How does multiple imputation fix the uncertainty problem?</h2>
+
+<p>The trouble with a single filled-in value is that it hides your ignorance. You did not actually see that ozone reading, so any one number you write down is just one guess among many that were plausible. Multiple imputation takes that idea literally: instead of one guess per blank, it makes several, each drawn with a bit of random variation, so the guesses disagree with each other on purpose.</p>
+
+<p>That disagreement is the whole point. If you fill the gaps five different ways and your analysis gives nearly the same answer every time, the missing data barely mattered. If the answer jumps around, the missing data carried real uncertainty, and multiple imputation measures exactly how much. The workflow has three steps, shown below.</p>
+
+<p><img src="screenshots/Multiple-Imputation-mice-in-R-workflow.webp" alt="The three steps of multiple imputation: impute several times, analyze each dataset, pool the results." class="img-responsive img-zoomable" loading="lazy" width="2248" height="386" /></p>
+
+<p><em>Figure 1: The three steps of multiple imputation: impute m times, analyze each dataset, then pool the results into one honest estimate.</em></p>
+
+<p>We can feel this out with plain R before touching any package. Let's fill the 37 missing ozone values by randomly borrowing real observed ozone readings, then compute the mean. Do that five separate times and watch the answer wobble.</p>
+
+<div class="webr-container" data-block-title="Show that plausible fills disagree">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show that plausible fills disagree</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+observed_oz &lt;- airquality$Ozone[!is.na(airquality$Ozone)]
+na_idx &lt;- which(is.na(airquality$Ozone))
+
+draw_mean &lt;- function() {
+  filled &lt;- airquality$Ozone
+  filled[na_idx] &lt;- sample(observed_oz, length(na_idx), replace = TRUE)
+  mean(filled)
+}
+five_means &lt;- replicate(5, draw_mean())
+round(five_means, 2)
+#&gt; [1] 40.75 40.56 42.07 42.62 42.14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each of the five fills gives a slightly different mean ozone, from 40.56 to 42.62. None is more correct than the others; they are all consistent with the data we have. The gap between them is information, and we can put a number on it.</p>
+
+<div class="webr-container" data-block-title="Measure the disagreement between fills">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the disagreement between fills</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sd(five_means), 3)
+#&gt; [1] 0.915</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That 0.915 is the extra uncertainty single imputation throws away. Statisticians call it the between-imputation variance, and it is precisely the wobble you get from not knowing the true values. Multiple imputation keeps this number and folds it into your final standard errors, which is why its answers stay honest.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Our hand-rolled draw is only an illustration.</strong> It resamples ozone in isolation, while the real engine in the next section imputes every incomplete column together and uses the other variables as predictors, so its fills respect the relationships in your data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Widen the experiment. Draw 20 filled versions instead of 5 and report the smallest and largest mean you see.</p>
+<div class="webr-container" data-block-title="Your turn: 20 fills and their range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 20 fills and their range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: repeat the random fill 20 times, then show range() of the means.
+# Reuse observed_oz and na_idx from the block above.
+# set.seed(7)
+# ex_means &lt;- replicate(20, { f &lt;- airquality$Ozone
+#   f[na_idx] &lt;- sample(observed_oz, length(na_idx), replace = TRUE); mean(f) })
+# round(range(ex_means), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Range of 20 fills solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Range of 20 fills solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_means &lt;- replicate(20, {
+  f &lt;- airquality$Ozone
+  f[na_idx] &lt;- sample(observed_oz, length(na_idx), replace = TRUE)
+  mean(f)
+})
+round(range(ex_means), 2)
+#&gt; [1] 39.25 43.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Across 20 fills the mean ozone ranges from 39.25 to 43.46. Any single-number answer inside that band was possible, which is why reporting just one hides real uncertainty.</p>
+
+</details>
+</section>
+
+<h2>How do you run mice on a real dataset?</h2>
+
+<p>Our hand-rolled random fill captured the right idea, but a serious method needs to respect the relationships between columns, not just resample one variable in isolation. That is what the <code>mice</code> package does. The name stands for Multivariate Imputation by Chained Equations, and the plain-English version is this: mice imputes each incomplete column using a small model built from all the other columns, cycling through them until the fills settle down.</p>
+
+<p>Before imputing, it pays to look at the shape of the missingness. The <code>md.pattern()</code> function lays out which combinations of missing values actually occur.</p>
+
+<pre><code class="language-r">library(mice)
+md.pattern(airquality, plot = FALSE)
+#&gt;     Wind Temp Month Day Solar.R Ozone
+#&gt; 111    1    1     1   1       1     1  0
+#&gt; 35     1    1     1   1       1     0  1
+#&gt; 5      1    1     1   1       0     1  1
+#&gt; 2      1    1     1   1       0     0  2
+#&gt;        0    0     0   0       7    37 44</code></pre>
+
+<p>Each row is a pattern, and the leading number counts how many data rows follow it. A <code>1</code> means present and a <code>0</code> means missing. So 111 rows are fully complete, 35 rows are missing only <code>Ozone</code>, 5 rows are missing only <code>Solar.R</code>, and just 2 rows are missing both. The bottom line totals the missing values per column. Now we impute.</p>
+
+<pre><code class="language-r">imp &lt;- mice(airquality, m = 5, method = &quot;pmm&quot;, seed = 123, printFlag = FALSE)
+imp
+#&gt; Class: mids
+#&gt; Number of multiple imputations:  5
+#&gt; Imputation methods:
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;   &quot;pmm&quot;   &quot;pmm&quot;      &quot;&quot;      &quot;&quot;      &quot;&quot;      &quot;&quot;
+#&gt; PredictorMatrix:
+#&gt;         Ozone Solar.R Wind Temp Month Day
+#&gt; Ozone       0       1    1    1     1   1
+#&gt; Solar.R     1       0    1    1     1   1
+#&gt; Wind        1       1    0    1     1   1
+#&gt; Temp        1       1    1    0     1   1
+#&gt; Month       1       1    1    1     0   1
+#&gt; Day         1       1    1    1     1   0</code></pre>
+
+<p>Two arguments do the heavy lifting. <code>m = 5</code> asks for five complete datasets, and <code>seed = 123</code> makes the random draws reproducible so you get these exact numbers. The printout confirms mice used the <code>pmm</code> method for the two incomplete columns and left the complete ones alone.</p>
+
+<p>The <code>pmm</code> label is worth unpacking. It stands for predictive mean matching, and it works by finding a few real rows whose predicted value is closest to the one it needs to fill, then copying an actual observed value from one of them. Because every fill is a value that genuinely occurred in the data, imputed ozone is always a plausible ozone reading, never a negative number or an impossible spike. The <code>PredictorMatrix</code> in the printout above shows which columns feed each imputation model; a <code>1</code> means "use this column as a predictor".</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set the seed argument for reproducible imputations.</strong> Because the fills are drawn at random, passing a fixed number such as seed = 123 guarantees you and your collaborators get identical imputed datasets, and the same pooled results, every time the code runs.</div></div>
+
+<p>Each of the five datasets is now complete. Let's confirm there are no gaps left in the first one.</p>
+
+<pre><code class="language-r">completed_1 &lt;- complete(imp, 1)
+colSums(is.na(completed_1))
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;       0       0       0       0       0       0</code></pre>
+
+<p>Zero missing everywhere. The <code>complete(imp, 1)</code> call pulls out the first filled dataset as an ordinary data frame you could analyze directly. The key is that the five datasets differ in exactly the cells that were missing.</p>
+
+<pre><code class="language-r">imp$imp$Ozone[1:5, ]
+#&gt;     1  2  3  4  5
+#&gt; 5  18  1 37 18 32
+#&gt; 10 12 30 30 20 20
+#&gt; 25 18  8  8 28  6
+#&gt; 26 13 18 18 20 13
+#&gt; 27 20 11 21 32 20</code></pre>
+
+<p>Each row here is one originally-missing ozone value, and the five columns are the five imputations. Row 5, for example, was filled with 18, 1, 37, 18, and 32 across the five datasets. That spread across the columns is the same uncertainty we measured by hand earlier, now respecting every predictor.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull out the third completed dataset and confirm it has 153 rows and no missing values.</p>
+<pre><code class="language-r"># Goal: use complete(imp, 3), then report its row count and total NAs.
+# completed_3 &lt;- complete(imp, 3)
+# c(rows = nrow(completed_3), missing = sum(is.na(completed_3)))</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">completed_3 &lt;- complete(imp, 3)
+c(rows = nrow(completed_3), missing = sum(is.na(completed_3)))
+#&gt;    rows missing
+#&gt;     153       0</code></pre>
+
+<p><strong>Explanation:</strong> <code>complete(imp, 3)</code> returns the third of the five imputed datasets, complete and ready for analysis. Every imputation restores all 153 rows.</p>
+
+</details>
+</section>
+
+<h2>How do you pool the results with Rubin's rules?</h2>
+
+<p>You now have five complete datasets, so the temptation is to pick one and analyze it. Do not. Analyzing a single imputed set throws away the disagreement between the five, which is the very uncertainty we worked to capture. Instead you run your analysis on all five, then combine the answers with a recipe called Rubin's rules. The mice package makes this two lines.</p>
+
+<p>The <code>with()</code> function runs the same model on each imputed dataset, and <code>pool()</code> combines the five sets of coefficients into one.</p>
+
+<pre><code class="language-r">fit &lt;- with(imp, lm(Ozone ~ Temp + Wind + Solar.R))
+pooled &lt;- pool(fit)
+ps &lt;- summary(pooled)
+data.frame(term = ps$term,
+           estimate = round(ps$estimate, 3),
+           std.error = round(ps$std.error, 3),
+           statistic = round(ps$statistic, 2),
+           p.value = round(ps$p.value, 4))
+#&gt;          term estimate std.error statistic p.value
+#&gt; 1 (Intercept)  -62.907    22.861     -2.75  0.0094
+#&gt; 2        Temp    1.618     0.241      6.72  0.0000
+#&gt; 3        Wind   -3.075     0.655     -4.70  0.0000
+#&gt; 4     Solar.R    0.053     0.026      2.01  0.0595</code></pre>
+
+<p>This is the payoff. The pooled <code>Temp</code> estimate is 1.618, almost identical to the complete-case value of 1.652 and a world away from the mean-imputed 1.241. Multiple imputation recovered the honest slope. Now compare the standard errors side by side, because the story there is subtle.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Rows used</th>
+<th><code>Temp</code> estimate</th>
+<th><code>Temp</code> std. error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Complete-case (drop rows)</td>
+<td>111</td>
+<td>1.652</td>
+<td>0.254</td>
+</tr>
+<tr>
+<td>Single mean imputation</td>
+<td>153</td>
+<td>1.241</td>
+<td>0.209</td>
+</tr>
+<tr>
+<td>Multiple imputation</td>
+<td>153</td>
+<td>1.618</td>
+<td>0.241</td>
+</tr>
+</tbody>
+</table>
+
+<p>The pooled standard error of 0.241 is smaller than the complete-case 0.254, because multiple imputation uses all 153 rows instead of discarding 42, so it recovers real information. Yet it is larger than the mean-imputed 0.209, because it honestly adds back the uncertainty that single imputation pretended away. Multiple imputation is both more efficient and more truthful at the same time.</p>
+
+<p>If you like to see the machinery, Rubin's rules combine the five analyses like this. The intuition is that your total uncertainty has two parts: the ordinary uncertainty inside each analysis, plus the extra uncertainty that comes from the five imputations disagreeing.</p>
+
+<p>$$T = \bar{U} + \left(1 + \frac{1}{m}\right) B$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$T$ is the total variance of the pooled estimate (its squared standard error)</li>
+
+<li>$\bar{U}$ is the average within-imputation variance, the ordinary uncertainty averaged over the five analyses</li>
+
+<li>$B$ is the between-imputation variance, how much the estimate itself varied across the five datasets</li>
+
+<li>$m$ is the number of imputations, here 5</li>
+
+</ul>
+
+<p>That $B$ term is the piece single imputation drops. The mice package reports how large it is through three diagnostics.</p>
+
+<pre><code class="language-r">pd &lt;- pooled$pooled
+data.frame(term = pd$term,
+           riv = round(pd$riv, 3),
+           lambda = round(pd$lambda, 3),
+           fmi = round(pd$fmi, 3))
+#&gt;          term   riv lambda   fmi
+#&gt; 1 (Intercept) 0.386  0.278 0.317
+#&gt; 2        Temp 0.252  0.201 0.230
+#&gt; 3        Wind 0.377  0.274 0.312
+#&gt; 4     Solar.R 0.718  0.418 0.473</code></pre>
+
+<p>The most useful column is <code>fmi</code>, the fraction of missing information. It estimates how much of the information about each coefficient was lost to missing data. For <code>Solar.R</code> it is 0.473, meaning nearly half the information behind that coefficient depends on imputed values, so treat it with the most caution. The <code>riv</code> (relative increase in variance) and <code>lambda</code> columns tell the same story from slightly different angles.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The pooled standard error is bigger than a single imputation's precisely because it adds the between-imputation variance back in.</strong> That extra term is not a penalty; it is the uncertainty that single imputation leaves out.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pool a simpler model that predicts <code>Ozone</code> from <code>Temp</code> alone, and report the pooled coefficients.</p>
+<pre><code class="language-r"># Goal: with(imp, lm(Ozone ~ Temp)), then summary(pool(...)).
+# ex_fit &lt;- with(imp, lm(Ozone ~ Temp))
+# summary(pool(ex_fit))</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_fit &lt;- with(imp, lm(Ozone ~ Temp))
+ex_ps &lt;- summary(pool(ex_fit))
+data.frame(term = ex_ps$term,
+           estimate = round(ex_ps$estimate, 3),
+           std.error = round(ex_ps$std.error, 3))
+#&gt;          term estimate std.error
+#&gt; 1 (Intercept) -134.818    16.599
+#&gt; 2        Temp    2.275     0.215</code></pre>
+
+<p><strong>Explanation:</strong> With <code>Temp</code> as the only predictor, its pooled slope is larger (2.275) because it now absorbs effects that were shared with <code>Wind</code> and <code>Solar.R</code> in the full model. The pooling step is identical no matter which model you fit.</p>
+
+</details>
+</section>
+
+<h2>How do you check that the imputations are trustworthy?</h2>
+
+<p>Imputation is not magic, so you should verify two things before believing the pooled numbers: that the algorithm settled down, and that the values it invented look like the values you actually observed. Both checks are quick.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run both checks before you trust a single pooled number.</strong> A model fit on badly converged or implausible imputations can look perfectly precise while being quietly wrong, and each check here costs only one line of code.</div></div>
+
+<p>First, convergence. Mice fills the columns in cycles, and you want the results to stabilize rather than drift as the cycles go on. The <code>chainMean</code> element stores the mean of the imputed ozone values at each iteration for each of the five chains.</p>
+
+<pre><code class="language-r">round(imp$chainMean[&quot;Ozone&quot;, , ], 1)
+#&gt;   Chain 1 Chain 2 Chain 3 Chain 4 Chain 5
+#&gt; 1    44.3    34.9    40.9    37.8    35.8
+#&gt; 2    40.1    42.9    39.8    39.5    42.2
+#&gt; 3    39.7    39.4    39.2    46.9    39.6
+#&gt; 4    36.3    44.7    40.6    45.1    39.2
+#&gt; 5    36.1    44.9    40.0    45.5    48.8</code></pre>
+
+<p>Read down each column: the values bounce around in the low 40s without climbing or falling steadily, and the five chains overlap rather than separating into lanes. That is what healthy convergence looks like. In a local session, <code>plot(imp)</code> draws these same traces as lines, and a clean plot shows tangled, drift-free bands. If you ever see the chains trending or splitting apart, raise the iteration count with the <code>maxit</code> argument.</p>
+
+<p>Second, plausibility. The imputed ozone values should occupy roughly the same range as the observed ones. Let's compare their five-number summaries.</p>
+
+<pre><code class="language-r">obs_oz &lt;- airquality$Ozone[!is.na(airquality$Ozone)]
+imp_oz &lt;- unlist(imp$imp$Ozone)
+round(rbind(observed = summary(obs_oz), imputed = summary(imp_oz)), 1)
+#&gt;          Min. 1st Qu. Median Mean 3rd Qu. Max.
+#&gt; observed    1      18   31.5 42.1    63.2  168
+#&gt; imputed     1      20   35.0 43.0    63.0  135</code></pre>
+
+<p>The two rows line up closely. The imputed median (35.0) and mean (43.0) sit right beside the observed median (31.5) and mean (42.1), and both span a similar range. The picture below makes the overlap visual, plotting the density of observed ozone against the density of the imputed values.</p>
+
+<p><img src="screenshots/Multiple-Imputation-mice-in-R-observed-vs-imputed.png" alt="Density curves showing imputed Ozone values closely tracking the observed values." class="img-responsive img-zoomable" loading="lazy" width="1400" height="850" /></p>
+
+<p><em>Figure 2: Imputed Ozone values (dashed) follow the shape of the observed values (solid), a sign the imputation model is behaving.</em></p>
+
+<p>The dashed imputed curve traces the solid observed curve, including the long right tail of high-ozone days. In a local session, <code>densityplot(imp)</code> and <code>stripplot(imp)</code> produce polished versions of this check for every imputed column at once.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the standard deviation of the observed ozone with the standard deviation of the imputed ozone. They should be close, unlike the shrunken mean-imputation spread from earlier.</p>
+<pre><code class="language-r"># Goal: sd of obs_oz vs sd of imp_oz (both defined above).
+# c(observed_sd = sd(obs_oz), imputed_sd = sd(imp_oz))</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">c(observed_sd = round(sd(obs_oz), 1), imputed_sd = round(sd(imp_oz), 1))
+#&gt; observed_sd  imputed_sd
+#&gt;        33.0        28.9</code></pre>
+
+<p><strong>Explanation:</strong> The imputed spread (28.9) is a little narrower than the observed (33.0), which is expected because imputations pull slightly toward the center, but it is far healthier than the flat mean-fill that collapsed the spread to a spike.</p>
+
+</details>
+</section>
+
+<h2>When can you trust multiple imputation? (MCAR, MAR, MNAR)</h2>
+
+<p>Multiple imputation is powerful, but it rests on an assumption about why the data is missing in the first place. Statisticians sort the reasons into three mechanisms, and knowing which one you face tells you whether imputation will give an honest answer.</p>
+
+<p><img src="screenshots/Multiple-Imputation-mice-in-R-mechanisms.webp" alt="The three missing-data mechanisms and what each one means for imputation." class="img-responsive img-zoomable" loading="lazy" width="1320" height="1122" /></p>
+
+<p><em>Figure 3: The three missing-data mechanisms and what each means for imputation.</em></p>
+
+<p>The three mechanisms are easiest to grasp through a single example: a scale that sometimes fails to record a person's weight.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Why the value is missing</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCAR</td>
+<td>Pure chance, unrelated to anything (a random battery failure)</td>
+<td>Deletion is unbiased; imputation adds efficiency</td>
+</tr>
+<tr>
+<td>MAR</td>
+<td>Explained by other observed columns (older scales fail more, and you recorded scale age)</td>
+<td>Multiple imputation is valid</td>
+</tr>
+<tr>
+<td>MNAR</td>
+<td>Depends on the hidden value itself (heavier people skip weighing)</td>
+<td>Imputation can be biased; needs a sensitivity check</td>
+</tr>
+</tbody>
+</table>
+
+<p>Multiple imputation assumes MAR, meaning the reason a value is missing can be explained by the columns you did observe. You can probe this a little. If the days with missing ozone differ systematically from other days on the variables you do see, then missingness is clearly not pure chance.</p>
+
+<div class="webr-container" data-block-title="Probe whether missingness relates to observed data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probe whether missingness relates to observed data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oz_missing &lt;- is.na(airquality$Ozone)
+agg_t &lt;- aggregate(airquality$Temp, by = list(Ozone_missing = oz_missing), FUN = mean)
+agg_t$x &lt;- round(agg_t$x, 1)
+agg_t
+#&gt;   Ozone_missing    x
+#&gt; 1         FALSE 77.9
+#&gt; 2          TRUE 77.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the average temperature is essentially the same (77.9) whether ozone was recorded or not, so temperature gives no hint about why ozone went missing. That is reassuring, but note the catch: this test can only inspect the variables you observed. It can never see whether missingness depended on the unrecorded ozone value itself, which is exactly the MNAR case.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>No test can prove MAR from the data alone.</strong> MAR and MNAR differ only in the values you never got to see, so the assumption is ultimately a judgment call. When missingness might depend on the hidden value, run your analysis under a few MNAR scenarios and see whether your conclusion holds.</div></div>
+
+<p>Two practical habits make the MAR assumption more believable. First, feed mice every variable that might explain the missingness, including extra "auxiliary" columns you will not model later, because more context makes MAR more plausible. Second, use enough imputations. A common rule of thumb sets <code>m</code> at least as high as the percentage of incomplete rows, so with 27 percent incomplete here, <code>m</code> around 20 to 30 is safer than the 5 we used for speed.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the same probe for <code>Wind</code> instead of <code>Temp</code>. Do windy days differ in how often ozone is missing?</p>
+<div class="webr-container" data-block-title="Your turn: probe Wind against missingness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probe Wind against missingness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: aggregate Wind by oz_missing (defined above), rounded to 1 dp.
+# agg_w &lt;- aggregate(airquality$Wind, by = list(Ozone_missing = oz_missing), FUN = mean)
+# agg_w$x &lt;- round(agg_w$x, 1)
+# agg_w</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wind probe solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wind probe solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">agg_w &lt;- aggregate(airquality$Wind, by = list(Ozone_missing = oz_missing), FUN = mean)
+agg_w$x &lt;- round(agg_w$x, 1)
+agg_w
+#&gt;   Ozone_missing    x
+#&gt; 1         FALSE  9.9
+#&gt; 2          TRUE 10.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Days with missing ozone were slightly windier on average (10.3 versus 9.9). A mild signal like this is a reason to keep <code>Wind</code> in the imputation model, which mice already does by default.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several steps of the workflow. Each solution runs in a local R session because it uses the <code>mice</code> package. Use fresh variable names so you do not overwrite the objects from the tutorial.</p>
+
+<h3>Exercise 1: Impute more and flip the model around</h3>
+
+<p>Create 10 imputations of <code>airquality</code>, then pool a model that predicts <code>Temp</code> from <code>Ozone</code> and <code>Wind</code>. Report the pooled coefficients. Use <code>seed = 500</code>.</p>
+
+<pre><code class="language-r"># Hint: mice(airquality, m = 10, seed = 500, printFlag = FALSE)
+# then with(..., lm(Temp ~ Ozone + Wind)) and pool().
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">my_imp &lt;- mice(airquality, m = 10, method = &quot;pmm&quot;, seed = 500, printFlag = FALSE)
+my_fit &lt;- with(my_imp, lm(Temp ~ Ozone + Wind))
+my_res &lt;- summary(pool(my_fit))
+data.frame(term = my_res$term,
+           estimate = round(my_res$estimate, 3),
+           std.error = round(my_res$std.error, 3),
+           p.value = round(my_res$p.value, 4))
+#&gt;          term estimate std.error p.value
+#&gt; 1 (Intercept)   73.403     2.729  0.0000
+#&gt; 2       Ozone    0.181     0.023  0.0000
+#&gt; 3        Wind   -0.304     0.200  0.1309</code></pre>
+
+<p><strong>Explanation:</strong> Each extra unit of ozone is linked to about 0.181 degrees more warmth, and with 10 imputations the pooled standard errors are a touch more stable than with 5.</p>
+
+</details>
+
+<h3>Exercise 2: Control which predictors mice uses</h3>
+
+<p>By default mice uses every other column to impute each variable, including <code>Day</code>, which is just a calendar index. Use <code>quickpred()</code> to build a predictor matrix that drops weak predictors, inspect the row for <code>Ozone</code>, then re-impute and pool the main model.</p>
+
+<pre><code class="language-r"># Hint: pred &lt;- quickpred(airquality); look at pred[&quot;Ozone&quot;, ].
+# Then mice(airquality, predictorMatrix = pred, ...).
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">pred &lt;- quickpred(airquality)
+pred[&quot;Ozone&quot;, ]
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;       0       1       1       1       1       0
+
+imp_cust &lt;- mice(airquality, predictorMatrix = pred, m = 5, seed = 99, printFlag = FALSE)
+cust_res &lt;- summary(pool(with(imp_cust, lm(Ozone ~ Temp + Wind + Solar.R))))
+data.frame(term = cust_res$term,
+           estimate = round(cust_res$estimate, 3),
+           std.error = round(cust_res$std.error, 3))
+#&gt;          term estimate std.error
+#&gt; 1 (Intercept)  -65.827    21.692
+#&gt; 2        Temp    1.622     0.235
+#&gt; 3        Wind   -2.946     0.640
+#&gt; 4     Solar.R    0.058     0.022</code></pre>
+
+<p><strong>Explanation:</strong> <code>quickpred()</code> dropped <code>Day</code> (a <code>0</code> in the row) because it barely correlates with ozone. The pooled estimates barely move, which is reassuring: the imputation was not leaning on a useless predictor.</p>
+
+</details>
+
+<h3>Exercise 3: Put a number on what deletion cost you</h3>
+
+<p>Compare the <code>Temp</code> standard error from the complete-case model (<code>cc_model</code>, fit at the top of this guide) against the pooled multiple-imputation standard error (<code>pooled</code>). Which is smaller, and why?</p>
+
+<pre><code class="language-r"># Hint: pull &quot;Std. Error&quot; for Temp from summary(cc_model)$coefficients,
+# and std.error for Temp from summary(pooled).
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">cc_se &lt;- round(summary(cc_model)$coefficients[&quot;Temp&quot;, &quot;Std. Error&quot;], 3)
+mi_se &lt;- round(summary(pooled)$std.error[summary(pooled)$term == &quot;Temp&quot;], 3)
+c(complete_case_SE = cc_se, multiple_imputation_SE = mi_se)
+#&gt;       complete_case_SE multiple_imputation_SE
+#&gt;                  0.254                  0.241</code></pre>
+
+<p><strong>Explanation:</strong> The multiple-imputation standard error (0.241) is smaller than the complete-case one (0.254). By keeping all 153 rows instead of dropping 42, imputation recovered information that deletion threw away, while still accounting for the uncertainty of the fills.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>How many imputations should I use?</h3>
+
+<p>Five is fine for a first pass, but for a result you will report, use more. A widely used rule of thumb sets <code>m</code> at least as high as the percentage of rows with any missing value. More imputations reduce simulation noise and stabilize the standard errors, with diminishing returns past roughly 20 to 50.</p>
+
+<h3>Should I impute the outcome variable?</h3>
+
+<p>Yes. It is valid to let mice impute the outcome along with everything else, and dropping outcome-missing rows beforehand can bias your results. The one exception is when a row is missing the outcome and offers no other useful information, in which case it contributes little either way.</p>
+
+<h3>What is pmm, and when should I change it?</h3>
+
+<p>Predictive mean matching (<code>pmm</code>) borrows a real observed value from a similar row, so it is a safe default for numeric columns and keeps imputations plausible. Switch methods by variable type: use <code>logreg</code> for a binary factor, <code>polyreg</code> for an unordered categorical, and <code>polr</code> for an ordered categorical.</p>
+
+<h3>How does mice handle categorical variables?</h3>
+
+<p>Store them as R factors before imputing, and mice picks a suitable method automatically. A two-level factor gets <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>, an unordered factor gets <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial regression</a>, and an <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a> gets proportional-odds regression.</p>
+
+<h3>Do I need to check convergence every time?</h3>
+
+<p>It is a cheap habit worth keeping. Glance at <code>plot(imp)</code> for drift or separating chains, and if you see either, raise <code>maxit</code> to give the algorithm more cycles. For most tidy datasets the default handful of iterations is plenty.</p>
+
+<h3>Can mice impute interactions or squared terms?</h3>
+
+<p>Impute the raw variables first, then build interactions and polynomials from the completed data, or use passive imputation to keep a derived column consistent with its inputs. Imputing a product term directly usually distorts the relationship you care about.</p>
+
+<h2>Summary</h2>
+
+<p>Multiple imputation replaces each missing value with several plausible values, analyzes every version, and pools the answers so your uncertainty stays honest. The table below contrasts it with the shortcuts it replaces.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Effect on the estimate</th>
+<th>Effect on the standard error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Listwise deletion</td>
+<td>Unbiased under MCAR, but wastes data</td>
+<td>Inflated by the smaller sample</td>
+</tr>
+<tr>
+<td>Single mean imputation</td>
+<td>Biased toward zero</td>
+<td>Falsely small (overconfident)</td>
+</tr>
+<tr>
+<td>Multiple imputation</td>
+<td>Recovers the honest estimate</td>
+<td>Reflects true uncertainty</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mice workflow is a short, repeatable loop: inspect the pattern with <code>md.pattern()</code>, impute with <code>mice()</code>, analyze each dataset with <code>with()</code>, combine with <code>pool()</code>, then check convergence and plausibility. The diagram below shows the whole path at a glance.</p>
+
+<p><img src="screenshots/Multiple-Imputation-mice-in-R-overview.webp" alt="An overview of the mice workflow: inspect, impute, analyze, pool, and check." class="img-responsive img-zoomable" loading="lazy" width="1464" height="874" /></p>
+
+<p><em>Figure 4: The mice workflow at a glance, from inspecting the missingness to checking the imputations.</em></p>
+
+<p>Keep three things in mind. Impute enough times (let <code>m</code> grow with the amount of missingness), feed the imputation model every variable that might explain the gaps, and remember that the whole method rests on the MAR assumption you can reason about but never fully test.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>van Buuren, S. <em>Flexible Imputation of Missing Data</em>, 2nd Edition. CRC Press (2018). The definitive open-access book on mice. <a href="https://stefvanbuuren.name/fimd/">Link</a></li>
+
+<li>van Buuren, S. & Groothuis-Oudshoorn, K. <em>mice: Multivariate Imputation by Chained Equations in R</em>. Journal of Statistical Software, 45(3) (2011). <a href="https://www.jstatsoft.org/article/view/v045i03">Link</a></li>
+
+<li>mice package on CRAN. Reference manual and vignettes. <a href="https://cran.r-project.org/package=mice">Link</a></li>
+
+<li>mice project documentation site (amices.org). <a href="https://amices.org/mice/">Link</a></li>
+
+<li>UVA Library. Getting Started with Multiple Imputation in R. <a href="https://library.virginia.edu/data/articles/getting-started-with-multiple-imputation-in-r">Link</a></li>
+
+<li>mice reference: pool(). Pooling with Rubin's rules, the procedure introduced in Rubin (1987). <a href="https://amices.org/mice/reference/pool.html">Link</a></li>
+
+<li>CRAN Task View: Missing Data. A curated map of R packages for missing-data analysis. <a href="https://cran.r-project.org/web/views/MissingData.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Missing-Value-Treatment.html">Missing Value Treatment in R</a>: a tour of the single-imputation methods that multiple imputation improves on, useful for comparison.</li>
+
+<li><a href="Checking-Assumptions-in-R.html">Checking Model Assumptions in R</a>: the workflow for trusting a fitted model, a natural next step after you have imputed your data.</li>
+
+<li><a href="Linear-Regression.html">Linear Regression in R</a>: the <code>lm()</code> fundamentals that the analysis step of this guide builds on.</li>
+
+</ul>
+
+{% endraw %}
