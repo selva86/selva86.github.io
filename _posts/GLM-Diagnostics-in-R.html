@@ -1,0 +1,907 @@
+---
+title: "GLM Diagnostics in R Beyond Gaussian Models"
+description: "GLM diagnostics in R for Poisson and logistic models: residual types, overdispersion, randomized quantile residuals and influence, with runnable examples."
+keywords: "GLM diagnostics in R, GLM residuals, deviance residuals, Pearson residuals, overdispersion, randomized quantile residuals, Poisson regression diagnostics, logistic regression diagnostics, Cook's distance GLM"
+mathjax: true
+webr: true
+curriculum_id: "ST2-10.7"
+post_type: "C"
+auto_link_terms: "GLM diagnostics|GLM residuals|deviance residuals|Pearson residuals|randomized quantile residuals|quantile residuals|overdispersion|dispersion statistic|binned residuals|residual diagnostics for GLMs"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "GLM Diagnostics"
+sidebar_order: "90"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">GLM diagnostics are the checks that confirm a <a class="auto-link" href="GLM-Exercises-in-R.html" title="GLM Exercises in R: 10 Poisson, Binomial & Gamma Practice Problems, Solved Step-by-Step">generalized linear model</a>, like Poisson or logistic regression, actually fits your data. They work differently from linear-regression diagnostics because the ordinary residual plots you trust for <code>lm()</code> will mislead you for a GLM. This tutorial shows you which residuals to use, how to catch <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a>, and how to build the one residual that behaves the same way for every model family. Everything uses base R plus MASS, and every code block runs right here in your browser.</p>
+
+<h2>Why do the residual plots from linear regression mislead you for a GLM?</h2>
+
+<p>When you fit a linear model, you learned a reflex: plot the residuals against the fitted values and panic if you see a pattern. That reflex backfires for a GLM. Below we simulate a count process where we know the true model exactly. Then we fit that exact model and look at its residuals. If patterns meant trouble, this plot should be clean. Watch what happens.</p>
+
+<div class="webr-container" data-block-title="A correctly specified Poisson model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A correctly specified Poisson model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+n  &lt;- 200
+x  &lt;- runif(n, 0, 3)
+y  &lt;- rpois(n, lambda = exp(0.5 + 0.7 * x))   # TRUE intercept 0.5, TRUE slope 0.7
+m_pois &lt;- glm(y ~ x, family = poisson)
+
+# The fit recovers the true coefficients almost exactly, so the model is correct:
+round(coef(m_pois), 2)
+#&gt; (Intercept)           x 
+#&gt;         0.5         0.7 
+
+# Yet the deviance residuals still fan into curved stripes:
+plot(fitted(m_pois), residuals(m_pois, type = &quot;deviance&quot;),
+     xlab = &quot;Fitted mean&quot;, ylab = &quot;Deviance residual&quot;,
+     main = &quot;Patterned, but the model is correct&quot;)
+abline(h = 0, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimated intercept and slope come back as 0.5 and 0.7, the exact numbers we simulated from. This model is not just good, it is perfect. And still the residual plot shows curved diagonal bands sweeping across the picture.</p>
+
+<p>Two things cause those bands, and neither is a real problem. First, the response is a whole number (0, 1, 2, 3, ...), so for any given fitted mean the residuals can only take a few discrete values, which line up into stripes. Second, in a GLM the spread of the response changes with the mean on purpose. A Poisson count with a mean of 2 varies less than a count with a mean of 40. So the residuals naturally get bigger as the fitted value grows, producing that fanning shape.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A pattern in a GLM residual plot is often a feature of the model family, not a sign of misfit.</strong> For discrete responses the residuals fall into bands and grow with the mean by design, so the "<a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">residuals vs fitted</a>" plot you rely on for <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> is close to useless here. You need residuals built for non-Gaussian data instead.</div></div>
+
+<p>That is what "beyond Gaussian" means in practice. The rest of this tutorial gives you the right tools: the residual types a GLM actually offers, a number that tells you when a count model is misbehaving, the one residual that looks Normal for any family, and how to spot a single row bending your fit.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A count model is behaving well when its dispersion statistic sits near 1.0. The dispersion statistic is the sum of squared <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">Pearson residuals</a> divided by the residual degrees of freedom (both explained in the next two sections). Compute it for <code>m_pois</code> and confirm it is close to 1.</p>
+<div class="webr-container" data-block-title="Your turn: compute the dispersion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the dispersion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The dispersion statistic = sum(pearson residuals^2) / residual degrees of freedom.
+# The residual df lives in m_pois$df.residual. Fill in and print your answer:
+# ex_disp &lt;- sum(residuals(m_pois, type = &quot;pearson&quot;)^2) / ____
+# Expected: a value near 0.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Dispersion statistic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dispersion statistic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_disp &lt;- sum(residuals(m_pois, type = &quot;pearson&quot;)^2) / m_pois$df.residual
+round(ex_disp, 3)
+#&gt; [1] 0.971</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The value 0.971 is essentially 1, which is exactly what a correct Poisson model should produce. You now have your first honest GLM diagnostic, and it confirms what the coefficient recovery already told us: this model fits.</p>
+
+</details>
+</section>
+
+<h2>Which residual types does a GLM give you, and which should you use?</h2>
+
+<p>A residual is the gap between what you observed and what the model predicted. Linear regression has one obvious way to measure that gap. A GLM gives you several, because the raw gap is not on a stable scale. Let us line up the three that <code>residuals()</code> produces and see how they differ.</p>
+
+<p>The <code>type</code> argument picks the flavor. The <code>&quot;response&quot;</code> type is the plain gap, observed minus fitted mean. The <code>&quot;pearson&quot;</code> type divides that gap by the model's own standard deviation for each point, putting every residual on a comparable scale. The <code>&quot;deviance&quot;</code> type instead measures how much each point adds to the model's total lack of fit, and it is the default you get from <code>residuals()</code>.</p>
+
+<div class="webr-container" data-block-title="Compare the three residual types">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the three residual types</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r_response &lt;- residuals(m_pois, type = &quot;response&quot;)   # observed minus fitted mean
+r_pearson  &lt;- residuals(m_pois, type = &quot;pearson&quot;)    # gap scaled by the model sd
+r_deviance &lt;- residuals(m_pois, type = &quot;deviance&quot;)   # signed sqrt of deviance contribution
+
+head(round(data.frame(r_response, r_pearson, r_deviance), 3))
+#&gt;   r_response r_pearson r_deviance
+#&gt; 1      0.396     0.209      0.205
+#&gt; 2      0.194     0.145      0.142
+#&gt; 3     -1.333    -0.492     -0.508
+#&gt; 4     -1.573    -0.613     -0.641
+#&gt; 5      4.214     2.525      2.114
+#&gt; 6     -2.096    -1.191     -1.390</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at row 5. The response residual is a large 4.214, which looks alarming until you realize that point simply has a big fitted mean, so a gap of 4 is ordinary there. The Pearson and deviance residuals rescale it to about 2.5 and 2.1, numbers you can actually compare against the other rows. That rescaling is the whole point of Pearson and deviance residuals.</p>
+
+<p>The Pearson residual has a clean formula. It is the gap divided by the square root of the model's variance function:</p>
+
+<p>$$r^{P}_i = \frac{y_i - \hat{\mu}_i}{\sqrt{V(\hat{\mu}_i)}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_i$ = the observed value for row $i$</li>
+
+<li>$\hat{\mu}_i$ = the fitted mean the model predicts for row $i$</li>
+
+<li>$V(\hat{\mu}_i)$ = the model's variance function (for Poisson this is just $\hat{\mu}_i$, since a Poisson's variance equals its mean)</li>
+
+</ul>
+
+<p>To see why the raw response residual is untrustworthy, measure its spread in the bottom half versus the top half of the fitted values. If the raw residuals were on a stable scale, the two numbers would match.</p>
+
+<div class="webr-container" data-block-title="Raw residuals grow with the mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw residuals grow with the mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grp &lt;- cut(fitted(m_pois), quantile(fitted(m_pois), c(0, .5, 1)),
+           labels = c(&quot;low fitted&quot;, &quot;high fitted&quot;), include.lowest = TRUE)
+
+round(tapply(r_response, grp, sd), 3)   # spread of the raw residual, low vs high fitted
+#&gt;  low fitted high fitted 
+#&gt;       1.876       2.806 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw residuals are 50% more spread out in the high-fitted half than in the low half. That growing spread is the mean-variance link again, and it is why a raw-residual plot looks like a funnel even for a perfect model. Pearson and deviance residuals divide that growth back out.</p>
+
+<p><img src="screenshots/GLM-Diagnostics-in-R-residual-types.webp" alt="Four residual types for a GLM, each standardizing the one before it" class="img-responsive img-zoomable" loading="lazy" width="2248" height="340" /></p>
+
+<p><em>Figure 1: Each residual type standardizes the one before it, ending in the quantile residual, the only one that is Normal for any GLM family.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The base plot() method uses standardized deviance residuals.</strong> When you call <code>plot(model)</code> on a GLM, R draws standardized deviance residuals, which are deviance residuals further divided by their leverage-adjusted standard error. You can get them directly with <code>rstandard(model)</code>. They are a small refinement on the deviance residuals shown above, not a different animal.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pearson residuals should have roughly constant spread across the fitted range, unlike the raw ones. Reuse the <code>grp</code> grouping and confirm the two spreads are both close to 1.</p>
+<div class="webr-container" data-block-title="Your turn: check Pearson residual spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check Pearson residual spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Swap r_response for the Pearson residuals and measure spread in each half again.
+# ex_spread &lt;- tapply(residuals(m_pois, type = &quot;pearson&quot;), grp, ____)
+# Expected: two numbers both near 1.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pearson residual spread solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pearson residual spread solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spread &lt;- tapply(residuals(m_pois, type = &quot;pearson&quot;), grp, sd)
+round(ex_spread, 3)
+#&gt;  low fitted high fitted 
+#&gt;       1.020       0.946 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both halves now sit near 1.0, so the funnel is gone. Pearson residuals have a stable spread because dividing by the model's standard deviation cancels out the mean-variance link. That is why you compare Pearson (or deviance) residuals, never raw ones, when you eyeball a GLM.</p>
+
+</details>
+</section>
+
+<h2>How do you check a count model for overdispersion?</h2>
+
+<p>Here is the single most common thing that goes wrong with a count model. A Poisson distribution has one strict rule: its variance equals its mean. Real count data usually varies more than that. Extra variation between observations, <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a>, or a missing predictor all inflate the spread beyond what Poisson allows. That excess spread is called overdispersion, and if you ignore it your standard errors come out too small and ordinary predictors look wildly significant when they are not.</p>
+
+<p>You measure it with the dispersion statistic, the average squared Pearson residual:</p>
+
+<p>$$\hat{\phi} = \frac{1}{n - p}\sum_{i=1}^{n} \frac{(y_i - \hat{\mu}_i)^2}{V(\hat{\mu}_i)}$$</p>
+
+<p>Where $n - p$ is the residual degrees of freedom (<a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a> minus the number of estimated coefficients). For a well-behaved Poisson model $\hat{\phi}$ sits near 1. A value well above 1 signals overdispersion. Let us fit a real count model, <code>warpbreaks</code>, which records the number of warp breaks on looms under different wool types and tensions.</p>
+
+<div class="webr-container" data-block-title="Measure overdispersion in a count model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure overdispersion in a count model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_wb &lt;- glm(breaks ~ wool + tension, family = poisson, data = warpbreaks)
+
+dispersion &lt;- sum(residuals(m_wb, type = &quot;pearson&quot;)^2) / m_wb$df.residual
+round(dispersion, 3)
+#&gt; [1] 4.262</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A dispersion of 4.26 is a red flag. The data varies more than four times as much as a Poisson model assumes. The coefficients themselves are still roughly right, but every standard error, z-value, and p-value from this model is untrustworthy because they all assume the spread is four times smaller than it actually is.</p>
+
+<p><img src="screenshots/GLM-Diagnostics-in-R-overdispersion.webp" alt="The overdispersion decision flow for a count model" class="img-responsive img-zoomable" loading="lazy" width="1188" height="1540" /></p>
+
+<p><em>Figure 2: The overdispersion decision: measure dispersion, keep Poisson if it is near 1, otherwise switch model.</em></p>
+
+<p>The clean fix is a model that lets the variance grow faster than the mean. The negative binomial does exactly that: it adds a spare parameter that soaks up the extra spread. Refit with <code>glm.nb()</code> from the MASS package and compare the standard errors side by side.</p>
+
+<div class="webr-container" data-block-title="Refit as a negative binomial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit as a negative binomial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+m_wb_nb &lt;- glm.nb(breaks ~ wool + tension, data = warpbreaks)
+
+# Standard errors: Poisson (too small) vs negative binomial (honest)
+cbind(poisson_se = round(summary(m_wb)$coefficients[, &quot;Std. Error&quot;], 3),
+      negbin_se  = round(summary(m_wb_nb)$coefficients[, &quot;Std. Error&quot;], 3))
+#&gt;             poisson_se negbin_se
+#&gt; (Intercept)      0.045     0.098
+#&gt; woolB            0.052     0.101
+#&gt; tensionM         0.060     0.122
+#&gt; tensionH         0.064     0.124</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The negative binomial standard errors are roughly twice as large. That is the overdispersion the Poisson model understated. Under Poisson, <code>tensionH</code> looks extremely precise with a standard error of 0.064; the honest number is 0.124. Same estimate, very different confidence.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Ignoring overdispersion manufactures fake significance.</strong> Because Poisson standard errors are too small under overdispersion, predictors routinely show <a class="auto-link" href="What-p-Values-Mean.html" title="What p-Values Mean (and What They Never Meant)">p-values</a> far below 0.05 when the real evidence is weak. Always check the dispersion statistic on a count model before you trust a single p-value from it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A quicker fix than the negative binomial is the quasi-Poisson family, which keeps the Poisson estimates but multiplies the standard errors by the estimated dispersion. Fit it and read the dispersion straight from the summary.</p>
+<div class="webr-container" data-block-title="Your turn: read the quasi-Poisson dispersion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the quasi-Poisson dispersion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same formula with family = quasipoisson, then pull summary(...)$dispersion.
+# ex_quasi &lt;- glm(breaks ~ wool + tension, family = ____, data = warpbreaks)
+# Expected: about 4.26, matching the statistic we computed by hand</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Quasi-Poisson dispersion solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quasi-Poisson dispersion solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quasi &lt;- glm(breaks ~ wool + tension, family = quasipoisson, data = warpbreaks)
+round(summary(ex_quasi)$dispersion, 3)
+#&gt; [1] 4.262</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The quasi-Poisson dispersion, 4.262, is exactly the statistic we computed by hand earlier. Quasi-Poisson is the fastest way to correct standard errors for overdispersion. The negative binomial goes further by giving you a full probability model you can predict and simulate from, which is why it is usually the better choice.</p>
+
+</details>
+</section>
+
+<h2>What are randomized quantile residuals, and why do they fix GLM diagnostics?</h2>
+
+<p>The residuals we have seen still carry the discreteness stripes from the very first plot. There is one residual that erases them completely, and once you meet it you will reach for it every time. It is the randomized quantile residual, from Dunn and Smyth (1996), and it is the engine behind modern diagnostic packages.</p>
+
+<p>The idea is a two-step transform. First, feed each observation through the model's own fitted <a class="auto-link" href="dplyr-cume_dist-in-R.html" title="dplyr cume_dist() in R: Empirical Cumulative Distribution">cumulative distribution</a>. If the model is correct, those probabilities are spread evenly between 0 and 1, no matter whether the response was a count, a 0/1 outcome, or anything else. For a discrete response we spread each point randomly across the little probability step it lands on, which is the "randomized" part. Second, push those uniform values through the Normal quantile function so a correct model produces textbook Normal residuals.</p>
+
+<p>$$u_i \sim \text{Uniform}\big(F(y_i - 1),\; F(y_i)\big), \qquad r^{Q}_i = \Phi^{-1}(u_i)$$</p>
+
+<p>Where $F$ is the fitted CDF of the response (for a Poisson, <code>ppois</code> at the fitted mean), and $\Phi^{-1}$ is the Normal quantile function (<code>qnorm</code>). Let us build it by hand for our known-correct Poisson model from the first section and check it with a Normal quantile plot.</p>
+
+<div class="webr-container" data-block-title="Build randomized quantile residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build randomized quantile residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+lambda_hat &lt;- fitted(m_pois)                                 # fitted Poisson means
+u     &lt;- runif(n, ppois(y - 1, lambda_hat), ppois(y, lambda_hat))
+q_res &lt;- qnorm(u)                                            # randomized quantile residuals
+
+qqnorm(q_res, main = &quot;Quantile residuals: a straight line means the model fits&quot;)
+qqline(q_res)
+
+# A formal normality check should NOT reject for a correct model:
+round(shapiro.test(q_res)$p.value, 3)
+#&gt; [1] 0.675</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points fall along the reference line and the Shapiro-Wilk p-value of 0.675 gives no reason to doubt normality. Compare that with the ugly striped plot we started with, from the exact same model. The quantile residuals remove the discreteness and show that the fit is correct. This is why they are the gold standard for anything beyond Gaussian.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Randomized quantile residuals are Normal for any GLM family when the model is right.</strong> That single property lets you reuse the one diagnostic you already understand, the Normal quantile plot, no matter which GLM family you fit. A straight line means the fit is good; systematic curvature or heavy tails mean it is not.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>You do not have to hand-roll these in practice.</strong> The <code>statmod</code> package computes them with <code>qresiduals()</code>, and the popular <code>DHARMa</code> package builds simulation-based versions plus formal tests for overdispersion and zero-inflation. Building them by hand once, as we just did, is the fastest way to understand what those packages are doing under the hood.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For a correct model, quantile residuals behave like standard Normal draws, so about 5% should fall outside the plus-or-minus 1.96 band. Check that on <code>q_res</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count residuals outside the band">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count residuals outside the band</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mean(abs(...) &gt; 1.96) gives the fraction outside the 95% Normal band.
+# ex_outside &lt;- mean(abs(q_res) &gt; ____)
+# Expected: roughly 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Quantile residual tail solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quantile residual tail solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_outside &lt;- mean(abs(q_res) &gt; 1.96)
+round(ex_outside, 3)
+#&gt; [1] 0.035</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 3.5% of the residuals land outside the band, close to the 5% you expect from a standard Normal. If this fraction were much larger, say 20% or 30%, it would be strong evidence that the model is wrong. We use exactly that idea to expose a bad model in the practice exercises.</p>
+
+</details>
+</section>
+
+<h2>How do you diagnose a logistic regression with only 0/1 outcomes?</h2>
+
+<p>Logistic regression pushes the discreteness problem to its extreme. The response is only ever 0 or 1, so for any fitted probability the residual can take just two values. Plot them and you get two useless curves, one for the zeros and one for the ones. Let us see it on <code>birthwt</code>, a study of low-birthweight births, where we model the chance of a low-weight baby from the mother's age and pre-pregnancy weight, plus whether she smoked or had hypertension.</p>
+
+<div class="webr-container" data-block-title="Logistic residuals form two stripes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logistic residuals form two stripes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(birthwt)
+m_low &lt;- glm(low ~ age + lwt + smoke + ht, family = binomial, data = birthwt)
+
+plot(fitted(m_low), residuals(m_low, type = &quot;deviance&quot;),
+     xlab = &quot;Fitted probability&quot;, ylab = &quot;Deviance residual&quot;,
+     main = &quot;Two useless stripes: one per outcome (0 and 1)&quot;)
+abline(h = 0, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every point sits on one of two smooth curves. Nothing about an individual residual tells you whether the model fits, because a single 0/1 outcome carries almost no information on its own. The fix is to stop looking at individual points and look at groups. Sort the observations by their fitted probability, cut them into bins, and average the raw residual inside each bin. If the model is calibrated, those bin averages hover around zero.</p>
+
+<div class="webr-container" data-block-title="Compute binned residuals by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute binned residuals by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bins   &lt;- cut(fitted(m_low),
+              breaks = quantile(fitted(m_low), probs = seq(0, 1, 0.2)),
+              include.lowest = TRUE)
+raw    &lt;- residuals(m_low, type = &quot;response&quot;)   # observed 0/1 minus predicted probability
+binned &lt;- tapply(raw, bins, mean)               # average residual within each probability bin
+
+round(binned, 3)
+#&gt; [0.0501,0.192]  (0.192,0.259]  (0.259,0.332]  (0.332,0.436]  (0.436,0.783] 
+#&gt;         -0.001         -0.042          0.005          0.071         -0.033 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now you can read the fit. Every bin average is small, within about 0.07 of zero, and no run of consecutive bins shares the same sign. That is what a calibrated logistic model looks like: in each slice of predicted risk, the model is neither systematically too high nor too low.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Binned residuals turn a hopeless plot into a readable one.</strong> Group the observations by fitted probability and average the residuals per group. The <code>binnedplot()</code> function in the <code>arm</code> package draws this automatically with confidence bounds, but the hand-built version above shows exactly what it computes: predicted risk versus observed rate, slice by slice.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A binned residual near zero means predicted risk matches observed rate in that bin. Confirm it directly by averaging the fitted probability and the actual <code>low</code> outcome within each bin.</p>
+<div class="webr-container" data-block-title="Your turn: compare bin rates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare bin rates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># tapply(fitted(m_low), bins, mean) gives predicted risk per bin.
+# tapply(birthwt$low, bins, mean) gives the observed rate per bin. Compare them.
+# ex_pred_rate &lt;- tapply(fitted(m_low), bins, ____)
+# Expected: predicted and observed rows that track each other closely</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Binned rate comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Binned rate comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pred_rate &lt;- tapply(fitted(m_low), bins, mean)
+ex_obs_rate  &lt;- tapply(birthwt$low, bins, mean)
+round(rbind(predicted = ex_pred_rate, observed = ex_obs_rate), 3)
+#&gt;           [0.0501,0.192] (0.192,0.259] (0.259,0.332] (0.332,0.436] (0.436,0.783]
+#&gt; predicted          0.132         0.226         0.293         0.377         0.533
+#&gt; observed           0.132         0.184         0.297         0.447         0.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The predicted and observed rows track each other closely across all five bins, which is the same information the binned residuals gave you: the model is well calibrated. The bin average residual is simply observed rate minus predicted rate, which is why the two views agree.</p>
+
+</details>
+</section>
+
+<h2>How do you find influential and high-leverage points in a GLM?</h2>
+
+<p>A model can pass every residual check and still be quietly steered by one or two rows. Two quantities catch that. Leverage measures how unusual a point's predictor values are, and <a class="auto-link" href="Multivariate-Outlier-Detection-in-R.html" title="Multivariate Outlier Detection in R: Mahalanobis Distance & Influence">Cook's distance</a> measures how much the whole fit would move if you deleted that point. Both work for GLMs just as they do for linear models, through <code>hatvalues()</code> and <code>cooks.distance()</code>. Let us rank the <code>warpbreaks</code> negative binomial rows by influence.</p>
+
+<div class="webr-container" data-block-title="Rank points by Cook&#x27;s distance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank points by Cook&#x27;s distance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">infl &lt;- cooks.distance(m_wb_nb)
+round(sort(infl, decreasing = TRUE)[1:5], 4)
+#&gt;      5     24      9     37     14 
+#&gt; 0.1069 0.1017 0.0870 0.0805 0.0563 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 5 has the largest Cook's distance at about 0.11. There is no magic threshold, but a common rule of thumb flags any point above 4 divided by the sample size. The values here are modest and no single row dominates, which is reassuring. If one point were an order of magnitude larger than the rest, you would refit without it and see whether your conclusions held.</p>
+
+<p>Leverage has its own rule of thumb: watch points above two times the number of coefficients divided by the sample size. Compare that threshold with the largest leverage in the data.</p>
+
+<div class="webr-container" data-block-title="Check leverage against a threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check leverage against a threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lev &lt;- hatvalues(m_wb_nb)
+p   &lt;- length(coef(m_wb_nb))
+round(c(rule_2p_over_n = 2 * p / nrow(warpbreaks),
+        max_leverage   = max(lev)), 3)
+#&gt; rule_2p_over_n   max_leverage 
+#&gt;          0.148          0.076 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The highest leverage, 0.076, sits comfortably below the 0.148 threshold, so no point has an unusual combination of predictor values. That makes sense here because the predictors are just wool type and tension, a small tidy grid with no extreme rows.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>There is no universal cutoff for Cook's distance.</strong> The 4/n and 2p/n rules are conversation starters, not verdicts. A point that clears them is worth inspecting, not automatically deleting. Deleting data to improve a fit, without a substantive reason, is how you fool yourself. Always ask why a point is influential before you act on it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count how many <code>warpbreaks</code> rows exceed the common Cook's distance rule of thumb, 4 divided by the sample size.</p>
+<div class="webr-container" data-block-title="Your turn: count influential points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count influential points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sum(cooks.distance(m_wb_nb) &gt; 4 / nrow(warpbreaks)) counts the flagged rows.
+# ex_flag &lt;- sum(cooks.distance(m_wb_nb) &gt; 4 / ____)
+# Expected: a small single-digit count</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Influential point count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Influential point count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_flag &lt;- sum(cooks.distance(m_wb_nb) &gt; 4 / nrow(warpbreaks))
+ex_flag
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Four rows clear the rule of thumb. That is normal for a threshold this loose, and none of them was extreme in the ranking above. You would glance at those four rows, confirm they are genuine looms and not data-entry errors, and move on.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: A Full GLM Diagnostic Workflow</h2>
+
+<p>Let us put every step together on a fresh dataset. <code>quine</code> records days of school absence for Australian schoolchildren, broken down by ethnicity and sex, plus age group and learning speed. Absence counts are exactly the kind of data that overdisperses, so it is a realistic test. We follow one fixed order: fit, check the shape with quantile residuals, check the spread with dispersion, check individual points with Cook's distance, then refit if needed.</p>
+
+<p><img src="screenshots/GLM-Diagnostics-in-R-workflow.webp" alt="The recommended order for GLM diagnostic checks" class="img-responsive img-zoomable" loading="lazy" width="2248" height="392" /></p>
+
+<p><em>Figure 3: The order to run GLM checks: shape first, then spread, then individual points.</em></p>
+
+<p>Start with a Poisson fit and its dispersion statistic.</p>
+
+<div class="webr-container" data-block-title="Fit and test a Poisson model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and test a Poisson model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(quine)
+m_q &lt;- glm(Days ~ Eth + Sex + Age + Lrn, family = poisson, data = quine)
+
+round(sum(residuals(m_q, type = &quot;pearson&quot;)^2) / m_q$df.residual, 2)
+#&gt; [1] 13.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A dispersion of 13 is severe overdispersion, far worse than the warpbreaks case. This Poisson model's standard errors are hopelessly optimistic. Refit as a negative binomial and let the <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, a fit score where lower is better, confirm the upgrade.</p>
+
+<div class="webr-container" data-block-title="Compare Poisson and negative binomial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare Poisson and negative binomial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_q_nb &lt;- glm.nb(Days ~ Eth + Sex + Age + Lrn, data = quine)
+
+c(poisson_AIC = round(AIC(m_q), 0), negbin_AIC = round(AIC(m_q_nb), 0))
+#&gt; poisson_AIC  negbin_AIC 
+#&gt;        2299        1109 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The AIC drops from 2299 to 1109, an enormous improvement. The negative binomial is unambiguously the right model here. Now check its shape with quantile residuals, using <code>pnbinom</code> as the fitted CDF and the estimated <code>theta</code> as the size parameter.</p>
+
+<div class="webr-container" data-block-title="Quantile residuals for the final model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quantile residuals for the final model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+mu_hat &lt;- fitted(m_q_nb)
+th     &lt;- m_q_nb$theta
+u_q    &lt;- runif(nrow(quine),
+                pnbinom(quine$Days - 1, size = th, mu = mu_hat),
+                pnbinom(quine$Days,     size = th, mu = mu_hat))
+
+qqnorm(qnorm(u_q), main = &quot;Negative binomial quantile residuals&quot;)
+qqline(qnorm(u_q))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points track the reference line, so the negative binomial captures the spread that Poisson missed. Finish by checking whether any single school is steering the fit.</p>
+
+<div class="webr-container" data-block-title="Rank the most influential schools">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank the most influential schools</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sort(cooks.distance(m_q_nb), decreasing = TRUE)[1:3], 4)
+#&gt;     72    104    126 
+#&gt; 0.1662 0.0962 0.0863 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 72 stands out a little but nothing is extreme, so we keep the full data. That is the whole workflow: we caught the overdispersion, fixed it with a negative binomial, confirmed the shape with quantile residuals, and cleared the influence check. A one-line summary of the model is now safe to report.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always run the checks in the same order: shape, spread, points.</strong> Fix distributional and dispersion problems first, because a misspecified model makes every residual and every influence measure untrustworthy. Only hunt for influential rows once the model family and dispersion are settled.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each starter block runs as-is so you can iterate; the solutions include the output to check against. Use the distinct variable names shown so your exercise code does not overwrite the models above.</p>
+
+<h3>Exercise 1: Decide whether a Poisson model is adequate</h3>
+
+<p>Not every count is overdispersed. Using <code>mtcars</code>, fit a Poisson model for <code>carb</code> (the number of carburetors) on <code>hp</code> and <code>wt</code>, then compute the dispersion statistic and decide whether Poisson is a reasonable choice.</p>
+
+<div class="webr-container" data-block-title="Your turn: dispersion of a carb model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: dispersion of a carb model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit glm(carb ~ hp + wt, family = poisson, data = mtcars), then
+# compute dispersion = sum(pearson residuals^2) / residual df.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Carburetor dispersion solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Carburetor dispersion solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_m    &lt;- glm(carb ~ hp + wt, family = poisson, data = mtcars)
+cap_disp &lt;- sum(residuals(cap_m, type = &quot;pearson&quot;)^2) / cap_m$df.residual
+round(cap_disp, 3)
+#&gt; [1] 0.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The dispersion is 0.46, which is below 1. This is underdispersion, the opposite problem: the counts vary less than Poisson expects. Underdispersion makes Poisson standard errors slightly conservative (too wide), which is far less dangerous than overdispersion. For a quick analysis, plain Poisson is perfectly acceptable here. The lesson: always check dispersion, but the direction and severity decide whether you must act.</p>
+
+</details>
+
+<h3>Exercise 2: Use quantile residuals to expose a bad model</h3>
+
+<p>Earlier, quantile residuals confirmed a good model. Now use them to catch a bad one. Build randomized quantile residuals for the overdispersed <code>warpbreaks</code> Poisson model <code>m_wb</code>, then compute the fraction that fall outside the plus-or-minus 1.96 band. For a correct model this is about 0.05; a much larger fraction is a smoking gun.</p>
+
+<div class="webr-container" data-block-title="Your turn: quantile residuals for warpbreaks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: quantile residuals for warpbreaks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use ppois with fitted(m_wb) to build u, then qnorm(u).
+# Set a seed first, then report mean(abs(cap_q) &gt; 1.96).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Warpbreaks quantile residual solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Warpbreaks quantile residual solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+mu_wb &lt;- fitted(m_wb)
+u_wb  &lt;- runif(nrow(warpbreaks),
+               ppois(warpbreaks$breaks - 1, mu_wb),
+               ppois(warpbreaks$breaks,     mu_wb))
+cap_q &lt;- qnorm(u_wb)
+round(mean(abs(cap_q) &gt; 1.96), 3)
+#&gt; [1] 0.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A full 37% of the residuals fall outside the band, seven times the 5% a correct model would produce. Because the Poisson model badly understates the true spread, the fitted CDF is too narrow, pushing the probability values toward 0 and 1 and the quantile residuals into extreme tails. This is exactly the overdispersion the dispersion statistic flagged, now visible in the residuals themselves.</p>
+
+</details>
+
+<h3>Exercise 3: Measure how much one point moves the fit</h3>
+
+<p>Cook's distance told you which point is most influential in the <code>quine</code> negative binomial model, but not how much it matters. Find the single row with the largest Cook's distance, refit the model without it, and compare the coefficients with and without that row.</p>
+
+<div class="webr-container" data-block-title="Your turn: drop the most influential row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop the most influential row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># which.max(cooks.distance(m_q_nb)) gives the row index.
+# Refit glm.nb on quine[-worst, ] and rbind the two coefficient vectors.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Influence refit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Influence refit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">worst   &lt;- which.max(cooks.distance(m_q_nb))
+m_q_nb2 &lt;- glm.nb(Days ~ Eth + Sex + Age + Lrn, data = quine[-worst, ])
+round(rbind(with = coef(m_q_nb), without = coef(m_q_nb2)), 3)
+#&gt;         (Intercept)   EthN  SexM  AgeF1 AgeF2 AgeF3 LrnSL
+#&gt; with          2.895 -0.569 0.082 -0.448 0.088 0.357 0.292
+#&gt; without       2.834 -0.612 0.005 -0.266 0.296 0.488 0.162</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping one child leaves the big effects stable (ethnicity stays near -0.6) but noticeably moves the smaller age and sex terms, for example <code>SexM</code> from 0.082 down to 0.005. Because no coefficient flips sign or changes conclusion, the model is robust to this single point and you would keep the full data. Refitting without an influential point, and checking whether your story survives, is the honest way to use Cook's distance.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>GLM diagnostics rest on one idea: because a GLM's spread changes with its mean and the response is often discrete, the residual tools from linear regression mislead you, so you need residuals and checks built for non-Gaussian data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Tool</th>
+<th>Rule of thumb</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Which residual to eyeball?</td>
+<td>Pearson or deviance, never raw</td>
+<td>Stable spread across fitted values</td>
+</tr>
+<tr>
+<td>Is a count model overdispersed?</td>
+<td>Dispersion statistic (Pearson sum / df)</td>
+<td>Near 1 is fine; well above 1 needs a fix</td>
+</tr>
+<tr>
+<td>How to fix overdispersion?</td>
+<td>Quasi-Poisson or negative binomial</td>
+<td>Negative binomial gives a full model</td>
+</tr>
+<tr>
+<td>One residual for any family?</td>
+<td>Randomized quantile residual</td>
+<td>Straight Normal quantile plot means good fit</td>
+</tr>
+<tr>
+<td>A logistic model with 0/1 stripes?</td>
+<td>Binned residuals</td>
+<td>Bin averages should hover near zero</td>
+</tr>
+<tr>
+<td>Is one row steering the fit?</td>
+<td>Cook's distance and leverage</td>
+<td>Inspect points above 4/n or 2p/n, do not auto-delete</td>
+</tr>
+</tbody>
+</table>
+
+<p>Run the checks in a fixed order: shape (quantile residuals), then spread (dispersion), then individual points (Cook's distance). Fix distribution and dispersion problems before you trust any residual or influence measure, because a misspecified model corrupts all of them.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Are GLM assumptions the same as linear regression assumptions?</h3>
+
+<p>No. A GLM does not assume Normal errors or constant variance, so the Normal quantile plot and the "residuals vs fitted" scatter you use for <code>lm()</code> do not transfer directly. Instead you check the mean-variance relationship through the dispersion statistic and judge the distribution with randomized quantile residuals.</p>
+
+<h3>How high does dispersion have to be before I worry?</h3>
+
+<p>For a Poisson model the dispersion statistic should sit near 1. A value a little above 1 is usually harmless, but anything from roughly 1.5 upward is worth addressing, and a value of 2 or more almost always calls for a quasi-Poisson or negative binomial refit. Confirm the fix by comparing the standard errors before and after.</p>
+
+<h3>Should I plot deviance or Pearson residuals?</h3>
+
+<p>Use deviance residuals, the <code>residuals()</code> default, for general plots, and use Pearson residuals to compute the dispersion statistic. For any serious distribution check, reach for randomized quantile residuals instead, because they are the only residuals that look Normal for every family.</p>
+
+<h3>Can I just call plot() on a glm object?</h3>
+
+<p>Yes, and it draws standardized deviance residuals with a Normal quantile plot. It is a fine first look, but it inherits the discreteness stripes we saw at the start, so do not over-read patterns in it. A quantile-residual plot gives a much clearer verdict.</p>
+
+<h3>Does logistic regression suffer from overdispersion?</h3>
+
+<p>Ungrouped 0/1 data cannot be overdispersed, so a dispersion statistic from a Bernoulli logistic model is not meaningful. Grouped binomial data (successes out of trials) can be overdispersed, and there you check dispersion exactly as you do for counts.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>glm and residuals.glm reference</em> (stats package). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.summaries.html">Link</a></li>
+
+<li>Venables, W. N. & Ripley, B. D. <em>Modern Applied Statistics with S</em> (MASS), 4th Edition. Springer (2002). Source of <code>glm.nb()</code>. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>Dunn, P. K. & Smyth, G. K. Randomized Quantile Residuals. <em>Journal of Computational and Graphical Statistics</em>, 5(3), 236-244 (1996). <a href="https://www.tandfonline.com/doi/abs/10.1080/10618600.1996.10474708">Link</a></li>
+
+<li>Hartig, F. <em>DHARMa: Residual Diagnostics for Hierarchical Regression Models</em> (package vignette). <a href="https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html">Link</a></li>
+
+<li>Dunn, P. K. & Smyth, G. K. <em>Generalized Linear Models With Examples in R</em>. Springer (2018). <a href="https://link.springer.com/book/10.1007/978-1-4419-0118-7">Link</a></li>
+
+<li>Faraway, J. J. <em>Extending the Linear Model with R</em>, 2nd Edition. CRC Press (2016). <a href="https://julianfaraway.github.io/faraway/ELM/">Link</a></li>
+
+<li>Fox, J. & Weisberg, S. <em>An R Companion to Applied Regression</em>, 3rd Edition (car package). SAGE (2019). <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Read-Logistic-Output-in-R.html">How to Read Logistic Regression Output in R</a> - Interpret coefficients, odds ratios, and fit statistics line by line before you diagnose the model.</li>
+
+<li><a href="Offsets-and-Exposure-in-R.html">Offsets and Exposure in Poisson Models in R</a> - Model rates instead of counts, a common cause of apparent overdispersion.</li>
+
+<li><a href="Zero-Inflated-Hurdle-Models-in-R.html">Zero-Inflated and Hurdle Models in R</a> - When too many zeros break a count model, and how to model the extra zeros directly.</li>
+
+</ul>
+
+{% endraw %}
