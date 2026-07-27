@@ -1,0 +1,933 @@
+---
+title: "GEE vs Mixed Models in R"
+description: "GEE vs mixed models in R, from scratch: population-average vs subject-specific effects, why coefficients differ on binary data, and when to use each."
+keywords: "GEE vs mixed models, generalized estimating equations, mixed models in R, population-averaged vs subject-specific, marginal vs conditional model, geepack, lme4, correlated data, longitudinal data in R"
+mathjax: true
+webr: true
+curriculum_id: "ST2-11.5"
+post_type: "C"
+auto_link_terms: "GEE vs mixed models|population-averaged model|subject-specific effects|marginal model|conditional model|generalized estimating equations|working correlation|robust standard errors|population-average effect|marginal vs conditional"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "GEE vs Mixed Models"
+sidebar_order: "176"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">GEE and mixed models both fix the same problem: data where the rows are not independent, like several measurements on the same person. They part ways on what a coefficient means. A mixed model reports subject-specific effects and how much subjects differ; a <a class="auto-link" href="GEE-for-Correlated-Categorical-Data-in-R.html" title="GEE for Correlated Categorical Data in R: geepack Population Averages">generalized estimating equations</a> (GEE) model reports one population-average effect with standard errors that stay valid even if you guess the correlation wrong. This guide builds both ideas from scratch, fits the same data both ways, and shows exactly why their numbers can disagree. It uses base R plus <code>lme4</code>, which run right here in your browser, and shows the GEE fits with <code>geepack</code> to run in your own R session.</p>
+
+<h2>What problem do GEE and mixed models both solve?</h2>
+
+<p>Ordinary regression assumes every row is an independent draw. That assumption breaks the moment your data has structure: four blood-pressure readings from the same patient, test scores from pupils in the same classroom, or daily sales from the same store. Readings from one patient look more alike than readings from different patients, and pretending otherwise distorts your standard errors. GEE and mixed models are the two standard cures. Let's meet a dataset with exactly this structure and fit our first model.</p>
+
+<p>We will use <code>sleepstudy</code>, which ships with <code>lme4</code>. It records the average <code>Reaction</code> time (in milliseconds) of 18 subjects across 10 days of restricted sleep. Each subject contributes 10 rows, so the rows come in clusters of one person. Here is a mixed model that estimates how reaction time changes per sleepless day.</p>
+
+<div class="webr-container" data-block-title="Fit a mixed model on repeated-measures data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a mixed model on repeated-measures data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lme4)
+data(&quot;sleepstudy&quot;)
+m_mix &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+round(fixef(m_mix), 2)
+#&gt; (Intercept)        Days 
+#&gt;      251.41       10.47 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That one number, <code>10.47</code>, is the payoff: on average, reaction time slows by about 10.5 milliseconds for each additional day of sleep restriction. The <code>(Days | Subject)</code> part told the model that each subject can have their own starting reaction time and their own slope. Before we unpack what that means, let's look at the raw data so the model feels concrete.</p>
+
+<div class="webr-container" data-block-title="Peek at the sleepstudy data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Peek at the sleepstudy data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(sleepstudy, 6)
+#&gt;   Reaction Days Subject
+#&gt; 1 249.5600    0     308
+#&gt; 2 258.7047    1     308
+#&gt; 3 250.8006    2     308
+#&gt; 4 321.4398    3     308
+#&gt; 5 356.8519    4     308
+#&gt; 6 414.6901    5     308</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one subject on one day. Subject <code>308</code> appears ten times (days 0 through 9), then subject <code>309</code> takes over, and so on. Those ten rows per subject are the correlated cluster. There are 18 subjects and 180 rows in total. To see why ignoring that structure is dangerous, let's fit a plain <code>lm()</code> that treats all 180 rows as independent and compare its standard error for <code>Days</code> to the mixed model's.</p>
+
+<div class="webr-container" data-block-title="Naive lm vs the mixed model standard error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive lm vs the mixed model standard error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_ols &lt;- lm(Reaction ~ Days, data = sleepstudy)
+round(coef(summary(m_ols))[&quot;Days&quot;, 1:2], 3)   # naive: rows independent
+#&gt;   Estimate Std. Error 
+#&gt;     10.467      1.238 
+round(coef(summary(m_mix))[&quot;Days&quot;, 1:2], 3)    # mixed: clusters respected
+#&gt;   Estimate Std. Error 
+#&gt;     10.467      1.546 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both approaches agree the slope is about <code>10.467</code>. But the naive model claims a standard error of <code>1.238</code>, while the mixed model, which knows the readings come in clusters, reports a wider <code>1.546</code>. The naive model is overconfident: it counted 180 independent facts when it really had 18 people measured repeatedly. Correlated data does not usually change your point estimate by much, but it can badly distort the uncertainty around it, and uncertainty is what your p-values and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> are built from.</p>
+
+<p>Both GEE and mixed models exist to get that uncertainty right on clustered data. The difference between them, which is the whole point of this guide, is what they hand you in return.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a simpler mixed model that gives each subject only their own starting point (a random intercept) but a shared slope, written <code>(1 | Subject)</code>. Read off the <code>Days</code> fixed effect.</p>
+<div class="webr-container" data-block-title="Your turn: fit a random-intercept model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a random-intercept model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Replace the random-effects part with a random intercept only: (1 | Subject)
+# ex_ri &lt;- lmer(Reaction ~ Days + (____ | Subject), data = sleepstudy)
+# round(fixef(ex_ri), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Random-intercept model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Random-intercept model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ri &lt;- lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+round(fixef(ex_ri), 2)
+#&gt; (Intercept)        Days 
+#&gt;      251.41       10.47 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The population-level slope is still about <code>10.47</code>. Changing the random-effects structure mainly changes how the model accounts for correlation and uncertainty, not the average trend itself.</p>
+
+</details>
+</section>
+
+<h2>What does each model actually estimate?</h2>
+
+<p>Here is the fork in the road. A mixed model and a GEE model can be handed the identical dataset and the identical formula, yet they answer two different questions. A mixed model answers a <em>conditional</em>, subject-specific question: "for a given subject, how does the outcome change?" A GEE model answers a <em>marginal</em>, population-average question: "averaged across the whole population, how does the average outcome change?" Understanding this split is the key to everything else.</p>
+
+<p><img src="screenshots/GEE-vs-Mixed-Models-in-R-what-each-models.webp" alt="Two routes for correlated data: a mixed model adds subject-level random effects, while GEE models the population average directly." class="img-responsive img-zoomable" loading="lazy" width="1614" height="690" /></p>
+
+<p><em>Figure 1: Two routes for correlated data: add random effects (mixed) or model the average directly (GEE).</em></p>
+
+<p>The mixed model builds the correlation from the inside out. It says each subject $i$ carries a personal offset $b_i$, drawn from a distribution, and models the outcome <em>given</em> that offset. In symbols, writing $g$ for the <a class="auto-link" href="GLM-Exercises-in-R.html" title="GLM Exercises in R: 10 Poisson, Binomial & Gamma Practice Problems, Solved Step-by-Step">link function</a> (the transformation the model applies to the mean: the identity for a plain linear model, the log-odds for a logistic one), subject $i$, and measurement $j$:</p>
+
+<p>$$g\big(E[Y_{ij} \mid b_i]\big) = \beta_0 + \beta_1 x_{ij} + b_i$$</p>
+
+<p>The GEE model never introduces $b_i$ at all. It models the average outcome directly, having already averaged over every subject:</p>
+
+<p>$$g\big(E[Y_{ij}]\big) = \beta_0 + \beta_1 x_{ij}$$</p>
+
+<p>Where in both, $Y_{ij}$ is the outcome for subject $i$ at measurement $j$, $x_{ij}$ is the predictor, and $b_i$ is subject $i$'s random effect. The mixed model's $\beta_1$ is a within-subject effect; the GEE model's $\beta_1$ is a between-population average.</p>
+
+<p>Because the mixed model estimates those $b_i$ offsets, it can report things GEE cannot. First, how much subjects differ from each other, as <a class="auto-link" href="Random-Intercepts-and-Slopes-in-R.html" title="Random Intercepts and Slopes with lme4 in R">variance components</a>.</p>
+
+<div class="webr-container" data-block-title="Variance components from the mixed model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance components from the mixed model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">VarCorr(m_mix)
+#&gt;  Groups   Name        Std.Dev. Corr  
+#&gt;  Subject  (Intercept) 24.7407        
+#&gt;           Days         5.9221  0.066 
+#&gt;  Residual             25.5918        </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read this as three sources of spread. Subjects differ in their baseline reaction time with a standard deviation of about <code>24.7</code> ms, they differ in their day-to-day slope with a standard deviation of about <code>5.9</code> ms, and after accounting for those, the leftover noise has a standard deviation of about <code>25.6</code> ms. GEE hands you none of these numbers, because it never modeled individual subjects. Second, the mixed model can estimate each subject's personal deviation.</p>
+
+<div class="webr-container" data-block-title="Each subject&#x27;s own intercept and slope shift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each subject&#x27;s own intercept and slope shift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(ranef(m_mix)$Subject, 3), 2)
+#&gt;     (Intercept)  Days
+#&gt; 308        2.26  9.20
+#&gt; 309      -40.40 -8.62
+#&gt; 310      -38.96 -5.45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Subject <code>309</code> starts about 40 ms faster than average and their slope is 8.6 ms shallower than the population slope. That is a subject-specific story. Now let's fit the same sleepstudy data with GEE and see what it reports instead. The GEE engine here is <code>geepack</code>, which is not part of the in-browser runtime, so run this block in your own R session.</p>
+
+<pre><code class="language-r"># install.packages(&quot;geepack&quot;) if you do not have it
+library(geepack)
+g_lin &lt;- geeglm(Reaction ~ Days, id = Subject, data = sleepstudy,
+                family = gaussian, corstr = &quot;exchangeable&quot;)
+round(coef(g_lin), 2)
+#&gt; (Intercept)        Days 
+#&gt;      251.41       10.47 
+round(summary(g_lin)$coefficients[, 1:2], 3)
+#&gt;             Estimate Std.err
+#&gt; (Intercept)  251.405   6.632
+#&gt; Days          10.467   1.502</code></pre>
+
+<p>The GEE slope for <code>Days</code> is <code>10.47</code>, the same as the mixed model, with a robust standard error of <code>1.502</code>. Notice what is missing: no variance components, no per-subject offsets. GEE gives you the population-average line and valid standard errors, and stops there. On this dataset the two methods produce the same slope, which raises a fair question: if they agree, why does anyone care about the distinction? The answer is that they agree <em>here</em> because reaction time is modeled on its natural scale with an identity link. As soon as the link becomes nonlinear, the agreement collapses.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>With a linear (identity) link, the population-average and subject-specific slopes are the same number.</strong> Averaging a straight line gives back a straight line with the same slope, so for a continuous outcome modeled directly, GEE and a mixed model estimate the same fixed effect. The methods diverge only when the link bends, as it does for logistic and Poisson models.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">intraclass correlation</a> (ICC) summarizes how much of the total variation is between subjects. From a random-intercept model, it is the between-subject variance divided by the total variance. Compute it for <code>sleepstudy</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute the ICC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the ICC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># as.data.frame(VarCorr(ex_ri)) has a 'vcov' column: row 1 = subject, row 2 = residual
+# ex_vc &lt;- as.data.frame(VarCorr(ex_ri))
+# ex_icc &lt;- ex_vc$vcov[1] / (ex_vc$vcov[1] + ex_vc$vcov[____])
+# round(ex_icc, 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ICC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ICC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_vc  &lt;- as.data.frame(VarCorr(ex_ri))
+ex_icc &lt;- ex_vc$vcov[1] / (ex_vc$vcov[1] + ex_vc$vcov[2])
+round(ex_icc, 3)
+#&gt; [1] 0.589</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About <code>0.589</code> of the total variation in reaction time sits between subjects rather than within them. A high ICC means the <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> is strong, which is exactly when respecting it matters most.</p>
+
+</details>
+</section>
+
+<h2>Why do the coefficients differ on binary data?</h2>
+
+<p>For a yes/no outcome you use a logistic link, and the link is an S-shaped curve, not a straight line. Averaging a bundle of S-curves that each sit at a different height does not give back the same S-curve; it gives a flatter one. That flattening is why the population-average slope from GEE comes out smaller in magnitude than the subject-specific slope from a mixed model. Let's build a dataset where we know the true subject-specific effect, then watch the two methods disagree.</p>
+
+<p>We will simulate 250 subjects, each measured 6 times, with a treatment indicator <code>x</code>. We bake in a true subject-specific slope of <code>1.0</code> on the log-odds scale, plus a subject random intercept with a standard deviation of <code>1.5</code>.</p>
+
+<div class="webr-container" data-block-title="Simulate clustered binary data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate clustered binary data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2011)
+n_subj &lt;- 250; n_obs &lt;- 6
+subj &lt;- rep(1:n_subj, each = n_obs)
+x    &lt;- rep(c(0, 1), times = n_subj * n_obs / 2)
+u    &lt;- rnorm(n_subj, mean = 0, sd = 1.5)      # each subject's baseline log-odds
+eta  &lt;- -0.5 + 1.0 * x + u[subj]               # true subject-specific slope = 1.0
+y    &lt;- rbinom(length(eta), size = 1, prob = plogis(eta))
+bin  &lt;- data.frame(y = y, x = x, subj = factor(subj))
+head(bin, 4)
+#&gt;   y x subj
+#&gt; 1 0 0    1
+#&gt; 2 0 1    1
+#&gt; 3 0 0    1
+#&gt; 4 0 1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In that last step, <code>plogis()</code> turns each subject's log-odds (<code>eta</code>) into a probability, and <code>rbinom()</code> draws the 0 or 1 outcome from that probability. Now fit a mixed logistic model with <code>glmer()</code>. Because we built the data with a subject-specific effect, this is the method aimed at the scale we generated, and it should land near the true value of <code>1.0</code>.</p>
+
+<div class="webr-container" data-block-title="Subject-specific effect with glmer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Subject-specific effect with glmer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_glmer &lt;- glmer(y ~ x + (1 | subj), data = bin, family = binomial)
+round(fixef(m_glmer), 3)
+#&gt; (Intercept)           x 
+#&gt;      -0.441       0.860 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The conditional (subject-specific) slope is <code>0.860</code>, close to the true <code>1.0</code> given sampling noise. Its <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a> is $e^{0.86} \approx 2.36$: for a <em>given</em> subject, treatment multiplies the odds of a positive outcome by about 2.4. Now fit the population-average version with GEE on the identical data. Run this in your own R session.</p>
+
+<pre><code class="language-r">library(geepack)
+g_bin &lt;- geeglm(y ~ x, id = subj, data = bin, family = binomial,
+                corstr = &quot;exchangeable&quot;)
+round(summary(g_bin)$coefficients[, 1:2], 3)
+#&gt;             Estimate Std.err
+#&gt; (Intercept)   -0.328   0.090
+#&gt; x              0.640   0.092</code></pre>
+
+<p>The GEE slope is <code>0.640</code>, clearly smaller than the mixed model's <code>0.860</code>. Its odds ratio is $e^{0.64} \approx 1.90$: averaged across the whole population, treatment multiplies the odds by about 1.9. Both models are correct. They simply answer different questions, and on a nonlinear scale the two answers are genuinely different numbers. There is even a well-known approximation linking them:</p>
+
+<p>$$\beta^{\text{PA}} \approx \frac{\beta^{\text{SS}}}{\sqrt{1 + 0.346\,\sigma_b^2}}$$</p>
+
+<p>Where $\beta^{\text{PA}}$ is the population-average coefficient GEE targets, $\beta^{\text{SS}}$ is the subject-specific coefficient the mixed model targets, $\sigma_b^2$ is the variance of the subject random intercepts, and <code>0.346</code> is a constant from the logistic approximation. Let's plug in the numbers our mixed model estimated and see if the approximation lands near the GEE result.</p>
+
+<div class="webr-container" data-block-title="Predict the marginal slope from the conditional one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict the marginal slope from the conditional one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">beta_ss  &lt;- fixef(m_glmer)[[&quot;x&quot;]]                    # subject-specific slope
+sigma_b  &lt;- sqrt(unlist(VarCorr(m_glmer))[[&quot;subj&quot;]]) # subject SD
+beta_pa  &lt;- beta_ss / sqrt(1 + 0.346 * sigma_b^2)
+round(c(conditional = beta_ss, approx_marginal = beta_pa), 3)
+#&gt;     conditional approx_marginal 
+#&gt;           0.860           0.684 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula turns the conditional <code>0.860</code> into a predicted marginal <code>0.684</code>, in the same neighborhood as the GEE estimate of <code>0.640</code>. The mechanism is real: the more subjects vary (the larger $\sigma_b$), the more the population-average effect shrinks toward zero relative to the subject-specific one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>On a logistic or log scale, a subject-specific effect is always larger in magnitude than the matching population-average effect.</strong> They describe the same data from two viewpoints. Reporting a GEE odds ratio as if it were a subject-specific one, or the reverse, overstates or understates the effect an individual would actually experience.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert a conditional log-odds coefficient into an odds ratio. Use the mixed model's slope of <code>0.86</code>.</p>
+<div class="webr-container" data-block-title="Your turn: log-odds to odds ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: log-odds to odds ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The odds ratio is the exponential of the log-odds coefficient.
+# ex_logodds &lt;- 0.86
+# round(exp(____), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Log-odds to odds ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log-odds to odds ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_logodds &lt;- 0.86
+round(exp(ex_logodds), 2)
+#&gt; [1] 2.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Exponentiating a log-odds coefficient gives an odds ratio. Here the subject-specific odds ratio is <code>2.36</code>, larger than the population-average <code>1.90</code> we saw from GEE, exactly the gap the approximation predicts.</p>
+
+</details>
+</section>
+
+<h2>How does each handle the correlation itself?</h2>
+
+<p>Both methods have to say something about how measurements within a cluster relate, but they do it in opposite ways. A mixed model handles correlation <em>implicitly</em>: once you specify the random effects, the within-subject correlation is a consequence of the model, estimated by maximum likelihood. A GEE model handles correlation <em>explicitly</em>: you pick a working correlation structure as a separate ingredient, and GEE uses it only to improve efficiency. Crucially, GEE then wraps the result in robust (sandwich) standard errors, so your inference stays valid even if the working structure you picked is wrong.</p>
+
+<p>You choose the GEE working structure with the <code>corstr</code> argument. Here are the common options.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Working correlation</th>
+<th>What it assumes</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>independence</code></td>
+<td>No within-cluster correlation</td>
+<td>A baseline, or when robust SEs do all the work</td>
+</tr>
+<tr>
+<td><code>exchangeable</code></td>
+<td>Every pair in a cluster is equally correlated</td>
+<td>Clusters with no natural order (people in a household)</td>
+</tr>
+<tr>
+<td><code>ar1</code></td>
+<td>Correlation fades as observations get further apart</td>
+<td>Evenly spaced time points</td>
+</tr>
+<tr>
+<td><code>unstructured</code></td>
+<td>A separate correlation for every pair</td>
+<td>Few time points and plenty of clusters</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's confirm the robustness claim on the binary data. We fit GEE with two different working structures and check that the treatment estimate barely moves. Run this locally.</p>
+
+<pre><code class="language-r">library(geepack)
+g_ex &lt;- geeglm(y ~ x, id = subj, data = bin, family = binomial, corstr = &quot;exchangeable&quot;)
+g_ar &lt;- geeglm(y ~ x, id = subj, data = bin, family = binomial, corstr = &quot;ar1&quot;)
+c(exchangeable = round(coef(g_ex)[[&quot;x&quot;]], 3),
+  ar1          = round(coef(g_ar)[[&quot;x&quot;]], 3))
+#&gt; exchangeable          ar1 
+#&gt;        0.640        0.655 </code></pre>
+
+<p>The slope is <code>0.640</code> under exchangeable and <code>0.655</code> under AR-1: essentially the same conclusion despite a different assumption about the correlation. That stability is the practical appeal of GEE. You do not have to get the correlation structure exactly right, because the <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">robust standard errors</a> correct for the mismatch. The mixed model, by contrast, encodes the correlation through its random effects, and you can read that structure back out of the fitted model.</p>
+
+<div class="webr-container" data-block-title="The mixed model implies the correlation from its random effects">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The mixed model implies the correlation from its random effects</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">VarCorr(m_mix)
+#&gt;  Groups   Name        Std.Dev. Corr  
+#&gt;  Subject  (Intercept) 24.7407        
+#&gt;           Days         5.9221  0.066 
+#&gt;  Residual             25.5918        </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Corr</code> column, <code>0.066</code>, is the estimated correlation between a subject's random intercept and their random slope. The mixed model did not treat correlation as a nuisance to be robustly ignored; it estimated it as a meaningful part of the story. That difference in philosophy has a catch, though.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>GEE robust standard errors need a healthy number of clusters to be trustworthy.</strong> The sandwich estimator is a large-sample result. With fewer than roughly 30 to 40 clusters, GEE standard errors tend to run too small and can make effects look more significant than they are. With few clusters, a likelihood-based mixed model, or a small-sample GEE correction, is the safer choice.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The two mixed models we fit differ in flexibility: a random intercept only, versus random intercept plus slope. Compare them with <code>AIC()</code>, where a lower value indicates a better trade-off of fit and complexity.</p>
+<div class="webr-container" data-block-title="Your turn: compare random-effects structures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare random-effects structures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_slope is the richer model with (Days | Subject); ex_ri has (1 | Subject).
+# ex_slope &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+# AIC(ex_ri, ____)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AIC comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_slope &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+AIC(ex_ri, ex_slope)
+#&gt;          df      AIC
+#&gt; ex_ri     4 1794.465
+#&gt; ex_slope  6 1755.628</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The random-slope model has the lower <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> (<code>1755.6</code> vs <code>1794.5</code>), so the data support letting each subject have their own slope. This kind of likelihood-based model comparison is available for mixed models but not for GEE, which has no full likelihood.</p>
+
+</details>
+</section>
+
+<h2>What assumptions does each make about missing data?</h2>
+
+<p>Real longitudinal data is rarely complete: patients miss visits, subjects drop out. The two methods make different promises about when <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a> is safe, and the difference can decide which one you trust. In brief, a standard GEE is valid when data are missing completely at random (MCAR), meaning missingness is unrelated to anything. Likelihood-based mixed models make the weaker, more realistic assumption of missing at random (MAR), meaning missingness can depend on observed data. That makes mixed models more forgiving of the dropout patterns you actually see in practice.</p>
+
+<p>Let's demonstrate the easy case first: data punched out completely at random. We copy <code>sleepstudy</code>, blank out 30 reaction times at random, and refit the mixed model.</p>
+
+<div class="webr-container" data-block-title="Refit after data are missing completely at random">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit after data are missing completely at random</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+sleep_mcar &lt;- sleepstudy
+drop_rows  &lt;- sample(nrow(sleep_mcar), 30)
+sleep_mcar$Reaction[drop_rows] &lt;- NA
+m_mcar &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleep_mcar)
+round(fixef(m_mcar), 2)
+#&gt; (Intercept)        Days 
+#&gt;      252.19       10.02 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 150 of the original 180 rows remaining, the slope is still about <code>10.0</code>, close to the <code>10.47</code> from the full data. Under MCAR, both GEE and mixed models stay unbiased. The gap opens under MAR, for example when subjects who are getting worse drop out. There, a likelihood-based mixed model still recovers the right answer using the observed measurements, while a plain GEE would need inverse-probability weights to fix the bias. Here is the fuller comparison.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Property</th>
+<th>Mixed model (<code>lme4</code>)</th>
+<th>GEE (<code>geepack</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Estimand</td>
+<td>Subject-specific (conditional)</td>
+<td>Population-average (marginal)</td>
+</tr>
+<tr>
+<td>Correlation</td>
+<td>Modeled via random effects</td>
+<td>Working structure plus robust SE</td>
+</tr>
+<tr>
+<td>Estimation</td>
+<td>Maximum likelihood</td>
+<td>Quasi-likelihood, no full likelihood</td>
+</tr>
+<tr>
+<td>Extra output</td>
+<td>Variance components, per-subject effects</td>
+<td>Robust SEs only</td>
+</tr>
+<tr>
+<td>Missing data valid under</td>
+<td>MAR</td>
+<td>MCAR (or MAR with weights)</td>
+</tr>
+<tr>
+<td>Model comparison</td>
+<td>AIC, likelihood-ratio tests</td>
+<td>QIC (no likelihood-ratio test)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For clinical trials with dropout, likelihood-based mixed models are usually the default.</strong> Regulatory guidance often favors mixed models for repeated measures precisely because the MAR assumption is more plausible than MCAR when sicker patients are the ones who leave a study.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the missingness is spread across subjects rather than wiping out whole people. Count how many complete reaction times each subject still has, using <code>tapply()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count complete records per subject">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count complete records per subject</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># tapply(condition, group, sum) counts TRUEs within each group.
+# ex_complete &lt;- tapply(!is.na(sleep_mcar$Reaction), sleep_mcar$____, sum)
+# head(ex_complete, 6)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Complete-records-per-subject solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete-records-per-subject solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_complete &lt;- tapply(!is.na(sleep_mcar$Reaction), sleep_mcar$Subject, sum)
+head(ex_complete, 6)
+#&gt; 308 309 310 330 331 332 
+#&gt;   8   8   9   9   8   8 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each subject keeps 8 or 9 of their 10 records, so no subject is lost entirely. That even spread is what "completely at random" looks like, and it is the friendly case for both methods.</p>
+
+</details>
+</section>
+
+<h2>Which one should you use?</h2>
+
+<p>The decision is not about which method is better; it is about which question you are asking. Trace your goal through the map below and the choice makes itself.</p>
+
+<p><img src="screenshots/GEE-vs-Mixed-Models-in-R-decision.webp" alt="Choosing between GEE and a mixed model based on whether you want a population-average effect, an individual-level effect, or a prediction for one subject." class="img-responsive img-zoomable" loading="lazy" width="1732" height="718" /></p>
+
+<p><em>Figure 2: Pick the method from the question you are answering.</em></p>
+
+<p>Choose GEE when you want the population-average effect and nothing more: the average change a public-health official or policy maker cares about, stated with robust standard errors and few assumptions. It shines for marginal questions on binary or count outcomes, and it is happy with many clusters and simple within-cluster structure. See the deep dive on <a href="GEE-for-Correlated-Categorical-Data-in-R.html">GEE for correlated categorical data</a> for the full geepack workflow.</p>
+
+<p>Choose a mixed model when you care about individuals: how much subjects differ, how a specific subject is likely to respond, or a variance <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">decomposition</a> of where the noise lives. It is also the model for complex designs (nested or crossed groups) and for likelihood-based comparisons and MAR missing data. The companion guide on <a href="Random-Intercepts-and-Slopes-in-R.html">random intercepts and slopes</a> walks through building these models step by step.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your goal</th>
+<th>Reach for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The average effect across a population</td>
+<td>GEE</td>
+</tr>
+<tr>
+<td>How much individuals vary</td>
+<td>Mixed model</td>
+</tr>
+<tr>
+<td>A prediction for one specific subject</td>
+<td>Mixed model</td>
+</tr>
+<tr>
+<td>Binary or count outcome, marginal question, many clusters</td>
+<td>GEE</td>
+</tr>
+<tr>
+<td>Nested or crossed grouping structure</td>
+<td>Mixed model</td>
+</tr>
+<tr>
+<td>Robust inference with a possibly-wrong correlation guess</td>
+<td>GEE</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>State your estimand before you report a coefficient.</strong> Say plainly whether a number is population-average or subject-specific. On a logistic scale the two differ, so a reader who assumes the wrong one will misjudge the <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>, even though your model is perfectly correct.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A mixed model can produce both the population line and a single subject's line. The population intercept and slope are <code>fixef(m_mix)</code>; subject 308's own line is <code>coef(m_mix)$Subject[&quot;308&quot;, ]</code>. Print both and compare.</p>
+<div class="webr-container" data-block-title="Your turn: population line vs one subject&#x27;s line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: population line vs one subject&#x27;s line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># fixef() gives the population average; coef()$Subject gives per-subject lines.
+# round(fixef(m_mix), 2)
+# round(coef(m_mix)$Subject[&quot;308&quot;, ], 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Population vs subject line solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Population vs subject line solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(fixef(m_mix), 2)
+#&gt; (Intercept)        Days 
+#&gt;      251.41       10.47 
+round(coef(m_mix)$Subject[&quot;308&quot;, ], 2)
+#&gt;     (Intercept)  Days
+#&gt; 308      253.66 19.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The population slope is <code>10.47</code>, but subject 308's own slope is <code>19.67</code>, nearly double. A mixed model can tell you both; GEE only ever reports the population line.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. The exercises use fresh variable names so they will not overwrite the models you fit above.</p>
+
+<h3>Exercise 1: Recover a subject-specific effect from binary data</h3>
+
+<p>Simulate a small clustered binary dataset (120 subjects, 5 measurements each) with a true subject-specific slope of <code>0.8</code>, fit <code>glmer()</code>, and report the conditional slope and its odds ratio. Then say in one line why a GEE fit would return a smaller number.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build subj, tx, a subject random intercept (sd = 1.2), then y via plogis + rbinom.
+# Fit glmer(yy ~ tx + (1 | sj), family = binomial) and report fixef(gm)[[&quot;tx&quot;]].
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ns &lt;- 120; no &lt;- 5
+sj &lt;- rep(1:ns, each = no)
+tx &lt;- rep(c(0, 1), length.out = ns * no)
+b0 &lt;- rnorm(ns, 0, 1.2)
+lp &lt;- -0.3 + 0.8 * tx + b0[sj]
+yy &lt;- rbinom(length(lp), 1, plogis(lp))
+d  &lt;- data.frame(yy, tx, sj = factor(sj))
+cap_gm &lt;- glmer(yy ~ tx + (1 | sj), data = d, family = binomial)
+round(c(slope = fixef(cap_gm)[[&quot;tx&quot;]], OR = exp(fixef(cap_gm)[[&quot;tx&quot;]])), 2)
+#&gt; slope    OR 
+#&gt;  1.05  2.85 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The conditional slope is <code>1.05</code> (odds ratio <code>2.85</code>), a bit above the true <code>0.8</code> we set but within the sampling noise you expect from a single simulated dataset of this size. A GEE model would average the logistic curves over subjects and return a smaller, flatter population-average slope.</p>
+
+</details>
+
+<h3>Exercise 2: Name what GEE cannot report</h3>
+
+<p>Fit the random-intercept-and-slope model on <code>sleepstudy</code>, print its variance components, and identify the three quantities in that output that a GEE model would never give you.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit lmer(Reaction ~ Days + (Days | Subject)) and call VarCorr() on it.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_mix &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+VarCorr(cap_mix)
+#&gt;  Groups   Name        Std.Dev. Corr  
+#&gt;  Subject  (Intercept) 24.7407        
+#&gt;           Days         5.9221  0.066 
+#&gt;  Residual             25.5918        </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The three quantities GEE cannot report are the between-subject intercept standard deviation (<code>24.74</code>), the between-subject slope standard deviation (<code>5.92</code>), and the correlation between them (<code>0.066</code>). GEE never models individual subjects, so it has no variance components at all.</p>
+
+</details>
+
+<h3>Exercise 3: Quantify how far one subject sits from the average</h3>
+
+<p>Using the mixed model, build the fitted line for subject 308 and the population-average line, then compute the gap in predicted reaction time on Day 9.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Population line: fixef(m_mix). Subject line: coef(m_mix)$Subject[&quot;308&quot;, ].
+# A predicted value at Day 9 is intercept + slope * 9.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pop  &lt;- fixef(m_mix)
+s308 &lt;- coef(m_mix)$Subject[&quot;308&quot;, ]
+pred_pop &lt;- pop[[&quot;(Intercept)&quot;]] + pop[[&quot;Days&quot;]] * 9
+pred_308 &lt;- s308[[&quot;(Intercept)&quot;]] + s308[[&quot;Days&quot;]] * 9
+round(c(population = pred_pop, subject_308 = pred_308,
+        gap = pred_308 - pred_pop), 1)
+#&gt;  population subject_308         gap 
+#&gt;       345.6       430.7        85.0 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At Day 9 the population line predicts about <code>345.6</code> ms, but subject 308 is predicted at <code>430.7</code> ms, a gap of <code>85</code> ms. That subject-specific prediction is something only the mixed model can produce; GEE would return only the <code>345.6</code> population value.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Can a GEE model give me random effects or a prediction for one subject?</strong> No. GEE models the population average and never estimates subject-level offsets, so it cannot report variance components or predict a specific subject's trajectory. If you need those, use a mixed model.</p>
+
+<p><strong>If GEE and my mixed model give different coefficients on binary data, is one of them wrong?</strong> Neither is wrong. The mixed model reports a subject-specific (conditional) effect and GEE reports a population-average (marginal) effect. On a logistic or log link these are genuinely different quantities, with the subject-specific one always larger in magnitude.</p>
+
+<p><strong>Do I need different packages for each?</strong> Yes. In R, <code>lme4</code> (with <code>lmer()</code> and <code>glmer()</code>) fits mixed models, and <code>geepack</code> (with <code>geeglm()</code>) fits GEE models. The <code>nlme</code> package also fits mixed models and marginal models via generalized least squares.</p>
+
+<p><strong>When the outcome is continuous with an identity link, does the choice matter?</strong> For the fixed-effect estimates, much less. Averaging a straight line preserves its slope, so GEE and a linear mixed model report essentially the same coefficient. The mixed model still adds variance components and subject-level prediction on top.</p>
+
+<p><strong>How many clusters do I need for GEE?</strong> As a rule of thumb, at least 30 to 40. GEE's robust standard errors rely on a large number of clusters; with few clusters they run too small, and a likelihood-based mixed model or a small-sample correction is safer.</p>
+
+<h2>Summary</h2>
+
+<p>GEE and mixed models are two valid answers to correlated data, aimed at two different questions. Pick the one whose estimand matches what you actually want to report.</p>
+
+<p><img src="screenshots/GEE-vs-Mixed-Models-in-R-overview.webp" alt="The two model families at a glance: GEE gives population-average effects with a working correlation and robust standard errors; mixed models give subject-specific effects with random effects and variance components." class="img-responsive img-zoomable" loading="lazy" width="1298" height="840" /></p>
+
+<p><em>Figure 3: The two model families at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Mixed model</th>
+<th>GEE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does a coefficient mean?</td>
+<td>Subject-specific (conditional)</td>
+<td>Population-average (marginal)</td>
+</tr>
+<tr>
+<td>How is correlation handled?</td>
+<td>Random effects, by likelihood</td>
+<td>Working structure plus robust SE</td>
+</tr>
+<tr>
+<td>What extra do you get?</td>
+<td>Variance components, per-subject effects</td>
+<td>Robust standard errors</td>
+</tr>
+<tr>
+<td>Binary/count coefficient size</td>
+<td>Larger in magnitude</td>
+<td>Smaller in magnitude</td>
+</tr>
+<tr>
+<td>Missing data safe under</td>
+<td>MAR</td>
+<td>MCAR (or MAR with weights)</td>
+</tr>
+<tr>
+<td>R tool</td>
+<td><code>lme4::lmer</code> / <code>glmer</code></td>
+<td><code>geepack::geeglm</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The one sentence to remember: a mixed model tells you about individuals, GEE tells you about the population average, and on a nonlinear scale those are different numbers on purpose.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Halekoh, U., Hojsgaard, S., and Yan, J. (2006). The R Package geepack for Generalized Estimating Equations. <em>Journal of Statistical Software</em>. <a href="https://www.jstatsoft.org/article/view/v015i02">Link</a></li>
+
+<li>Bates, D., Machler, M., Bolker, B., and Walker, S. (2015). Fitting Linear Mixed-Effects Models Using lme4. <em>Journal of Statistical Software</em>. <a href="https://www.jstatsoft.org/article/view/v067i01">Link</a></li>
+
+<li>UVA Library. Getting Started with Generalized Estimating Equations. <a href="https://library.virginia.edu/data/articles/getting-started-with-generalized-estimating-equations">Link</a></li>
+
+<li>Comparing generalized estimating equations and linear mixed effects models for estimating marginal association (2022). <em>PMC</em>. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9840717/">Link</a></li>
+
+<li>geepack package on CRAN. <a href="https://cran.r-project.org/package=geepack">Link</a></li>
+
+<li>lme4 package on CRAN. <a href="https://cran.r-project.org/package=lme4">Link</a></li>
+
+<li>nlme package on CRAN (mixed models and marginal GLS models). <a href="https://cran.r-project.org/web/packages/nlme/index.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Random-Intercepts-and-Slopes-in-R.html">Random Intercepts and Slopes in R</a>: build mixed models from the ground up, the natural next step for the subject-specific side.</li>
+
+<li><a href="GEE-for-Correlated-Categorical-Data-in-R.html">GEE for Correlated Categorical Data in R</a>: the full geepack workflow for population-average models on binary outcomes.</li>
+
+<li><a href="Mixed-Model-Inference-in-R.html">Mixed Model Inference in R</a>: p-values, confidence intervals, and bootstrapping for the mixed-model coefficients you fit here.</li>
+
+</ul>
+
+{% endraw %}
