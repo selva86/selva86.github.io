@@ -1,0 +1,1057 @@
+---
+title: "Capstone: A Clinical-Style Group Comparison in R"
+description: "A two-arm clinical-style comparison in R, end to end: protocol, power, a Table 1 with standardized mean differences, the primary test, ANCOVA, and reporting."
+keywords: "clinical trial analysis in R, two-arm comparison, intention-to-treat, ANCOVA in R, standardized mean difference, power analysis R, Welch t-test, CONSORT"
+mathjax: true
+webr: true
+curriculum_id: "ST2-13.2"
+post_type: "C"
+auto_link_terms: "clinical trial analysis in R|two-arm comparison|intention-to-treat|per-protocol analysis|standardized mean difference|baseline balance|ANCOVA adjustment|Welch t-test|minimally important difference|CONSORT flow|primary endpoint|clinical comparison capstone|group comparison in R|Table 1 fallacy"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Clinical Comparison Capstone"
+sidebar_order: "180"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A clinical-style comparison asks one clean question, does the treatment beat the control, and answers it with a discipline that separates what you decided before seeing the data from what the data suggested afterward. This capstone runs that whole workflow on one simulated two-arm trial whose true effect we already know, so every number on the page is checkable against the truth.</p>
+
+<p>This is a capstone, so it stitches together skills you have met one at a time: power, a group test, effect sizes, and covariate adjustment. We will run a small blood-pressure program evaluation from protocol to final report, using base R plus a little dplyr and <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>. The same pattern fits any two-arm A/B comparison, a new checkout flow against the old one, a coaching program against a waitlist, so read "patient" as "unit" and "clinic" as "your team" whenever you like.</p>
+
+<h2>What are we comparing, and what did we lock in first?</h2>
+
+<p>A two-arm comparison has exactly two groups. One arm gets the new thing, here a 12-week program to lower blood pressure, and the other arm gets standard care. Everyone is randomly assigned to an arm, and we compare a single agreed-on number between the two. That number, and the exact way we will compare it, are decided before we see a single result. Writing those rules down first is <a class="auto-link" href="Pre-Analysis-Plans-in-R.html" title="Pre-Analysis Plans in R: Commit Before You Analyze">preregistration</a> in miniature, and it is what stops us from fishing for a story after the fact.</p>
+
+<p>Let us make "decided in advance" concrete by storing the protocol as a small table and printing it. Everything below flows from these six decisions.</p>
+
+<div class="webr-container" data-block-title="Lock the protocol before any data exists">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lock the protocol before any data exists</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+protocol &lt;- data.frame(
+  item = c(&quot;Hypothesis&quot;, &quot;Primary endpoint&quot;, &quot;Analysis set&quot;,
+           &quot;Primary test&quot;, &quot;Alpha (two-sided)&quot;, &quot;Min. important difference&quot;),
+  decision = c(&quot;Program lowers week-12 SBP vs standard care&quot;,
+               &quot;Systolic blood pressure (mmHg) at week 12&quot;,
+               &quot;Intention-to-treat (all randomized, as assigned)&quot;,
+               &quot;Welch two-sample t-test&quot;,
+               &quot;0.05&quot;,
+               &quot;5 mmHg&quot;),
+  stringsAsFactors = FALSE
+)
+protocol
+#&gt;                        item                                         decision
+#&gt; 1                Hypothesis      Program lowers week-12 SBP vs standard care
+#&gt; 2          Primary endpoint        Systolic blood pressure (mmHg) at week 12
+#&gt; 3              Analysis set Intention-to-treat (all randomized, as assigned)
+#&gt; 4              Primary test                          Welch two-sample t-test
+#&gt; 5         Alpha (two-sided)                                             0.05
+#&gt; 6 Min. important difference                                           5 mmHg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That table is the contract. The primary endpoint is the one outcome that decides success, systolic blood pressure (SBP) at week 12. The analysis set is intention-to-treat, meaning we analyze people in the arm they were randomized to, no matter what they actually did later. Alpha is our error budget for a <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a>, set at the usual 0.05. The minimally important difference, 5 mmHg, is the smallest change we would call clinically worth having.</p>
+
+<p><img src="screenshots/Clinical-Comparison-Capstone-in-R-trial-design.webp" alt="The two-arm parallel design: randomize once, measure the same endpoint in both arms." class="img-responsive img-zoomable" loading="lazy" width="1798" height="594" /></p>
+
+<p><em>Figure 1: The two-arm parallel design: randomize once, measure the same endpoint in both arms.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Prespecification is the spine of the whole analysis.</strong> Every choice you make before seeing outcomes, the endpoint, the test, the alpha, is a promise; every choice you make after seeing outcomes is a hypothesis for next time, not a conclusion from this study.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A protocol needs its <a class="auto-link" href="High-Frequency-Time-Series-in-R.html" title="High-Frequency Time Series in R: Intraday xts and quantmod">endpoints</a> written down. Build a small data frame called <code>ex_endpoints</code> with a <code>type</code> column ("Primary", "Secondary", "Secondary") and an <code>endpoint</code> column naming the week-12 SBP as primary and two sensible secondaries.</p>
+<div class="webr-container" data-block-title="Your turn: list the endpoints">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: list the endpoints</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the endpoint column, then run.
+# The primary is SBP at week 12; add two secondary endpoints of your own.
+ex_endpoints &lt;- data.frame(
+  type = c(&quot;Primary&quot;, &quot;Secondary&quot;, &quot;Secondary&quot;),
+  endpoint = c(&quot;&quot;, &quot;&quot;, &quot;&quot;)   # replace the empty strings
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Endpoints table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Endpoints table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_endpoints &lt;- data.frame(
+  type = c(&quot;Primary&quot;, &quot;Secondary&quot;, &quot;Secondary&quot;),
+  endpoint = c(&quot;SBP at week 12&quot;,
+               &quot;Proportion with SBP below 130 mmHg&quot;,
+               &quot;Change in SBP from baseline&quot;)
+)
+ex_endpoints
+#&gt;        type                           endpoint
+#&gt; 1   Primary                     SBP at week 12
+#&gt; 2 Secondary Proportion with SBP below 130 mmHg
+#&gt; 3 Secondary        Change in SBP from baseline</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Secondary endpoints support the story but never overrule the primary. Reaching a clinical target (SBP below 130) and the raw change from baseline are natural companions to the primary week-12 level.</p>
+
+</details>
+</section>
+
+<h2>How many patients do we need, and how did we decide?</h2>
+
+<p><a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">Sample size</a> is not a guess, it is a calculation you do before enrolling anyone. You feed in three numbers you already committed to: the smallest difference worth detecting (our 5 mmHg), how spread out the outcome is (its standard deviation), and the power you want, which is the chance of detecting a real effect if it exists. The convention is 80% power. R turns those into a required sample size with <code>power.t.test()</code>.</p>
+
+<div class="webr-container" data-block-title="Sample size from the minimally important difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample size from the minimally important difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pw &lt;- power.t.test(delta = 5, sd = 15, sig.level = 0.05, power = 0.80)
+pw
+#&gt;
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 142.2466
+#&gt;           delta = 5
+#&gt;              sd = 15
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R tells us we need about 142 people per arm to have an 80% chance of detecting a 5 mmHg difference when the outcome has a standard deviation of 15 mmHg. We will round up and enroll 150 per arm to leave room for dropout. Notice how the answer depends entirely on assumptions we chose in advance, not on any data.</p>
+
+<p>To build intuition, let us watch power climb as the sample grows. We sweep a range of per-arm sizes and read off the power for each.</p>
+
+<div class="webr-container" data-block-title="Compute a power curve across sample sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute a power curve across sample sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid &lt;- data.frame(n_per_arm = seq(60, 220, by = 20))
+grid$power &lt;- sapply(grid$n_per_arm, function(nn)
+  power.t.test(n = nn, delta = 5, sd = 15, sig.level = 0.05)$power)
+grid$power &lt;- round(grid$power, 3)
+grid
+#&gt;   n_per_arm power
+#&gt; 1        60 0.441
+#&gt; 2        80 0.554
+#&gt; 3       100 0.650
+#&gt; 4       120 0.730
+#&gt; 5       140 0.794
+#&gt; 6       160 0.844
+#&gt; 7       180 0.884
+#&gt; 8       200 0.914
+#&gt; 9       220 0.937</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 60 per arm we would miss a real 5 mmHg effect more than half the time. By 140 per arm we cross the 80% line, which matches the 142 the formula gave us. The same numbers are easier to feel as a curve, so let us draw it.</p>
+
+<div class="webr-container" data-block-title="Plot the power curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the power curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+p_power &lt;- ggplot(grid, aes(n_per_arm, power)) +
+  geom_line(color = &quot;#4C6EF5&quot;, linewidth = 1) +
+  geom_hline(yintercept = 0.80, linetype = &quot;dashed&quot;) +
+  labs(x = &quot;Sample size per arm&quot;, y = &quot;Power&quot;,
+       title = &quot;Power to detect a 5 mmHg difference (SD = 15)&quot;) +
+  theme_minimal()
+p_power</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line is our 80% target, and the curve shows the sample size where we clear it. The curve is steep on the left and flat on the right: past a point, buying more patients barely buys more power, which is useful when a budget is tight.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Power the study for the smallest effect worth acting on, not the effect you hope to see.</strong> If you plug in an optimistic 10 mmHg because you expect a big win, you will enroll too few people and be underpowered for the modest-but-real effect that actually shows up.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose you only care about detecting a larger 8 mmHg difference (same SD of 15, same 80% power). Use <code>power.t.test()</code> to find the required sample size per arm. Do you need more people or fewer?</p>
+<div class="webr-container" data-block-title="Your turn: sample size for a bigger effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sample size for a bigger effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: n per arm to detect delta = 8, sd = 15, power = 0.80.
+# Hint: call power.t.test() and read off n, then round up with ceiling().
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sample size for delta 8 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample size for delta 8 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pw &lt;- power.t.test(delta = 8, sd = 15, sig.level = 0.05, power = 0.80)
+ceiling(ex_pw$n)
+#&gt; [1] 57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A larger effect is easier to see, so it needs fewer people, only 57 per arm here versus 142 for a 5 mmHg effect. Bigger effects are cheaper to detect.</p>
+
+</details>
+</section>
+
+<h2>Are the two groups comparable at baseline?</h2>
+
+<p>Now the trial runs. We enroll 150 patients per arm and record their baseline traits: age, sex, body-mass index, and starting SBP. Because this is a simulation, we get to know the truth, and we build the data so the program truly lowers SBP by about 8 mmHg in people who stick with it. That known effect is our answer key.</p>
+
+<div class="webr-container" data-block-title="Simulate the randomized baseline sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate the randomized baseline sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2025)
+n &lt;- 150
+sim_arm &lt;- function(arm, n) {
+  data.frame(
+    arm      = arm,
+    age      = round(rnorm(n, 55, 10)),
+    female   = rbinom(n, 1, 0.5),
+    bmi      = round(rnorm(n, 28, 4), 1),
+    base_sbp = round(rnorm(n, 150, 15))
+  )
+}
+trial &lt;- rbind(sim_arm(&quot;Control&quot;, n), sim_arm(&quot;Treatment&quot;, n))
+trial$arm &lt;- factor(trial$arm, levels = c(&quot;Control&quot;, &quot;Treatment&quot;))
+nrow(trial)
+table(trial$arm)
+#&gt; [1] 300
+#&gt;
+#&gt;   Control Treatment
+#&gt;       150       150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We have 300 patients, split evenly. Because we drew both arms from the same recipe, they are random samples of one population, which is exactly what randomization guarantees in a real trial. Next we generate week-12 outcomes. Some patients do not adhere to the program, some drop out before week 12, and higher starting values tend to fall more (a real effect called regression to the mean). The <code>set.seed()</code> call makes the whole thing reproducible.</p>
+
+<div class="webr-container" data-block-title="Simulate outcomes, adherence, and dropout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate outcomes, adherence, and dropout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+trial$adherent  &lt;- rbinom(nrow(trial), 1,
+                    ifelse(trial$arm == &quot;Treatment&quot;, 0.85, 0.95))
+trial$completed &lt;- rbinom(nrow(trial), 1, 0.94)
+effect_i &lt;- ifelse(trial$arm == &quot;Treatment&quot;,
+             ifelse(trial$adherent == 1, -8, -3), 0)
+rtm &lt;- -0.30 * (trial$base_sbp - 150)
+trial$sbp12 &lt;- round(trial$base_sbp + rtm - 3 + effect_i +
+                     rnorm(nrow(trial), 0, 8))
+trial$sbp12[trial$completed == 0] &lt;- NA
+sum(is.na(trial$sbp12))
+head(trial, 3)
+#&gt; [1] 17
+#&gt;       arm age female  bmi base_sbp adherent completed sbp12
+#&gt; 1 Control  61      0 28.7      145        1         1   131
+#&gt; 2 Control  55      0 24.6      168        1         1   154
+#&gt; 3 Control  63      0 29.2      158        1         1   146</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Seventeen patients have a missing week-12 value because they did not complete the study. Adherent treatment patients get the full 8 mmHg benefit; non-adherent ones get only a partial 3 mmHg; control patients get none. This is a realistic, messy data set, and it is the one our prespecified plan now has to face.</p>
+
+<p>Before analyzing the outcome, we check whether randomization did its job of making the arms comparable. The right tool is the standardized mean difference (SMD): the gap between arm means measured in units of pooled spread. In symbols:</p>
+
+<p>$$\text{SMD} = \frac{\bar{x}_\text{treatment} - \bar{x}_\text{control}}{\sqrt{(s^2_\text{treatment} + s^2_\text{control})/2}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{x}_\text{treatment}$ and $\bar{x}_\text{control}$ are the arm means of a baseline variable</li>
+
+<li>$s^2_\text{treatment}$ and $s^2_\text{control}$ are the arm variances</li>
+
+<li>the denominator is the pooled standard deviation of the two arms</li>
+
+</ul>
+
+<p>A common rule of thumb is that an absolute SMD above 0.1 flags a noticeable imbalance. Let us build the Table 1 that every trial report opens with.</p>
+
+<div class="webr-container" data-block-title="Build Table 1 with standardized mean differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build Table 1 with standardized mean differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">smd &lt;- function(x, g) {
+  m &lt;- tapply(x, g, mean)
+  s &lt;- tapply(x, g, sd)
+  as.numeric((m[2] - m[1]) / sqrt((s[1]^2 + s[2]^2) / 2))
+}
+bvars &lt;- c(&quot;age&quot;, &quot;female&quot;, &quot;bmi&quot;, &quot;base_sbp&quot;)
+tab1 &lt;- data.frame(
+  variable  = bvars,
+  Control   = sapply(bvars, function(v) mean(trial[[v]][trial$arm == &quot;Control&quot;])),
+  Treatment = sapply(bvars, function(v) mean(trial[[v]][trial$arm == &quot;Treatment&quot;])),
+  SMD       = sapply(bvars, function(v) smd(trial[[v]], trial$arm)),
+  row.names = NULL
+)
+tab1[, -1] &lt;- round(tab1[, -1], 3)
+tab1
+#&gt;   variable Control Treatment    SMD
+#&gt; 1      age  54.147    56.180  0.195
+#&gt; 2   female   0.500     0.473 -0.053
+#&gt; 3      bmi  28.001    28.043  0.011
+#&gt; 4 base_sbp 149.507   148.980 -0.035</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the SMD column. Sex, BMI, and the all-important baseline SBP sit far below 0.1, so those are well balanced. Age is the exception at 0.20: the treatment arm is about two years older by chance. That is a normal event in a trial of this size, a reminder that randomization balances groups on average, not perfectly in every single draw. The right response is not alarm and not a significance test, it is to lean on the covariate adjustment we planned for.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never run hypothesis tests on baseline characteristics to "check" randomization.</strong> Because both arms were sampled from the same population, any baseline difference is by definition due to chance, so a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> answers a question that has no meaning here. This mistake is so common it has a name, the Table 1 fallacy. Report standardized differences instead and adjust for strong prognostic variables (those that predict the outcome) you named in advance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the standardized mean difference for <code>bmi</code> on its own using the <code>smd()</code> helper defined above. Is it below the 0.1 threshold?</p>
+<div class="webr-container" data-block-title="Your turn: compute the SMD for BMI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the SMD for BMI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the smd() function on trial$bmi and trial$arm.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="SMD for BMI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">SMD for BMI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_smd_bmi &lt;- smd(trial$bmi, trial$arm)
+round(ex_smd_bmi, 3)
+#&gt; [1] 0.011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> An SMD of 0.011 is essentially zero, so BMI is beautifully balanced between the arms. No test, no worry, just a number you report.</p>
+
+</details>
+</section>
+
+<h2>Did the treatment work? The prespecified primary analysis</h2>
+
+<p>This is the moment the protocol was written for. Our plan named a Welch <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">two-sample t-test</a> on week-12 SBP, analyzed by intention-to-treat. Intention-to-treat means we compare arms as randomized, including patients who did not fully adhere. It answers the honest, policy-relevant question, "what happens when we offer this program," rather than the flattering question, "what happens in the perfect patient." We use the observed week-12 values (a complete-case ITT), and we will account for the missing ones in the reporting section.</p>
+
+<div class="webr-container" data-block-title="Run the prespecified primary test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the prespecified primary test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">itt &lt;- subset(trial, !is.na(sbp12))
+primary &lt;- t.test(sbp12 ~ arm, data = itt)
+primary
+#&gt;
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  sbp12 by arm
+#&gt; t = 4.4218, df = 280.85, p-value = 1.401e-05
+#&gt; alternative hypothesis: true difference in means between group Control and group Treatment is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;   3.996326 10.409328
+#&gt; sample estimates:
+#&gt;   mean in group Control mean in group Treatment
+#&gt;                146.4014                139.1986</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R compares Control against Treatment, so its confidence interval is for "Control minus Treatment" and comes out positive. That is a little awkward to read, so let us flip it to the more natural "Treatment minus Control" (a negative number means the program lowered SBP) and print a clean summary.</p>
+
+<div class="webr-container" data-block-title="Report the effect as Treatment minus Control">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the effect as Treatment minus Control</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- tapply(itt$sbp12, itt$arm, mean)
+delta &lt;- as.numeric(m[&quot;Treatment&quot;] - m[&quot;Control&quot;])
+ci &lt;- as.numeric(-rev(primary$conf.int))
+cat(sprintf(&quot;Treatment mean: %.1f mmHg\n&quot;, m[&quot;Treatment&quot;]))
+cat(sprintf(&quot;Control mean:   %.1f mmHg\n&quot;, m[&quot;Control&quot;]))
+cat(sprintf(&quot;Effect (Treatment - Control): %.1f mmHg\n&quot;, delta))
+cat(sprintf(&quot;95%% CI: %.1f to %.1f mmHg\n&quot;, ci[1], ci[2]))
+cat(sprintf(&quot;p-value: %.3g\n&quot;, primary$p.value))
+#&gt; Treatment mean: 139.2 mmHg
+#&gt; Control mean:   146.4 mmHg
+#&gt; Effect (Treatment - Control): -7.2 mmHg
+#&gt; 95% CI: -10.4 to -4.0 mmHg
+#&gt; p-value: 1.4e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The program lowered week-12 SBP by 7.2 mmHg on average, with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> from 4.0 to 10.4 mmHg lower. Because we built the data with a true effect near 8 mmHg (diluted a little by non-adherence), this estimate lands right where the truth is, which is reassuring. The whole interval sits below zero and beyond our 5 mmHg importance threshold at its far end, and the p-value is tiny, so by our own prespecified rule this is a clear, clinically meaningful win. The confidence interval matters more than the p-value: it tells you the plausible range of the real effect, not just that it differs from zero. If you want a refresher, see the guide on <a href="Confidence-Intervals-in-R.html">confidence intervals</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>We used a complete-case ITT for teaching clarity.</strong> A strict intention-to-treat analysis handles missing outcomes with a method such as <a class="auto-link" href="Multiple-Imputation-mice-in-R.html" title="Multiple Imputation with mice in R">multiple imputation</a> rather than dropping them. With only 17 <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> spread evenly across arms, the shortcut barely moves the estimate here, but flag it as a limitation in a real report.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> One of our secondary endpoints was the proportion of patients reaching a controlled SBP below 130 mmHg. Compute that proportion for each arm using <code>tapply()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: proportion reaching SBP below 130">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: proportion reaching SBP below 130</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Make a TRUE/FALSE vector for sbp12 &lt; 130, then average it within each arm.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Proportion controlled solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportion controlled solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">itt$controlled &lt;- itt$sbp12 &lt; 130
+ctab &lt;- tapply(itt$controlled, itt$arm, mean)
+round(ctab, 3)
+#&gt;   Control Treatment
+#&gt;     0.106     0.220</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 22% of treatment patients reached control versus 11% of controls, roughly double. Averaging a TRUE/FALSE vector gives a proportion, because R treats TRUE as 1 and FALSE as 0.</p>
+
+</details>
+</section>
+
+<h2>Would a different analysis change the answer?</h2>
+
+<p>A single test is never the whole story. A robust result should survive being poked at, so we run three sensitivity analyses and line them up against the primary. Each pokes a different assumption. This is where the "decided in advance versus data-driven" spine matters most: these were all named in the protocol as supportive analyses, so they strengthen the primary rather than replace it.</p>
+
+<p><img src="screenshots/Clinical-Comparison-Capstone-in-R-prespecified-vs-posthoc.webp" alt="The spine of the chapter: what is decided before the data versus what the data drives." class="img-responsive img-zoomable" loading="lazy" width="1086" height="1338" /></p>
+
+<p><em>Figure 2: The spine of the chapter: what is decided before the data versus what the data drives.</em></p>
+
+<p>The first check drops the normality assumption. The <a class="auto-link" href="Mann-Whitney-U-Test-in-R.html" title="Mann-Whitney U Test in R: Two Independent Groups, Distribution-Free">Wilcoxon rank-sum test</a> compares the arms using ranks, not raw values, and returns a Hodges-Lehmann estimate of the typical shift between them. For more on this test, see the <a href="Mann-Whitney-U-Test-in-R.html">Mann-Whitney U test</a> guide.</p>
+
+<div class="webr-container" data-block-title="Robustness check 1: nonparametric Wilcoxon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robustness check 1: nonparametric Wilcoxon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">np &lt;- wilcox.test(sbp12 ~ arm, data = itt, conf.int = TRUE)
+np_est &lt;- as.numeric(-np$estimate)
+np_ci  &lt;- as.numeric(-rev(np$conf.int))
+cat(sprintf(&quot;Hodges-Lehmann shift (Treatment - Control): %.1f mmHg\n&quot;, np_est))
+cat(sprintf(&quot;95%% CI: %.1f to %.1f mmHg | p = %.3g\n&quot;, np_ci[1], np_ci[2], np$p.value))
+#&gt; Hodges-Lehmann shift (Treatment - Control): -7.0 mmHg
+#&gt; 95% CI: -10.0 to -4.0 mmHg | p = 1.07e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The nonparametric shift is 7.0 mmHg lower, almost identical to the primary. The second check is the most useful one in practice: ANCOVA, which is a linear model for week-12 SBP with the arm and the baseline SBP as predictors. Adjusting for the starting value soaks up a big chunk of patient-to-patient variation, which usually shrinks the confidence interval.</p>
+
+<div class="webr-container" data-block-title="Robustness check 2: ANCOVA adjusting for baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robustness check 2: ANCOVA adjusting for baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ancova &lt;- lm(sbp12 ~ arm + base_sbp, data = itt)
+ct &lt;- summary(ancova)$coefficients
+ci_arm &lt;- confint(ancova)
+ancova_out &lt;- data.frame(
+  term      = rownames(ct),
+  estimate  = round(ct[, &quot;Estimate&quot;], 3),
+  std_error = round(ct[, &quot;Std. Error&quot;], 3),
+  conf_low  = round(ci_arm[, 1], 2),
+  conf_high = round(ci_arm[, 2], 2),
+  p_value   = signif(ct[, &quot;Pr(&gt;|t|)&quot;], 3),
+  row.names = NULL
+)
+ancova_out
+adj_est &lt;- ct[&quot;armTreatment&quot;, &quot;Estimate&quot;]; adj_lo &lt;- ci_arm[&quot;armTreatment&quot;, 1]
+adj_hi &lt;- ci_arm[&quot;armTreatment&quot;, 2];       adj_p  &lt;- ct[&quot;armTreatment&quot;, &quot;Pr(&gt;|t|)&quot;]
+#&gt;           term estimate std_error conf_low conf_high  p_value
+#&gt; 1  (Intercept)   35.749     5.156    25.60     45.90 2.83e-11
+#&gt; 2 armTreatment   -6.962     0.998    -8.93     -5.00 2.15e-11
+#&gt; 3     base_sbp    0.742     0.034     0.67      0.81 8.43e-62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>armTreatment</code> row is our adjusted effect: 7.0 mmHg lower, with a 95% interval from 8.9 to 5.0. Look at the standard error, 0.998, versus the primary test's, which we will confirm is much larger in a moment. Adjusting for baseline SBP made the estimate more precise without changing its size. The third check is per-protocol: analyze only patients who completed and adhered. This answers "how well does the program work when actually followed," a fair question, but a fragile one, because adherers are self-selected and no longer a randomized comparison.</p>
+
+<div class="webr-container" data-block-title="Robustness check 3: per-protocol sensitivity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robustness check 3: per-protocol sensitivity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp &lt;- subset(trial, completed == 1 &amp; adherent == 1 &amp; !is.na(sbp12))
+pp_test &lt;- t.test(sbp12 ~ arm, data = pp)
+mpp &lt;- tapply(pp$sbp12, pp$arm, mean)
+pp_delta &lt;- as.numeric(mpp[&quot;Treatment&quot;] - mpp[&quot;Control&quot;])
+pp_ci &lt;- as.numeric(-rev(pp_test$conf.int))
+cat(sprintf(&quot;Per-protocol n: %d\n&quot;, nrow(pp)))
+cat(sprintf(&quot;Effect: %.1f mmHg | 95%% CI: %.1f to %.1f | p = %.3g\n&quot;,
+            pp_delta, pp_ci[1], pp_ci[2], pp_test$p.value))
+#&gt; Per-protocol n: 259
+#&gt; Effect: -7.7 mmHg | 95% CI: -11.1 to -4.4 | p = 6.7e-06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-protocol shows a slightly larger 7.7 mmHg because it keeps only the full-benefit adherers. That larger number is not "more correct," it answers a different, easier question than intention-to-treat. Now line all four analyses up in one table.</p>
+
+<div class="webr-container" data-block-title="Compare all four analyses side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all four analyses side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results &lt;- data.frame(
+  analysis = c(&quot;Primary (Welch t-test, ITT)&quot;,
+               &quot;Nonparametric (Wilcoxon, ITT)&quot;,
+               &quot;ANCOVA (baseline-adjusted, ITT)&quot;,
+               &quot;Per-protocol (Welch t-test)&quot;),
+  estimate = round(c(delta, np_est, adj_est, pp_delta), 1),
+  ci_low   = round(c(ci[1], np_ci[1], adj_lo, pp_ci[1]), 1),
+  ci_high  = round(c(ci[2], np_ci[2], adj_hi, pp_ci[2]), 1),
+  p_value  = signif(c(primary$p.value, np$p.value, adj_p, pp_test$p.value), 3),
+  row.names = NULL
+)
+results
+#&gt;                          analysis estimate ci_low ci_high  p_value
+#&gt; 1     Primary (Welch t-test, ITT)     -7.2  -10.4    -4.0 1.40e-05
+#&gt; 2   Nonparametric (Wilcoxon, ITT)     -7.0  -10.0    -4.0 1.07e-05
+#&gt; 3 ANCOVA (baseline-adjusted, ITT)     -7.0   -8.9    -5.0 2.15e-11
+#&gt; 4     Per-protocol (Welch t-test)     -7.7  -11.1    -4.4 6.70e-06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every method points the same way, an effect near 7 mmHg lower, all significant. The four estimates read even more clearly as a forest plot, where each dot is an estimate and each line is its confidence interval.</p>
+
+<div class="webr-container" data-block-title="Draw a forest plot of the four estimates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw a forest plot of the four estimates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results$analysis &lt;- factor(results$analysis, levels = rev(results$analysis))
+p_forest &lt;- ggplot(results, aes(estimate, analysis)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;grey60&quot;) +
+  geom_pointrange(aes(xmin = ci_low, xmax = ci_high), color = &quot;#4C6EF5&quot;) +
+  labs(x = &quot;Effect on week-12 SBP (mmHg), Treatment - Control&quot;, y = NULL,
+       title = &quot;Four analyses, one conclusion&quot;) +
+  theme_minimal()
+p_forest</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four intervals sit entirely to the left of the dashed zero line, so no reasonable analyst would look at this and conclude "no effect." That agreement is the real prize of a <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">sensitivity analysis</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>When the prespecified primary and every sensitivity analysis agree, your conclusion is robust.</strong> The ANCOVA also shows why adjustment is worth planning: by explaining part of the outcome with the baseline value, it cut the standard error by nearly 40% and tightened the interval, all without touching the point estimate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The payoff of ANCOVA is precision. Pull the standard error of the treatment effect from the ANCOVA model and from the primary t-test, and compare them.</p>
+<div class="webr-container" data-block-title="Your turn: compare the standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare the standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The ANCOVA SE is coef(summary(ancova))[&quot;armTreatment&quot;, &quot;Std. Error&quot;].
+# The primary t-test SE is primary$stderr. Round both and compare.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standard error comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard error comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ancova_se &lt;- coef(summary(ancova))[&quot;armTreatment&quot;, &quot;Std. Error&quot;]
+ex_primary_se &lt;- primary$stderr
+round(c(ancova_se = ex_ancova_se, primary_se = ex_primary_se), 3)
+#&gt;  ancova_se primary_se
+#&gt;      0.998      1.629</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ANCOVA standard error (0.998) is much smaller than the unadjusted one (1.629). A smaller standard error means a narrower confidence interval and more power, which is exactly why prespecified baseline adjustment is standard practice in trials.</p>
+
+</details>
+</section>
+
+<h2>How do we report this honestly, and what can it not claim?</h2>
+
+<p>A good report gives the effect in plain language, quantifies the uncertainty, and states clearly what the study cannot say. Start with a standardized effect size so readers can compare this result to studies with different scales. <a class="auto-link" href="Statistical-Power-Analysis-in-R.html" title="Power Analysis in R: Calculate the Sample Size You Need Before You Collect Any Data">Cohen's d</a> divides the raw effect by the pooled standard deviation:</p>
+
+<p>$$d = \frac{\bar{x}_\text{treatment} - \bar{x}_\text{control}}{s_\text{pooled}}$$</p>
+
+<p>Where $s_\text{pooled}$ is the standard deviation pooled across both arms. We convert our 7.2 mmHg effect and its interval into d.</p>
+
+<div class="webr-container" data-block-title="Standardize the effect with Cohen&#x27;s d">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize the effect with Cohen&#x27;s d</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nc &lt;- sum(itt$arm == &quot;Control&quot;); nt &lt;- sum(itt$arm == &quot;Treatment&quot;)
+vc &lt;- var(itt$sbp12[itt$arm == &quot;Control&quot;])
+vt &lt;- var(itt$sbp12[itt$arm == &quot;Treatment&quot;])
+pooled_sd &lt;- sqrt(((nc - 1) * vc + (nt - 1) * vt) / (nc + nt - 2))
+d &lt;- delta / pooled_sd
+d_ci &lt;- ci / pooled_sd
+cat(sprintf(&quot;Pooled SD: %.1f mmHg\n&quot;, pooled_sd))
+cat(sprintf(&quot;Cohen's d: %.2f (95%% CI %.2f to %.2f)\n&quot;, d, d_ci[1], d_ci[2]))
+#&gt; Pooled SD: 13.7 mmHg
+#&gt; Cohen's d: -0.53 (95% CI -0.76 to -0.29)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A Cohen's d of 0.53 is a medium-sized effect by the usual convention. In plain words: "The program lowered week-12 systolic blood pressure by 7.2 mmHg on average (95% CI 4.0 to 10.4 mmHg), a medium effect of about half a standard deviation." The confidence interval carries the uncertainty, so we never report the point estimate alone. For more on choosing and reading these, see <a href="Effect-Size-in-R.html">effect size in R</a>.</p>
+
+<p>Every trial report also shows where participants went, from randomization to analysis. This is the CONSORT-style flow, and reviewers expect it. We count patients at each stage from our own data.</p>
+
+<div class="webr-container" data-block-title="Build the CONSORT-style participant flow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the CONSORT-style participant flow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flow &lt;- data.frame(
+  stage = c(&quot;Randomized&quot;, &quot;Completed week 12&quot;,
+            &quot;Analyzed (ITT)&quot;, &quot;Per-protocol set&quot;),
+  Control = c(
+    sum(trial$arm == &quot;Control&quot;),
+    sum(trial$arm == &quot;Control&quot; &amp; trial$completed == 1),
+    sum(trial$arm == &quot;Control&quot; &amp; !is.na(trial$sbp12)),
+    sum(trial$arm == &quot;Control&quot; &amp; trial$completed == 1 &amp; trial$adherent == 1)),
+  Treatment = c(
+    sum(trial$arm == &quot;Treatment&quot;),
+    sum(trial$arm == &quot;Treatment&quot; &amp; trial$completed == 1),
+    sum(trial$arm == &quot;Treatment&quot; &amp; !is.na(trial$sbp12)),
+    sum(trial$arm == &quot;Treatment&quot; &amp; trial$completed == 1 &amp; trial$adherent == 1))
+)
+flow
+#&gt;               stage Control Treatment
+#&gt; 1        Randomized     150       150
+#&gt; 2 Completed week 12     142       141
+#&gt; 3    Analyzed (ITT)     142       141
+#&gt; 4  Per-protocol set     138       121</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table tells an honest story about attrition. Both arms started at 150. Completion was similar, but the per-protocol set drops much further in the treatment arm (121 versus 138), because adherence was harder there. That gap is exactly why the per-protocol analysis is a sensitivity check and not the headline.</p>
+
+<p><img src="screenshots/Clinical-Comparison-Capstone-in-R-consort-flow.webp" alt="CONSORT-style participant flow with the real completion counts." class="img-responsive img-zoomable" loading="lazy" width="916" height="1150" /></p>
+
+<p><em>Figure 3: CONSORT-style participant flow with the real completion counts.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Per-protocol results can exaggerate a treatment because adherers are self-selected.</strong> People who complete a program often differ from those who quit in ways you did not measure, so comparing adherent-treatment against adherent-control breaks the randomization that made the comparison fair. Report it, but let the intention-to-treat result lead.</div></div>
+
+<p>What can this study not claim? It cannot promise the same 7 mmHg in a different population, since our patients were sampled from one recipe. It cannot attribute the effect to any single ingredient of the program, only to the whole package versus standard care. And being one simulated trial, it stands as one piece of evidence, not a final verdict. Naming these limits is not weakness, it is what makes the positive result credible.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the CONSORT flow you often report how many were lost to follow-up in each arm. Count the patients per arm who did not complete week 12.</p>
+<div class="webr-container" data-block-title="Your turn: count patients lost to follow-up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count patients lost to follow-up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lost to follow-up means completed == 0. Count per arm.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lost to follow-up solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lost to follow-up solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lost &lt;- data.frame(
+  arm = c(&quot;Control&quot;, &quot;Treatment&quot;),
+  lost = c(sum(trial$arm == &quot;Control&quot; &amp; trial$completed == 0),
+           sum(trial$arm == &quot;Treatment&quot; &amp; trial$completed == 0))
+)
+ex_lost
+#&gt;         arm lost
+#&gt; 1   Control    8
+#&gt; 2 Treatment    9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Eight controls and nine treatment patients were lost, close to balanced, which is what you hope for. Very lopsided dropout would itself threaten the comparison.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These bring several pieces of the workflow together. Use fresh variable names so you do not overwrite the objects built above.</p>
+
+<h3>Exercise 1: Analyze the change from baseline</h3>
+
+<p>The change from baseline (week-12 SBP minus baseline SBP) is a common secondary endpoint. Using the <code>itt</code> data, compute the mean change for each arm and the difference between arms. Does the between-arm difference roughly match the primary effect of about 7 mmHg?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute itt$sbp12 - itt$base_sbp, average within arm with tapply(),
+# then take Treatment minus Control.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_change &lt;- itt$sbp12 - itt$base_sbp
+my_means &lt;- tapply(my_change, itt$arm, mean)
+my_diff &lt;- as.numeric(my_means[&quot;Treatment&quot;] - my_means[&quot;Control&quot;])
+round(my_means, 1)
+round(my_diff, 1)
+#&gt;   Control Treatment
+#&gt;      -2.8      -9.7
+#&gt; [1] -6.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Control SBP fell 2.8 mmHg on its own (regression to the mean plus being in a trial), treatment fell 9.7 mmHg, and the 6.9 mmHg gap matches the primary analysis. Analyzing change and analyzing the week-12 level agree because randomization balanced the baseline.</p>
+
+</details>
+
+<h3>Exercise 2: A richer ANCOVA</h3>
+
+<p>Our age variable showed a small chance imbalance. Fit an ANCOVA that adjusts for baseline SBP plus age and BMI, and read off the treatment estimate and its standard error. Does adding those covariates change the effect much?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit lm(sbp12 ~ arm + base_sbp + age + bmi, data = itt).
+# Then pull the &quot;armTreatment&quot; row of coef(summary(...)).
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ancova2 &lt;- lm(sbp12 ~ arm + base_sbp + age + bmi, data = itt)
+round(coef(summary(my_ancova2))[&quot;armTreatment&quot;, c(&quot;Estimate&quot;, &quot;Std. Error&quot;)], 3)
+#&gt;   Estimate Std. Error
+#&gt;     -7.155      1.009</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The adjusted effect is 7.2 mmHg lower with a standard error near 1.01, essentially unchanged from the baseline-only ANCOVA. When the extra covariates are balanced, adjusting for them barely moves the estimate, which is a good sign of a stable result.</p>
+
+</details>
+
+<h3>Exercise 3: Confirm your power by simulation</h3>
+
+<p>Trust the power calculation by testing it. Simulate 500 two-arm trials with 150 patients per arm, a true 8 mmHg effect, and an SD of 20, run a t-test on each, and report the fraction that reach significance. That fraction is the empirical power.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Write a function that simulates one trial and returns a t-test p-value,
+# then use replicate() 500 times and compute mean(pvals &lt; 0.05).
+# Set a seed first for reproducibility.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+sim_p &lt;- function() {
+  g &lt;- rep(c(&quot;C&quot;, &quot;T&quot;), each = 150)
+  y &lt;- rnorm(300, ifelse(g == &quot;T&quot;, -8, 0), 20)
+  t.test(y ~ g)$p.value
+}
+pvals &lt;- replicate(500, sim_p())
+mean(pvals &lt; 0.05)
+#&gt; [1] 0.934</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 93% of the simulated trials detected the effect, so the design is well powered for an 8 mmHg difference at this sample size. Simulation is a general way to check power for any design, even ones with no tidy formula.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between intention-to-treat and per-protocol?</h3>
+
+<p>Intention-to-treat analyzes every patient in the arm they were randomized to, regardless of whether they adhered, so it preserves randomization and answers "does offering this program help." Per-protocol keeps only patients who followed the protocol, which answers "does the program help when followed" but breaks the randomized comparison because adherers self-select. Intention-to-treat is the primary analysis; per-protocol is a supporting sensitivity check.</p>
+
+<h3>Why should I not run a t-test on baseline characteristics?</h3>
+
+<p>Because both arms were randomly drawn from the same population, any baseline difference is due to chance by construction, so a significance test answers a question with no meaning. This is the Table 1 fallacy. Report standardized mean differences instead, and flag any variable with an absolute SMD above 0.1 as one you may want to adjust for.</p>
+
+<h3>When should I use ANCOVA instead of a plain t-test?</h3>
+
+<p>Use ANCOVA whenever you have a baseline measurement of the outcome (or another strong prognostic covariate) recorded before randomization. Adjusting for it removes a large share of patient-to-patient variation, which shrinks the standard error and raises power, usually without changing the point estimate. Name the covariates in the protocol so the adjustment is prespecified, not fished for.</p>
+
+<h3>Should the primary test be one-sided or two-sided?</h3>
+
+<p>Almost always two-sided. A two-sided test allows for the possibility that the treatment could help or harm, which is the honest default, and it is what regulators and journals expect. We prespecified two-sided at alpha 0.05, and you should have a strong, written reason before choosing one-sided.</p>
+
+<h3>Why report a confidence interval when the p-value is already tiny?</h3>
+
+<p>The p-value only tells you the result is unlikely under "no effect." The confidence interval tells you the range of effect sizes the data support, so you can judge whether the effect is large enough to matter, not just whether it is nonzero. A result can be highly significant yet too small to be worth acting on, and only the interval reveals that.</p>
+
+<h3>Does this analysis prove the program causes lower blood pressure?</h3>
+
+<p>Within this one randomized trial, the comparison supports a causal reading, because randomization makes the arms exchangeable at baseline. But it cannot promise the same effect in a different population, cannot credit any single component of the program, and is one study rather than a body of evidence. State those limits alongside the result.</p>
+
+<h2>Summary</h2>
+
+<p>This capstone ran a two-arm comparison the way a trial statistician would, holding a hard line between what was decided in advance and what the data suggested afterward.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Stage</th>
+<th>What we did</th>
+<th>Key output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Protocol</td>
+<td>Fixed hypothesis, endpoint, alpha, and primary test before data</td>
+<td>The locked protocol table</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>Sized the study from a 5 mmHg minimally important difference</td>
+<td>142 per arm for 80% power</td>
+</tr>
+<tr>
+<td>Baseline</td>
+<td>Compared arms with standardized mean differences, not tests</td>
+<td>SMDs mostly below 0.1</td>
+</tr>
+<tr>
+<td>Primary</td>
+<td>Prespecified <a class="auto-link" href="t-Test-Exercises-in-R.html" title="t-Test Exercises in R: 12 One, Two & Paired Sample Problems, Solved Step-by-Step">Welch t-test</a>, intention-to-treat</td>
+<td>7.2 mmHg lower (95% CI 4.0 to 10.4)</td>
+</tr>
+<tr>
+<td>Robustness</td>
+<td>Wilcoxon, ANCOVA, and per-protocol sensitivity checks</td>
+<td>All agree near 7 mmHg</td>
+</tr>
+<tr>
+<td>Reporting</td>
+<td>Cohen's d, CONSORT flow, and honest limits</td>
+<td>d = 0.53, medium effect</td>
+</tr>
+</tbody>
+</table>
+
+<p>The single most transferable idea is the spine: prespecify the endpoint, the test, and the alpha, then let the primary analysis lead and treat everything data-driven as support or exploration. That discipline is what separates a credible group comparison from a story fitted to the numbers, and it applies to any two-arm evaluation you run.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <code>power.t.test</code> documentation, the stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html">Link</a></li>
+
+<li>Robinson, D., Hayes, A., and Couch, S. broom: tidy statistical model output. <a href="https://broom.tidyverse.org/reference/tidy.htest.html">Link</a></li>
+
+<li>Pijls, B. G. The Table 1 Fallacy: significance testing of baseline covariate imbalance in randomised trials. PMC. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11512581/">Link</a></li>
+
+<li>Kassambara, A. ANCOVA in R: The Ultimate Practical Guide. Datanovia. <a href="https://www.datanovia.com/en/lessons/ancova-in-r/">Link</a></li>
+
+<li>CONSORT Group. The CONSORT Statement for reporting randomised trials. <a href="https://www.consort-statement.org/">Link</a></li>
+
+<li>EQUATOR Network. CONSORT reporting guidelines. <a href="https://www.equator-network.org/reporting-guidelines/consort/">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., and Grolemund, G. R for Data Science, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Statistical-Power-Analysis-in-R.html">Statistical Power Analysis in R</a> goes deeper on sizing a study before you collect a single data point.</li>
+
+<li><a href="ANCOVA-in-R.html">ANCOVA in R</a> unpacks the baseline-adjusted model that tightened our confidence interval.</li>
+
+<li><a href="Effect-Size-in-R.html">Effect Size in R</a> explains how to choose, compute, and interpret standardized effects like Cohen's d.</li>
+
+</ul>
+
+{% endraw %}
