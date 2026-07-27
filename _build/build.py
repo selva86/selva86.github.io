@@ -1334,6 +1334,80 @@ MATHJAX_BLOCK = """
 """
 
 
+POST_DATES_PATH = os.path.join(REPO_ROOT, '_build', 'post-dates.json')
+VERIFIED_PATH = os.path.join(REPO_ROOT, '_build', 'verified.json')
+_POST_DATES = None
+_VERIFIED = None
+_AUTOLINK_STRIP_RE = re.compile(r'<a class="auto-link"[^>]*>(.*?)</a>', re.S)
+
+
+def _normalized_fragment_hash(text):
+    """Content hash of a fragment, blind to the churn that must never move a
+    date: auto-link anchors (kept as their inner text), the auto Further
+    Reading block, and whitespace. Only a real prose/code edit changes it."""
+    import hashlib
+    body = text.split('---', 2)[-1]
+    body = _AUTOLINK_STRIP_RE.sub(r'\1', body)
+    body = re.sub(r'<div id="auto-further-reading">.*$', '', body, flags=re.S)
+    body = re.sub(r'\s+', ' ', body).strip()
+    return hashlib.md5(body.encode('utf-8')).hexdigest()[:12]
+
+
+def get_verified():
+    global _VERIFIED
+    if _VERIFIED is None:
+        try:
+            with open(VERIFIED_PATH, encoding='utf-8') as f:
+                _VERIFIED = json.load(f)
+        except Exception:
+            _VERIFIED = {}
+    return _VERIFIED
+
+
+def get_post_dates():
+    """Committed dates ledger: slug -> {published, updated, h}. On local
+    builds, advance 'updated' for any fragment whose normalized hash changed.
+    On CI (Cloudflare clones every file fresh), the ledger is read-only, so
+    rebuilds and sweeps can never move a visible date again."""
+    global _POST_DATES
+    if _POST_DATES is not None:
+        return _POST_DATES
+    try:
+        with open(POST_DATES_PATH, encoding='utf-8') as f:
+            ledger = json.load(f)
+    except Exception:
+        ledger = {}
+    if not (os.environ.get('CF_PAGES') or os.environ.get('CI')):
+        today = datetime.date.today().isoformat()
+        changed = False
+        for fn in sorted(os.listdir(POSTS_DIR)):
+            if not fn.endswith('.html'):
+                continue
+            try:
+                with open(os.path.join(POSTS_DIR, fn), encoding='utf-8') as f:
+                    txt = f.read()
+            except Exception:
+                continue
+            slug = fn[:-5]
+            h = _normalized_fragment_hash(txt)
+            e = ledger.get(slug)
+            if e is None:
+                m = re.search(r'^date:\s*"?(\d{4}-\d{2}-\d{2})"?', txt, re.M)
+                ledger[slug] = {'published': (m.group(1) if m else today),
+                                'updated': None, 'h': h}
+                changed = True
+            elif e.get('h') != h:
+                e['updated'] = today
+                e['h'] = h
+                changed = True
+        if changed:
+            with open(POST_DATES_PATH, 'w', encoding='utf-8', newline='\n') as f:
+                json.dump(ledger, f, indent=1, ensure_ascii=False)
+                f.write('\n')
+    _POST_DATES = ledger
+    return ledger
+
+
 def _format_byline_date(iso):
     try:
         d = datetime.date.fromisoformat(iso)
@@ -1342,17 +1416,43 @@ def _format_byline_date(iso):
         return iso
 
 
-def render_byline(date_published, date_modified, author='Selva Prabhakaran'):
-    pub = _format_byline_date(date_published)
-    upd = _format_byline_date(date_modified)
-    return (
+def _byline_month(iso):
+    try:
+        return datetime.date.fromisoformat(iso).strftime('%B %Y')
+    except Exception:
+        return iso
+
+
+def render_byline(date_published, date_modified, author='Selva Prabhakaran',
+                  verified_r=None):
+    # One date, month and year only. "Updated" appears only when a real
+    # revision landed 30+ days after publish; otherwise the publish date
+    # stands alone. The optional verified line replaces the old unconditional
+    # "Expert-reviewed" tick with the one claim the gate actually proves.
+    show_upd = False
+    try:
+        pub_d = datetime.date.fromisoformat(date_published)
+        upd_d = datetime.date.fromisoformat(date_modified) if date_modified else None
+        show_upd = bool(upd_d) and (upd_d - pub_d).days >= 30
+    except Exception:
+        pass
+    date_txt = ('Updated ' + _byline_month(date_modified)) if show_upd \
+        else _byline_month(date_published)
+    bottom = '4px' if verified_r else '18px'
+    html = (
         '<div class="post-byline" style="color:#6b7280;font-size:14px;'
-        'margin:2px 0 18px 0;line-height:1.5;">'
+        f'margin:2px 0 {bottom} 0;line-height:1.5;">'
         f'By <strong>{author}</strong>'
-        f' &nbsp;&middot;&nbsp; Published {pub}'
-        f' &nbsp;&middot;&nbsp; Last updated {upd}'
+        f' &nbsp;&middot;&nbsp; {date_txt}'
         '</div>'
     )
+    if verified_r:
+        html += (
+            '<div class="post-verified" style="color:#9aa1ad;'
+            'font-size:12.5px;margin:0 0 18px 0;">'
+            f'Code examples run against R {verified_r}</div>'
+        )
+    return html
 
 def make_webr_head_block(asset_hrefs):
     webr_css = asset_hrefs.get('webr.css', 'www/webr.css')
@@ -1626,10 +1726,12 @@ def build_post(
     force_og = '--force-og' in sys.argv
     generate_og_image(title, slug_no_ext, force=force_og)
 
-    # Date handling — use file mtime for dateModified (not today's date)
+    # Date handling — the committed ledger is the only source of truth.
+    # File mtimes are meaningless (sweeps + fresh CI clones reset them all).
+    _led = get_post_dates().get(slug_no_ext) or {}
     file_mtime = datetime.date.fromtimestamp(os.path.getmtime(post_path)).isoformat()
-    date_published = meta.get('date', file_mtime)
-    date_modified = file_mtime
+    date_published = _led.get('published') or meta.get('date', file_mtime)
+    date_modified = _led.get('updated') or date_published
 
     # Determine sidebar section for breadcrumbs
     section_title = ''
@@ -1737,7 +1839,9 @@ def build_post(
     # Preferred placement: immediately after the first `<p class="lead">...</p>` block,
     # so the snippet-eligible answer sits right under the H1 with no metadata between.
     # Fallback: after the first H1 if no lead paragraph is present.
-    byline_html = render_byline(date_published, date_modified)
+    byline_html = render_byline(
+        date_published, date_modified,
+        verified_r=(get_verified().get(slug_no_ext) or {}).get('r'))
     # A "try the interactive lesson" callout sits right under the byline on tutorial
     # pages that have a free interactive lesson (lesson-links.json).
     lesson_cta = lesson_callout_html(slug)
@@ -2265,7 +2369,10 @@ def update_sitemap(filenames):
     for fname in filenames:
         url = f"https://r-statistics.co/{fname}"
         post_path = os.path.join(POSTS_DIR, fname)
-        if os.path.exists(post_path):
+        _led = get_post_dates().get(fname[:-5]) if fname.endswith('.html') else None
+        if _led:
+            file_date = _led.get('updated') or _led.get('published')
+        elif os.path.exists(post_path):
             file_date = datetime.date.fromtimestamp(os.path.getmtime(post_path)).isoformat()
         else:
             file_date = datetime.date.today().isoformat()

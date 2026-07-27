@@ -50,10 +50,8 @@
     html += '<span class="av-sm">' + initials + '</span>';
     html += '<span class="who">' + author + '</span>';
     if (updatedDate) {
-      html += '<span class="dot">&bull;</span><span>Updated ' + updatedDate + '</span>';
+      html += '<span class="dot">&bull;</span><span>' + updatedDate + '</span>';
     }
-    html += '<span class="dot">&bull;</span>';
-    html += '<span class="rev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Reviewed</span>';
     if (readingTime) {
       html += '<span class="dot">&bull;</span>';
       html += '<span class="time"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg> ' + readingTime + ' min</span>';
@@ -79,11 +77,18 @@
       const text = oldByline.textContent || '';
       const am = text.match(/By\s+([^·•]+?)(?:\s*[·•]|$)/);
       if (am) author = am[1].trim();
-      const dm = text.match(/(?:Last updated|Updated)\s+([A-Z][a-z]+\.?\s+\d{1,2},?\s+\d{4})/i);
-      if (dm) updatedDate = formatDate(dm[1]);
+      // New server format: "Updated June 2026" or a bare "March 2025".
+      const dm = text.match(/Updated\s+([A-Z][a-z]+\s+\d{4})/);
+      if (dm) updatedDate = 'Updated ' + dm[1];
       else {
-        const pm = text.match(/Published\s+([A-Z][a-z]+\.?\s+\d{1,2},?\s+\d{4})/i);
-        if (pm) updatedDate = formatDate(pm[1]);
+        const bm = text.match(/([A-Z][a-z]+\s+\d{4})\s*$/);
+        if (bm) updatedDate = bm[1];
+        else {
+          // Transitional fallback for edge-cached pages with the old
+          // full-date byline: reduce it to month-year.
+          const om = text.match(/(?:Last updated|Published)\s+([A-Z][a-z]+)\s+\d{1,2},\s+(\d{4})/);
+          if (om) updatedDate = om[1] + ' ' + om[2];
+        }
       }
     }
 
@@ -101,6 +106,14 @@
     lead.insertAdjacentElement('afterend', newByline);
 
     if (oldByline) oldByline.remove();
+    // Keep the server-rendered verification line directly under the rebuilt
+    // byline; the actionbar then goes after it (via the returned anchor).
+    const ver = content.querySelector('.post-verified');
+    if (ver) {
+      ver.style.margin = '-6px 0 14px 0';
+      newByline.insertAdjacentElement('afterend', ver);
+      return ver;
+    }
     return newByline;
   }
 
