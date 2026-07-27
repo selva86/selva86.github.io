@@ -1,0 +1,842 @@
+---
+title: "Crossed vs Nested Random Effects in R"
+description: "Learn crossed vs nested random effects in R with lme4. Understand the difference, write the correct (1|a/b) formula, and avoid the implicit-nesting trap."
+keywords: "crossed vs nested random effects, nested random effects in R, crossed random effects, lme4 nested vs crossed, mixed models in R, lmer nested, implicit nesting, random effects structure, variance components"
+mathjax: true
+webr: true
+curriculum_id: "ST2-11.3"
+post_type: "C"
+auto_link_terms: "crossed vs nested random effects|nested random effects|crossed random effects|nested random effect|crossed random effect|implicit nesting|nested design|crossed design|nested vs crossed|random effects structure|crossed and nested"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Crossed vs Nested Effects"
+sidebar_order: "172"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Nested and <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">crossed random effects</a> describe two ways grouping factors can relate in a mixed model. Nested means each inner level sits inside exactly one outer level, like classes within schools. Crossed means the two factors overlap, like people who each answer every question. This guide builds both ideas from scratch on small datasets, shows the exact <code>lme4</code> formula for each, and walks you through the one mistake that quietly wrecks a nested model. It uses base R plus <code>lme4</code>, and every example runs right here in your browser.</p>
+
+<h2>What is the difference between crossed and nested random effects?</h2>
+
+<p>Real data almost never arrives as a flat list of independent rows. It comes in groups: pupils in classrooms, measurements from casks, ratings from people. A mixed model handles data like this by estimating how much the outcome shifts from one group to the next, and that group-to-group variation is what we call a random effect. Sometimes one grouping sits inside another, forming a hierarchy. Sometimes two groupings sit side by side and overlap. Getting that structure right matters, because the wrong choice silently changes your variance estimates. Let's make both structures concrete on a small, real dataset.</p>
+
+<p>We will start with <code>Pastes</code>, a dataset that ships with <code>lme4</code>. It records the <code>strength</code> of an industrial paste, delivered in <code>batch</code>es, with a few <code>cask</code>s sampled from each batch, and two strength tests per cask.</p>
+
+<div class="webr-container" data-block-title="Load lme4 and the Pastes data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lme4 and the Pastes data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lme4)
+data(&quot;Pastes&quot;)
+head(Pastes, 6)
+#&gt;   strength batch cask sample
+#&gt; 1     62.8     A    a    A:a
+#&gt; 2     62.6     A    a    A:a
+#&gt; 3     60.1     A    b    A:b
+#&gt; 4     62.3     A    b    A:b
+#&gt; 5     62.7     A    c    A:c
+#&gt; 6     63.1     A    c    A:c</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one strength test. <code>batch</code> is the delivery batch (labelled A to J), <code>cask</code> is which cask within that batch (labelled a, b, c), and <code>sample</code> is a combined label like <code>A:a</code> that names one physical cask. Notice the first six rows are all batch A, with casks a, b, and c. Let's count the levels to see the shape of the data.</p>
+
+<div class="webr-container" data-block-title="Count the grouping levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the grouping levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(batches = nlevels(Pastes$batch), casks_per_batch = nlevels(Pastes$cask),
+  physical_casks = nlevels(Pastes$sample), rows = nrow(Pastes))
+#&gt;         batches casks_per_batch  physical_casks            rows
+#&gt;              10               3              30              60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So there are 10 batches, 3 casks in each, which makes 30 physical casks, and 60 rows because each cask was tested twice. Here is the subtle part. The cask labels a, b, and c are reused in every batch, but cask "a" in batch A is a completely different physical cask from cask "a" in batch B. Each cask belongs to one and only one batch. That is nesting: the inner level (cask) lives inside exactly one outer level (batch).</p>
+
+<p>Crossing is the opposite picture. Imagine 20 people who each rate the same 5 films. Every person meets every film, so the "person" grouping and the "film" grouping overlap completely. Film 1 is the same film for all 20 raters. Neither factor sits inside the other; they cross.</p>
+
+<p><img src="screenshots/Crossed-vs-Nested-Effects-in-R-nested-vs-crossed.webp" alt="Nested groupings form a hierarchy where each inner level belongs to one outer level; crossed groupings overlap so both factors classify the same responses." class="img-responsive img-zoomable" loading="lazy" width="1420" height="786" /></p>
+
+<p><em>Figure 1: Nested groupings form a hierarchy; crossed groupings overlap.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Nested means "inside", crossed means "overlapping".</strong> In a nested design, each inner level appears with only one outer level, so the levels stack into a hierarchy. In a crossed design, each level of one factor appears with every level of the other, so the two factors sit side by side. Everything else in this guide follows from that one distinction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the nesting by counting how many distinct casks each batch actually contains. The helper <code>tapply()</code> runs a function within each batch, and <code>nlevels(droplevels(x))</code> counts the casks that are truly present.</p>
+<div class="webr-container" data-block-title="Your turn: casks per batch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: casks per batch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the function that counts distinct casks in each batch.
+# with(Pastes, tapply(cask, batch, function(x) nlevels(droplevels(___))))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Casks per batch solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Casks per batch solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">with(Pastes, tapply(cask, batch, function(x) nlevels(droplevels(x))))
+#&gt; A B C D E F G H I J
+#&gt; 3 3 3 3 3 3 3 3 3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every batch contains exactly 3 casks. Because those casks are different physical objects in each batch, cask is nested within batch, giving 10 times 3 equals 30 distinct casks in total.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a nested random effects model?</h2>
+
+<p>To fit a nested model you use <code>lmer()</code>, the main function for fitting mixed models in <code>lme4</code>. There is no fixed predictor here, just the overall average, so the formula is <code>strength ~ 1</code>, where the <code>1</code> stands for that single intercept. The random part goes in parentheses, and the bar <code>|</code> means "grouped by" the factor on its right. For nesting, <code>lme4</code> gives you a shortcut: write <code>(1 | batch/cask)</code>, which reads as "a per-group intercept for cask nested within batch". Let's fit it and read the output.</p>
+
+<div class="webr-container" data-block-title="Fit a nested model with (1 | batch/cask)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a nested model with (1 | batch/cask)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested &lt;- lmer(strength ~ 1 + (1 | batch/cask), data = Pastes)
+summary(nested)
+#&gt; Linear mixed model fit by REML ['lmerMod']
+#&gt; Formula: strength ~ 1 + (1 | batch/cask)
+#&gt;    Data: Pastes
+#&gt;
+#&gt; REML criterion at convergence: 247
+#&gt;
+#&gt; Scaled residuals:
+#&gt;     Min      1Q  Median      3Q     Max
+#&gt; -1.4798 -0.5156  0.0095  0.4720  1.3897
+#&gt;
+#&gt; Random effects:
+#&gt;  Groups     Name        Variance Std.Dev.
+#&gt;  cask:batch (Intercept) 8.434    2.9041
+#&gt;  batch      (Intercept) 1.657    1.2874
+#&gt;  Residual               0.678    0.8234
+#&gt; Number of obs: 60, groups:  cask:batch, 30; batch, 10
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error t value
+#&gt; (Intercept)  60.0533     0.6769   88.72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The "Random effects" block is where the structure shows up, and it has three rows. The <code>cask:batch</code> row is the variation from one cask to another within a batch, with a standard deviation of about 2.9. The <code>batch</code> row is the variation from one whole batch to another, with a standard deviation of about 1.3. The <code>Residual</code> row is the leftover test-to-test noise inside a single cask, at about 0.8. The single fixed effect, the intercept of 60.05, is just the overall average paste strength.</p>
+
+<p>Reading those three numbers is the payoff. Most of the variation lives at the cask level, not the batch level, which tells you that casks within a batch differ more than batches differ from each other. That is a real, actionable finding about where the inconsistency in this paste comes from.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>lme4 labels the inner group cask:batch, not cask.</strong> The colon means "the combination of cask and batch", which is exactly the 30 unique physical casks. The label looks odd at first, but it is <code>lme4</code> being precise: it built a fresh grouping that respects the nesting, rather than pooling the three cask letters.</div></div>
+
+<p>The slash is only a shortcut. Under the hood, <code>(1 | batch/cask)</code> expands into two separate terms: one for the batch and one for the cask-within-batch combination. Writing those two terms out by hand gives an identical fit.</p>
+
+<div class="webr-container" data-block-title="The slash is shorthand for two terms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The slash is shorthand for two terms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested2 &lt;- lmer(strength ~ 1 + (1 | batch) + (1 | batch:cask), data = Pastes)
+print(VarCorr(nested2), comp = c(&quot;Variance&quot;, &quot;Std.Dev.&quot;))
+#&gt;  Groups     Name        Variance Std.Dev.
+#&gt;  batch:cask (Intercept) 8.4337   2.90408
+#&gt;  batch      (Intercept) 1.6573   1.28736
+#&gt;  Residual               0.6780   0.82341</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The variances match the previous fit to the last decimal. The term <code>(1 | batch:cask)</code> builds a random effect for each unique batch-and-cask combination, which is precisely the nesting. So <code>(1 | batch/cask)</code> and <code>(1 | batch) + (1 | batch:cask)</code> are two spellings of the same model.</p>
+
+<p><img src="screenshots/Crossed-vs-Nested-Effects-in-R-formula-map.webp" alt="Each grouping structure maps to a specific lme4 random-effects formula: a slash for nesting, two separate bar terms for crossing." class="img-responsive img-zoomable" loading="lazy" width="1912" height="690" /></p>
+
+<p><em>Figure 2: How each structure maps to an lme4 random-effects formula.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>VarCorr()</code> output is nice to read but hard to compute with. Turn it into a plain data frame with <code>as.data.frame()</code> and print the group, variance, and standard-deviation columns.</p>
+<div class="webr-container" data-block-title="Your turn: variance as a table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: variance as a table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># as.data.frame(VarCorr(model)) returns a tidy data frame.
+# Print the grp, vcov, and sdcor columns for the nested fit.
+# as.data.frame(VarCorr(nested))[, c(&quot;grp&quot;, &quot;vcov&quot;, &quot;___&quot;)]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Variance table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.data.frame(VarCorr(nested))[, c(&quot;grp&quot;, &quot;vcov&quot;, &quot;sdcor&quot;)]
+#&gt;          grp      vcov     sdcor
+#&gt; 1 cask:batch 8.4336659 2.9040775
+#&gt; 2      batch 1.6573109 1.2873659
+#&gt; 3   Residual 0.6779999 0.8234075</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>vcov</code> column is the variance and <code>sdcor</code> is the standard deviation. Having them as a data frame lets you do arithmetic on them, which we will use later to compute variance shares.</p>
+
+</details>
+</section>
+
+<h2>How do you fit crossed random effects?</h2>
+
+<p>Now let's switch to a genuinely crossed design. The clearest way to see crossing is to build it, so we will simulate a small study where 24 people each rate 12 items, and every person rates every item exactly once. Each score is the sum of a person effect, an item effect, and some noise. We fix the random seed so you get the same numbers every time.</p>
+
+<div class="webr-container" data-block-title="Simulate a crossed subjects-by-items design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate a crossed subjects-by-items design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2011)
+n_subj &lt;- 24; n_item &lt;- 12
+crossed_df &lt;- expand.grid(subject = factor(sprintf(&quot;S%02d&quot;, 1:n_subj)),
+                          item    = factor(sprintf(&quot;I%02d&quot;, 1:n_item)))
+subj_shift &lt;- rnorm(n_subj, 0, 30)
+item_shift &lt;- rnorm(n_item, 0, 20)
+crossed_df$score &lt;- round(500 +
+  subj_shift[as.integer(crossed_df$subject)] +
+  item_shift[as.integer(crossed_df$item)] +
+  rnorm(nrow(crossed_df), 0, 25), 1)
+head(crossed_df, 5)
+#&gt;   subject item score
+#&gt; 1     S01  I01 502.8
+#&gt; 2     S02  I01 502.9
+#&gt; 3     S03  I01 511.1
+#&gt; 4     S04  I01 487.5
+#&gt; 5     S05  I01 550.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one person responding to one item. The <code>expand.grid()</code> call creates every subject-and-item combination, and the score is built from a subject shift plus an item shift plus random noise. Now let's confirm the crossing by tabulating subjects against items.</p>
+
+<div class="webr-container" data-block-title="Every subject meets every item">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Every subject meets every item</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(crossed_df$subject, crossed_df$item)[1:5, 1:6]
+#&gt;
+#&gt;       I01 I02 I03 I04 I05 I06
+#&gt;   S01   1   1   1   1   1   1
+#&gt;   S02   1   1   1   1   1   1
+#&gt;   S03   1   1   1   1   1   1
+#&gt;   S04   1   1   1   1   1   1
+#&gt;   S05   1   1   1   1   1   1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every cell is 1, meaning each subject appears with each item. And crucially, item <code>I01</code> is the same physical item shown to all 24 subjects, unlike cask "a" which was a different cask in every batch. That shared identity is what makes subjects and items truly crossed. You fit crossed random effects with two separate bar terms, one per factor.</p>
+
+<div class="webr-container" data-block-title="Fit crossed random effects with two bar terms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit crossed random effects with two bar terms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">crossed &lt;- lmer(score ~ 1 + (1 | subject) + (1 | item), data = crossed_df)
+print(VarCorr(crossed), comp = c(&quot;Variance&quot;, &quot;Std.Dev.&quot;))
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  subject  (Intercept) 504.17   22.454
+#&gt;  item     (Intercept) 272.72   16.514
+#&gt;  Residual             677.53   26.029</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are now two grouping rows sitting side by side, <code>subject</code> and <code>item</code>, plus the residual. Neither is nested in the other. The subject standard deviation of 22.5 says people differ from each other by that much on average, and the item standard deviation of 16.5 says items differ by a bit less. The model estimated both, at the same time, from the same data. Let's confirm how many groups sit on each side.</p>
+
+<div class="webr-container" data-block-title="Count the groups on each side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the groups on each side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ngrps(crossed)
+#&gt; subject    item
+#&gt;      24      12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 24 subject groups and 12 item groups, exactly the design we built. Compare that to the nested Pastes model, where the inner group count was 30, equal to 10 batches times 3 casks. In a crossed design the two counts are independent; in a nested design the inner count is the outer count multiplied through.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Crossed factors give you two parallel <a class="auto-link" href="Random-Intercepts-and-Slopes-in-R.html" title="Random Intercepts and Slopes with lme4 in R">variance components</a>; nested factors give you a variance at each level of a hierarchy.</strong> In the crossed model, subject variance and item variance are two independent bar terms. In the nested model, batch variance and cask-within-batch variance describe two rungs of the same ladder. The syntax mirrors the structure: two plain bar terms for crossing, a slash for nesting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the two variance components as standard deviations to decide which side varies more. Pull the tidy <code>VarCorr()</code> frame and print its group and <code>sdcor</code> columns.</p>
+<div class="webr-container" data-block-title="Your turn: which side varies more">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: which side varies more</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># as.data.frame(VarCorr()) gives a tidy frame; the sdcor column holds the SDs.
+# as.data.frame(VarCorr(crossed))[, c(&quot;grp&quot;, &quot;___&quot;)]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Variance components solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance components solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.data.frame(VarCorr(crossed))[, c(&quot;grp&quot;, &quot;sdcor&quot;)]
+#&gt;        grp    sdcor
+#&gt; 1  subject 22.45375
+#&gt; 2     item 16.51413
+#&gt; 3 Residual 26.02938</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subjects vary more than items, with standard deviations of 22.5 against 16.5. The residual of 26.0 is the noise left after accounting for both the person and the item.</p>
+
+</details>
+</section>
+
+<p>If you like seeing the models written out, here is the contrast in symbols. For the nested paste strength $y$ of cask $j$ inside batch $i$ on test $k$, and for the crossed rating $y$ by subject $s$ of item $t$:</p>
+
+<p>$$y_{ijk} = \beta_0 + b_i + b_{ij} + \epsilon_{ijk} \qquad\qquad y_{st} = \beta_0 + a_s + c_t + \epsilon_{st}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\beta_0$ = the overall average, shared by both models</li>
+
+<li>$b_i$ and $b_{ij}$ = the batch shift and the cask-within-batch shift; the shared index $i$ is the hierarchy</li>
+
+<li>$a_s$ and $c_t$ = the subject shift and the item shift; the separate indices $s$ and $t$ are the crossing</li>
+
+<li>$\epsilon$ = the leftover noise</li>
+
+</ul>
+
+<p>If formulas are not your thing, skip past the equation; the two model fits above already gave you the same information. The one thing worth noticing is the indices: nested effects share an index and stack, while crossed effects use independent indices and overlap.</p>
+
+<h2>How can you tell crossed and nested apart?</h2>
+
+<p>Here is the trap that catches almost everyone. The <code>lme4</code> package does not have a separate engine for nested and crossed models. It reads the structure straight from your factor labels. So if the labels are reused, like the casks a, b, c that repeat in every batch, and you write the crossed formula, <code>lme4</code> will believe there are only three casks in the entire dataset. Let's watch it go wrong.</p>
+
+<div class="webr-container" data-block-title="The wrong formula treats casks as crossed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The wrong formula treats casks as crossed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wrong &lt;- lmer(strength ~ 1 + (1 | batch) + (1 | cask), data = Pastes)
+print(VarCorr(wrong), comp = c(&quot;Variance&quot;, &quot;Std.Dev.&quot;))
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  batch    (Intercept) 3.36387  1.83409
+#&gt;  cask     (Intercept) 0.14866  0.38557
+#&gt;  Residual             7.30600  2.70296</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare this to the correct nested fit. The cask standard deviation collapsed from 2.90 down to 0.39, and the residual jumped from 0.82 up to 2.70. The real cask-to-cask variation did not disappear: because the wrong formula pooled the casks into just three groups, the differences between casks in the same batch had nowhere to go and were absorbed into the residual instead. Counting the groups shows exactly what happened.</p>
+
+<div class="webr-container" data-block-title="Only three cask groups, not thirty">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Only three cask groups, not thirty</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ngrps(wrong)
+#&gt; batch  cask
+#&gt;    10     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model found only 3 cask groups instead of 30. It treated the three labels a, b, and c as if cask "a" were a single cask crossed with all ten batches. That is the implicit-nesting trap, and it silently gives you wrong variance estimates with no error message.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Reused inner labels make lme4 mistake nesting for crossing.</strong> If your inner grouping labels repeat across the outer groups (cask a in every batch, class 1 in every school), the crossed formula <code>(1 | outer) + (1 | inner)</code> collapses all the inner levels into a handful of label groups. Always check <code>ngrps()</code> against the number of distinct inner units you expect.</div></div>
+
+<p><img src="screenshots/Crossed-vs-Nested-Effects-in-R-decision-flow.webp" alt="A quick decision test: if each inner level appears in only one outer level, the design is nested; otherwise it is crossed." class="img-responsive img-zoomable" loading="lazy" width="1012" height="1438" /></p>
+
+<p><em>Figure 3: A quick test for whether your factors are crossed or nested.</em></p>
+
+<p>There are two clean fixes. The first is the slash notation you already know, <code>(1 | batch/cask)</code>, which builds the correct groups for you. The second is to give the inner units unique labels so the plain crossed formula works. The <code>Pastes</code> data already includes such a column, <code>sample</code>, which holds labels like <code>A:a</code> and <code>B:a</code> that never repeat.</p>
+
+<div class="webr-container" data-block-title="Unique labels fix it automatically">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unique labels fix it automatically</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fixed &lt;- lmer(strength ~ 1 + (1 | batch) + (1 | sample), data = Pastes)
+print(VarCorr(fixed), comp = c(&quot;Variance&quot;, &quot;Std.Dev.&quot;))
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  sample   (Intercept) 8.4337   2.90408
+#&gt;  batch    (Intercept) 1.6573   1.28736
+#&gt;  Residual             0.6780   0.82341</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>These variances are identical to the nested fit from earlier. With unique labels, the plain crossed formula <code>(1 | batch) + (1 | sample)</code> recovers the exact nested model, because there are now 30 distinct sample labels for the 30 physical casks. Let's look at those labels.</p>
+
+<div class="webr-container" data-block-title="The sample column already has unique labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The sample column already has unique labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levels(Pastes$sample)[1:6]
+#&gt; [1] &quot;A:a&quot; &quot;A:b&quot; &quot;A:c&quot; &quot;B:a&quot; &quot;B:b&quot; &quot;B:c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each label pastes the batch onto the cask, so <code>A:a</code> and <code>B:a</code> are recognised as different casks. This is what people mean when they say nesting is handled "for free" as long as your labels are unique.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Crossed versus nested is a property of your data, not a special kind of model.</strong> The <code>lme4</code> engine is identical either way. Your only job is to make sure the factor labels tell the truth: either use the slash notation, or give inner units globally unique labels. Once the labels are right, the same <code>lmer()</code> call fits nested, crossed, or any mix of the two.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build unique cask labels yourself with <code>interaction()</code>, which pastes two factors together, then count how many distinct labels you get.</p>
+<div class="webr-container" data-block-title="Your turn: build unique cask labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build unique cask labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># interaction(a, b, drop = TRUE) pastes two factors into unique labels.
+# Make Pastes$cask_id from batch and cask, then count its levels.
+# Pastes$cask_id &lt;- interaction(Pastes$batch, Pastes$cask, drop = ___)
+# nlevels(Pastes$cask_id)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unique labels solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unique labels solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Pastes$cask_id &lt;- interaction(Pastes$batch, Pastes$cask, drop = TRUE)
+nlevels(Pastes$cask_id)
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> You get 30 unique labels, one per physical cask. Now <code>(1 | batch) + (1 | cask_id)</code> would fit the correct nested model, because <code>cask_id</code> never repeats across batches.</p>
+
+</details>
+</section>
+
+<h2>What if not every combination appears?</h2>
+
+<p>Real crossed data is often incomplete. Maybe not every person had time to rate every item, so some subject-and-item combinations are missing. This is called partially crossed data, and the good news is that <code>lme4</code> handles it with no special syntax at all. You still write <code>(1 | subject) + (1 | item)</code>. Let's prove it by randomly dropping 48 of the 288 responses.</p>
+
+<div class="webr-container" data-block-title="Drop cells to make a partially crossed design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop cells to make a partially crossed design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+keep &lt;- sort(sample(nrow(crossed_df), 240))
+partial_df &lt;- crossed_df[keep, ]
+partial &lt;- lmer(score ~ 1 + (1 | subject) + (1 | item), data = partial_df)
+print(VarCorr(partial), comp = c(&quot;Variance&quot;, &quot;Std.Dev.&quot;))
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  subject  (Intercept) 499.59   22.351
+#&gt;  item     (Intercept) 245.94   15.682
+#&gt;  Residual             659.70   25.685</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The variance components barely moved from the fully crossed fit, even though we threw away a sixth of the data. The same formula still works. We can confirm that some subject-and-item cells really are empty now.</p>
+
+<div class="webr-container" data-block-title="Confirm some subject-item cells are now empty">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm some subject-item cells are now empty</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">any(table(partial_df$subject, partial_df$item) == 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>TRUE</code> tells us at least one combination is missing, so the design is no longer fully crossed. Yet <code>lmer()</code> fit the model with the same two-term formula and no special handling. Partially crossed data is the normal case in fields like psychology and linguistics, and it needs nothing beyond the two-bar-term formula.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Real crossed datasets can be large and messy, and lme4 still handles them.</strong> The <code>InstEval</code> dataset that ships with <code>lme4</code> holds over 73,000 university course ratings, crossing thousands of students with hundreds of instructors, most of whom never met. The very same <code>(1 | student) + (1 | instructor)</code> syntax fits it. Partial crossing is expected, not a problem.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm exactly how many responses survived the drop by comparing the row counts of the full and partial datasets.</p>
+<div class="webr-container" data-block-title="Your turn: how many responses remain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: how many responses remain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the row counts of the full and partial data frames.
+# c(full = nrow(crossed_df), partial = nrow(___))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Row counts solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row counts solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(full = nrow(crossed_df), partial = nrow(partial_df))
+#&gt;    full partial
+#&gt;     288     240</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> We kept 240 of the original 288 responses, dropping 48. The model still estimated stable subject and item variances from what remained.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises pull together the ideas above. Try each one before opening the solution. They use their own variable names, prefixed with <code>my_</code>, so they will not disturb the models you fit earlier in the page.</p>
+
+<h3>Exercise 1: What share of variance sits at each level?</h3>
+
+<p>Fit the nested <code>Pastes</code> model, then compute what fraction of the total random variance sits at each level: cask-within-batch, batch, and residual. Turning <code>VarCorr()</code> into a data frame makes the arithmetic easy.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit my_nested with strength ~ 1 + (1 | batch/cask).
+# 2. Turn VarCorr into a data frame with as.data.frame().
+# 3. Add a prop column: each vcov divided by the sum of vcov.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_nested &lt;- lmer(strength ~ 1 + (1 | batch/cask), data = Pastes)
+my_vc &lt;- as.data.frame(VarCorr(my_nested))
+my_vc$prop &lt;- round(my_vc$vcov / sum(my_vc$vcov), 3)
+my_vc[, c(&quot;grp&quot;, &quot;vcov&quot;, &quot;prop&quot;)]
+#&gt;          grp      vcov  prop
+#&gt; 1 cask:batch 8.4336659 0.783
+#&gt; 2      batch 1.6573109 0.154
+#&gt; 3   Residual 0.6779999 0.063</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 78 percent of the random variation is cask-to-cask within a batch, only 15 percent is between batches, and a mere 6 percent is test-to-test noise. The casks are the main source of inconsistency in this paste.</p>
+
+</details>
+
+<h3>Exercise 2: Turn the crossed variances into percentages</h3>
+
+<p>Using the <code>crossed_df</code> data from the crossed section, fit the crossed model and report each source of variation as a percentage of the total. This is a common way to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> where the variability in ratings comes from.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit my_crossed with score ~ 1 + (1 | subject) + (1 | item).
+# 2. Turn VarCorr into a data frame.
+# 3. Build a data.frame of source and pct = 100 * vcov / sum(vcov).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_crossed &lt;- lmer(score ~ 1 + (1 | subject) + (1 | item), data = crossed_df)
+my_parts &lt;- as.data.frame(VarCorr(my_crossed))
+data.frame(source = my_parts$grp,
+           pct = round(100 * my_parts$vcov / sum(my_parts$vcov), 1))
+#&gt;     source  pct
+#&gt; 1  subject 34.7
+#&gt; 2     item 18.8
+#&gt; 3 Residual 46.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subjects account for 35 percent of the variance and items for 19 percent, while 47 percent is residual noise. Because the two grouping factors are crossed, you can read their contributions as two separate slices of the same pie.</p>
+
+</details>
+
+<h3>Exercise 3: Fix a dataset with reused labels</h3>
+
+<p>Build a small schools-and-classes dataset where class labels C1 to C4 repeat across six schools. Then show that the naive crossed formula finds only 4 class groups, while the correct nested formula finds all 24. This is the implicit-nesting trap in miniature.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A grid of 6 schools x 4 classes x 5 pupils is provided below.
+# Fit bad  with (1 | school) + (1 | class).
+# Fit good with (1 | school/class).
+# Compare ngrps(bad) and ngrps(good).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+schools &lt;- 6; classes &lt;- 4
+grid &lt;- expand.grid(class = factor(paste0(&quot;C&quot;, 1:classes)),
+                    school = factor(paste0(&quot;Sch&quot;, 1:schools)))
+grid &lt;- grid[rep(1:nrow(grid), each = 5), ]
+s_eff &lt;- rnorm(schools, 0, 8); c_eff &lt;- rnorm(schools * classes, 0, 5)
+grid$key &lt;- interaction(grid$school, grid$class, drop = TRUE)
+grid$score &lt;- round(50 + s_eff[as.integer(grid$school)] +
+                    c_eff[as.integer(grid$key)] + rnorm(nrow(grid), 0, 4), 1)
+bad  &lt;- lmer(score ~ 1 + (1 | school) + (1 | class), data = grid)
+good &lt;- lmer(score ~ 1 + (1 | school/class), data = grid)
+ngrps(bad)
+#&gt; school  class
+#&gt;      6      4
+ngrps(good)
+#&gt; class:school       school
+#&gt;           24            6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The naive crossed formula collapses the 24 real classes into just 4 label groups, because class C1 appears in every school. The nested formula, or equivalently unique labels, recovers all 24 classes. Always let <code>ngrps()</code> catch this before you trust a fit.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between crossed and nested random effects in one sentence?</h3>
+
+<p>Nested means each level of the inner factor belongs to exactly one level of the outer factor, forming a hierarchy like casks within batches, so you write <code>(1 | outer/inner)</code>. Crossed means each level of one factor appears with every level of the other, like subjects who each rate every item, so you write <code>(1 | factor1) + (1 | factor2)</code>. The engine is the same; only the formula and the data structure differ.</p>
+
+<h3>Is the crossed-or-nested distinction about the data or the model?</h3>
+
+<p>It is about the data. <code>lme4</code> uses identical computation for both, and it decides the structure entirely from your factor labels. Your responsibility is to describe the data honestly: use the slash notation when inner labels repeat across outer groups, or give every inner unit a globally unique label. Get the labels right and the same <code>lmer()</code> call handles any structure.</p>
+
+<h3>Why did my inner variance collapse to nearly zero?</h3>
+
+<p>That is the classic sign of the implicit-nesting trap. You wrote a crossed formula like <code>(1 | school) + (1 | class)</code>, but your class labels are reused across schools, so <code>lme4</code> pooled them into a few label groups and pushed the real class variation into the residual. Check with <code>ngrps()</code>: if it reports far fewer inner groups than you have real inner units, switch to <code>(1 | school/class)</code> or build unique labels with <code>interaction()</code>.</p>
+
+<h3>When should I use (1 | a/b) versus (1 | a) + (1 | b)?</h3>
+
+<p>Use <code>(1 | a/b)</code> when b is nested in a, meaning each level of b sits inside one level of a. Use <code>(1 | a) + (1 | b)</code> when a and b are crossed, meaning they overlap. The one situation that trips people up is nested data with reused inner labels: there, <code>(1 | a) + (1 | b)</code> is wrong, and you need either the slash or unique labels. When inner labels are already unique, the two spellings give the same fit.</p>
+
+<h3>Can a model have both crossed and nested random effects?</h3>
+
+<p>Yes, and it is common. You might have students crossed with items, while students are also nested within schools. You simply combine the terms, for example <code>(1 | school/student) + (1 | item)</code>. Each term describes one piece of the structure, and <code>lme4</code> fits them together. The same rules apply to every term: nesting uses a slash or unique labels, crossing uses separate bar terms.</p>
+
+<h2>Summary</h2>
+
+<p>Nested and crossed random effects are two ways grouping factors relate, and choosing correctly is the difference between right and wrong variance estimates. Nested factors form a hierarchy and use a slash; crossed factors overlap and use two separate bar terms. The one trap to remember is that <code>lme4</code> reads structure from labels, so reused inner labels must be fixed with the slash or with <code>interaction()</code>.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Formula piece</th>
+<th>Structure it describes</th>
+<th>When to use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>`(1 \</td>
+<td>a/<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>`</td>
+<td>b nested in a (hierarchy)</td>
+<td>Each inner level sits in one outer level</td>
+</tr>
+<tr>
+<td>`(1 \</td>
+<td>a) + (1 \</td>
+<td>a:b)`</td>
+<td>Same nesting, written out</td>
+<td>When you want the two rungs explicit</td>
+</tr>
+<tr>
+<td>`(1 \</td>
+<td>a) + (1 \</td>
+<td>b)`</td>
+<td>a and b crossed (overlap)</td>
+<td>Both factors classify every response</td>
+</tr>
+<tr>
+<td><code>interaction(a, b)</code></td>
+<td>Unique inner labels</td>
+<td>Nested data whose inner labels repeat</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Crossed-vs-Nested-Effects-in-R-overview.webp" alt="The whole topic at a glance: nested hierarchies, crossed overlap, and the label trap that connects them." class="img-responsive img-zoomable" loading="lazy" width="1962" height="920" /></p>
+
+<p><em>Figure 4: Crossed versus nested random effects at a glance.</em></p>
+
+<p>The biggest ideas to carry with you: nested means inside and crossed means overlapping, the slash <code>(1 | a/b)</code> is just shorthand for two terms, and whenever an inner variance looks suspiciously small, check <code>ngrps()</code> for the implicit-nesting trap.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Bates, D., Mächler, M., Bolker, B., & Walker, S. (2015). <em>Fitting Linear Mixed-Effects Models Using lme4.</em> Journal of Statistical Software, 67(1). <a href="https://www.jstatsoft.org/article/view/v067i01">Link</a> - the canonical paper behind <code>lme4</code>, covering crossed and nested random effects.</li>
+
+<li>Bates, D. <em>lme4: Models With Multiple Random-effects Terms</em>, Chapter 2. <a href="https://lme4.r-forge.r-project.org/book/Ch2.pdf">Link</a> - the source of the <code>Pastes</code> example and the definitive treatment of nested versus crossed.</li>
+
+<li>lme4 package vignette: <em>Fitting Linear Mixed-Effects Models Using lme4.</em> <a href="https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf">Link</a> - the official walkthrough of <code>lmer()</code> syntax.</li>
+
+<li>Bolker, B. <em>GLMM FAQ.</em> <a href="https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html">Link</a> - practical answers on implicit nesting, crossed effects, and when labels need to be unique.</li>
+
+<li>Vanderhaeghe, F. <em>Nested and crossed random effects in lme4.</em> <a href="https://www.muscardinus.be/statistics/nested.html">Link</a> - a clear, example-driven explanation of the same distinction.</li>
+
+<li>Gelman, A., & Hill, J. (2007). <em>Data Analysis Using Regression and Multilevel/Hierarchical Models.</em> Cambridge University Press. <a href="http://www.stat.columbia.edu/~gelman/arm/">Link</a> - the standard textbook on multilevel structure and grouping.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Random-Intercepts-and-Slopes-in-R.html">Random Intercepts and Slopes with lme4 in R</a> - the companion guide that explains what a random intercept and slope are, and how <a class="auto-link" href="Bayesian-Hierarchical-Models-in-R.html" title="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">partial pooling</a> works.</li>
+
+<li><a href="Multilevel-Models-in-R.html">Multilevel Models in R</a> - a broader look at hierarchical models, the setting where nested random effects appear most often.</li>
+
+<li><a href="Read-lm-Output-in-R.html">How to Read lm() Output in R</a> - the fixed-effects half of any mixed model is ordinary regression, and this covers how to read it.</li>
+
+</ul>
+
+{% endraw %}
