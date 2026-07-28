@@ -1,0 +1,678 @@
+---
+title: "RStan vs brms vs BayesFactor: Which to Use in R?"
+description: "brms fits most Bayesian regression from one formula, RStan gives full control for custom models, and BayesFactor returns Bayes factors for hypothesis tests."
+keywords: "RStan vs brms, brms vs Stan R, BayesFactor package R, Bayesian R packages, which Bayesian package R, brms vs BayesFactor, Bayesian regression R, Bayes factor R"
+mathjax: true
+webr: true
+curriculum_id: "DG5"
+post_type: "FR"
+auto_link_terms: "RStan vs brms|brms vs Stan|brms vs BayesFactor|choosing a Bayesian package|Bayesian R packages|which Bayesian package|BayesFactor package|brms package|RStan package|Bayesian package comparison|Bayes factor in R|Stan vs brms"
+auto_link_case_sensitive: false
+fr_parent: "Bayesian-Statistics-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Three R packages get recommended for Bayesian work, and they are not interchangeable. For most applied regression, reach for <strong>brms</strong>: one formula and it writes the model for you. When you need a model no formula can express, drop to <strong>RStan</strong> and write it by hand. When your question is "which hypothesis does the data support?" rather than "what is the fitted model?", use <strong>BayesFactor</strong>. This guide shows what each one actually gives you back, with runnable code, so you can pick the right tool the first time.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Fitting brms and Stan models needs a C++ toolchain, so those blocks are meant for your local R session.</strong> The blocks you can run right here are base R plus a few compilation-free helpers. Where a model must be compiled, the code is shown so you can copy it into RStudio with the package installed.</div></div>
+
+<h2>Which Bayesian package should you use in R?</h2>
+
+<p>You have a Bayesian question and three well-known packages. Which one do you open? The whole decision fits in one small function you can run right now. It asks two yes/no questions and hands back a package name.</p>
+
+<div class="webr-container" data-block-title="One function that answers which package to use">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One function that answers which package to use</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Answer two yes/no questions, get a package name back
+recommend_package &lt;- function(need_bayes_factor = FALSE, custom_model = FALSE) {
+  if (need_bayes_factor) return(&quot;BayesFactor&quot;)  # you want evidence, not a fit
+  if (custom_model)      return(&quot;RStan&quot;)        # you will write the model yourself
+  &quot;brms&quot;                                        # the default for applied regression
+}
+
+# Three common situations:
+c(routine_regression = recommend_package(),
+  hypothesis_test    = recommend_package(need_bayes_factor = TRUE),
+  custom_model       = recommend_package(custom_model = TRUE))
+#&gt; routine_regression    hypothesis_test       custom_model 
+#&gt;             &quot;brms&quot;      &quot;BayesFactor&quot;            &quot;RStan&quot; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what the function did. It checked the two flags in priority order. If you need a Bayes factor, nothing else matters and it returns <code>BayesFactor</code>. If you are building a custom model, it returns <code>RStan</code>. Otherwise it falls through to <code>brms</code>, which is the right answer for the large majority of real analyses.</p>
+
+<p>The three test calls map the three most common situations to their packages. A routine regression goes to brms, a <a class="auto-link" href="First-Hypothesis-Test-Three-Ways-in-R.html" title="Your First Hypothesis Test in R: Three Ways">hypothesis test</a> goes to BayesFactor, and a hand-built model goes to RStan. That ordering is the core idea of this whole post.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick by the shape of your question, not by which package you have heard of.</strong> brms and RStan both fit a model and return a posterior, while BayesFactor answers a yes/no hypothesis with a single evidence number. Those are different jobs, and reaching for the wrong one is the most common mistake beginners make.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You are building a fully custom model by hand, not a standard regression. Call <code>recommend_package()</code> with the right argument so it returns <code>&quot;RStan&quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: recommend for a custom model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recommend for a custom model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># You are building a fully custom model (not a standard regression).
+# Call recommend_package() with the right argument to get &quot;RStan&quot;.
+# recommend_package(custom_model = ???)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Custom-model recommendation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom-model recommendation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recommend_package(custom_model = TRUE)
+#&gt; [1] &quot;RStan&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>custom_model = TRUE</code> skips the brms default and returns <code>RStan</code>, the package you use when you write the model yourself.</p>
+
+</details>
+</section>
+
+<h2>Posterior or Bayes factor: what do you actually get back?</h2>
+
+<p>Before you can choose, you need to see the one difference that splits the three packages into two camps. It is about what comes out the other end.</p>
+
+<p>brms and RStan both return a <strong>posterior</strong>: a whole probability distribution for every parameter, given your data. It answers "given what I saw, what values are plausible for this slope, and how sure am I?" BayesFactor returns a <strong>Bayes factor</strong>: a single number saying how much the data shifted the balance between two hypotheses. It answers "did the data favor one story over another, and by how much?"</p>
+
+<p>To make "a posterior is a whole distribution" concrete, here is one you can compute in base R with no special package. Imagine you saw 7 successes in 10 trials and want to know the success rate. We lay out a grid of candidate rates, score each by how well it explains 7 out of 10, and normalise.</p>
+
+<div class="webr-container" data-block-title="A posterior is a whole distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A posterior is a whole distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 7 successes in 10 trials. What is the posterior for the success rate?
+p_grid     &lt;- seq(0, 1, length.out = 11)            # candidate success rates
+likelihood &lt;- dbinom(7, size = 10, prob = p_grid)   # how well each rate explains 7/10
+posterior  &lt;- likelihood / sum(likelihood)          # flat prior, then normalise
+round(posterior, 3)
+#&gt;  [1] 0.000 0.000 0.001 0.010 0.047 0.129 0.236 0.293 0.221 0.063 0.000
+cat(&quot;posterior mean:&quot;, round(sum(p_grid * posterior), 3), &quot;\n&quot;)
+#&gt; posterior mean: 0.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output as a shape, not a single answer. Each of the 11 numbers is the probability that the true rate sits near that grid point. The mass piles up around 0.6 to 0.8 and the average lands at 0.667. That spread is the posterior, and it is exactly the kind of object brms and RStan give you for every parameter in a real model.</p>
+
+<p>A Bayes factor throws that shape away on purpose and returns one number instead. That is not worse, it is a different question. You will see it in action later with the <a class="auto-link" href="Bayes-Factors-in-R.html" title="Bayes Factors in R: BayesFactor Package as Alternative to p-Values">BayesFactor package</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A posterior carries uncertainty, a point estimate does not.</strong> Ordinary lm() hands you one slope; a Bayesian fit hands you a distribution of plausible slopes. When people say brms and RStan are "fully Bayesian," this distribution is what they mean.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose you saw only 3 successes in 10 trials instead of 7. Recompute the posterior mean. It should move well below 0.5.</p>
+<div class="webr-container" data-block-title="Your turn: change the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># You now see 3 successes in 10 trials instead of 7.
+# Recompute the posterior mean using the same p_grid.
+# ex_like &lt;- dbinom(3, size = 10, prob = p_grid)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fewer successes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fewer successes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_like &lt;- dbinom(3, size = 10, prob = p_grid)
+ex_post &lt;- ex_like / sum(ex_like)
+cat(&quot;posterior mean:&quot;, round(sum(p_grid * ex_post), 3), &quot;\n&quot;)
+#&gt; posterior mean: 0.333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fewer successes pull the whole distribution toward smaller rates, so the mean drops from 0.667 to 0.333. The posterior moved as a shape, not just as a single point.</p>
+
+</details>
+</section>
+
+<h2>How does brms turn a formula into a model?</h2>
+
+<p>brms is the package most people should reach for, so it is worth seeing why it feels so easy. You describe the model with the same formula syntax you already use for <code>lm()</code> and <code>glm()</code>, and brms handles the rest. A complete <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">Bayesian linear regression</a> is one line:</p>
+
+<p><code>brm(mpg ~ wt, data = mtcars)</code></p>
+
+<p>Behind that line, brms does two things you would otherwise do by hand. First, it chooses sensible default priors for you. You can inspect them without fitting anything using <code>get_prior()</code>, which needs no model compilation and runs right here.</p>
+
+<pre><code class="language-r">library(brms)
+get_prior(mpg ~ wt, data = mtcars)
+#&gt;                    prior     class coef group resp dpar nlpar lb ub tag       source
+#&gt;                   (flat)         b                                           default
+#&gt;                   (flat)         b   wt                                 (vectorized)
+#&gt;  student_t(3, 19.2, 5.4) Intercept                                           default
+#&gt;     student_t(3, 0, 5.4)     sigma                             0             default</code></pre>
+
+<p>That table is brms telling you its plan. The slope for <code>wt</code> gets a flat (uninformative) prior, the intercept and the residual standard deviation get weakly informative Student-t priors scaled to your data. You can override any row, but for a first fit the defaults are reasonable.</p>
+
+<p>Second, brms writes the actual model in Stan's own language and compiles it. You can see the exact program it generates with <code>make_stancode(mpg ~ wt, data = mtcars)</code>. This is the code brms produces from that one formula:</p>
+
+<pre><code>// generated with brms 2.23.0
+data {
+  int&lt;lower=1&gt; N;  // total number of observations
+  vector[N] Y;  // response variable
+  int&lt;lower=1&gt; K;  // number of population-level effects
+  matrix[N, K] X;  // population-level design matrix
+  int&lt;lower=1&gt; Kc;  // number of population-level effects after centering
+}
+parameters {
+  vector[Kc] b;  // regression coefficients
+  real Intercept;  // temporary intercept for centered predictors
+  real&lt;lower=0&gt; sigma;  // dispersion parameter
+}
+model {
+  // priors
+  target += student_t_lpdf(Intercept | 3, 19.2, 5.4);
+  target += student_t_lpdf(sigma | 3, 0, 5.4);
+  // likelihood
+  target += normal_id_glm_lpdf(Y | Xc, Intercept, b, sigma);
+}</code></pre>
+
+<p>That is dozens of lines of careful Stan code, written for you from a single formula. When you actually run <code>brm()</code>, it compiles this, samples from it, and <code>summary(fit)</code> prints each parameter's posterior mean, error, 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a>, and <a class="auto-link" href="MCMC-Diagnostics-in-R.html" title="MCMC Diagnostics in R: 4 Tests for Chain Convergence">convergence diagnostics</a>. You get a full Bayesian regression without ever opening the Stan file.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>If you can write it with lm() or glm(), brms can fit it Bayesian.</strong> The formula interface covers multilevel models, non-Gaussian outcomes, splines, and more, all with the syntax you already know. That coverage is why brms is the default recommendation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Inspect the default priors for a model with two predictors, <code>mpg ~ wt + hp</code>. How many rows does the prior table gain?</p>
+<pre><code class="language-r"># Call get_prior() on mpg ~ wt + hp and read the extra coefficient row.
+# get_prior(mpg ~ wt + hp, data = mtcars)</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">get_prior(mpg ~ wt + hp, data = mtcars)
+#&gt;                    prior     class coef group resp dpar nlpar lb ub tag       source
+#&gt;                   (flat)         b                                           default
+#&gt;                   (flat)         b   hp                                 (vectorized)
+#&gt;                   (flat)         b   wt                                 (vectorized)
+#&gt;  student_t(3, 19.2, 5.4) Intercept                                           default
+#&gt;     student_t(3, 0, 5.4)     sigma                             0             default</code></pre>
+
+<p><strong>Explanation:</strong> Adding <code>hp</code> gives the table one more coefficient row (<code>b</code> for <code>hp</code>). brms assigns each predictor its own prior automatically, so growing the model never means hand-writing more prior code.</p>
+
+</details>
+</section>
+
+<h2>When is raw Stan with RStan worth the extra effort?</h2>
+
+<p>If brms is so convenient, when would you ever step down to RStan? The answer is control. brms can only express models its formula syntax supports. When your model has a structure no formula captures, a custom likelihood, a hard parameter constraint, an unusual hierarchy, you write the Stan program yourself and drive it with RStan.</p>
+
+<p>Here is a hand-written Stan program for the same simple regression. Notice that you declare every variable, prior, and the likelihood explicitly:</p>
+
+<pre><code>// A simple linear regression, written by hand for RStan
+data {
+  int&lt;lower=0&gt; N;        // number of observations
+  vector[N] x;           // predictor (weight)
+  vector[N] y;           // outcome (mpg)
+}
+parameters {
+  real alpha;            // intercept
+  real beta;             // slope
+  real&lt;lower=0&gt; sigma;   // residual standard deviation
+}
+model {
+  beta ~ normal(0, 10);                  // prior on the slope
+  y ~ normal(alpha + beta * x, sigma);   // likelihood
+}</code></pre>
+
+<p>With RStan you save that program, then hand it your data as a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> whose names match the <code>data</code> block above. Building that list is plain R, and you can run it now to see the structure Stan expects:</p>
+
+<div class="webr-container" data-block-title="Wiring your data into a Stan data list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wiring your data into a Stan data list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># RStan wants a named list matching the data block above
+stan_data &lt;- list(N = nrow(mtcars), x = mtcars$wt, y = mtcars$mpg)
+str(stan_data)
+#&gt; List of 3
+#&gt;  $ N: int 32
+#&gt;  $ x: num [1:32] 2.62 2.88 2.32 3.21 3.44 ...
+#&gt;  $ y: num [1:32] 21 21 22.8 21.4 18.7 18.1 14.3 24.4 22.8 19.2 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>From there the RStan workflow is three calls in your local R session: <code>mod &lt;- rstan::stan_model(&quot;model.stan&quot;)</code> compiles the program, <code>fit &lt;- rstan::sampling(mod, data = stan_data)</code> runs the sampler, and <code>print(fit)</code> shows the posterior summaries. The <code>rstan::stan()</code> function bundles all three into one call. The result is the same kind of posterior brms gives you, but you controlled every line that produced it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>RStan buys control at the cost of code and compile time.</strong> You wrote the model, the data wiring, and the driver, where brms needed one formula. Only pay that price when brms genuinely cannot express your model. Both packages need a C++ toolchain to compile, so plan for a one-time setup.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild the data list with a standardized weight (mean 0, standard deviation 1). Standardizing predictors often helps Stan's sampler.</p>
+<div class="webr-container" data-block-title="Your turn: standardize the predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: standardize the predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rebuild stan_data with a standardized weight (mean 0, sd 1).
+# Hint: wrap mtcars$wt in scale() and as.numeric().</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standardized predictor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardized predictor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stan_data2 &lt;- list(N = nrow(mtcars),
+                   x = as.numeric(scale(mtcars$wt)),
+                   y = mtcars$mpg)
+cat(&quot;mean x:&quot;, round(mean(stan_data2$x), 6),
+    &quot;| sd x:&quot;, round(sd(stan_data2$x), 3), &quot;\n&quot;)
+#&gt; mean x: 0 | sd x: 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale()</code> centers and scales the predictor, so the new <code>x</code> has mean 0 and standard deviation 1. Feeding standardized predictors to Stan usually makes the sampler converge faster.</p>
+
+</details>
+</section>
+
+<h2>What can BayesFactor do that brms and RStan cannot?</h2>
+
+<p>BayesFactor answers a question the other two do not answer directly: how strongly does the data favor one hypothesis over another? It compares two models, usually a null and an alternative, and returns their <a class="auto-link" href="Bayesian-ANOVA-in-R.html" title="Bayesian ANOVA in R With BayesFactor: Report Evidence, Not Just p-values">evidence ratio</a>. That ratio is the Bayes factor.</p>
+
+<p>$$\text{BF}_{10} = \frac{p(\text{data} \mid H_1)}{p(\text{data} \mid H_0)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\text{BF}_{10}$ = the Bayes factor for the alternative $H_1$ against the null $H_0$</li>
+
+<li>$p(\text{data} \mid H_1)$ = how well the alternative predicted the data, averaged over its priors</li>
+
+<li>$p(\text{data} \mid H_0)$ = how well the null predicted the data</li>
+
+</ul>
+
+<p>A $\text{BF}_{10}$ of 20 means the data are 20 times more likely under the alternative than the null. Values above about 10 are usually called strong evidence, values near 1 mean the data barely moved your beliefs.</p>
+
+<p>You can build a rough Bayes factor yourself in base R from two <code>lm()</code> fits and their <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">BIC</a>, which gives you a feel for the idea before calling the real package.</p>
+
+<div class="webr-container" data-block-title="A Bayes factor you can compute in base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A Bayes factor you can compute in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A rough Bayes factor from two lm() fits via their BIC
+m0   &lt;- lm(mpg ~ 1,  data = mtcars)   # null: mpg has no relation to weight
+m1   &lt;- lm(mpg ~ wt, data = mtcars)   # alternative: weight predicts mpg
+bf10 &lt;- exp((BIC(m0) - BIC(m1)) / 2)  # BIC approximation to BF10
+cat(&quot;approx BF10 for wt:&quot;, format(bf10, scientific = TRUE, digits = 3), &quot;\n&quot;)
+#&gt; approx BF10 for wt: 9.11e+08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That number is enormous, meaning the data overwhelmingly prefer the model where weight predicts mileage over the one where it does not. The BIC formula is only an approximation, though. BayesFactor computes the real thing with proper priors. Here it weighs whether two sleep-drug groups differ:</p>
+
+<pre><code class="language-r">library(BayesFactor)
+set.seed(7)
+data(sleep)
+# Do the two sleep-drug groups differ? Evidence for a difference vs none.
+ttestBF(x = sleep$extra[sleep$group == 1],
+        y = sleep$extra[sleep$group == 2], paired = TRUE)
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Alt., r=0.707 : 17.25888 ±0%
+#&gt; 
+#&gt; Against denominator:
+#&gt;   Null, mu = 0 
+#&gt; ---
+#&gt; Bayes factor type: BFoneSample, JZS</code></pre>
+
+<p>The Bayes factor is about 17, so the data are 17 times more likely under "the groups differ" than under "they are the same." That is strong evidence for a real effect, and unlike a p-value it also lets the data support the null when a value comes out well below 1.</p>
+
+<p>Weak evidence looks different. When the data cannot really tell the hypotheses apart, the Bayes factor sits near 1:</p>
+
+<pre><code class="language-r">set.seed(7)
+# Does supplement type affect tooth growth? Compare to an intercept-only model.
+anovaBF(len ~ supp, data = ToothGrowth)
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] supp : 1.198757 ±0.01%
+#&gt; 
+#&gt; Against denominator:
+#&gt;   Intercept only 
+#&gt; ---
+#&gt; Bayes factor type: BFlinearModel, JZS</code></pre>
+
+<p>A Bayes factor of 1.2 is barely a nudge. The data lean very slightly toward supplement type mattering, but not enough to claim anything. A frequentist test might return a borderline p-value here and tempt you to over-read it; the Bayes factor says plainly that the evidence is weak.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Bayes factor answers a different question than a posterior.</strong> brms and RStan tell you the plausible values of an effect; BayesFactor tells you whether an effect is there at all, and how much the data favor that conclusion. Use it when the decision is "yes or no," not "how big."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reuse the <a class="auto-link" href="Batch-Forecasting-in-R.html" title="Forecast Hundreds of Series Automatically in R">null model</a> <code>m0</code> from above, fit <code>mpg ~ hp</code>, and compute the BIC-approximate Bayes factor for horsepower.</p>
+<div class="webr-container" data-block-title="Your turn: Bayes factor for horsepower">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bayes factor for horsepower</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse m0 (the null). Fit mpg ~ hp and compute the BIC-approx BF10.
+# m2 &lt;- lm(mpg ~ hp, data = mtcars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bayes factor for horsepower solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bayes factor for horsepower solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m2 &lt;- lm(mpg ~ hp, data = mtcars)
+cat(&quot;approx BF10 for hp:&quot;, format(exp((BIC(m0) - BIC(m2)) / 2),
+    scientific = TRUE, digits = 3), &quot;\n&quot;)
+#&gt; approx BF10 for hp: 4.54e+05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Horsepower also predicts mileage strongly, with a Bayes factor around 450,000. It is smaller than weight's, which fits the intuition that weight is the stronger predictor of fuel economy.</p>
+
+</details>
+</section>
+
+<h2>How do you choose in a real project?</h2>
+
+<p>Put the pieces together as one decision. Start from your question, follow a single branch, and you land on a package.</p>
+
+<p><img src="screenshots/RStan-vs-brms-vs-BayesFactor-in-R-decision-flow.webp" alt="Decision flow for choosing a Bayesian R package" class="img-responsive img-zoomable" loading="lazy" width="966" height="1332" /></p>
+
+<p><em>Figure 1: The one-question decision. Evidence for a hypothesis goes to BayesFactor, a standard regression goes to brms, and a fully custom model goes to RStan.</em></p>
+
+<p>The same logic drives the <code>recommend_package()</code> function from the start of this guide. Point it at a real question and it returns the tool:</p>
+
+<div class="webr-container" data-block-title="Run the decision for a real question">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the decision for a real question</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># &quot;Is the new checkout flow converting better than the old one?&quot;
+# That is a hypothesis about a difference, not a model to fit.
+recommend_package(need_bayes_factor = TRUE)
+#&gt; [1] &quot;BayesFactor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A conversion comparison is a yes/no question about a difference, so the function points you at BayesFactor. Change the question to "estimate the effect of price on demand across regions" and you are fitting a model, which sends you to brms. Only a model that no formula can express sends you to RStan.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A team needs a standard <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> with <a class="auto-link" href="Bayesian-Hierarchical-Models-in-R.html" title="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">partial pooling</a> by region. It is a fitting job, not a hypothesis test, and the formula interface handles it. Which package should they use?</p>
+<div class="webr-container" data-block-title="Your turn: pick a package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick a package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A team needs a standard logistic regression with partial pooling by region.
+# Not a hypothesis test, not a custom model. Call recommend_package().</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Partial-pooling scenario solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Partial-pooling scenario solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Standard regression with partial pooling by region -&gt; brms.
+recommend_package(need_bayes_factor = FALSE, custom_model = FALSE)
+#&gt; [1] &quot;brms&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Partial pooling is a <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">multilevel model</a>, and brms writes multilevel models from a formula like <code>y ~ x + (1 | region)</code>. No Bayes factor and no custom code means the default answer, brms.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the ideas above. Work them in your own R session; each is solvable with what this guide covered.</p>
+
+<h3>Exercise 1: Route three projects to the right package</h3>
+
+<p>You are advising three teams. Build a <code>data.frame</code> with a <code>needs_bf</code> and a <code>custom</code> flag for each project, then use <code>mapply()</code> with <code>recommend_package()</code> to fill a <code>package</code> column. The projects: (1) predict house prices with a multilevel model, (2) decide if treatment A beats treatment B, (3) build an ecological model with a custom likelihood.</p>
+
+<div class="webr-container" data-block-title="Your turn: map projects to packages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: map projects to packages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a data.frame of the three scenarios with needs_bf/custom flags,
+# then use mapply(recommend_package, ...) to fill a package column.
+# Write your code here:</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Map three projects to packages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map three projects to packages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">projects &lt;- data.frame(
+  scenario = c(&quot;Predict house prices with a multilevel model&quot;,
+               &quot;Is treatment A better than B?&quot;,
+               &quot;Ecological model with a custom likelihood&quot;),
+  needs_bf = c(FALSE, TRUE, FALSE),
+  custom   = c(FALSE, FALSE, TRUE),
+  stringsAsFactors = FALSE
+)
+projects$package &lt;- mapply(recommend_package, projects$needs_bf, projects$custom)
+print(projects[, c(&quot;scenario&quot;, &quot;package&quot;)], right = FALSE, row.names = FALSE)
+#&gt;  scenario                                     package    
+#&gt;  Predict house prices with a multilevel model brms       
+#&gt;  Is treatment A better than B?                BayesFactor
+#&gt;  Ecological model with a custom likelihood    RStan      </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The multilevel prediction is a fitting job with no special structure, so brms. The A/B decision is a hypothesis test, so BayesFactor. The custom likelihood cannot be written as a formula, so RStan. One function routed all three.</p>
+
+</details>
+
+<h3>Exercise 2: Test a hypothesis and choose the package</h3>
+
+<p>A colleague flipped a coin 100 times and got 60 heads. They want to know whether that is real evidence against a fair coin. Use <code>proportionBF()</code> from BayesFactor to compute the Bayes factor against <code>p = 0.5</code>, then decide which package this question belonged to and whether the evidence is strong.</p>
+
+<pre><code class="language-r"># Use proportionBF(y = 60, N = 100, p = 0.5) from BayesFactor.
+# Then decide: is a Bayes factor near 1.6 strong evidence?
+# Write your code here:</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">set.seed(7)
+# 60 heads in 100 flips. Evidence against a fair coin (p = 0.5)?
+proportionBF(y = 60, N = 100, p = 0.5)
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Alt., p0=0.5, r=0.5 : 1.594878 ±0%
+#&gt; 
+#&gt; Against denominator:
+#&gt;   Null, p = 0.5 
+#&gt; ---
+#&gt; Bayes factor type: BFproportion, logistic</code></pre>
+
+<p><strong>Explanation:</strong> This is a yes/no question about a hypothesis, so BayesFactor is the right package. The Bayes factor is about 1.6, barely above 1, so 60 heads in 100 flips is weak evidence at best. A single number, honestly reported, keeps you from over-claiming.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Is brms just a wrapper for Stan?</h3>
+
+<p>Yes, and that is the point. brms translates your formula into a Stan program (the one you saw from <code>make_stancode()</code>), compiles it, and runs it through Stan's sampler. You get Stan's speed and reliability without writing Stan code. RStan is the lower-level interface to the same engine.</p>
+
+<h3>Can brms compute Bayes factors too?</h3>
+
+<p>It can, through <code>bayes_factor()</code> on two fitted brms models, but it needs careful priors and heavy sampling to do it well. BayesFactor is purpose-built for Bayes factors on common designs (t-tests, ANOVA, regression, <a class="auto-link" href="Covariance-and-Correlation-in-R.html" title="Covariance and Correlation in R from First Principles">correlation</a>, proportions) and is far simpler for those cases. Use the right tool for the question.</p>
+
+<h3>Is rstanarm the same as brms?</h3>
+
+<p>They are close cousins. Both let you fit Bayesian regression with R formula syntax on top of Stan. rstanarm ships precompiled models, so it skips the per-model compile step, but it covers a smaller set of models. brms compiles each model yet supports a much wider range, which is why it is the more common recommendation for flexible work.</p>
+
+<h3>Do I need to know Stan to use brms?</h3>
+
+<p>No. The whole appeal of brms is that you never open a Stan file. You should understand priors and posteriors, which the parent guide on Bayesian statistics covers, but the Stan code stays under the hood unless you choose to inspect it.</p>
+
+<h3>Why is BayesFactor sometimes discouraged for general use?</h3>
+
+<p>BayesFactor is excellent for the standard tests it implements, but it does not give you a full posterior for arbitrary models, and it can be slow or unavailable for large or unusual designs. For general model fitting with uncertainty estimates, brms is the broader tool. For clean hypothesis tests, BayesFactor is hard to beat.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Package</th>
+<th>Best for</th>
+<th>Gives you back</th>
+<th>You write</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>brms</td>
+<td>Applied regression, multilevel and non-Gaussian models</td>
+<td>A full posterior</td>
+<td>One formula</td>
+<td>Compiles each model</td>
+</tr>
+<tr>
+<td>RStan</td>
+<td>Fully custom models no formula can express</td>
+<td>A full posterior</td>
+<td>The Stan program yourself</td>
+<td>Most code and setup</td>
+</tr>
+<tr>
+<td>BayesFactor</td>
+<td>Hypothesis tests on standard designs</td>
+<td>A single Bayes factor</td>
+<td>One test call</td>
+<td>No posterior for custom models</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one-line takeaway: default to brms, drop to RStan only when a formula cannot express your model, and switch to BayesFactor when the question is which hypothesis the data support rather than what the fitted model looks like.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Bürkner, P. C. brms: An R Package for Bayesian Multilevel Models Using Stan. Journal of Statistical Software (2017). <a href="https://www.jstatsoft.org/article/view/v080i01">Link</a></li>
+
+<li>brms package on CRAN. <a href="https://cran.r-project.org/package=brms">Link</a></li>
+
+<li>RStan: the R interface to Stan. <a href="https://mc-stan.org/rstan/">Link</a></li>
+
+<li>BayesFactor package on CRAN. <a href="https://cran.r-project.org/package=BayesFactor">Link</a></li>
+
+<li>Morey, R. D. BayesFactor package documentation. <a href="https://richarddmorey.github.io/BayesFactor/">Link</a></li>
+
+<li>rstanarm: Bayesian applied regression modeling via Stan. <a href="https://mc-stan.org/rstanarm/">Link</a></li>
+
+<li>bayestestR: describe posteriors from brms, rstanarm, and BayesFactor. <a href="https://easystats.github.io/bayestestR/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>: the prior, likelihood, and posterior foundations this guide builds on.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>: a deeper walkthrough of fitting and interpreting brms models.</li>
+
+<li><a href="Bayes-Factors-in-R.html">Bayes Factors in R</a>: how to compute and read Bayes factors with the BayesFactor package.</li>
+
+</ul>
+
+{% endraw %}
