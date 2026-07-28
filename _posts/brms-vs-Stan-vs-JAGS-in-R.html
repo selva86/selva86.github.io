@@ -1,0 +1,731 @@
+---
+title: "brms vs Stan vs JAGS in R: Which Bayesian Package Should You Use?"
+description: "brms vs Stan vs JAGS in R compared: how each specifies a Bayesian model, which sampler it runs, and a clear decision guide for choosing the right one."
+keywords: "brms vs Stan, brms vs JAGS, Stan vs JAGS, Bayesian R packages, which Bayesian package, rjags, rstan, brms package, MCMC in R, Bayesian modeling in R"
+mathjax: true
+webr: true
+curriculum_id: "CMP10"
+post_type: "FR"
+auto_link_terms: "brms vs Stan|Stan vs JAGS|brms vs JAGS|brms vs Stan vs JAGS|choosing a Bayesian package|Bayesian package comparison|which Bayesian package|Bayesian software in R|compare Bayesian packages|rjags vs rstan"
+auto_link_case_sensitive: false
+fr_parent: "brms-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">brms, Stan, and JAGS all fit Bayesian models by drawing samples from the posterior, so they answer the same statistical question. What differs is how you write the model down and how the software explores it: brms suits most regression work, Stan gives you full control over custom models, and JAGS is handy when your model has discrete hidden parameters.</p>
+
+<p>If you have decided to go Bayesian in R, the next question is which package to write your model in. This guide compares the three most common choices side by side, in plain language, so you can pick with confidence. The runnable examples on this page use base R so you can follow every idea live in your browser. The package-specific code for brms, Stan, and JAGS is shown for reference, since those engines run in a local R session rather than here.</p>
+
+<h2>What do brms, Stan, and JAGS actually do?</h2>
+
+<p>All three tools solve one problem: you have a model with unknown parameters, you have some prior belief about those parameters, and you have data. You want the updated belief after seeing the data, which is called the posterior. Bayes' rule says the posterior is proportional to the likelihood of the data times the prior:</p>
+
+<p>$$p(\theta \mid y) \propto p(y \mid \theta)\, p(\theta)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$p(\theta \mid y)$ is the posterior, what we want.</li>
+
+<li>$p(y \mid \theta)$ is the likelihood, how well a parameter value explains the data.</li>
+
+<li>$p(\theta)$ is the prior, what we believed before seeing the data.</li>
+
+</ul>
+
+<p>For a tiny model you can compute the posterior directly on a grid of values. Let's do exactly that so you can see a real posterior before we bring in the packages. Suppose we measured 12 reaction times in seconds and we want the posterior for the true average. We put a Normal(2, 0.5) prior on the mean and evaluate the formula above at 2000 candidate values.</p>
+
+<div class="webr-container" data-block-title="Grid-approximate a posterior mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid-approximate a posterior mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 12 reaction times (seconds); we want the posterior for the true mean
+y &lt;- c(2.1, 1.9, 2.4, 2.0, 2.2, 1.8, 2.3, 2.1, 2.5, 1.7, 2.2, 2.0)
+
+grid &lt;- seq(1.5, 2.5, length.out = 2000)          # candidate values of the mean
+prior &lt;- dnorm(grid, mean = 2.0, sd = 0.5)          # Normal(2, 0.5) prior
+likelihood &lt;- sapply(grid, function(m) prod(dnorm(y, mean = m, sd = 0.25)))
+post &lt;- prior * likelihood                          # posterior proportional to prior x likelihood
+post &lt;- post / sum(post)                            # normalise so it sums to 1
+
+post_mean &lt;- sum(grid * post)                       # posterior mean
+cdf &lt;- cumsum(post)
+ci &lt;- c(grid[which.min(abs(cdf - 0.025))], grid[which.min(abs(cdf - 0.975))])
+round(c(mean = post_mean, lower = ci[1], upper = ci[2]), 3)
+#&gt;  mean lower upper 
+#&gt; 2.098 1.958 2.238</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The walk-through: we built the prior and the likelihood on the same grid, multiplied them point by point, and normalised the result into a proper probability distribution. Summing <code>grid * post</code> gives the posterior mean, and reading off the 2.5% and 97.5% points of the <a class="auto-link" href="dplyr-cume_dist-in-R.html" title="dplyr cume_dist() in R: Empirical Cumulative Distribution">cumulative distribution</a> gives a 95% <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">credible interval</a>.</p>
+
+<p>The interpretation: the posterior says the true mean is about 2.10 seconds, and we are 95% sure it lies between 1.96 and 2.24. That full range, not just a single number, is the Bayesian answer. brms, Stan, and JAGS all produce this same kind of result, a whole <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a>, for models far too big to solve on a grid.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The three packages give you the same posterior; they differ only in the front end and the sampler.</strong> Once you accept that, the choice stops being about correctness and becomes about how you want to write the model and how fast it needs to run.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recompute the posterior mean with a wider prior, Normal(2, 1), which expresses weaker prior belief. Reuse <code>grid</code> and <code>likelihood</code> from above.</p>
+<div class="webr-container" data-block-title="Your turn: widen the prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: widen the prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a Normal(2, 1) prior on the same grid, multiply by `likelihood`,
+# normalise so it sums to 1, then take sum(grid * posterior).
+# Expected: still about 2.10, because the data dominate here.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wider prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wider prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prior &lt;- dnorm(grid, mean = 2.0, sd = 1.0)
+ex_post &lt;- ex_prior * likelihood
+ex_post &lt;- ex_post / sum(ex_post)
+round(sum(grid * ex_post), 3)
+#&gt; [1] 2.099</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 12 data points the likelihood is sharp, so loosening the prior barely moves the posterior mean. The prior matters most when data are scarce.</p>
+
+</details>
+</section>
+
+<h2>How does each package describe the same model?</h2>
+
+<p>Real models have more parameters than a grid can handle, so you hand the job to a sampler. The three packages sit at different heights on an abstraction ladder. brms lets you write a one-line formula. Stan asks you to write a small program that spells out the model. JAGS uses a declarative language called BUGS, where you state the relationships and it works out the rest.</p>
+
+<p><img src="screenshots/brms-vs-Stan-vs-JAGS-in-R-abstraction-ladder.webp" alt="Three ways to describe one Bayesian model, all ending at posterior draws." class="img-responsive img-zoomable" loading="lazy" width="1858" height="690" /></p>
+
+<p><em>Figure 1: brms writes Stan for you, while JAGS runs its own Gibbs engine. All roads end at posterior draws.</em></p>
+
+<p>To compare the three fairly, we need one concrete model. Let's simulate a <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">simple linear regression</a> where the true intercept is 2 and the true slope is 0.5, then look at the data and fit an ordinary least-squares line as a reference point.</p>
+
+<div class="webr-container" data-block-title="Simulate a regression and fit lm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate a regression and fit lm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+n &lt;- 60
+x &lt;- runif(n, 0, 10)
+y_reg &lt;- 2 + 0.5 * x + rnorm(n, sd = 1)   # true intercept 2, true slope 0.5
+d &lt;- data.frame(x = x, y = y_reg)
+head(d, 3)
+#&gt;           x        y
+#&gt; 1 3.7219838 4.755929
+#&gt; 2 0.4382482 2.498276
+#&gt; 3 7.0968402 6.556286
+
+fit_lm &lt;- lm(y ~ x, data = d)
+round(coef(fit_lm), 3)
+#&gt; (Intercept)           x 
+#&gt;       2.077       0.480</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Least squares recovers a slope of 0.48, close to the true 0.5. That is a single best-guess line with no uncertainty attached. The Bayesian version returns a posterior for the slope instead. Here is how you would ask each package for it.</p>
+
+<p>With <strong>brms</strong>, the model is the same formula you gave <code>lm()</code>, plus a prior and a family. You never write any Stan code.</p>
+
+<pre><code>library(brms)
+
+fit_brms &lt;- brm(
+  y ~ x,                                     # same formula you would give lm()
+  data   = d,
+  family = gaussian(),
+  prior  = prior(normal(0, 1), class = &quot;b&quot;) # prior on the slope
+)
+
+summary(fit_brms)   # posterior means, 95% credible intervals, and convergence diagnostics</code></pre>
+
+<p>With <strong>Stan</strong>, you write a small program with three blocks: the data it expects, the parameters to estimate, then the model that connects them. You then call it from R.</p>
+
+<pre><code>// slope_model.stan
+data {
+  int&lt;lower=1&gt; N;
+  vector[N] x;
+  vector[N] y;
+}
+parameters {
+  real a;                 // intercept
+  real b;                 // slope
+  real&lt;lower=0&gt; sigma;    // noise standard deviation
+}
+model {
+  b ~ normal(0, 1);              // prior on the slope
+  y ~ normal(a + b * x, sigma);  // likelihood
+}</code></pre>
+
+<pre><code>library(rstan)
+
+fit_stan &lt;- stan(
+  file  = &quot;slope_model.stan&quot;,
+  data  = list(N = nrow(d), x = d[[&quot;x&quot;]], y = d[[&quot;y&quot;]])
+)
+
+print(fit_stan, pars = c(&quot;a&quot;, &quot;b&quot;, &quot;sigma&quot;))</code></pre>
+
+<p>With <strong>JAGS</strong>, you write a BUGS model. It looks similar to Stan but reads as a set of declarations, and it parameterises the normal by precision rather than standard deviation.</p>
+
+<pre><code>model {
+  for (i in 1:N) {
+    y[i] ~ dnorm(a + b * x[i], tau)   # tau is precision = 1 / variance
+  }
+  a   ~ dnorm(0, 0.001)               # vague prior on the intercept
+  b   ~ dnorm(0, 1)                   # prior on the slope
+  tau ~ dgamma(0.01, 0.01)            # prior on the precision
+}</code></pre>
+
+<pre><code>library(rjags)
+
+# model_string holds the model block above, stored as a string
+jags &lt;- jags.model(textConnection(model_string),
+                   data = list(N = nrow(d), x = d[[&quot;x&quot;]], y = d[[&quot;y&quot;]]))
+samples &lt;- coda.samples(jags, variable.names = c(&quot;a&quot;, &quot;b&quot;), n.iter = 2000)
+summary(samples)</code></pre>
+
+<p>Notice the trade-off. The brms version is three lines and needs no new language. The Stan and JAGS versions are more verbose but let you write relationships that no formula could express.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Precision, not variance, trips up newcomers in JAGS.</strong> JAGS writes the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> as <code>dnorm(mean, tau)</code> where <code>tau</code> is the precision, equal to 1 divided by the variance. A big <code>tau</code> means small spread. Stan and brms use the standard deviation directly, so watch the switch when you port a model.</div></div>
+
+<p>Is the claim that brms writes Stan for you literally true? Yes. brms has a function that shows you the exact Stan program it builds from your formula, and it runs without fitting anything. Let's look at the data block it generates.</p>
+
+<pre><code class="language-r">library(brms)
+
+# make_stancode turns a formula into a full Stan program, no Stan coding required
+stan_prog &lt;- make_stancode(y ~ x, data = d, family = gaussian())
+cat(paste(strsplit(as.character(stan_prog), &quot;\n&quot;)[[1]][4:11], collapse = &quot;\n&quot;))
+#&gt; data {
+#&gt;   int&lt;lower=1&gt; N;  // total number of observations
+#&gt;   vector[N] Y;  // response variable
+#&gt;   int&lt;lower=1&gt; K;  // number of population-level effects
+#&gt;   matrix[N, K] X;  // population-level design matrix
+#&gt;   int&lt;lower=1&gt; Kc;  // number of population-level effects after centering
+#&gt;   int prior_only;  // should the likelihood be ignored?
+#&gt; }</code></pre>
+
+<p>The walk-through: <code>make_stancode()</code> returns the Stan program brms would compile, and we print its data block. That block is Stan code, written for you, from a one-line formula. The interpretation: brms is not a different method from Stan, it is a code generator that writes Stan for you, which is why anything brms fits, Stan can fit too.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Get the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> for the slope from the <code>lm()</code> fit with <code>confint()</code>, so you have a frequentist interval to compare against a Bayesian one later.</p>
+<div class="webr-container" data-block-title="Your turn: confidence interval for the slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confidence interval for the slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use confint() on fit_lm and pull out the row named &quot;x&quot;.
+# Expected: a lower and upper bound bracketing 0.5.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Slope confidence interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Slope confidence interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci &lt;- confint(fit_lm)[&quot;x&quot;, ]
+round(ex_ci, 3)
+#&gt;  2.5 % 97.5 % 
+#&gt;  0.382  0.577</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The frequentist interval runs from 0.38 to 0.58. A Bayesian credible interval from any of the three packages will land in a similar place for this simple model, but it carries a direct probability reading: the slope is 95% likely to be inside it.</p>
+
+</details>
+</section>
+
+<h2>What sampler runs under the hood, and why does it matter?</h2>
+
+<p>When the posterior is too complex for a grid, the packages approximate it by drawing thousands of samples from it. This is <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov chain</a> Monte Carlo, or MCMC. The two big families of sampler explain most of the practical differences between the packages.</p>
+
+<p>JAGS uses <strong><a class="auto-link" href="Gibbs-Sampling-in-R.html" title="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">Gibbs sampling</a></strong>. It updates one parameter at a time, drawing each from its distribution given the current values of all the others. It is simple and needs no gradients, but it can get stuck taking tiny steps when parameters are correlated. Stan and brms use <strong><a class="auto-link" href="Hamiltonian-Monte-Carlo-in-R.html" title="Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast">Hamiltonian Monte Carlo</a></strong>, or HMC, with a variant called the No-U-Turn Sampler. HMC uses the gradient of the posterior to propose long, informed jumps, so it explores correlated, high-dimensional models far more efficiently.</p>
+
+<p>To make MCMC concrete, let's build the simplest sampler by hand, a random-walk Metropolis sampler, for the slope of our regression. We hold the intercept and noise at their least-squares values and let the slope wander. At each step we propose a small move, then accept it with a probability set by how much better or worse it makes the posterior.</p>
+
+<p>$$\alpha = \min\left(1, \; \frac{p(\theta' \mid y)}{p(\theta \mid y)}\right)$$</p>
+
+<p>Where $\theta'$ is the proposed value and $\theta$ is the current value. If the proposal is better the ratio exceeds 1 and we always accept; if it is worse we accept it only sometimes. If you are not interested in the mechanics, skip to the output, the numbers are all you need.</p>
+
+<div class="webr-container" data-block-title="A Metropolis sampler for the slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A Metropolis sampler for the slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a_hat &lt;- coef(fit_lm)[[&quot;(Intercept)&quot;]]   # hold intercept at its lm value
+s_hat &lt;- summary(fit_lm)$sigma           # hold noise at its lm value
+
+# log posterior for the slope b: log-likelihood + log-prior Normal(0, 1)
+logpost &lt;- function(b) sum(dnorm(d$y, a_hat + b * d$x, s_hat, log = TRUE)) +
+                       dnorm(b, 0, 1, log = TRUE)
+
+set.seed(202)
+n_iter &lt;- 8000
+draws_all &lt;- numeric(n_iter)
+b_cur &lt;- 0
+lp_cur &lt;- logpost(b_cur)
+accept &lt;- 0
+for (t in 1:n_iter) {
+  b_prop  &lt;- b_cur + rnorm(1, 0, 0.05)     # propose a small move
+  lp_prop &lt;- logpost(b_prop)
+  if (log(runif(1)) &lt; lp_prop - lp_cur) {  # accept with Metropolis probability
+    b_cur &lt;- b_prop; lp_cur &lt;- lp_prop; accept &lt;- accept + 1
+  }
+  draws_all[t] &lt;- b_cur
+}
+draws &lt;- draws_all[-(1:1000)]              # discard the first 1000 as warmup
+round(c(post_mean = mean(draws), accept_rate = accept / n_iter), 3)
+#&gt;   post_mean accept_rate 
+#&gt;       0.479       0.469</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The walk-through: we started the slope at 0, proposed a nudge each iteration, and kept or rejected it based on the posterior ratio. After discarding warmup, the retained samples are draws from the posterior of the slope. The interpretation: the posterior mean is 0.479, matching both the true 0.5 and the least-squares estimate, and about 47% of proposals were accepted. This hand-rolled loop is exactly the kind of work JAGS, Stan, and brms automate for you, only far more efficiently.</p>
+
+<p>A picture helps. Plotting the chain over time shows it wandering around the posterior rather than drifting, which is the sign of a healthy sampler.</p>
+
+<div class="webr-container" data-block-title="Trace plot of the chain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace plot of the chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(draws, type = &quot;l&quot;, col = &quot;steelblue&quot;,
+     xlab = &quot;iteration&quot;, ylab = &quot;slope&quot;, main = &quot;Metropolis chain for the slope&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Not all samples are worth the same. Because each draw is close to the one before it, the chain carries less information than its raw count suggests. The <a class="auto-link" href="MCMC-Diagnostics-in-R.html" title="MCMC Diagnostics in R: 4 Tests for Chain Convergence">effective sample size</a> measures how many truly independent draws you effectively have.</p>
+
+<div class="webr-container" data-block-title="Effective sample size of the chain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effective sample size of the chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acf_vals &lt;- acf(draws, plot = FALSE, lag.max = 50)$acf[-1]  # autocorrelations
+ess &lt;- length(draws) / (1 + 2 * sum(acf_vals[acf_vals &gt; 0]))
+round(c(n_draws = length(draws), effective = ess))
+#&gt;   n_draws effective 
+#&gt;      7000      1319</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interpretation: 7000 raw draws are worth only about 1319 independent ones here, because a plain random walk takes small, correlated steps. This is precisely the weakness HMC fixes: by using gradients to take long, decorrelated steps, Stan and brms turn the same wall-clock time into many more effective samples, especially as models grow.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A large raw sample count can hide very few effective samples.</strong> If your chains are strongly autocorrelated, thousands of iterations may give you only a few hundred useful draws. Always check the effective sample size, and prefer HMC when a Gibbs sampler mixes slowly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun the sampler with a larger proposal standard deviation of 0.20 instead of 0.05, and report the acceptance rate. Reuse the <code>logpost</code> function from above.</p>
+<div class="webr-container" data-block-title="Your turn: a bolder proposal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a bolder proposal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Copy the loop, change rnorm(1, 0, 0.05) to rnorm(1, 0, 0.20),
+# use set.seed(303), and report accept_count / n_iter.
+# Expected: acceptance drops well below the 0.47 we saw.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bolder proposal solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bolder proposal solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+ex_draws &lt;- numeric(4000); ex_b &lt;- 0; ex_lp &lt;- logpost(0); ex_acc &lt;- 0
+for (t in 1:4000) {
+  ex_p &lt;- ex_b + rnorm(1, 0, 0.20); ex_lpp &lt;- logpost(ex_p)
+  if (log(runif(1)) &lt; ex_lpp - ex_lp) { ex_b &lt;- ex_p; ex_lp &lt;- ex_lpp; ex_acc &lt;- ex_acc + 1 }
+  ex_draws[t] &lt;- ex_b
+}
+round(ex_acc / 4000, 3)
+#&gt; [1] 0.138</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bigger jumps overshoot the posterior more often, so only 14% are accepted. Tuning this step size by hand is fiddly, which is another reason HMC and its auto-tuning are so valuable.</p>
+
+</details>
+</section>
+
+<h2>Which package should you use, and how do they compare?</h2>
+
+<p>Now that you know what the three packages do and how they sample, the choice comes down to your model and your priorities. Here is the practical comparison.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Dimension</th>
+<th>brms</th>
+<th>Stan (rstan)</th>
+<th>JAGS (rjags)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>How you specify a model</td>
+<td>lme4-style formula</td>
+<td>Stan program</td>
+<td>BUGS model</td>
+</tr>
+<tr>
+<td>Sampler</td>
+<td>HMC / NUTS</td>
+<td>HMC / NUTS</td>
+<td>Gibbs + others</td>
+</tr>
+<tr>
+<td>Learning curve</td>
+<td>Gentle for R users</td>
+<td>Steep</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>Discrete parameters</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Speed on hard models</td>
+<td>Fast</td>
+<td>Fast</td>
+<td>Slower</td>
+</tr>
+<tr>
+<td>What you install</td>
+<td>A C++ toolchain</td>
+<td>A C++ toolchain</td>
+<td>The JAGS program</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two rows deserve a note. First, both brms and Stan need a C++ compiler because Stan translates your model to C++ and compiles it, which adds a one-time build step per model. JAGS ships as its own program that R talks to, so there is nothing to compile. Second, only JAGS can sample discrete unknowns directly, such as a hidden class label, because HMC needs a continuous, differentiable surface to compute gradients on.</p>
+
+<p>The decision usually follows a short path.</p>
+
+<p><img src="screenshots/brms-vs-Stan-vs-JAGS-in-R-decision-flow.webp" alt="A decision path for choosing a Bayesian package in R." class="img-responsive img-zoomable" loading="lazy" width="1132" height="1608" /></p>
+
+<p><em>Figure 2: A quick decision path for picking the right Bayesian package.</em></p>
+
+<ul>
+
+<li><strong>Reach for brms</strong> when your model is a regression, a generalised linear model, or a <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">multilevel model</a>, which covers the large majority of applied work, and you get Stan's speed without writing Stan.</li>
+
+<li><strong>Drop down to Stan</strong> when the formula interface cannot express your model, for example a custom likelihood or an unusual parameter constraint, or when you want maximum control and speed.</li>
+
+<li><strong>Choose JAGS</strong> when your model has discrete latent parameters, or when you are working from existing BUGS or JAGS code and translating it would cost more than it is worth.</li>
+
+</ul>
+
+<p>Whatever you pick, the output is the same shape: a set of posterior draws that you <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> the same way. Here is the 95% credible interval for our slope, straight from the Metropolis draws.</p>
+
+<div class="webr-container" data-block-title="Credible interval from posterior draws">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Credible interval from posterior draws</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(quantile(draws, c(0.025, 0.5, 0.975)), 3)
+#&gt;  2.5%   50% 97.5% 
+#&gt; 0.436 0.479 0.525</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interpretation: given the data and prior, there is a 95% probability the slope lies between 0.44 and 0.53. brms, Stan, and JAGS would each hand you draws you summarise with this very line. The package decides how you write and run the model; it does not change how you read the answer.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with brms and only drop to Stan when you must.</strong> Most applied models are regressions that brms expresses in one formula, so you get HMC speed with almost no code. Move to writing raw Stan only when your model genuinely outgrows the formula interface.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the same <code>draws</code>, compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the slope is greater than 0.5.</p>
+<div class="webr-container" data-block-title="Your turn: a posterior probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a posterior probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The draws are samples from the posterior, so a probability is just a proportion.
+# Compute the fraction of draws that exceed 0.5.
+# Expected: a value well under 0.5, since the posterior centres near 0.48.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Posterior probability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Posterior probability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(draws &gt; 0.5), 3)
+#&gt; [1] 0.174</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 17% of the posterior mass sits above 0.5. Turning a question into a probability by counting draws is one of the everyday joys of Bayesian work, and it looks identical no matter which package produced the draws.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<p><strong>Do I need to install anything special to use them?</strong> brms and Stan both need a C++ toolchain, called Rtools on Windows, because Stan compiles each model. JAGS is a separate program you install first, and then the rjags package talks to it. brms is usually the smoothest to set up on a fresh machine because a single package install pulls in what it needs.</p>
+
+<p><strong>Is brms just Stan underneath?</strong> Yes. brms translates your formula into a Stan program and hands it to Stan to fit, as the generated-code example above showed. Anything brms can fit, Stan can fit, but not the other way around, because raw Stan can express models no formula can.</p>
+
+<p><strong>Can JAGS do everything Stan can?</strong> Not quite. JAGS can sample discrete unknown parameters that Stan cannot, which is a real advantage for some mixture and hidden-state models. But JAGS mixes more slowly on large, correlated models, where Stan's gradient-based sampler pulls ahead.</p>
+
+<p><strong>Which one is fastest?</strong> For most non-trivial models, Stan and brms are faster in effective samples per second because HMC explores the posterior more efficiently. JAGS can be competitive on small models with conjugate structure where Gibbs steps are cheap.</p>
+
+<p><strong>Do I have to learn the <a class="auto-link" href="Stan-in-R.html" title="Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes">Stan language</a> to use brms?</strong> No. You can go a long way with brms writing only R formulas. Learning to read Stan helps you understand and debug what brms generates, but it is not required to get results.</p>
+
+<p><strong>What about <a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">rstanarm</a>, PyMC, or NIMBLE?</strong> rstanarm is a sibling of brms with pre-compiled models for common regressions, so it skips the compile step but supports fewer model types. PyMC is the popular Python equivalent of this space, and NIMBLE is a BUGS-compatible R package that compiles its samplers for extra speed. They are worth knowing, but brms, Stan, and JAGS remain the most common starting points in R.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These two problems reuse the ideas above. Both run in your browser with base R.</p>
+
+<h3>Exercise 1: Posterior for a proportion</h3>
+
+<p>You ran a small test and observed 18 successes out of 25 trials. Using a uniform prior on the success probability, grid-approximate the posterior mean and 95% credible interval. Use <code>dbinom()</code> for the likelihood over a grid of probabilities from 0 to 1.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build p_grid from 0 to 1, a flat prior, and a dbinom(18, 25, p_grid) likelihood.
+# Normalise the posterior, then report its mean and 2.5% / 97.5% points.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_grid &lt;- seq(0, 1, length.out = 2000)
+p_prior &lt;- rep(1, length(p_grid))                 # flat Uniform(0, 1) prior
+p_lik &lt;- dbinom(18, size = 25, prob = p_grid)     # likelihood
+p_post &lt;- p_prior * p_lik
+p_post &lt;- p_post / sum(p_post)
+p_cdf &lt;- cumsum(p_post)
+round(c(mean = sum(p_grid * p_post),
+        lower = p_grid[which.min(abs(p_cdf - 0.025))],
+        upper = p_grid[which.min(abs(p_cdf - 0.975))]), 3)
+#&gt;  mean lower upper 
+#&gt; 0.704 0.522 0.856</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The posterior mean of 0.70 is close to the raw rate 18/25 = 0.72, pulled slightly toward 0.5 by the prior, and the wide interval reflects how little 25 trials tell you. This is the same grid recipe from the first section, applied to a proportion instead of a mean.</p>
+
+</details>
+
+<h3>Exercise 2: Sample an unknown mean</h3>
+
+<p>Return to the 12 reaction times in <code>y</code>. Write a Metropolis sampler for the unknown mean, using a known noise standard deviation of 0.25 and a Normal(2, 0.5) prior, then report the posterior mean and 95% credible interval. Compare your answer to the grid result from the first section.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Write a log-posterior lp_mu(mu) = sum(dnorm(y, mu, 0.25, log = TRUE)) + dnorm(mu, 2, 0.5, log = TRUE).
+# Run a Metropolis loop over mu with set.seed(404), discard warmup,
+# then report mean and quantile(., c(0.025, 0.975)).
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+lp_mu &lt;- function(mu) sum(dnorm(y, mu, 0.25, log = TRUE)) + dnorm(mu, 2, 0.5, log = TRUE)
+m_draws &lt;- numeric(6000); m_cur &lt;- 2; m_lp &lt;- lp_mu(2)
+for (t in 1:6000) {
+  m_prop &lt;- m_cur + rnorm(1, 0, 0.05); m_lpp &lt;- lp_mu(m_prop)
+  if (log(runif(1)) &lt; m_lpp - m_lp) { m_cur &lt;- m_prop; m_lp &lt;- m_lpp }
+  m_draws[t] &lt;- m_cur
+}
+m_draws &lt;- m_draws[-(1:1000)]
+round(c(post_mean = mean(m_draws),
+        lower = quantile(m_draws, 0.025),
+        upper = quantile(m_draws, 0.975)), 3)
+#&gt;   post_mean  lower.2.5% upper.97.5% 
+#&gt;       2.097       1.958       2.232</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sampler lands on a posterior mean of 2.10 with a 95% interval of 1.96 to 2.23, matching the grid answer from the first section almost exactly. Two different methods, one posterior, which is the whole point: the tool is a means to the same end.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>The three packages are front ends to the same idea. Pick based on how you want to write the model and what it needs to do.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Package</th>
+<th>Write a model as</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>brms</td>
+<td>A one-line R formula</td>
+<td>Regression, GLM, or multilevel work (most cases)</td>
+</tr>
+<tr>
+<td>Stan</td>
+<td>A Stan program</td>
+<td>Custom likelihoods, unusual constraints, top speed</td>
+</tr>
+<tr>
+<td>JAGS</td>
+<td>A BUGS model</td>
+<td>Discrete latent parameters or legacy BUGS code</td>
+</tr>
+</tbody>
+</table>
+
+<p>The one-line rule of thumb: default to brms, drop to Stan when the formula cannot express your model, and reach for JAGS when you need discrete parameters or already have BUGS code. Whichever you choose, you read the result the same way, as posterior draws you summarise into means, intervals, and probabilities.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Burkner, P. (2017). <em>brms: An R Package for Bayesian Multilevel Models Using Stan.</em> Journal of Statistical Software. <a href="https://cran.r-project.org/web/packages/brms/vignettes/brms_overview.pdf">Link</a> The canonical brms paper: what the formula interface can express and how it becomes Stan code.</li>
+
+<li>brms package documentation on CRAN. <a href="https://cran.r-project.org/web/packages/brms/index.html">Link</a> The CRAN reference for brms functions, including the <code>make_stancode</code> call used above.</li>
+
+<li>Stan Development Team. <em>Stan Reference Manual.</em> <a href="https://mc-stan.org/docs/reference-manual/">Link</a> The definitive guide to the Stan language and its HMC sampler.</li>
+
+<li>Plummer, M. <em>JAGS: Just Another Gibbs Sampler.</em> Project page. <a href="https://mcmc-jags.sourceforge.io/">Link</a> The JAGS project home: downloads and the BUGS modelling syntax.</li>
+
+<li>rjags package documentation on CRAN. <a href="https://cran.r-project.org/web/packages/rjags/index.html">Link</a> How to drive JAGS from R with the <code>rjags</code> calls shown above.</li>
+
+<li>Ponisio, L. et al. (2021). <em>JAGS, NIMBLE, Stan: a detailed comparison among Bayesian MCMC software.</em> arXiv. <a href="https://arxiv.org/abs/2107.09357">Link</a> A head-to-head benchmark if you want numbers behind the speed comparison.</li>
+
+<li>Kurz, A. S. <em>Doing Bayesian Data Analysis in brms and the tidyverse.</em> <a href="https://bookdown.org/ajkurz/DBDA_recoded/">Link</a> A full course that fits real models in brms, a good next step after this page.</li>
+
+<li>Jumping Rivers. <em>Should I learn Stan?</em> <a href="https://www.jumpingrivers.com/blog/why-stan/">Link</a> A short take on when dropping from brms to raw Stan is worth it.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="brms-in-R.html">brms in R</a>: the parent tutorial, fitting Bayesian regressions with the formula interface end to end.</li>
+
+<li><a href="Stan-in-R.html">Stan in R</a>: write and fit your first Stan model when brms is not enough.</li>
+
+<li><a href="MCMC-in-R.html">MCMC in R</a>: build a <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">Metropolis-Hastings</a> sampler from scratch to understand what these engines automate.</li>
+
+<li><a href="MCMC-Diagnostics-in-R.html">MCMC Diagnostics in R</a>: the four checks that tell you whether your chains have converged.</li>
+
+</ul>
+
+{% endraw %}
