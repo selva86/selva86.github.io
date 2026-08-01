@@ -47,6 +47,12 @@ VALIDATOR = REPO_ROOT / "Scripts" / "validate_exercise_hub.py"
 
 WRITE_TIMEOUT = 1200    # 20 min per hub hint backfill
 MD2HTML_TIMEOUT = 120
+
+# Model pinned explicitly. Without this the subprocess inherits whatever the
+# CLI default happens to be that day, which silently changes who authored the
+# content and leaves no record of it in the log or the tracker.
+BATCH_MODEL = 'claude-opus-5'
+BATCH_EFFORT = 'xhigh'
 VALIDATE_TIMEOUT = 120
 
 # Markdown patterns
@@ -182,7 +188,8 @@ def run_write_skill(claude: str, slug: str) -> int:
     log(f"  Spawning hint backfill for {slug}")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt, "--dangerously-skip-permissions"],
+            [claude, "-p", prompt, "--dangerously-skip-permissions",
+             "--model", BATCH_MODEL, "--effort", BATCH_EFFORT],
             cwd=str(PROJECT_ROOT), timeout=WRITE_TIMEOUT
         )
         return result.returncode

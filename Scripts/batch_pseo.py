@@ -47,6 +47,12 @@ VALIDATOR = REPO_ROOT / "Scripts" / "validate_pseo.py"
 SYNC_REGISTRIES = REPO_ROOT / "_build" / "sync_registries.py"
 
 WRITE_TIMEOUT = 1500    # 25 min per write (target 7-8 min, but generous)
+
+# Model pinned explicitly. Without this the subprocess inherits whatever the
+# CLI default happens to be that day, which silently changes who authored the
+# content and leaves no record of it in the log or the tracker.
+BATCH_MODEL = 'claude-opus-5'
+BATCH_EFFORT = 'xhigh'
 PUBLISH_TIMEOUT = 600   # 10 min per publish
 SYNC_TIMEOUT = 1800     # 30 min for the final sync_registries
 MAX_ATTEMPTS = 2
@@ -279,7 +285,8 @@ def run_write_skill(claude: str, slug: str, regenerate: bool, dry_run: bool) -> 
     log(f"  Spawning write: write-pseo-v2 {args_str} (inlined skill)")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt, "--dangerously-skip-permissions"],
+            [claude, "-p", prompt, "--dangerously-skip-permissions",
+             "--model", BATCH_MODEL, "--effort", BATCH_EFFORT],
             cwd=str(PROJECT_ROOT), timeout=WRITE_TIMEOUT
         )
         return result.returncode
@@ -317,7 +324,8 @@ def run_publish_skill(claude: str, slug: str, dry_run: bool,
     log(f"  Spawning publish: publish-post {args_str} (inlined skill)")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt, "--dangerously-skip-permissions"],
+            [claude, "-p", prompt, "--dangerously-skip-permissions",
+             "--model", BATCH_MODEL, "--effort", BATCH_EFFORT],
             cwd=str(PROJECT_ROOT), timeout=PUBLISH_TIMEOUT
         )
         return result.returncode
