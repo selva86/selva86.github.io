@@ -1,0 +1,963 @@
+---
+title: "ABC in R: Bayesian Inference Without a Likelihood"
+description: "Approximate Bayesian Computation (ABC) in R: Bayesian inference with no likelihood. Build the ABC rejection sampler, tune tolerance, and recover parameters."
+keywords: "approximate bayesian computation, ABC in R, likelihood-free inference, ABC rejection algorithm, simulation-based inference, summary statistics, tolerance epsilon, ABC posterior"
+mathjax: true
+webr: true
+curriculum_id: "FR-baye-2"
+post_type: "FR"
+auto_link_terms: "approximate Bayesian computation|ABC|ABC in R|likelihood-free inference|ABC rejection|simulation-based inference|likelihood-free|ABC algorithm|summary statistics|tolerance epsilon|ABC posterior"
+auto_link_case_sensitive: false
+fr_parent: "MCMC-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Approximate Bayesian Computation (ABC) is a way to do <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">Bayesian inference</a> when you cannot write down the likelihood. Instead of plugging numbers into a formula, you simulate fake datasets from candidate parameter values and keep the ones whose simulations resemble your real data. The kept values are your posterior. This post builds ABC from scratch in R, verifies it against a posterior we can compute exactly, then applies it to a model that has no likelihood at all. Everything is base R plus one plotting package, and the core sampler is just a few lines.</p>
+
+<h2>What does a likelihood do, and why can't you always write one down?</h2>
+
+<p>Every Bayesian calculation you have seen rests on one quantity: the likelihood. If you have read the <a href="MCMC-in-R.html">MCMC tutorial</a>, you have already leaned on it heavily. The likelihood is the probability of your observed data for a given setting of the parameters, written $P(\text{data} \mid \theta)$. Bayes' rule then combines it with your prior belief to give the posterior:</p>
+
+<p>$$P(\theta \mid \text{data}) \propto P(\text{data} \mid \theta) \times P(\theta)$$</p>
+
+<p>For a coin, the likelihood is easy. If a coin lands heads with probability $p$, the chance of seeing 32 heads in 50 flips is a binomial formula you can evaluate in one call to <code>dbinom()</code>. MCMC, variational Bayes, and every other standard method need this formula, because they all work by scoring how well each candidate $\theta$ explains the data.</p>
+
+<p>Now picture a model where you cannot write that formula. You can simulate an epidemic spreading through a town, a population's genes drifting over generations, or customers queuing at a call center. Running the model forward is easy: give it parameters, press go, watch data come out. But writing $P(\text{data} \mid \theta)$ would mean summing over every hidden path the process could have taken, and that sum has no closed form. The likelihood exists in principle, yet it is out of reach.</p>
+
+<p>Here is the move that saves us. If you can simulate data from a parameter value, you can check whether that value tends to produce data like what you actually saw. Parameters that keep producing your data are credible; parameters that never do are not. That single idea, replacing "evaluate the likelihood" with "simulate and compare," is Approximate Bayesian Computation. Let us watch it work on the coin, where we can check the answer.</p>
+
+<p>We observed 32 heads in 50 flips and want the coin's bias $p$. Our prior is total ignorance: $p$ is equally likely to be anything between 0 and 1. The code below draws thousands of candidate $p$ values from that prior, simulates 50 flips for each, and keeps only the candidates that produced exactly 32 heads.</p>
+
+<div class="webr-container" data-block-title="Recover a coin bias by simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover a coin bias by simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Observed: 50 coin flips, 32 landed heads. What is the coin's bias p?
+obs_heads &lt;- 32
+n_flips   &lt;- 50
+
+set.seed(2026)
+N &lt;- 100000
+p_guess   &lt;- runif(N, 0, 1)                              # candidate p values from the prior
+sim_heads &lt;- rbinom(N, size = n_flips, prob = p_guess)   # simulate 50 flips for each
+kept      &lt;- p_guess[sim_heads == obs_heads]             # keep guesses that reproduced 32 heads
+
+round(c(abc_mean   = mean(kept),
+        exact_mean = (1 + obs_heads) / (2 + n_flips),
+        kept_n     = length(kept)), 4)
+#&gt;   abc_mean exact_mean     kept_n 
+#&gt;     0.6348     0.6346  1947.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what happened. We never wrote a likelihood. We drew 100,000 guesses, threw away every one that did not reproduce our 32 heads, and about 1,947 survived. The average of those survivors is 0.6348. The exact posterior mean for this problem, which we can compute by hand because the coin has a tidy formula, is 0.6346. ABC landed on the right answer using nothing but simulation and a filter.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Keeping the parameter draws that reproduce your data is the same as drawing from the posterior.</strong> A value of <code>p</code> that reproduces 32 heads often is, by definition, a value the data support, so the pile of survivors is a sample from the posterior. ABC turns "score the likelihood" into "simulate and sieve."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the observed count to 40 heads out of 50 and rerun the sieve. The posterior should shift toward a more biased coin. The exact posterior mean for 40 heads is <code>41/52</code>.</p>
+<div class="webr-container" data-block-title="Your turn: recover a more biased coin">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recover a more biased coin</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse the sieve, but with a new observed head count.
+ex_heads &lt;- 40
+# your code here: draw p from the prior, simulate 50 flips each,
+# keep the draws that produced ex_heads, and take their mean</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="More-heads solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More-heads solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_p    &lt;- runif(1e5, 0, 1)
+ex_sim  &lt;- rbinom(1e5, size = 50, prob = ex_p)
+ex_kept &lt;- ex_p[ex_sim == ex_heads]
+round(c(abc_mean = mean(ex_kept), exact_mean = 41/52), 4)
+#&gt;   abc_mean exact_mean 
+#&gt;     0.7889     0.7885</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior mean jumps to about 0.789, matching the exact value 0.7885. More heads means the sieve keeps larger values of <code>p</code>.</p>
+
+</details>
+</section>
+
+<h2>How does the ABC rejection algorithm work, step by step?</h2>
+
+<p>That one code block hid a four-step loop that has a name: the ABC rejection sampler. It is worth slowing down and naming each step, because everything else in this post is a variation on these four moves.</p>
+
+<p><img src="screenshots/Approximate-Bayesian-Computation-in-R-rejection-flow.webp" alt="The ABC rejection sampler: draw, simulate, summarise, accept within tolerance." class="img-responsive img-zoomable" loading="lazy" width="2248" height="510" /></p>
+
+<p><em>Figure 1: The ABC rejection sampler: draw, simulate, summarise, accept within tolerance.</em></p>
+
+<p>The four steps are: draw a parameter from the prior, simulate a dataset with it, reduce the simulation to a summary you can compare, and accept the parameter if that summary is close enough to the observed one. For the coin, the summary was simply the number of heads, and "close enough" meant "exactly equal." Let us watch a single trip through the loop so the mechanics are concrete.</p>
+
+<div class="webr-container" data-block-title="One trip through the loop">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One trip through the loop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+one_p   &lt;- runif(1, 0, 1)                          # step 1: draw a candidate
+one_sim &lt;- rbinom(1, size = n_flips, prob = one_p) # step 2: simulate 50 flips
+c(guess_p = round(one_p, 3), heads_simulated = one_sim, observed = obs_heads)
+#&gt;         guess_p heads_simulated        observed 
+#&gt;           0.266          12.000          32.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This candidate drew <code>p = 0.266</code>, simulated 50 flips, and got 12 heads. We observed 32, so 12 is nowhere near, and this candidate is rejected. A biased-low coin like 0.266 rarely produces 32 heads, which is exactly why the sieve filters it out. Repeat this millions of times and only the plausible values survive.</p>
+
+<p>Now let us package the loop into a reusable function and read off the full posterior it produces, not just the mean. A posterior is a distribution, so we want its spread and a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> too.</p>
+
+<div class="webr-container" data-block-title="Package the ABC coin sampler">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Package the ABC coin sampler</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">abc_coin &lt;- function(obs_heads, n_flips, N = 2e5, seed = 42) {
+  set.seed(seed)
+  p   &lt;- runif(N, 0, 1)                       # draw candidates from the prior
+  sim &lt;- rbinom(N, size = n_flips, prob = p)  # simulate each
+  p[sim == obs_heads]                         # accept exact matches
+}
+
+post &lt;- abc_coin(obs_heads, n_flips)
+ci &lt;- quantile(post, c(0.025, 0.975))
+round(c(mean = mean(post), sd = sd(post),
+        lo = unname(ci[1]), hi = unname(ci[2])), 3)
+#&gt;  mean    sd    lo    hi 
+#&gt; 0.634 0.066 0.505 0.757</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returns the pile of accepted <code>p</code> values, our posterior sample. Its mean is 0.634, its standard deviation is 0.066, and a 95% credible interval runs from 0.505 to 0.757. That interval is the ABC answer to "how sure are we about the coin's bias."</p>
+
+<p>Because this particular problem is a coin with a <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">flat prior</a>, statisticians know the exact posterior: it is a <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Beta distribution</a> with parameters 33 and 19. We do not need to derive that here; we just use it as an answer key to check ABC against.</p>
+
+<div class="webr-container" data-block-title="Compare against the exact posterior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare against the exact posterior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ci_exact &lt;- qbeta(c(0.025, 0.975), 33, 19)
+round(c(mean = 33/52, sd = sqrt(33*19 / (52^2 * 53)),
+        lo = ci_exact[1], hi = ci_exact[2]), 3)
+#&gt;  mean    sd    lo    hi 
+#&gt; 0.635 0.066 0.501 0.759</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact posterior has mean 0.635, standard deviation 0.066, and a 95% interval from 0.501 to 0.759. Compare that to the ABC numbers above: they agree to two decimals across the board. ABC is not a rough approximation here, it reproduces the exact posterior. Seeing the two match on a solvable problem is what lets us trust ABC on the unsolvable ones later. A picture makes the agreement obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the ABC posterior against the exact curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the ABC posterior against the exact curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(data.frame(p = post), aes(p)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40,
+                 fill = &quot;#b7a4e0&quot;, colour = &quot;white&quot;) +
+  stat_function(fun = dbeta, args = list(33, 19),
+                colour = &quot;#5b3fa8&quot;, linewidth = 1) +
+  labs(title = &quot;ABC posterior vs exact Beta(33, 19)&quot;,
+       x = &quot;coin bias p&quot;, y = &quot;density&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The purple histogram is the ABC sample; the dark curve is the exact posterior. They sit on top of each other.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Exact matching only works because coin data is discrete.</strong> Two flip-counts can be exactly equal, so we could demand a perfect match. <a class="auto-link" href="Types-of-Data-in-Statistics.html" title="Types of Data in Statistics: Categorical to Continuous">Continuous data</a>, like heights or temperatures, will never match exactly, which is why the next sections introduce <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> and a tolerance for "close enough."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the sampler with a much larger <code>N</code> (say 500,000) and confirm the posterior mean barely moves while the number of accepted draws grows. More draws sharpen the estimate without changing where it sits.</p>
+<div class="webr-container" data-block-title="Your turn: draw more candidates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: draw more candidates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Call abc_coin() with a larger N and inspect how many draws are accepted.
+ex_n2 &lt;- 200
+# your code here: run abc_coin() with N = 5e5 and report length + mean</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Larger-N solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Larger-N solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_post &lt;- abc_coin(obs_heads, n_flips, N = 5e5)
+round(c(n_accepted = length(ex_post), mean = mean(ex_post)), 3)
+#&gt; n_accepted       mean 
+#&gt;   9670.000      0.635</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 500,000 candidates, about 9,670 are accepted and the mean settles at 0.635. More simulations buy you a smoother posterior, not a different one.</p>
+
+</details>
+</section>
+
+<h2>Why does ABC compare summary statistics instead of raw data?</h2>
+
+<p>For the coin we compared head counts, not the exact sequence of heads and tails. That was not laziness, it was necessity. To see why, imagine insisting on the raw sequence: the simulated 50 flips must match your observed 50 flips flip for flip. How often would that happen?</p>
+
+<div class="webr-container" data-block-title="Match the full sequence vs match the count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Match the full sequence vs match the count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+obs_seq &lt;- rbinom(n_flips, size = 1, prob = 0.64)   # the 50 individual flips (1 = heads)
+best_p  &lt;- mean(obs_seq)                             # the luckiest possible p
+
+prob_exact_sequence &lt;- prod(ifelse(obs_seq == 1, best_p, 1 - best_p))
+prob_matching_count &lt;- dbinom(sum(obs_seq), n_flips, best_p)
+c(heads = sum(obs_seq),
+  prob_exact_sequence = signif(prob_exact_sequence, 3),
+  prob_matching_count = round(prob_matching_count, 3))
+#&gt;               heads prob_exact_sequence prob_matching_count 
+#&gt;            3.10e+01            3.80e-15            1.16e-01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This observed run had 31 heads. Even with the single most favorable value of <code>p</code>, the chance of reproducing the exact 50-flip sequence is about <code>3.8e-15</code>, roughly one in 260 trillion. You would simulate for the age of the universe and accept almost nothing. Matching only the head count, by contrast, succeeds about 12% of the time. The count is a <strong>summary statistic</strong>: a small number of values that stand in for the whole dataset.</p>
+
+<p>Summarizing is not just a computational trick, it is what makes ABC possible for anything beyond tiny discrete problems. Raw data lives in too many dimensions to ever match; a good summary collapses it to something matchable.</p>
+
+<p>The natural worry is: do we lose information by summarizing? For the coin, no. The head count is a <strong><a class="auto-link" href="Sufficiency-in-Statistics.html" title="Sufficiency in Statistics in R: Sufficient Statistics, Fisher-Neyman Factorization">sufficient statistic</a></strong>, a technical term meaning it captures everything the data can tell you about <code>p</code>. Once you know the count, the specific order of heads and tails is irrelevant to <code>p</code>. In that lucky case, ABC on the summary gives the same posterior as ABC on the full data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>ABC gives you the posterior given your summaries, not given the full data.</strong> If your summaries throw away information about the parameter, the posterior will be too wide or biased, and no amount of extra simulation fixes it. Choosing summaries that capture what matters is the single most important decision in an ABC analysis.</div></div>
+
+<p>For most models there is no sufficient statistic and you must choose. The art is picking summaries that respond strongly to the parameters you care about. We will hit exactly this problem in the g-and-k example below.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write one line that computes the proportion of heads (a rescaled version of the count summary) for a short vector of flips.</p>
+<div class="webr-container" data-block-title="Your turn: compute a summary statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute a summary statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_flips &lt;- c(1, 0, 1, 1, 0, 1)   # six flips, 1 = heads
+# your code here: compute the proportion of heads in ex_flips</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Proportion-of-heads solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportion-of-heads solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p2 &lt;- mean(ex_flips)
+c(prop_heads = ex_p2, n = length(ex_flips))
+#&gt; prop_heads          n 
+#&gt;  0.6666667  6.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mean()</code> of a 0/1 vector is the proportion of ones, here 4 heads out of 6, or 0.667. Proportion and count carry the same information about <code>p</code>.</p>
+
+</details>
+</section>
+
+<h2>How does the tolerance control the accuracy of ABC?</h2>
+
+<p>The coin let us demand an exact match. Real data is usually continuous, so exact matches never happen and we must accept simulations that are merely <em>close</em>. How close is "close enough" is set by a number called the <strong>tolerance</strong>, written $\varepsilon$ (epsilon). We accept a candidate when the distance between its summary and the observed summary is below $\varepsilon$.</p>
+
+<p>Let us switch to continuous data. Suppose we take 30 measurements with known noise and want the underlying mean. Our summary is the sample average.</p>
+
+<div class="webr-container" data-block-title="Continuous data and its summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Continuous data and its summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+y_obs &lt;- rnorm(30, mean = 5, sd = 2)   # 30 measurements, known noise sd = 2
+s_obs &lt;- mean(y_obs)                    # summary statistic: the sample mean
+round(s_obs, 3)
+#&gt; [1] 5.243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Our observed summary is 5.243. Now we run ABC, but instead of demanding an exact match we accept any candidate whose simulated mean lands within $\varepsilon$ of 5.243. One nice simplification: the average of 30 normal draws is itself normal, so we can simulate the summary directly without generating all 30 points each time.</p>
+
+<div class="webr-container" data-block-title="An ABC sampler with a tolerance knob">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An ABC sampler with a tolerance knob</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">abc_normal &lt;- function(epsilon, N = 2e5, seed = 11) {
+  set.seed(seed)
+  mu    &lt;- runif(N, -10, 20)                       # prior on the mean
+  s_sim &lt;- rnorm(N, mean = mu, sd = 2 / sqrt(30))  # simulate the sample mean directly
+  mu[abs(s_sim - s_obs) &lt; epsilon]                 # accept summaries within epsilon
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The question is how to set $\varepsilon$. Make it too big and you accept almost every candidate, so your posterior barely differs from the prior. Make it too small and you accept almost nothing, so you wait forever for a handful of draws. Let us sweep a range of tolerances and watch the trade-off directly.</p>
+
+<div class="webr-container" data-block-title="Sweep the tolerance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep the tolerance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eps_grid &lt;- c(2, 1, 0.5, 0.2, 0.05)
+sweep_tab &lt;- t(sapply(eps_grid, function(e) {
+  post_e &lt;- abc_normal(e)
+  c(epsilon    = e,
+    accept_pct = round(100 * length(post_e) / 2e5, 2),
+    post_mean  = round(mean(post_e), 3),
+    post_sd    = round(sd(post_e), 3))
+}))
+sweep_tab
+#&gt;      epsilon accept_pct post_mean post_sd
+#&gt; [1,]    2.00      13.22     5.244   1.207
+#&gt; [2,]    1.00       6.61     5.244   0.683
+#&gt; [3,]    0.50       3.31     5.246   0.466
+#&gt; [4,]    0.20       1.29     5.237   0.385
+#&gt; [5,]    0.05       0.34     5.236   0.369</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table top to bottom. As $\varepsilon$ shrinks from 2 to 0.05, the acceptance rate collapses from 13% to a third of a percent, so you pay for accuracy with simulations. The posterior mean stays near 5.24 the whole way, but the posterior standard deviation tightens from 1.207 down to 0.369. That shrinking spread is the tolerance sharpening the posterior toward its true width.</p>
+
+<p>How do we know 0.369 is close to correct? For this model the exact posterior standard deviation is the known noise divided by the square root of the <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a>.</p>
+
+<div class="webr-container" data-block-title="The exact posterior width">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The exact posterior width</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(2 / sqrt(30), 3)
+#&gt; [1] 0.365</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact answer is 0.365, and the tightest ABC run reached 0.369. As $\varepsilon \to 0$, the ABC posterior converges to the true posterior. In the limit of zero tolerance ABC is exact; in practice you stop at a tolerance small enough to be accurate and large enough to be affordable.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set the tolerance as an acceptance fraction, not an absolute number.</strong> Rather than guessing a good $\varepsilon$, simulate a big batch and keep, say, the closest 1% of draws. The <code>quantile()</code> function turns "keep the best 1%" into the matching distance for you, and it adapts automatically to the scale of any problem.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pick a tolerance of your own, say 0.1, and confirm it lands between the 0.2 and 0.05 rows of the table for both acceptance rate and posterior spread.</p>
+<div class="webr-container" data-block-title="Your turn: try a tolerance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try a tolerance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_eps &lt;- 0.1
+# your code here: call abc_normal(ex_eps) and report accept % , mean, and sd</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Custom-tolerance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom-tolerance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_postn &lt;- abc_normal(ex_eps)
+round(c(epsilon = ex_eps, accept_pct = 100*length(ex_postn)/2e5,
+        mean = mean(ex_postn), sd = sd(ex_postn)), 3)
+#&gt;    epsilon accept_pct       mean         sd 
+#&gt;      0.100      0.669      5.235      0.373</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At $\varepsilon = 0.1$ you accept 0.669% of draws and the posterior spread is 0.373, neatly between the neighboring rows. Smaller tolerance, tighter and more expensive posterior.</p>
+
+</details>
+</section>
+
+<h2>When would you actually need ABC?</h2>
+
+<p>The coin and the normal both have tidy likelihoods, so ABC there was a teaching device. Now for a model where ABC is not a choice but the only easy option. The <strong>g-and-k distribution</strong> is defined only by its quantile function, the formula that turns a probability into a value. You can draw from it by feeding standard normal numbers through that formula, but it has no closed-form density, so there is no likelihood to evaluate. Simulating is a one-liner; writing $P(\text{data} \mid \theta)$ is a research problem.</p>
+
+<p>The distribution has two shape parameters we care about: <code>g</code> controls skewness (how lopsided the data is) and <code>k</code> controls kurtosis (how heavy the tails are). We will generate data with known values <code>g = 2</code> and <code>k = 0.5</code>, then pretend we do not know them and try to recover them with ABC.</p>
+
+<div class="webr-container" data-block-title="Simulate from a distribution with no likelihood">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate from a distribution with no likelihood</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The g-and-k distribution is defined only by this quantile transform.
+# You can simulate from it, but it has no density formula, so no likelihood.
+rgk &lt;- function(n, A = 0, B = 1, g, k, c = 0.8) {
+  z &lt;- rnorm(n)                                  # standard normal draws
+  A + B * (1 + c * tanh(g * z / 2)) * (1 + z^2)^k * z
+}
+set.seed(404)
+x_obs &lt;- rgk(400, g = 2, k = 0.5)                # &quot;observed&quot; data; true g = 2, k = 0.5
+round(head(x_obs, 5), 3)
+#&gt; [1]  1.486  0.063 -0.251 -0.357 -0.607</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is our observed dataset: 400 numbers from a distribution whose likelihood we cannot write. Because there is no sufficient statistic here, we must choose summaries. Two intuitive ones match our two parameters: sample skewness for <code>g</code> and excess kurtosis for <code>k</code>.</p>
+
+<div class="webr-container" data-block-title="Choose summaries that track the parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choose summaries that track the parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">skew &lt;- function(x) mean((x - mean(x))^3) / mean((x - mean(x))^2)^1.5
+kurt &lt;- function(x) mean((x - mean(x))^4) / mean((x - mean(x))^2)^2 - 3
+s_obs_gk &lt;- c(skew = skew(x_obs), kurt = kurt(x_obs))
+round(s_obs_gk, 3)
+#&gt;   skew   kurt 
+#&gt;  2.791 10.182</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Our observed data has skewness 2.791 and excess kurtosis 10.182, a strongly right-skewed, heavy-tailed shape. Now the ABC loop: draw many <code>(g, k)</code> pairs from priors, simulate a 400-point dataset for each, compute its <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">skewness and kurtosis</a>, and keep the pairs whose summaries land closest to the observed ones. We scale each summary by its own spread so that skewness and kurtosis count equally in the distance, then accept the closest 1.5%.</p>
+
+<div class="webr-container" data-block-title="Run ABC on the g-and-k distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run ABC on the g-and-k distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(505)
+N &lt;- 10000                                   # candidate (g, k) pairs to try
+n &lt;- 400                                     # each simulated sample matches the observed size
+g_prior &lt;- runif(N, 0, 4)                    # prior guesses for skewness parameter g
+k_prior &lt;- runif(N, 0, 1)                    # prior guesses for kurtosis parameter k
+Z &lt;- matrix(rnorm(N * n), N, n)              # one row of normal draws per candidate
+X &lt;- (1 + 0.8 * tanh(g_prior * Z / 2)) * (1 + Z^2)^k_prior * Z   # simulate all samples at once
+m1 &lt;- rowMeans(X)                            # per-candidate summaries, row by row
+c2 &lt;- rowMeans((X - m1)^2)
+c3 &lt;- rowMeans((X - m1)^3)
+c4 &lt;- rowMeans((X - m1)^4)
+S  &lt;- cbind(skew = c3 / c2^1.5, kurt = c4 / c2^2 - 3)
+sc   &lt;- apply(S, 2, sd)                       # scale each summary so both count equally
+Sctr &lt;- sweep(S, 2, s_obs_gk)
+Sctr &lt;- sweep(Sctr, 2, sc, &quot;/&quot;)
+dist &lt;- sqrt(rowSums(Sctr^2))                 # distance from the observed summaries
+keep &lt;- dist &lt;= quantile(dist, 0.015)         # accept the closest 1.5%
+g_post &lt;- g_prior[keep]; k_post &lt;- k_prior[keep]
+round(c(g_true = 2,   g_hat = mean(g_post), g_lo = quantile(g_post, 0.05), g_hi = quantile(g_post, 0.95),
+        k_true = 0.5, k_hat = mean(k_post), k_lo = quantile(k_post, 0.05), k_hi = quantile(k_post, 0.95)), 3)
+#&gt;   g_true    g_hat  g_lo.5% g_hi.95%   k_true    k_hat  k_lo.5% k_hi.95% 
+#&gt;    2.000    2.355    0.924    3.812    0.500    0.530    0.329    0.793</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We recovered the parameters of a distribution with no likelihood, using only the ability to simulate from it. The kurtosis parameter <code>k</code> is nearly spot on: estimate 0.530 against a truth of 0.5. The skewness parameter <code>g</code> is estimated at 2.355 against a truth of 2.0, a bit high, but the true value sits comfortably inside the 90% credible interval <code>[0.924, 3.812]</code>. That is the honest ABC picture: a posterior centered near the truth, with a spread that reflects both genuine uncertainty and the information lost by summarizing.</p>
+
+<div class="webr-container" data-block-title="Plot the accepted parameter pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the accepted parameter pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(data.frame(g = g_post, k = k_post), aes(g, k)) +
+  geom_point(colour = &quot;#7c5fc0&quot;, alpha = 0.4) +
+  annotate(&quot;point&quot;, x = 2, y = 0.5, colour = &quot;#c0392b&quot;, size = 4, shape = 4, stroke = 1.5) +
+  labs(title = &quot;Accepted (g, k) pairs; red cross marks the truth&quot;,
+       x = &quot;skewness parameter g&quot;, y = &quot;kurtosis parameter k&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The cloud of purple points is the joint posterior over <code>(g, k)</code>. The red cross marks the true values, and it sits inside the cloud.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ABC needs a simulator, not a likelihood.</strong> The g-and-k density never appeared anywhere in that code. Any model you can run forward, no matter how tangled its probability formula, is fair game for ABC. That is why fields like population genetics and epidemiology, where forward simulators are common but likelihoods are hopeless, adopted ABC first.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Sharper summaries give sharper answers.</strong> Skewness and kurtosis are intuitive but noisy. Specialists infer g-and-k parameters using robust summaries built from octiles (the 1/8, 2/8, ... quantiles), which respond more cleanly to <code>g</code> and <code>k</code> and tighten the posterior. This is the "choose good summaries" lesson from the previous section in action.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tighten the acceptance from the closest 1.5% to the closest 0.5% by reusing the <code>dist</code>, <code>g_prior</code>, and <code>k_prior</code> you already computed. Fewer, closer draws should nudge the estimates.</p>
+<div class="webr-container" data-block-title="Your turn: tighten the acceptance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighten the acceptance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_frac &lt;- 0.005
+# your code here: build a keep mask from quantile(dist, ex_frac),
+# then report how many pairs survive and the mean g and k</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter-acceptance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter-acceptance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_keep &lt;- dist &lt;= quantile(dist, ex_frac)
+round(c(kept = sum(ex_keep), g_hat = mean(g_prior[ex_keep]),
+        k_hat = mean(k_prior[ex_keep])), 3)
+#&gt;   kept  g_hat  k_hat 
+#&gt; 50.000  2.375  0.483</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only 50 pairs survive the 0.5% cut. The estimates stay in the same neighborhood; a tighter tolerance trims the posterior but needs many more simulations to keep the sample size usable.</p>
+
+</details>
+</section>
+
+<h2>How do you make ABC more accurate without more simulations?</h2>
+
+<p>Plain rejection ABC is wasteful. In the g-and-k run we simulated 10,000 datasets and threw away 9,850 of them. In higher dimensions it gets far worse, because a random draw rarely lands close on every summary at once. Two families of methods attack this waste, and a third trick squeezes more out of the draws you already accepted.</p>
+
+<p>The first two are extensions you should know by name. <strong>ABC-MCMC</strong> replaces blind prior draws with a guided walk: it proposes each new parameter near the last accepted one, so it spends its time in the promising region instead of wandering. <strong>ABC-SMC</strong> (sequential Monte Carlo) starts with a loose tolerance and gradually tightens it over several rounds, carrying a reweighted population of good parameters forward each time. Both keep the simulate-and-compare heart of ABC while accepting far more of what they try.</p>
+
+<p>The third trick is cheap and effective, and we can run it right now in base R. It is called <strong>regression adjustment</strong>. The idea: among your accepted draws, there is usually a leftover trend between a draw's summary and its parameter. If a draw was accepted because its simulated mean happened to land a bit above the observed mean, its parameter is probably a touch too high. A quick linear regression measures that trend and corrects each draw for it. Let us take a deliberately loose run (tolerance 1, which accepted a wide, blurry posterior of standard deviation 0.683 earlier) and adjust it.</p>
+
+<div class="webr-container" data-block-title="Regression-adjust a loose ABC run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regression-adjust a loose ABC run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eps &lt;- 1
+set.seed(11)
+mu    &lt;- runif(2e5, -10, 20)
+s_sim &lt;- rnorm(2e5, mu, 2 / sqrt(30))
+acc   &lt;- abs(s_sim - s_obs) &lt; eps
+theta &lt;- mu[acc]                            # accepted parameters (too spread out)
+s_acc &lt;- s_sim[acc]                         # their simulated summaries
+
+fit       &lt;- lm(theta ~ s_acc)              # trend between summary and parameter
+theta_adj &lt;- theta - coef(fit)[2] * (s_acc - s_obs)   # correct each draw
+round(c(raw_mean = mean(theta),     raw_sd = sd(theta),
+        adj_mean = mean(theta_adj), adj_sd = sd(theta_adj),
+        target   = s_obs), 3)
+#&gt; raw_mean   raw_sd adj_mean   adj_sd   target 
+#&gt;    5.244    0.683    5.241    0.365    5.243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the payoff. The raw loose run had a posterior standard deviation of 0.683, far too wide. After regression adjustment the standard deviation drops to 0.365, which is the exact posterior width we computed earlier. The mean stays right on target at 5.241. Regression adjustment let a cheap, loose tolerance produce the same precision as an expensive, tiny one. You get the accuracy of $\varepsilon \to 0$ without paying for it in simulations.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You do not have to code this yourself in practice.</strong> The <code>abc</code> package (function <code>abc()</code>) implements rejection with regression and local-linear adjustment, and <code>EasyABC</code> provides ABC-MCMC and ABC-SMC schemes. Building the pieces by hand once, as we did, is the best way to understand what those packages do when you call them.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>More summaries can make ABC worse, not better.</strong> Every extra summary adds a dimension in which a draw must land close, so acceptance rates crater as you pile them on. This "curse of dimensionality" is why summary choice matters so much: a few informative summaries beat many noisy ones.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The regression above worked through a slope. Read off that slope from <code>fit</code> and confirm it is close to 1, and check how far the adjustment moved the mean.</p>
+<div class="webr-container" data-block-title="Your turn: inspect the adjustment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: inspect the adjustment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_target &lt;- s_obs
+# your code here: report the regression slope coef(fit)[2]
+# and the shift mean(theta_adj) - mean(theta)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Adjustment-diagnostics solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjustment-diagnostics solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(shift = unname(coef(fit)[2]),
+        moved = mean(theta_adj) - mean(theta)), 3)
+#&gt;  shift  moved 
+#&gt;  0.999 -0.003</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope is 0.999: each accepted parameter tracks its simulated summary almost one for one. The mean barely moved (<code>-0.003</code>) because a symmetric tolerance was already unbiased; the adjustment's real work here was collapsing the spread, not shifting the center.</p>
+
+</details>
+</section>
+
+<h2>A complete example: a reusable ABC function</h2>
+
+<p>Every example above followed the same recipe, so let us capture it once in a general function. It takes four ingredients that define any ABC problem: a way to draw parameters from the prior, a simulator, a summary function, and the observed summary. Everything else, the distance, the scaling, the acceptance, is machinery we can hide inside.</p>
+
+<div class="webr-container" data-block-title="A general-purpose ABC sampler">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A general-purpose ABC sampler</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">abc &lt;- function(prior, simulate, summarise, obs_summary,
+                N = 1e5, accept = 0.01, seed = 1) {
+  set.seed(seed)
+  theta &lt;- prior(N)                                  # N rows of parameter guesses
+  S &lt;- matrix(NA_real_, N, length(obs_summary))      # one summary row per guess
+  for (i in seq_len(N)) S[i, ] &lt;- summarise(simulate(theta[i, ]))
+  sc &lt;- apply(S, 2, sd); sc[sc == 0] &lt;- 1            # scale each summary
+  Sc &lt;- sweep(S, 2, obs_summary); Sc &lt;- sweep(Sc, 2, sc, &quot;/&quot;)
+  d &lt;- sqrt(rowSums(Sc^2))                           # distance to observed summaries
+  theta[d &lt;= quantile(d, accept), , drop = FALSE]    # keep the closest `accept` fraction
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To use it, you plug in your four ingredients. Here we solve the original coin problem again, but now through the general engine: the prior draws <code>p</code> uniformly, the simulator produces 50 individual flips, and the summary is the head count.</p>
+
+<div class="webr-container" data-block-title="Solve the coin with the general sampler">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solve the coin with the general sampler</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post2 &lt;- abc(
+  prior       = function(N) matrix(runif(N, 0, 1), ncol = 1),
+  simulate    = function(p) rbinom(50, 1, p),      # simulate 50 individual flips
+  summarise   = function(x) sum(x),                # summary: number of heads
+  obs_summary = 32,
+  N = 5e4, accept = 0.02, seed = 99
+)
+round(c(mean = mean(post2), sd = sd(post2)), 3)
+#&gt;  mean    sd 
+#&gt; 0.634 0.070</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The general sampler recovers the coin bias at 0.634, matching our hand-built version. The same function, with a different simulator and summary, would tackle the normal or the g-and-k problem. That is the whole point of ABC: once you can simulate and summarize, one small engine handles any model.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each uses fresh variable names so it will not collide with the code above. Try each before opening the solution.</p>
+
+<h3>Exercise 1: ABC for a Poisson rate</h3>
+
+<p>You counted events in eight equal time windows: <code>3, 5, 2, 6, 4, 3, 5, 4</code>. Assume the counts are Poisson with an unknown rate <code>lambda</code>. Use ABC to estimate <code>lambda</code>: put a <code>Uniform(0, 15)</code> prior on it, simulate eight Poisson counts per candidate, summarize each simulated dataset by its mean, and accept candidates whose simulated mean is within 0.1 of the observed mean.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: estimate a Poisson rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: estimate a Poisson rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex1_counts &lt;- c(3, 5, 2, 6, 4, 3, 5, 4)
+# Your code here:
+# 1. draw lambda from Uniform(0, 15)
+# 2. simulate rpois(length(ex1_counts), lambda) per draw, take its mean
+# 3. accept draws whose simulated mean is within 0.1 of mean(ex1_counts)
+# 4. report the posterior mean of lambda
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson-rate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson-rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+ex1_obs_mean &lt;- mean(ex1_counts)
+ex1_lam &lt;- runif(2e5, 0, 15)
+ex1_sim &lt;- vapply(ex1_lam, function(l) mean(rpois(length(ex1_counts), l)), numeric(1))
+ex1_post &lt;- ex1_lam[abs(ex1_sim - ex1_obs_mean) &lt; 0.1]
+round(c(obs_mean = ex1_obs_mean, lambda_hat = mean(ex1_post),
+        n_accepted = length(ex1_post)), 3)
+#&gt;   obs_mean lambda_hat n_accepted 
+#&gt;      4.000      4.124   1654.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The observed mean count is 4.0, and ABC recovers a rate of about 4.12, right where a Poisson's mean-equals-rate property says it should be. The mean of the counts is a sufficient summary for the Poisson rate, so this ABC estimate is close to the exact posterior.</p>
+
+</details>
+
+<h3>Exercise 2: two parameters at once</h3>
+
+<p>Now infer both the mean and the standard deviation of a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> from this sample: <code>4.1, 5.3, 4.8, 6.2, 5.0, 4.5, 5.9, 5.1, 4.7, 5.4</code>. Use two summaries (the sample mean and the sample standard deviation), a <code>Uniform(0, 10)</code> prior for the mean and a <code>Uniform(0.1, 3)</code> prior for the standard deviation. Scale each summary by its spread, combine them into one distance, and accept the closest 1%.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: infer mean and standard deviation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: infer mean and standard deviation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex2_data &lt;- c(4.1, 5.3, 4.8, 6.2, 5.0, 4.5, 5.9, 5.1, 4.7, 5.4)
+# Your code here:
+# 1. observed summaries: c(mean(ex2_data), sd(ex2_data))
+# 2. draw mu ~ Uniform(0, 10) and sigma ~ Uniform(0.1, 3)
+# 3. simulate 10 normal points per draw, summarise by mean and sd
+# 4. scale both summaries, form a Euclidean distance, keep the closest 1%
+# 5. report the posterior means of mu and sigma
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-parameter solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-parameter solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+ex2_s_obs &lt;- c(mean(ex2_data), sd(ex2_data))
+M &lt;- 3e5
+ex2_mu    &lt;- runif(M, 0, 10)
+ex2_sigma &lt;- runif(M, 0.1, 3)
+ex2_sim &lt;- t(vapply(seq_len(M), function(i) {
+  d &lt;- rnorm(length(ex2_data), ex2_mu[i], ex2_sigma[i])
+  c(mean(d), sd(d))
+}, numeric(2)))
+sc2  &lt;- apply(ex2_sim, 2, sd)
+d2   &lt;- sqrt(((ex2_sim[,1] - ex2_s_obs[1]) / sc2[1])^2 +
+             ((ex2_sim[,2] - ex2_s_obs[2]) / sc2[2])^2)
+keep2 &lt;- d2 &lt;= quantile(d2, 0.01)
+round(c(mu_hat = mean(ex2_mu[keep2]), sigma_hat = mean(ex2_sigma[keep2]),
+        obs_mean = ex2_s_obs[1], obs_sd = ex2_s_obs[2]), 3)
+#&gt;    mu_hat sigma_hat  obs_mean    obs_sd 
+#&gt;     5.096     0.741     5.100     0.632</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ABC recovers the mean almost exactly (5.096 against an observed 5.100). The standard deviation estimate, 0.741, runs a little above the observed 0.632: with only ten data points the sample standard deviation is a noisy summary, and the ABC posterior for <code>sigma</code> is honestly wide as a result. Scaling both summaries by their own spread is what let the mean and the standard deviation contribute fairly to the distance.</p>
+
+</details>
+
+<h2>FAQ</h2>
+
+<h3>Is ABC exact or approximate?</h3>
+
+<p>Approximate, by two separate steps. First, you replace the full data with summary statistics, which is exact only when those summaries are sufficient (rare outside textbook cases). Second, you accept simulations within a tolerance rather than exact matches, which biases the posterior unless the tolerance is zero. As the tolerance shrinks and the summaries improve, ABC converges to the true posterior, which is why the coin example matched the exact answer to two decimals.</p>
+
+<h3>How many simulations does ABC need?</h3>
+
+<p>Enough that a reasonable fraction land close on every summary. For one or two well-chosen summaries and a modest tolerance, tens of thousands of draws suffice, as in this post. Each extra summary raises the count sharply because a draw must now match closely in more dimensions at once. If plain rejection is too slow, ABC-MCMC and ABC-SMC reach the same posterior with far fewer wasted simulations.</p>
+
+<h3>How do I choose summary statistics?</h3>
+
+<p>Pick summaries that move a lot when the parameter moves and stay stable otherwise. For a rate, the sample mean; for skewness, a skewness measure. When in doubt, prefer a few informative summaries to many noisy ones, because acceptance rates fall fast as summaries multiply. Robust, quantile-based summaries (like the octiles used for the g-and-k distribution) often beat raw moments because they are less swayed by outliers.</p>
+
+<h3>How is ABC different from MCMC?</h3>
+
+<p>MCMC needs the likelihood: it scores each proposed parameter by how well the formula $P(\text{data} \mid \theta)$ fits. ABC never evaluates that formula. It substitutes forward simulation plus a distance on summaries. Use MCMC when you can write the likelihood, because it is more efficient; reach for ABC only when the likelihood is intractable but a simulator is easy. ABC-MCMC blends the two, using an MCMC-style guided walk with an ABC accept step.</p>
+
+<h3>Which R packages do ABC?</h3>
+
+<p>The <code>abc</code> package is the standard: it runs rejection ABC and adds regression and local-linear adjustment for you. <code>EasyABC</code> implements the sequential schemes (ABC-MCMC and ABC-SMC) and manages the simulation calls. <code>abctools</code> helps choose summaries and tolerances. All three sit on top of exactly the mechanics you built by hand here, so you now know what they are doing under the surface.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Approximate-Bayesian-Computation-in-R-overview-mindmap.webp" alt="The moving parts of ABC at a glance." class="img-responsive img-zoomable" loading="lazy" width="1780" height="786" /></p>
+
+<p><em>Figure 2: The moving parts of ABC at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core trick</td>
+<td>Replace evaluating the likelihood with simulating data and keeping the parameters that reproduce it</td>
+</tr>
+<tr>
+<td>When to use it</td>
+<td>The model is easy to simulate but its likelihood is intractable or unknown</td>
+</tr>
+<tr>
+<td>The four steps</td>
+<td>Draw from the prior, simulate, reduce to summary statistics, accept within tolerance</td>
+</tr>
+<tr>
+<td>Summary statistics</td>
+<td>Raw data never matches, so compare compact summaries; choose ones that carry information about the parameters</td>
+</tr>
+<tr>
+<td>Tolerance epsilon</td>
+<td>Smaller tolerance means a more accurate but more expensive posterior; as it goes to zero, ABC becomes exact</td>
+</tr>
+<tr>
+<td>Verification</td>
+<td>On the coin, ABC reproduced the exact Beta posterior to two decimals, which is why we trust it on likelihood-free models</td>
+</tr>
+<tr>
+<td>Making it efficient</td>
+<td>ABC-MCMC and ABC-SMC waste fewer simulations; regression adjustment sharpens a cheap, loose run for free</td>
+</tr>
+<tr>
+<td>In practice</td>
+<td>The <code>abc</code> and <code>EasyABC</code> packages implement all of this; you now know the machinery inside them</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Marin, J.-M., Pudlo, P., Robert, C. P., Ryder, R. J. - <em>Approximate Bayesian computational methods</em>. Statistics and Computing 22, 1167-1180 (2012). A broad survey of ABC algorithms and their theory, one step up from this post. <a href="https://link.springer.com/article/10.1007/s11222-011-9288-2">Link</a></li>
+
+<li>Beaumont, M. A., Zhang, W., Balding, D. J. - <em>Approximate Bayesian Computation in Population Genetics</em>. Genetics 162, 2025-2035 (2002). The paper that introduced the regression-adjustment step used in the efficiency section. <a href="https://academic.oup.com/genetics/article/162/4/2025/6050069">Link</a></li>
+
+<li>Sisson, S. A., Fan, Y., Beaumont, M. A. (eds.) - <em>Handbook of Approximate Bayesian Computation</em>. Chapman and Hall/CRC (2018). The reference handbook, covering the rejection, MCMC, and SMC variants in depth. <a href="https://www.routledge.com/Handbook-of-Approximate-Bayesian-Computation/Sisson-Fan-Beaumont/p/book/9781439881507">Link</a></li>
+
+<li>Sunnaker, M. et al. - <em>Approximate Bayesian Computation</em>. PLoS Computational Biology 9(1): e1002803 (2013). An open-access primer with worked biological examples, good for a gentle second pass. <a href="https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002803">Link</a></li>
+
+<li>Csillery, K., Francois, O., Blum, M. G. B. - <em>abc: an R package for Approximate Bayesian Computation</em>. Methods in Ecology and Evolution 3, 475-479 (2012). Documents the abc package that automates the rejection and regression steps you built here by hand. <a href="https://cran.r-project.org/package=abc">Link</a></li>
+
+<li>Jabot, F., Faure, T., Dumoulin, N. - <em>EasyABC: an R package to perform efficient approximate Bayesian computation</em>. Documents EasyABC, which implements the ABC-MCMC and ABC-SMC schemes named in the efficiency section. <a href="https://cran.r-project.org/package=EasyABC">Link</a></li>
+
+<li>Pritchard, J. K., Seielstad, M. T., Perez-Lezaun, A., Feldman, M. W. - <em>Population growth of human Y chromosomes: a study of Y chromosome microsatellites</em>. Molecular Biology and Evolution 16, 1791-1798 (1999). One of the earliest applications of the ABC rejection idea, in population genetics. <a href="https://academic.oup.com/mbe/article/16/12/1791/2925409">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="MCMC-in-R.html">MCMC in R: Metropolis-Hastings from Scratch</a> - the likelihood-based sampler ABC replaces when the likelihood is out of reach.</li>
+
+<li><a href="Variational-Bayes-in-R.html">Variational Bayes in R: Fast Approximate Inference</a> - another way to approximate a posterior, this time by <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> instead of simulation.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a> - the priors, likelihoods, and posteriors that ABC quietly rests on.</li>
+
+</ul>
+
+{% endraw %}
