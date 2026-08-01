@@ -4,14 +4,14 @@
 
 **Access model:** Foundations and Data Analyst are free in full. Each specialization track has **Section 1 free**; Sections 2 and up are the Program (Pro).
 
-**6 levels, 539 lessons, 28 portfolio projects.**
+**6 levels, 549 lessons, 28 portfolio projects.**
 
 | # | Level | Sections | Lessons | Certificate |
 |---|---|---|---|---|
 | 1 | New to R | 8 | 54 | R Fundamentals |
 | 2 | Data Analyst | 9 | 58 | Tidyverse Practitioner |
 | 3 | Data Scientist | 16 | 115 | Machine Learning with R |
-| 4 | Time Series | 16 | 99 | Time Series Forecasting |
+| 4 | Time Series | 16 | 109 | Time Series Forecasting |
 | 5 | Researcher | 16 | 120 | Applied Statistics with R |
 | 6 | R Developer | 15 | 93 | Advanced R |
 
@@ -404,15 +404,16 @@ Use the tools the field moved to, with honest uncertainty.
 
 *Decompose, model and forecast ordered data, with prediction intervals you can stand behind.*
 
-Certificate: **Time Series Forecasting**  |  16 sections  |  99 lessons
+Certificate: **Time Series Forecasting**  |  16 sections  |  109 lessons
 
 ### 1. Time series foundations  [Free]
 Read a series and produce honest baseline forecasts.
 
 - What makes time series different
 - Tidy temporal data with tsibble
-- Time Series Analysis
-- EDA for Time Series
+- From raw timestamps to a regular series
+- Gaps, duplicates and time zones
+- Missing values in a series, and the certainty imputation invents
 - Seasonal, subseries and lag plots
 - Autocorrelation and the ACF
 - Train and test splits for temporal data
@@ -437,6 +438,7 @@ Evaluate forecasts the way professionals do.
 - Point forecasts vs the whole distribution
 - Time-series cross-validation (rolling origin)
 - Accuracy metrics: MASE, RMSSE and pinball loss
+- Accuracy by horizon: reporting error growth honestly
 
 ### 4. Time series regression  [Pro]
 Forecast with trend, season and external drivers.
@@ -475,6 +477,7 @@ Forecast with drivers and multiple seasonal cycles.
 - Regression with ARIMA errors
 - Dynamic harmonic regression
 - Multiple seasonal periods
+- Weekly data and its awkward seasonal period
 - TBATS for complex seasonality
 - Forecasting with Prophet
 - Lagged predictors and transfer functions
@@ -526,6 +529,7 @@ Make forecasts that add up across a hierarchy.
 - Bottom-up, top-down and middle-out
 - Optimal reconciliation (MinT)
 - Reconciliation with fabletools
+- Temporal hierarchies: reconciling across frequencies
 - Coherent forecasts finance can plan against
 
 ### 13. Machine learning and deep forecasting  [Pro]
@@ -537,7 +541,9 @@ Reach for ML and neural models when the data demands it.
 - Neural network forecasts (NNETAR)
 - Deep learning: DeepAR, N-BEATS and N-HiTS
 - Temporal fusion transformers
-- Bootstrapping, bagging and forecast combinations
+- Forecasting count and low-volume series
+- Forecast combination: averaging and trimmed means
+- Weighted combination, and when the weights overfit
 
 ### 14. Intervention, causal impact and anomaly detection  [Pro]
 Measure the effect of an event and catch the unexpected.
@@ -568,6 +574,8 @@ Forecasts that refresh and hold up in production.
 - Feature stores for calendars and events
 - Scaling fable and fabletools
 - Deploying a forecasting service
+- Choosing the quantile your cost function implies
+- Communicating a forecast to people who want one number
 
 ---
 
