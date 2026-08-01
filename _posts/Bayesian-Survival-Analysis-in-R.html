@@ -1,0 +1,696 @@
+---
+title: "Bayesian Survival Analysis in R: rstanarm Package"
+description: "Fit Bayesian survival models in R with rstanarm: turn censored time-to-event data into a Poisson model, set priors, and read hazard ratios from the posterior."
+keywords: "bayesian survival analysis in r, rstanarm, survival analysis r, hazard ratio, kaplan-meier, cox proportional hazards, posterior distribution, credible interval, censoring, time-to-event"
+mathjax: true
+webr: true
+curriculum_id: "FR-baye-10"
+post_type: "FR"
+auto_link_terms: "Bayesian survival analysis|rstanarm|survival analysis in R|hazard ratio|Kaplan-Meier|proportional hazards|time-to-event|censoring|credible interval|posterior distribution|survival curve|Cox model"
+auto_link_case_sensitive: false
+fr_parent: "Bayesian-Logistic-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<p class="lead">Bayesian survival analysis models the time until an event, like death or a machine failure, while properly handling patients who never had the event during the study. Instead of a single number for each effect, it returns a full <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a>, so you can make direct probability statements. In R, the rstanarm package fits these models behind a familiar formula interface, with Stan doing the sampling for you.</p>
+
+<p>This is a companion to <a href="Bayesian-Logistic-Regression-in-R.html">Bayesian Logistic Regression in R</a>. There you modeled a yes/no outcome. Here the outcome is a <em>time</em>, and the twist is that some of those times are only partially known. We will build the idea from the ground up: what survival data is, how to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> it, and then how to fit and read a Bayesian model with rstanarm. Every result below comes from real R output.</p>
+
+<h2>What does survival analysis actually measure?</h2>
+
+<p>Survival analysis studies how long it takes for something to happen. The "something" is an event: a patient dies, a customer cancels, a part breaks. The measurement is the time from a starting point until that event. The catch that makes survival its own field is that for many subjects the event has not happened yet when the study ends. You know they lasted <em>at least</em> so long, but not their final time. That partial knowledge is called censoring, and throwing those subjects away would bias your answer.</p>
+
+<p>Let's look at a real dataset. The <code>survival</code> package ships with <code>veteran</code>, a lung-cancer trial of 137 patients. The key columns are <code>time</code> (days of follow-up), <code>status</code> (1 if the patient died, 0 if still alive at the study's end), and <code>karno</code>, the Karnofsky performance score that rates how well a patient can carry out daily activities.</p>
+
+<div class="webr-container" data-block-title="Load the survival data and inspect the columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the survival data and inspect the columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(survival)
+
+# time   = days of follow-up
+# status = 1 if the patient died, 0 if censored (alive at study end)
+# karno  = Karnofsky performance score (higher = healthier)
+head(veteran[, c(&quot;trt&quot;, &quot;time&quot;, &quot;status&quot;, &quot;karno&quot;)], 6)
+#&gt;   trt time status karno
+#&gt; 1   1   72      1    60
+#&gt; 2   1  411      1    70
+#&gt; 3   1  228      1    60
+#&gt; 4   1  126      1    60
+#&gt; 5   1  118      1    70
+#&gt; 6   1   10      1    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one patient. A <code>status</code> of 1 means we saw the death and know the exact survival time. A <code>status</code> of 0 means the patient was censored. R has a dedicated type for this pairing: the <code>Surv()</code> object. It bundles the time and the event flag together, and it prints a <code>+</code> next to censored times to remind you the true survival time is longer than what you see.</p>
+
+<div class="webr-container" data-block-title="Build a survival response with Surv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a survival response with Surv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Surv() pairs each time with its event flag.
+# A trailing '+' marks a censored observation.
+surv_obj &lt;- Surv(time = veteran$time, event = veteran$status)
+head(surv_obj, 12)
+#&gt;  [1]  72  411  228  126  118   10   82  110  314  100+  42    8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tenth patient shows as <code>100+</code>. They were followed for 100 days and were still alive, so their real survival time is unknown but at least 100 days. A Bayesian model, like every good survival method, uses that "at least" information instead of discarding it.</p>
+
+<p><img src="screenshots/Bayesian-Survival-Analysis-in-R-censoring.webp" alt="Three ways a patient's follow-up can end" class="img-responsive img-zoomable" loading="lazy" width="1064" height="938" /></p>
+
+<p><em>Figure 1: Three ways a patient's follow-up can end. Only exact-event times are fully observed; censored patients still contribute the information that they survived up to their last recorded day.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Censoring is information, not <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a>.</strong> A censored row tells you the subject survived at least until their last observed day. Survival models are built to use exactly that partial fact, which is why you never drop censored rows.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count how many of the 137 patients were censored (their <code>status</code> equals 0).</p>
+<div class="webr-container" data-block-title="Your turn: count the censored patients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the censored patients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blank so ex_censored holds the number of censored patients.
+# ex_censored &lt;- sum(veteran$status == ___)
+# ex_censored</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count censored patients solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count censored patients solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_censored &lt;- sum(veteran$status == 0)
+ex_censored
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>status == 0</code> is a logical vector that is <code>TRUE</code> for censored patients, and <code>sum()</code> counts the <code>TRUE</code> values. Nine of the 137 patients were still alive when the study ended.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate survival without any model?</h2>
+
+<p>Before fitting anything, you want a picture of survival over time. The standard tool is the Kaplan-Meier estimator. It walks through the ordered event times and, at each death, drops the estimated survival probability by the fraction of still-at-risk patients who died. Censored patients simply leave the at-risk pool without causing a drop. The result is a step curve: the estimated probability of surviving past any given day.</p>
+
+<p>The most useful single number it produces is the median survival time, the day by which half the group has had the event. Let's relabel the two treatment arms first so every table reads clearly, then compute the overall curve.</p>
+
+<div class="webr-container" data-block-title="Relabel treatment arms and estimate median survival">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Relabel treatment arms and estimate median survival</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># trt is coded 1/2; relabel so output reads clearly.
+veteran$trt &lt;- factor(veteran$trt, labels = c(&quot;standard&quot;, &quot;test&quot;))
+
+km &lt;- survfit(Surv(time, status) ~ 1, data = veteran)
+km
+#&gt; Call: survfit(formula = Surv(time, status) ~ 1, data = veteran)
+#&gt;
+#&gt;        n events median 0.95LCL 0.95UCL
+#&gt; [1,] 137    128     80      52     105</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across all 137 patients, the median survival is 80 days, with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> from 52 to 105 days. Now split the estimate by treatment arm to see whether the experimental therapy helped.</p>
+
+<div class="webr-container" data-block-title="Compare survival across the two treatment arms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare survival across the two treatment arms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">km_trt &lt;- survfit(Surv(time, status) ~ trt, data = veteran)
+km_trt
+#&gt; Call: survfit(formula = Surv(time, status) ~ trt, data = veteran)
+#&gt;
+#&gt;                n events median 0.95LCL 0.95UCL
+#&gt; trt=standard 69     64  103.0      59     132
+#&gt; trt=test     68     64   52.5      44      95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard arm has a median of 103 days versus 52.5 for the test arm. On this raw view the experimental treatment looks worse, though the confidence intervals overlap heavily. A curve makes the gap easier to read than a table.</p>
+
+<div class="webr-container" data-block-title="Plot the Kaplan-Meier curves by arm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the Kaplan-Meier curves by arm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(km_trt, col = c(&quot;steelblue&quot;, &quot;firebrick&quot;), lwd = 2,
+     xlab = &quot;Days&quot;, ylab = &quot;Survival probability&quot;)
+legend(&quot;topright&quot;, legend = c(&quot;standard&quot;, &quot;test&quot;),
+       col = c(&quot;steelblue&quot;, &quot;firebrick&quot;), lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each step down marks a day when at least one patient died. The two curves cross and stay close, which is a hint that the treatment effect, if any, is small. Kaplan-Meier is a great summary, but it cannot adjust for other variables like the Karnofsky score. For that you need a model.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the median survival for just the standard arm from the <code>km_trt</code> object above.</p>
+<div class="webr-container" data-block-title="Your turn: read the standard-arm median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the standard-arm median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The printout already shows it. Confirm by extracting the summary table.
+# print(km_trt)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standard-arm median solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard-arm median solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(km_trt)$table[, &quot;median&quot;]
+#&gt; trt=standard     trt=test
+#&gt;        103.0         52.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary(km_trt)$table</code> returns one row per arm; the <code>median</code> column holds each arm's median survival time. The standard arm's median is 103 days.</p>
+
+</details>
+</section>
+
+<h2>How does a Cox model turn covariates into hazard ratios?</h2>
+
+<p>The most common survival model is <a class="auto-link" href="R-for-Healthcare-Exercises.html" title="R for Healthcare Exercises: 20 Practice Problems">Cox proportional hazards</a>. It models the <em>hazard</em>, the instantaneous risk of the event at each moment for a patient who has survived that long. The Cox model says each covariate multiplies that hazard by a fixed factor, the hazard ratio. A hazard ratio above 1 means higher risk (shorter survival); below 1 means lower risk (longer survival). You will meet the same hazard ratio in the Bayesian model, so it is worth pinning down here with the familiar frequentist fit.</p>
+
+<div class="webr-container" data-block-title="Fit a Cox proportional hazards model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a Cox proportional hazards model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cox &lt;- coxph(Surv(time, status) ~ trt + karno, data = veteran)
+summary(cox)$coefficients
+#&gt;               coef exp(coef)    se(coef)          z     Pr(&gt;|z|)
+#&gt; trttest  0.17732226 1.1940158 0.183148518  0.9681883 3.329503e-01
+#&gt; karno   -0.03395356 0.9666164 0.005083555 -6.6790985 2.404166e-11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>exp(coef)</code> column is the hazard ratio. For <code>karno</code> it is 0.967: each one-point rise in the Karnofsky score multiplies the hazard by 0.967, a roughly 3% lower risk of death per point, and its tiny <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> says this is a strong signal. For <code>trttest</code> the hazard ratio is 1.19, meaning the test arm carries about 19% higher risk, but the p-value of 0.33 says the data are consistent with no difference at all. These point estimates are exactly what a Bayesian fit will replace with full distributions.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the Cox model with <code>age</code> added as a third covariate and read its hazard ratio.</p>
+<div class="webr-container" data-block-title="Your turn: add age to the Cox model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add age to the Cox model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add + age to the formula, then look at the exp(coef) column.
+# ex_cox &lt;- coxph(Surv(time, status) ~ trt + karno + ___, data = veteran)
+# summary(ex_cox)$coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cox with age solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cox with age solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cox &lt;- coxph(Surv(time, status) ~ trt + karno + age, data = veteran)
+round(summary(ex_cox)$coefficients[, &quot;exp(coef)&quot;], 3)
+#&gt; trttest   karno     age
+#&gt;   1.209   0.966   0.996</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Age has a hazard ratio of 0.996, essentially 1, so it barely shifts risk once treatment and Karnofsky score are accounted for. Karnofsky remains the dominant predictor.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a Bayesian survival model with rstanarm?</h2>
+
+<p>Here is the honest lay of the land. The current CRAN release of rstanarm does not ship a dedicated <code>stan_surv()</code> function; that lives on a development branch. What you <em>can</em> do on stock CRAN is exploit a classic equivalence: the simplest survival model, the exponential model, is identical to a <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a> on the event indicator with the log of follow-up time as an offset. That means <code>stan_glm()</code> fits it directly.</p>
+
+<p>The reasoning is short. An exponential model assumes a constant hazard $h$ for each patient. The chance of the event during a follow-up of length $t$ then behaves like a Poisson count with mean $h \cdot t$, where the observed count is the event indicator (0 or 1). Taking logs:</p>
+
+<p>$$\log(h_i \cdot t_i) = \log(t_i) + \beta_0 + \beta_1 x_{i1} + \dots$$</p>
+
+<p>The $\log(t_i)$ term is a known quantity per patient, an offset, and the rest is an ordinary <a class="auto-link" href="Log-Linear-Models-in-R.html" title="Log-Linear Models in R: Model Tables of Counts with glm(poisson)">log-linear model</a>. So a Poisson regression of <code>status</code> on the covariates, offset by <code>log(time)</code>, <em>is</em> the exponential survival model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The exponential survival likelihood is a Poisson regression in disguise.</strong> Fit the event indicator as a Poisson outcome with <code>offset = log(time)</code>, and the coefficients are log hazard ratios, exactly the quantities a Cox model reports.</div></div>
+
+<p>One practical caveat before you run the fit.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>rstanarm runs in R on your machine, not in the in-browser runner.</strong> The blocks in this section compile and sample with Stan, which the in-page runner cannot do. Copy them into RStudio to reproduce the output. Every result shown is real output captured from a local run with <code>seed = 2024</code>.</div></div>
+
+<pre><code class="language-r">library(rstanarm)
+
+# Poisson regression of the event indicator with a log-time offset
+# IS the exponential survival model. seed makes the draws reproducible.
+fit_exp &lt;- stan_glm(
+  status ~ trt + karno + offset(log(time)),
+  data = veteran,
+  family = poisson(link = &quot;log&quot;),
+  chains = 4, iter = 2000, seed = 2024, refresh = 0
+)
+print(fit_exp, digits = 3)
+#&gt; stan_glm
+#&gt;  family:       poisson [log]
+#&gt;  formula:      status ~ trt + karno + offset(log(time))
+#&gt;  observations: 137
+#&gt;  predictors:   3
+#&gt; ------
+#&gt;             Median MAD_SD
+#&gt; (Intercept) -2.713  0.283
+#&gt; trttest      0.131  0.181
+#&gt; karno       -0.035  0.005</code></pre>
+
+<p>The output is a posterior summary, not a single fit. Each <code>Median</code> is the middle of that coefficient's posterior distribution, and <code>MAD_SD</code> is a robust posterior standard deviation. The <code>karno</code> coefficient sits at -0.035 with a small spread, while <code>trttest</code> at 0.131 has a spread (0.181) wider than the estimate itself, an early sign its effect is uncertain. These are log hazard ratios; the next section turns them into hazard ratios you can read.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Stock CRAN rstanarm has no stan_surv.</strong> For spline and Weibull hazards through a purpose-built survival interface, install the rstanarm survival development branch or use the brms package, which fits fully Bayesian parametric survival models. The Poisson approach shown here needs nothing beyond the CRAN rstanarm you already have, and it fits the exact exponential model.</div></div>
+
+<p><strong>Try it locally:</strong> What is the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the test arm has a <em>higher</em> hazard than the standard arm? That is the probability its coefficient is above 0.</p>
+
+<pre><code class="language-r"># Pull the posterior draws with as.matrix(fit_exp), then ask what fraction
+# of the trttest column is greater than 0.
+# mean(as.matrix(fit_exp)[, &quot;trttest&quot;] &gt; 0)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">mean(as.matrix(fit_exp)[, &quot;trttest&quot;] &gt; 0)
+#&gt; [1] 0.7645</code></pre>
+
+<p><strong>Explanation:</strong> About 76% of the posterior mass for the treatment coefficient is above 0, so there is roughly a 76% chance the test arm is worse and a 24% chance it is actually better. That is a far more honest summary than a yes/no verdict from a p-value.</p>
+
+</details>
+
+<h2>How do you read hazard ratios from the posterior?</h2>
+
+<p>A log hazard ratio is awkward to explain. Exponentiate it and you get the hazard ratio itself, on the same scale the Cox model used. Because the posterior is just a big pile of draws, you can exponentiate every draw and read off a median and an interval directly. The <code>posterior_interval()</code> function gives a <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">credible interval</a>; with <code>prob = 0.90</code> it returns the 5th and 95th percentiles of the posterior.</p>
+
+<pre><code class="language-r"># exp() of each coefficient (and its interval) is a hazard ratio.
+hr &lt;- exp(cbind(HR = coef(fit_exp), posterior_interval(fit_exp, prob = 0.90)))
+round(hr[c(&quot;trttest&quot;, &quot;karno&quot;), ], 3)
+#&gt;            HR    5%   95%
+#&gt; trttest 1.140 0.844 1.507
+#&gt; karno   0.965 0.958 0.973</code></pre>
+
+<p>The test arm's hazard ratio is 1.14 with a 90% credible interval from 0.84 to 1.51. Because that interval comfortably includes 1, the data do not pin down whether the treatment helps or hurts. The Karnofsky hazard ratio is 0.965 with a tight interval from 0.958 to 0.973, entirely below 1: healthier patients reliably live longer. Now compare these to the Cox estimates from earlier.</p>
+
+<pre><code class="language-r">cox_hr   &lt;- exp(coef(cox)[c(&quot;trttest&quot;, &quot;karno&quot;)])
+bayes_hr &lt;- exp(coef(fit_exp)[c(&quot;trttest&quot;, &quot;karno&quot;)])
+round(data.frame(cox_HR = cox_hr, bayes_HR = bayes_hr), 3)
+#&gt;         cox_HR bayes_HR
+#&gt; trttest  1.194    1.140
+#&gt; karno    0.967    0.965</code></pre>
+
+<p>The two approaches land in almost the same place. That agreement is reassuring: the Bayesian machinery is not inventing a different answer, it is giving the same central estimates plus a genuine probability distribution around them. The difference is in interpretation.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Exponentiate a whole posterior column to get a hazard-ratio distribution.</strong> <code>exp(as.matrix(fit)[, &quot;trttest&quot;])</code> gives you thousands of plausible hazard ratios you can histogram, average, or threshold, no extra modeling needed.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A 90% credible interval is a real probability statement.</strong> You can say there is a 90% probability the hazard ratio lies inside it. A frequentist 95% confidence interval does not license that sentence; its 95% refers to the long-run behavior of the procedure, not to this one interval.</div></div>
+
+<p><strong>Try it locally:</strong> Report the 90% credible interval for the <code>karno</code> hazard ratio using the posterior draws directly.</p>
+
+<pre><code class="language-r"># Take the karno column of as.matrix(fit_exp), exp() it, and read the
+# 5th and 95th percentiles with quantile().
+# round(exp(quantile(as.matrix(fit_exp)[, &quot;karno&quot;], c(0.05, 0.95))), 3)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(exp(quantile(as.matrix(fit_exp)[, &quot;karno&quot;], c(0.05, 0.95))), 3)
+#&gt;    5%   95%
+#&gt; 0.958 0.973</code></pre>
+
+<p><strong>Explanation:</strong> The interval matches the one from <code>posterior_interval()</code>, because both read the same percentiles off the same posterior draws. Every point in it is below 1, so a higher Karnofsky score is very likely protective.</p>
+
+</details>
+
+<h2>How do you get a survival probability with full uncertainty?</h2>
+
+<p>Hazard ratios answer "who is at higher risk", but patients and stakeholders usually want a probability: what are the chances of surviving past six months? For the exponential model the survival function has a clean form. With a constant hazard $h$, the probability of surviving past time $t$ is:</p>
+
+<p>$$S(t) = e^{-h t}$$</p>
+
+<p>In a <a class="auto-link" href="Bayesian-Workflow-in-R.html" title="The Bayesian Workflow in R: All 5 Steps Explained">Bayesian workflow</a> $h$ is not one number, it is a whole posterior distribution. Push every posterior draw through that formula and you get a full distribution for the survival probability, complete with a credible interval. Let's do it for a specific patient: someone in the test arm with a Karnofsky score of 60, at 90 days.</p>
+
+<pre><code class="language-r">draws   &lt;- as.matrix(fit_exp)     # one row per posterior draw
+# Linear predictor for a test-arm patient with Karnofsky score 60:
+log_haz &lt;- draws[, &quot;(Intercept)&quot;] + draws[, &quot;trttest&quot;] * 1 + draws[, &quot;karno&quot;] * 60
+haz     &lt;- exp(log_haz)           # this patient's constant hazard, per draw
+S90     &lt;- exp(-haz * 90)         # probability of surviving past 90 days
+
+round(c(mean = mean(S90), median = median(S90),
+        lo = quantile(S90, 0.05), hi = quantile(S90, 0.95)), 3)
+#&gt;    mean median  lo.5% hi.95%
+#&gt;   0.438  0.437  0.367  0.512</code></pre>
+
+<p>The model's best guess is a 44% chance this patient survives past 90 days, and it is 90% sure the true probability sits between 37% and 51%. That interval is the honest expression of what the data support. You can also ask direct probability questions of the same draws.</p>
+
+<pre><code class="language-r"># What is the chance this patient does NOT survive 90 days?
+mean(S90 &lt; 0.5)
+#&gt; [1] 0.916</code></pre>
+
+<p>There is a 92% posterior probability that this patient's true 90-day survival is below 50%. This kind of plain-language probability is the payoff of going Bayesian: the uncertainty is baked into every answer instead of bolted on afterward.</p>
+
+<p><strong>Try it locally:</strong> Compute the posterior mean survival probability at 180 days for the same patient profile.</p>
+
+<pre><code class="language-r"># Reuse the haz vector, but push it through exp(-haz * 180) this time.
+# round(mean(exp(-haz * 180)), 3)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(mean(exp(-haz * 180)), 3)
+#&gt; [1] 0.194</code></pre>
+
+<p><strong>Explanation:</strong> Doubling the horizon to 180 days drops the mean survival probability to about 19%. Under a constant hazard, survival probability decays geometrically, so longer horizons fall off quickly.</p>
+
+</details>
+
+<h2>How do priors shape the answer?</h2>
+
+<p>Every Bayesian model needs priors, the starting beliefs about each coefficient before seeing data. rstanarm picks weakly-informative defaults and rescales them to your data automatically, so you rarely have to think about them, but you should know what they are. The <code>prior_summary()</code> function shows both what you asked for and the adjusted version rstanarm actually used.</p>
+
+<pre><code class="language-r">prior_summary(fit_exp)
+#&gt; Priors for model 'fit_exp'
+#&gt; ------
+#&gt; Intercept (after predictors centered)
+#&gt;  ~ normal(location = 0, scale = 2.5)
+#&gt;
+#&gt; Coefficients
+#&gt;   Specified prior:
+#&gt;     ~ normal(location = [0,0], scale = [2.5,2.5])
+#&gt;   Adjusted prior:
+#&gt;     ~ normal(location = [0,0], scale = [4.98,0.12])
+#&gt; ------
+#&gt; See help('prior_summary.stanreg') for more details</code></pre>
+
+<p>The defaults are normal distributions centered at 0, meaning "no effect" is the starting assumption. The adjusted scales (4.98 and 0.12) are rescaled to the spread of each predictor, so <code>karno</code>, which ranges into the dozens, gets a tighter coefficient prior than the binary treatment indicator. With 137 patients the data far outweigh these weak priors, so the defaults barely affect the result here. To see a prior actually shift an estimate, tighten it and refit.</p>
+
+<pre><code class="language-r">fit_prior &lt;- stan_glm(
+  status ~ trt + karno + offset(log(time)), data = veteran,
+  family = poisson(link = &quot;log&quot;),
+  prior = normal(0, 0.5), prior_intercept = normal(-5, 2),
+  chains = 4, iter = 2000, seed = 2024, refresh = 0
+)
+round(cbind(default = coef(fit_exp), tighter = coef(fit_prior)), 3)
+#&gt;             default tighter
+#&gt; (Intercept)  -2.713  -2.713
+#&gt; trttest       0.131   0.109
+#&gt; karno        -0.035  -0.035</code></pre>
+
+<p>The tighter prior pulls the uncertain <code>trttest</code> coefficient from 0.131 toward 0 (down to 0.109), because a prior centered at 0 exerts more pull when the data are weak. The well-identified <code>karno</code> coefficient does not budge. That is exactly how priors should behave: they stabilize the estimates the data cannot pin down, and have almost no effect where the data are already strong.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Priors matter most with small samples or rare events.</strong> With hundreds of events the likelihood swamps a weak prior. With a handful of events, or a rare covariate, the prior does real work, which is a feature: it keeps estimates from chasing noise.</div></div>
+
+<p><strong>Try it locally:</strong> What is the posterior probability that a higher Karnofsky score lowers the hazard (its coefficient is below 0)?</p>
+
+<pre><code class="language-r"># Ask what fraction of the karno posterior draws are below 0.
+# mean(as.matrix(fit_exp)[, &quot;karno&quot;] &lt; 0)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">mean(as.matrix(fit_exp)[, &quot;karno&quot;] &lt; 0)
+#&gt; [1] 1</code></pre>
+
+<p><strong>Explanation:</strong> Every posterior draw for the <code>karno</code> coefficient is below 0, so the model is essentially certain that a higher Karnofsky score is protective. That certainty comes from the strong signal in the data, not from the prior.</p>
+
+</details>
+
+<h2>What if the hazard changes over time?</h2>
+
+<p>The exponential model assumes each patient's hazard is constant for all time, which is often too rigid: risk can rise or fall as a disease progresses. The piecewise-exponential model relaxes this. It chops follow-up into intervals and lets the baseline hazard take a different constant value in each one, while covariate effects stay proportional. The Poisson trick still works; you just split each patient into one row per interval they pass through and add the interval as a factor. The <code>survSplit()</code> function does the splitting.</p>
+
+<div class="webr-container" data-block-title="Split follow-up time into intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split follow-up time into intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Cut follow-up at 60, 120, 180 days -&gt; 4 interval bands.
+vet_split &lt;- survSplit(Surv(time, status) ~ ., data = veteran,
+                       cut = c(60, 120, 180), episode = &quot;interval&quot;)
+vet_split$exposure &lt;- vet_split$time - vet_split$tstart
+table(vet_split$interval)   # person-time records per interval
+#&gt;
+#&gt;   1   2   3   4
+#&gt; 137  73  43  27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every patient contributes a record to interval 1, but only the 73 who survived past 60 days reach interval 2, and so on. Each record carries an <code>exposure</code>, the time actually spent in that band, which becomes the new offset. Now fit the model with an interval factor for the flexible baseline.</p>
+
+<pre><code class="language-r">fit_pw &lt;- stan_glm(
+  status ~ factor(interval) + trt + karno + offset(log(exposure)),
+  data = vet_split, family = poisson(link = &quot;log&quot;),
+  chains = 4, iter = 2000, seed = 2024, refresh = 0
+)
+round(coef(fit_pw), 3)
+#&gt;       (Intercept) factor(interval)2 factor(interval)3 factor(interval)4           trttest
+#&gt;            -2.734            -0.125            -0.084            -0.378             0.137
+#&gt;             karno
+#&gt;            -0.033</code></pre>
+
+<p>The <code>factor(interval)</code> terms are the baseline-hazard adjustments per band. They are all small and negative here (the largest, -0.378 for interval 4), meaning the baseline hazard is fairly flat and drifts slightly downward over time in this trial. Crucially, the <code>trttest</code> and <code>karno</code> coefficients (0.137 and -0.033) barely move from the exponential fit. For this dataset the simpler constant-hazard model was already adequate, and now you have checked that rather than assumed it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> How many deaths happened in the first interval (the first 60 days)?</p>
+<div class="webr-container" data-block-title="Your turn: count events in interval 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count events in interval 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Sum the status flags for rows where interval == 1.
+# ex_ev &lt;- sum(vet_split$status[vet_split$interval == ___])
+# ex_ev</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Events in interval 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Events in interval 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ev &lt;- sum(vet_split$status[vet_split$interval == 1])
+ex_ev
+#&gt; [1] 63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 63 of the 128 deaths occur in the first 60 days, nearly half. That heavy early mortality is why the median survival was only 80 days.</p>
+
+</details>
+</section>
+
+<h2>Frequently asked questions</h2>
+
+<p><strong>Is this the same as the <code>stan_surv()</code> function I have seen in tutorials?</strong> Not quite. <code>stan_surv()</code> is a dedicated survival interface that lives on the rstanarm development branch and offers Weibull, Gompertz, and spline hazards. The CRAN release you install with <code>install.packages(&quot;rstanarm&quot;)</code> does not include it. The Poisson-offset approach here uses only CRAN rstanarm and gives you the exact exponential and piecewise-exponential models.</p>
+
+<p><strong>Can rstanarm fit a Bayesian Cox model directly?</strong> Not on CRAN. The Cox model leaves the baseline hazard unspecified, which needs the development <code>stan_surv()</code> or the brms package. The piecewise-exponential model above is the practical stand-in: make the intervals fine enough and it approximates the flexible Cox baseline while staying fully on CRAN.</p>
+
+<p><strong>How many iterations and chains should I use?</strong> The defaults, 4 chains of 2000 iterations each, are a sensible start. Increase the iterations if the <a class="auto-link" href="MCMC-Diagnostics-in-R.html" title="MCMC Diagnostics in R: 4 Tests for Chain Convergence">effective sample size</a> is low or the estimates look unstable across runs. Always check convergence before trusting the numbers.</p>
+
+<p><strong>How do I know the sampler converged?</strong> Look at two diagnostics from <code>summary(fit_exp)</code>: <code>Rhat</code> should be at or very near 1.00 for every parameter, and <code>n_eff</code> (the effective sample size) should be in the hundreds or more. Values of <code>Rhat</code> above about 1.01 mean the chains disagree and you should sample longer.</p>
+
+<p><strong>Why an exponential model and not Weibull?</strong> The exponential model assumes a constant hazard, which is the simplest honest starting point and maps cleanly onto <code>stan_glm()</code>. The Weibull model lets the hazard rise or fall smoothly with time. For a Bayesian Weibull fit on CRAN, reach for brms; the piecewise-exponential model here is a flexible non-parametric alternative when you want to stay in rstanarm.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These build on the fitted objects above (<code>fit_exp</code> and its posterior draws). They run in R with rstanarm loaded, not in the in-page runner.</p>
+
+<h3>Exercise 1: Combine two probability statements</h3>
+
+<p>Using the posterior draws of <code>fit_exp</code>, estimate the probability that the test arm is worse than standard (its hazard ratio exceeds 1) <em>and</em> a higher Karnofsky score is protective (its coefficient is below 0), both at once. Save the result to <code>p_both</code>.</p>
+
+<pre><code class="language-r"># Hint: pull as.matrix(fit_exp) once, then combine two conditions with &amp;.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">post   &lt;- as.matrix(fit_exp)
+p_both &lt;- mean(post[, &quot;trttest&quot;] &gt; 0 &amp; post[, &quot;karno&quot;] &lt; 0)
+round(p_both, 3)
+#&gt; [1] 0.764</code></pre>
+
+<p><strong>Explanation:</strong> The joint condition is TRUE on 76% of the draws, which nearly equals the treatment-is-worse probability alone because the Karnofsky-is-protective condition is almost always TRUE. Combining conditions on the raw draws is how Bayesian analysis answers compound questions.</p>
+
+</details>
+
+<h3>Exercise 2: Compare two patients' survival</h3>
+
+<p>For a test-arm patient, compute the posterior mean probability of surviving past 180 days for a strong Karnofsky score of 90 versus a weak score of 40. Then report the probability that the strong patient's survival exceeds the weak patient's. Reuse the posterior draws.</p>
+
+<pre><code class="language-r"># Hint: write the linear predictor as a function of the Karnofsky score k,
+# then push each through exp(-exp(lp) * 180) and average.
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">post &lt;- as.matrix(fit_exp)
+lp   &lt;- function(k) post[, &quot;(Intercept)&quot;] + post[, &quot;trttest&quot;] + post[, &quot;karno&quot;] * k
+S_strong &lt;- exp(-exp(lp(90)) * 180)
+S_weak   &lt;- exp(-exp(lp(40)) * 180)
+round(c(strong = mean(S_strong), weak = mean(S_weak),
+        p_strong_better = mean(S_strong &gt; S_weak)), 3)
+#&gt;          strong            weak p_strong_better
+#&gt;           0.561           0.039           1.000</code></pre>
+
+<p><strong>Explanation:</strong> The strong-Karnofsky patient has a 56% mean chance of surviving 180 days versus 4% for the weak one, and the strong patient does better in every posterior draw (probability 1.00). The performance score dominates outcome in this trial.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Bayesian survival analysis handles censored time-to-event data and returns full posterior distributions instead of point estimates. On stock CRAN rstanarm, you fit these models by recognizing the exponential survival model as a Poisson regression with a log-time offset, then reading hazard ratios and survival probabilities straight off the posterior draws.</p>
+
+<p><img src="screenshots/Bayesian-Survival-Analysis-in-R-workflow.webp" alt="The rstanarm survival workflow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="526" /></p>
+
+<p><em>Figure 2: The rstanarm survival workflow. Reframe censored data as Poisson event counts, fit with priors using stan_glm, then read hazard ratios and survival curves from the posterior draws.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Censoring</td>
+<td>A censored row means "survived at least this long"; never drop it.</td>
+</tr>
+<tr>
+<td>Kaplan-Meier</td>
+<td>Model-free survival curve and median; cannot adjust for covariates.</td>
+</tr>
+<tr>
+<td>The Poisson trick</td>
+<td>Exponential survival = Poisson regression of the event flag with <code>offset = log(time)</code>.</td>
+</tr>
+<tr>
+<td>Hazard ratio</td>
+<td><code>exp(coefficient)</code>; above 1 is higher risk, below 1 is lower risk.</td>
+</tr>
+<tr>
+<td>Credible interval</td>
+<td>A genuine probability statement about the parameter, unlike a confidence interval.</td>
+</tr>
+<tr>
+<td>Survival probability</td>
+<td>Push posterior draws through <code>S(t) = exp(-h t)</code> for a full distribution.</td>
+</tr>
+<tr>
+<td>Piecewise-exponential</td>
+<td>Split time with <code>survSplit()</code> to let the baseline hazard vary.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Goodrich, B., Gabry, J., Ali, I., & Brilleman, S. rstanarm: Bayesian Applied Regression Modeling via Stan. CRAN package page. <a href="https://cran.r-project.org/package=rstanarm">Link</a></li>
+
+<li>Brilleman, S. L., Elci, E. M., Novik, J. B., & Wolfe, R. Bayesian Survival Analysis Using the rstanarm R Package. arXiv:2002.09633 (2020). <a href="https://arxiv.org/abs/2002.09633">Link</a></li>
+
+<li>Therneau, T. M. survival: Survival Analysis. CRAN package page. <a href="https://cran.r-project.org/package=survival">Link</a></li>
+
+<li>Stan Development Team. rstanarm documentation and vignettes. <a href="https://mc-stan.org/rstanarm/">Link</a></li>
+
+<li>Gabry, J., & Goodrich, B. Prior Distributions for rstanarm Models. <a href="https://mc-stan.org/rstanarm/articles/priors.html">Link</a></li>
+
+<li>Bürkner, P.-C. brms: Bayesian Regression Models using Stan. CRAN package page. <a href="https://cran.r-project.org/package=brms">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Logistic-Regression-in-R.html">Bayesian Logistic Regression in R</a>: the binary-outcome companion that introduces the same posterior-and-prior machinery on an easier model.</li>
+
+<li><a href="Bayesian-Linear-Regression-in-R.html">Bayesian Linear Regression in R</a>: start here if you want the gentlest introduction to reading a Bayesian posterior.</li>
+
+<li><a href="RStan-vs-brms-vs-BayesFactor-in-R.html">RStan vs brms vs BayesFactor in R</a>: decide <a class="auto-link" href="RStan-vs-brms-vs-BayesFactor-in-R.html" title="RStan vs brms vs BayesFactor: Which to Use in R?">which Bayesian package</a> fits your problem before you commit.</li>
+
+</ul>
+
