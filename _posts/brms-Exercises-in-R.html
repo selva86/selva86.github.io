@@ -1,0 +1,566 @@
+---
+title: "brms Exercises in R: 8 Bayesian Regression Problems"
+description: "Eight brms exercises in R with worked solutions: fit Bayesian regressions, set priors, read credible intervals, predict, and build hierarchical models."
+keywords: "brms exercises, brms in R, Bayesian regression R, brm() practice, Bayesian regression exercises, credible interval R, hierarchical model brms, loo model comparison"
+mathjax: false
+webr: true
+curriculum_id: "E12.2"
+post_type: "EX"
+auto_link_terms: "brms exercises|brms in R|brm()|Bayesian regression in R|credible interval|posterior_predict|loo()|hierarchical model|informative prior|bernoulli()|posterior distribution|R-hat"
+auto_link_case_sensitive: false
+sidebar_title: "brms Exercises"
+fr_parent: "brms-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Eight practice problems that walk you through a <a class="auto-link" href="Bayesian-Workflow-in-R.html" title="The Bayesian Workflow in R: All 5 Steps Explained">full Bayesian workflow</a> with the <a class="auto-link" href="RStan-vs-brms-vs-BayesFactor-in-R.html" title="RStan vs brms vs BayesFactor: Which to Use in R?">brms package</a>, from your first regression to hierarchical models and model comparison. Each problem states a clear task, lets you try it, then reveals a worked solution with the real fitted output. Work through them in order: later problems reuse models you fit earlier.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the brms solutions in your local R session.</strong> brms writes a Stan program from your formula and compiles it to C++ before sampling, which does not happen in the browser. The short blocks at the start of each exercise are plain base R and run right here in the page, so you can build intuition before you open RStudio. Install the package once with <code>install.packages(&quot;brms&quot;)</code>.</div></div>
+
+<p>Every exercise uses <code>mtcars</code>, the built-in dataset of 32 cars with fuel efficiency (<code>mpg</code>), weight (<code>wt</code>), horsepower (<code>hp</code>), transmission (<code>am</code>), and cylinders (<code>cyl</code>). Keeping one small dataset lets you focus on the Bayesian ideas instead of the data. Try each problem before opening the solution: the struggle is where the learning happens.</p>
+
+<h2>Exercise 1: How do you fit your first Bayesian regression with brms?</h2>
+
+<p>Before you meet brms, look at the tool you already know. <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">Ordinary least squares</a> (OLS), the engine behind <code>lm()</code>, fits a line by minimizing squared error and hands you one number per coefficient plus a standard error. Run the baseline so you have something to compare against.</p>
+
+<div class="webr-container" data-block-title="Fit the least-squares baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the least-squares baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Frequentist baseline: ordinary least squares
+fit_ols &lt;- lm(mpg ~ wt, data = mtcars)
+round(coef(summary(fit_ols)), 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   37.285      1.878  19.858        0
+#&gt; wt            -5.344      0.559  -9.559        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That table says a car gains about 37.3 mpg at zero weight and loses 5.34 mpg for every extra 1,000 pounds. The standard error (0.559) summarizes the uncertainty as a single spread. A Bayesian fit gives you something richer: a full <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a>, which is the range of slope values that stay plausible after combining your data with any prior belief. Instead of one estimate plus one error, you get thousands of draws you can summarize any way you like.</p>
+
+<p><strong>Your task:</strong> Fit the same model the Bayesian way with <code>brm(mpg ~ wt, data = mtcars)</code>, then read the summary. Use 2 chains and 1,000 iterations so it finishes quickly, and set <code>seed = 1</code> so your numbers match.</p>
+
+<p><strong>Hint:</strong> The <code>brm()</code> call takes the same formula as <code>lm()</code>. Add <code>chains = 2, iter = 1000, seed = 1, refresh = 0</code> to keep it fast and quiet, then call <code>summary()</code> on the result.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">library(brms)
+
+fit_lin &lt;- brm(
+  mpg ~ wt,
+  data    = mtcars,
+  chains  = 2,
+  iter    = 1000,
+  seed    = 1,
+  refresh = 0
+)
+
+summary(fit_lin)
+#&gt;  Family: gaussian
+#&gt;   Links: mu = identity
+#&gt; Formula: mpg ~ wt
+#&gt;    Data: mtcars (Number of observations: 32)
+#&gt;   Draws: 2 chains, each with iter = 1000; warmup = 500; thin = 1;
+#&gt;          total post-warmup draws = 1000
+#&gt;
+#&gt; Regression Coefficients:
+#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; Intercept    37.27      2.00    33.51    41.26 1.00      948      662
+#&gt; wt           -5.35      0.59    -6.53    -4.24 1.00      905      658
+#&gt;
+#&gt; Further Distributional Parameters:
+#&gt;       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; sigma     3.16      0.42     2.50     4.15 1.00      876      642</code></pre>
+
+<p><strong>What the code did:</strong> <code>brm()</code> translated <code>mpg ~ wt</code> into a Stan model, compiled it, and ran two Markov chains that together drew 1,000 samples from the posterior after discarding 500 warmup draws each. <code>summary()</code> then collapsed those draws into a table.</p>
+
+<p><strong>What the output means:</strong> The <code>Estimate</code> column is the posterior mean, and it lands almost exactly on the OLS numbers (37.27 and -5.35). The difference is what you gain: <code>l-95% CI</code> and <code>u-95% CI</code> give a <a class="auto-link" href="Credible-Intervals-vs-Confidence-Intervals.html" title="Credible vs Confidence Intervals in R">95% credible interval</a>, so you can say there is a 95% probability the slope is between -6.53 and -4.24. <code>Est.Error</code> is the posterior standard deviation, <code>sigma</code> is the leftover scatter around the line, and the <code>Rhat</code> and <code>ESS</code> columns are convergence checks you will meet in Exercise 8.</p>
+
+</details>
+
+<h2>Exercise 2: How do priors change the answer?</h2>
+
+<p>A prior is what you believe about a parameter before seeing the data. brms uses gentle default priors so the data, not the prior, drives the estimate, but you can supply your own. Suppose a colleague insists that heavier cars lose about 4 mpg per 1,000 pounds, with some uncertainty. You can encode that as a <code>normal(-4, 1)</code> prior on the slope. First, see what that belief looks like on its own.</p>
+
+<div class="webr-container" data-block-title="Simulate what the prior believes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate what the prior believes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># What does a normal(-4, 1) prior on the slope believe before any data?
+set.seed(7)
+prior_draws &lt;- rnorm(10000, mean = -4, sd = 1)
+round(quantile(prior_draws, c(0.025, 0.5, 0.975)), 2)
+#&gt;  2.5%   50% 97.5%
+#&gt; -5.96 -4.00 -2.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Before seeing a single car, this prior says the slope is probably between -5.96 and -2.00, centered at -4. That is a real opinion, and it disagrees a little with the data, which on its own pointed to about -5.3. When you fit the model, brms blends the two.</p>
+
+<p><strong>Your task:</strong> Refit <code>mpg ~ wt</code> with a <code>normal(-4, 1)</code> prior on the <code>wt</code> coefficient, then compare its posterior median slope against the default-prior model from Exercise 1.</p>
+
+<p><strong>Hint:</strong> Build the prior with <code>prior(normal(-4, 1), class = &quot;b&quot;, coef = &quot;wt&quot;)</code> and pass it to <code>brm()</code>. Pull each posterior slope with <code>as_draws_df(fit)$b_wt</code> and take the <code>median()</code> of each.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">fit_prior &lt;- brm(
+  mpg ~ wt,
+  data    = mtcars,
+  prior   = prior(normal(-4, 1), class = &quot;b&quot;, coef = &quot;wt&quot;),
+  chains  = 2,
+  iter    = 1000,
+  seed    = 1,
+  refresh = 0
+)
+
+round(c(
+  default     = median(as_draws_df(fit_lin)$b_wt),
+  informative = median(as_draws_df(fit_prior)$b_wt)
+), 2)
+#&gt;     default informative
+#&gt;       -5.33       -5.02</code></pre>
+
+<p><strong>What the code did:</strong> <code>prior(normal(-4, 1), class = &quot;b&quot;, coef = &quot;wt&quot;)</code> set a normal prior on the slope (<code>class = &quot;b&quot;</code> means a regression coefficient). <code>as_draws_df()</code> pulled the raw posterior draws into a data frame, where <code>b_wt</code> is the column of slope samples, and <code>median()</code> summarized each.</p>
+
+<p><strong>What the output means:</strong> The default-prior slope sits at -5.33, close to OLS. The <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">informative prior</a> pulled it toward its own belief of -4, landing at -5.02. The posterior is always a compromise between prior and data, weighted by how strong each one is. With only 32 cars the prior has real pull; with thousands of rows it would barely move.</p>
+
+</details>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always run a <a class="auto-link" href="Prior-Sensitivity-Analysis-in-R.html" title="Prior Sensitivity Analysis in R: Does the Prior Matter?">prior sensitivity check</a> before you trust a Bayesian result.</strong> Fit the model under a couple of reasonable priors, as you just did, and confirm your conclusion does not flip. If it does, you are letting the prior drive the answer instead of the data, and you should say so plainly.</div></div>
+
+<h2>Exercise 3: How do you report a 90% credible interval?</h2>
+
+<p>A credible interval is the Bayesian answer to "how sure are we?" A 90% credible interval is simply the range that holds the middle 90% of the posterior draws. Because it is a statement about the parameter, you can say the plain-English thing everyone wants to say: "there is a 90% probability the slope is in this range." A frequentist confidence interval does not let you say that. You can get the idea from the least-squares numbers first, treating the slope as roughly normal.</p>
+
+<div class="webr-container" data-block-title="Build a 90% interval from a normal approximation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a 90% interval from a normal approximation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Take the slope estimate (-5.34) and its standard error (0.56) from lm() above.
+post_mean &lt;- -5.34
+post_sd   &lt;- 0.56
+round(post_mean + qnorm(c(0.05, 0.95)) * post_sd, 2)
+#&gt; [1] -6.26 -4.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those two numbers, -6.26 and -4.42, are the 5th and 95th percentiles of a normal centered at -5.34. That is a decent approximation, but the real posterior may be skewed, so you should read the interval straight from the draws instead of assuming a shape.</p>
+
+<p><strong>Your task:</strong> Pull the 90% credible interval for the <code>wt</code> slope directly from <code>fit_lin</code>.</p>
+
+<p><strong>Hint:</strong> <code>fixef()</code> returns the fixed-effect coefficients, and its <code>probs</code> argument sets which quantiles you want. Ask for <code>probs = c(0.05, 0.95)</code>.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">fixef(fit_lin, probs = c(0.05, 0.95))
+#&gt;            Estimate Est.Error        Q5      Q95
+#&gt; Intercept 37.265616 2.0044209 34.049186 40.64086
+#&gt; wt        -5.347817 0.5933275 -6.358572 -4.39285</code></pre>
+
+<p><strong>What the code did:</strong> <code>fixef()</code> extracted the population-level coefficients and, thanks to <code>probs = c(0.05, 0.95)</code>, reported the 5th and 95th posterior percentiles as columns <code>Q5</code> and <code>Q95</code>.</p>
+
+<p><strong>What the output means:</strong> The slope's 90% credible interval is -6.36 to -4.39. Notice how close that is to the -6.26 to -4.42 you got from the normal shortcut: with plenty of data and gentle priors, the Bayesian interval and the frequentist one nearly coincide. What differs is the interpretation. This interval is a direct probability statement about the slope, not a statement about hypothetical repeated samples.</p>
+
+</details>
+
+<h2>Exercise 4: How do you predict a new car's mpg with full uncertainty?</h2>
+
+<p>Coefficients are useful, but often you want a prediction for a specific new case. OLS gives you a single predicted value and, by default, no honest sense of spread.</p>
+
+<div class="webr-container" data-block-title="Predict one point with least squares">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict one point with least squares</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># OLS gives a single number, with no built-in spread:
+predict(fit_ols, newdata = data.frame(wt = 3.0))
+#&gt;        1
+#&gt; 21.25171</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 3,000-pound car is predicted at 21.25 mpg. But how confident should you be? A Bayesian <a class="auto-link" href="Posterior-Predictive-Checks-in-R.html" title="Posterior Predictive Checks in R: The 5-Minute Way to Catch a Broken Model">posterior predictive distribution</a> answers that by simulating many possible outcomes, folding in both the uncertainty about the coefficients and the natural scatter of real cars around the line.</p>
+
+<p><strong>Your task:</strong> Use <code>fit_lin</code> to produce the posterior predictive distribution of <code>mpg</code> for a car with <code>wt = 3.0</code>, then report the mean and a 90% predictive interval.</p>
+
+<p><strong>Hint:</strong> <code>posterior_predict(fit, newdata = ...)</code> returns a matrix of <a class="auto-link" href="Prior-Predictive-Checks-in-R.html" title="Prior Predictive Checks in R: Test Your Bayesian Model Before You Have Data">simulated outcomes</a>. Summarize its column with <code>mean()</code> and <code>quantile(..., c(0.05, 0.95))</code>.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">newcar &lt;- data.frame(wt = 3.0)
+pp &lt;- posterior_predict(fit_lin, newdata = newcar)
+
+round(c(
+  mean = mean(pp),
+  q05  = unname(quantile(pp, 0.05)),
+  q95  = unname(quantile(pp, 0.95))
+), 2)
+#&gt;  mean   q05   q95
+#&gt; 21.26 15.88 26.29</code></pre>
+
+<p><strong>What the code did:</strong> <code>posterior_predict()</code> drew a simulated <code>mpg</code> for the new car from every posterior sample, producing a whole distribution of plausible outcomes. <code>mean()</code> and <code>quantile()</code> then summarized it.</p>
+
+<p><strong>What the output means:</strong> The predictive mean, 21.26, matches the OLS point prediction almost exactly. The difference is the interval: from 15.88 to 26.29, an honest 90% range for a single new car. That band is far wider than the credible interval for the slope, because predicting one real car carries residual scatter on top of coefficient uncertainty. When you forecast an individual outcome, quote the predictive interval, not the coefficient interval.</p>
+
+</details>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A posterior over parameters becomes a posterior over anything you compute from them.</strong> Once brms hands you draws, a prediction, a difference between groups, or a probability that a coefficient is positive is just a summary of those draws. You never have to derive a new formula for uncertainty; you summarize the samples.</div></div>
+
+<h2>Exercise 5: How do you fit a Bayesian logistic regression?</h2>
+
+<p>Not every outcome is a number on a <a class="auto-link" href="ggplot2-scale_x_continuous-in-R.html" title="ggplot2 scale_x_continuous() in R: Customize the X Axis">continuous scale</a>. Transmission type (<code>am</code>) is 0 for automatic and 1 for manual, a yes/no outcome. <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Logistic regression</a> models the log-odds of the "yes" as a linear function of predictors. The frequentist version is one line of base R.</p>
+
+<div class="webr-container" data-block-title="Fit a frequentist logistic baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a frequentist logistic baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Frequentist logistic regression for comparison:
+fit_glm &lt;- glm(am ~ hp + wt, data = mtcars, family = binomial)
+round(coef(fit_glm), 3)
+#&gt; (Intercept)          hp          wt
+#&gt;      18.866       0.036      -8.083</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>family = binomial</code> argument tells <code>glm()</code> this is a yes/no outcome. The negative weight coefficient says heavier cars are less likely to be manual. To get a posterior over these log-odds, you switch to brms and set its matching family, <code>bernoulli()</code>.</p>
+
+<p><strong>Your task:</strong> Fit <code>am ~ hp + wt</code> with <code>brm()</code> and <code>family = bernoulli()</code>, then read the coefficients.</p>
+
+<p><strong>Hint:</strong> The formula and data are the same as the <code>glm()</code> call. Add <code>family = bernoulli()</code> to <code>brm()</code> and inspect the result with <code>fixef()</code>.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">fit_logit &lt;- brm(
+  am ~ hp + wt,
+  data    = mtcars,
+  family  = bernoulli(),
+  chains  = 2,
+  iter    = 1000,
+  seed    = 5,
+  refresh = 0
+)
+
+fixef(fit_logit)
+#&gt;               Estimate  Est.Error         Q2.5      Q97.5
+#&gt; Intercept  25.44023554 9.45110377  10.94618156 46.1270537
+#&gt; hp          0.05021934 0.02233619   0.01471145  0.1007207
+#&gt; wt        -10.81204019 3.80545851 -18.99550786 -4.9454987</code></pre>
+
+<p><strong>What the code did:</strong> <code>family = bernoulli()</code> told brms to model a binary outcome on the log-odds scale, the Bayesian counterpart of <code>glm(..., family = binomial)</code>. <code>fixef()</code> reported each coefficient's posterior mean and 95% credible interval.</p>
+
+<p><strong>What the output means:</strong> The signs agree with the frequentist fit: horsepower raises the odds of a manual transmission, weight lowers them. The estimates are larger in size than the <code>glm()</code> values because the posterior explores the full uncertainty rather than settling on a single maximum-likelihood point, and the intervals are wide (weight runs from about -19 to -5). With only 32 cars, that width is the honest level of uncertainty, and the wide credible intervals report it directly.</p>
+
+</details>
+
+<h2>Exercise 6: How do you add group structure with a hierarchical model?</h2>
+
+<p>So far every car shared one intercept. But cars cluster: 4-, 6-, and 8-cylinder engines have different baseline efficiencies. A <a class="auto-link" href="Random-Intercepts-and-Slopes-in-R.html" title="Random Intercepts and Slopes with lme4 in R">hierarchical model</a>, also called a multilevel or mixed model, gives each group its own intercept while tying those intercepts together through a shared distribution. First, confirm the groups really differ.</p>
+
+<div class="webr-container" data-block-title="Check the group averages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the group averages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average mpg differs by cylinder group, so one shared intercept is too rigid:
+aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+#&gt;   cyl      mpg
+#&gt; 1   4 26.66364
+#&gt; 2   6 19.74286
+#&gt; 3   8 15.10000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The groups clearly differ, from 26.7 mpg for 4-cylinder cars down to 15.1 for 8-cylinder ones. A hierarchical model lets each cylinder group shift its own intercept up or down, but pulls small or noisy groups toward the overall average. This gentle pull is called <a class="auto-link" href="Bayesian-Hierarchical-Models-in-R.html" title="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">partial pooling</a>, and it protects you from over-trusting a group with only a few cars.</p>
+
+<p><strong>Your task:</strong> Fit <code>mpg ~ wt + (1 | cyl)</code> with <code>brm()</code>, treating <code>cyl</code> as a grouping factor, then read the summary.</p>
+
+<p><strong>Hint:</strong> The term <code>(1 | cyl)</code> adds a varying intercept per cylinder group. Make <code>cyl</code> a factor first, for example with <code>transform(mtcars, cyl = factor(cyl))</code>, then fit and call <code>summary()</code>.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">mtcars_h &lt;- transform(mtcars, cyl = factor(cyl))
+
+fit_hier &lt;- brm(
+  mpg ~ wt + (1 | cyl),
+  data    = mtcars_h,
+  chains  = 2,
+  iter    = 1000,
+  seed    = 3,
+  refresh = 0
+)
+
+summary(fit_hier)
+#&gt;  Family: gaussian
+#&gt;   Links: mu = identity
+#&gt; Formula: mpg ~ wt + (1 | cyl)
+#&gt;    Data: mtcars_h (Number of observations: 32)
+#&gt;   Draws: 2 chains, each with iter = 1000; warmup = 500; thin = 1;
+#&gt;          total post-warmup draws = 1000
+#&gt;
+#&gt; Multilevel Hyperparameters:
+#&gt; ~cyl (Number of levels: 3)
+#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; sd(Intercept)     3.75      2.24     0.97     9.58 1.00      309      434
+#&gt;
+#&gt; Regression Coefficients:
+#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; Intercept    31.44      3.40    23.71    38.07 1.00      345      153
+#&gt; wt           -3.59      0.83    -5.31    -1.98 1.00      521      531
+#&gt;
+#&gt; Further Distributional Parameters:
+#&gt;       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; sigma     2.69      0.39     2.04     3.57 1.01      607      497</code></pre>
+
+<p><strong>What the code did:</strong> <code>(1 | cyl)</code> told brms to estimate one intercept per cylinder group, drawn from a shared <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> whose standard deviation, <code>sd(Intercept)</code>, brms estimates from the data. The rest of the call is the same as your first model.</p>
+
+<p><strong>What the output means:</strong> Two things changed. The <code>Multilevel Hyperparameters</code> block reports <code>sd(Intercept)</code> at 3.75, meaning cylinder groups differ by roughly 3.75 mpg in baseline efficiency. And the weight slope shrank from -5.35 to -3.59, because some of what plain OLS blamed on weight was really the cylinder groups differing. Once you let groups have their own baselines, weight gets less credit.</p>
+
+</details>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Three groups is too few to pin down a group-level standard deviation.</strong> Notice how wide the <code>sd(Intercept)</code> interval is, from 0.97 to 9.58. mtcars has only three cylinder categories, and estimating a variance from three numbers is genuinely hard. Hierarchical models earn their keep when you have several groups; aim for at least five to eight before leaning on the group-level spread.</div></div>
+
+<h2>Exercise 7: How do you compare two models with LOO?</h2>
+
+<p>You have two candidate models for <code>mpg</code>: weight alone, and weight plus horsepower. Which predicts better on data it has not seen? The frequentist quick answer is AIC, where lower is better.</p>
+
+<div class="webr-container" data-block-title="Compare models with AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare models with AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Frequentist model comparison by AIC (lower is better):
+m1 &lt;- lm(mpg ~ wt,      data = mtcars)
+m2 &lt;- lm(mpg ~ wt + hp, data = mtcars)
+AIC(m1, m2)
+#&gt;    df      AIC
+#&gt; m1  3 166.0294
+#&gt; m2  4 156.6523</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>AIC prefers the two-predictor model (156.7 versus 166.0). The Bayesian counterpart is <a class="auto-link" href="Compare-Bayesian-Models-in-R.html" title="Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits">leave-one-out cross-validation</a>, or LOO, which estimates how well each model predicts a left-out point without actually refitting 32 times. It reports the expected log predictive density (elpd), where higher is better, and, crucially, a standard error for the difference so you know whether the gap is real.</p>
+
+<p><strong>Your task:</strong> Fit <code>mpg ~ wt + hp</code> with <code>brm()</code>, then compare it against <code>fit_lin</code> using <code>loo_compare()</code>.</p>
+
+<p><strong>Hint:</strong> Compute <code>loo()</code> on each fitted model, then hand both results to <code>loo_compare()</code>. Name the two loo objects so the output rows are easy to read.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">fit_add &lt;- brm(
+  mpg ~ wt + hp,
+  data    = mtcars,
+  chains  = 2,
+  iter    = 1000,
+  seed    = 1,
+  refresh = 0
+)
+
+loo_lin &lt;- loo(fit_lin)
+loo_add &lt;- loo(fit_add)
+loo_compare(loo_lin, loo_add)
+#&gt;    model elpd_diff se_diff p_worse diag_diff       diag_elpd
+#&gt;  fit_add       0.0     0.0      NA           1 k_psis &gt; 0.67
+#&gt;  fit_lin      -4.3     2.0    0.98   N &lt; 100</code></pre>
+
+<p><strong>What the code did:</strong> <code>loo()</code> estimated each model's out-of-sample predictive accuracy with Pareto-smoothed importance sampling, and <code>loo_compare()</code> ranked them, putting the best model on top with a difference of zero.</p>
+
+<p><strong>What the output means:</strong> The two-predictor model <code>fit_add</code> wins, and <code>fit_lin</code> trails it by 4.3 elpd units. Because that gap (4.3) is about twice its standard error (2.0), the evidence leans toward keeping horsepower but is not overwhelming. Note the diagnostic columns: <code>N &lt; 100</code> and <code>k_psis &gt; 0.67</code> are LOO warning you that with only 32 rows its approximation is shaky. On small data, read a LOO comparison as suggestive, not final, and confirm it with a held-out test if the decision matters.</p>
+
+</details>
+
+<h2>Exercise 8: How do you check that the sampler converged?</h2>
+
+<p>brms answers by simulation, running Markov chains that wander through the posterior. If the chains did not mix well, the summary numbers are not trustworthy. Two diagnostics tell you whether to believe the fit. R-hat compares the variation between chains to the variation within each chain; when the chains agree, R-hat sits near 1.00. You can feel the idea with two toy chains that both sample the same target.</p>
+
+<div class="webr-container" data-block-title="See why well-mixed chains agree">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See why well-mixed chains agree</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two well-mixed chains sampling the same target have nearly equal means.
+set.seed(9)
+chains &lt;- matrix(rnorm(1000), ncol = 2)   # columns = two chains of 500 draws
+round(apply(chains, 2, mean), 3)          # chain means should be close
+#&gt; [1] -0.012  0.023</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both chains land near zero, so their between-chain spread is tiny compared to the scatter within each chain, and R-hat would be about 1. If one chain had drifted to a different value, R-hat would climb above 1 and warn you. The second diagnostic, <a class="auto-link" href="MCMC-Diagnostics-in-R.html" title="MCMC Diagnostics in R: 4 Tests for Chain Convergence">effective sample size</a> (ESS), counts how many truly independent draws you effectively have after accounting for the correlation between consecutive steps.</p>
+
+<p><strong>Your task:</strong> Report the posterior mean, R-hat, and bulk ESS for every parameter in <code>fit_lin</code>.</p>
+
+<p><strong>Hint:</strong> The <code>posterior</code> package works on any brms fit. Convert with <code>as_draws()</code> and summarize with <code>summarise_draws(draws, &quot;mean&quot;, &quot;rhat&quot;, &quot;ess_bulk&quot;)</code>.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">library(posterior)
+summarise_draws(as_draws(fit_lin), &quot;mean&quot;, &quot;rhat&quot;, &quot;ess_bulk&quot;)
+#&gt; # A tibble: 6 × 4
+#&gt;   variable      mean  rhat ess_bulk
+#&gt;   &lt;chr&gt;        &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 b_Intercept  37.3  1.00      948.
+#&gt; 2 b_wt         -5.35 1.00      905.
+#&gt; 3 sigma         3.16 1.00      876.
+#&gt; 4 Intercept    20.1  1.01      920.
+#&gt; 5 lprior       -4.92 0.999     845.
+#&gt; 6 lp__        -85.4  1.00      452.</code></pre>
+
+<p><strong>What the code did:</strong> <code>as_draws()</code> handed the posterior samples to the <code>posterior</code> package, and <code>summarise_draws()</code> computed the mean, R-hat, and bulk ESS for each parameter, including brms internals like <code>lp__</code> (the log-posterior).</p>
+
+<p><strong>What the output means:</strong> Every R-hat is 1.00 or 1.01, at or under the usual 1.01 threshold, so the chains converged. Every bulk ESS is in the hundreds, above the rule-of-thumb floor of 400 for stable summaries. If you ever see R-hat above 1.01 or ESS in the low dozens, run more iterations or more chains before you trust a single number in the summary. These two checks are the first thing to read on any brms fit, before the coefficients.</p>
+
+</details>
+
+<h2>Frequently asked questions</h2>
+
+<p><strong>Should I use brms or rstanarm?</strong> Both fit Bayesian regressions with familiar formula syntax. rstanarm ships pre-compiled models for common cases, so it starts sampling instantly, while brms compiles a fresh Stan program per model. The trade is flexibility: brms supports far more families, custom priors, non-linear terms, and distributional models. Learn brms as your general tool and reach for rstanarm when you want a quick standard GLM.</p>
+
+<p><strong>Why is brms so slow the first time I run a model?</strong> The first run spends most of its time translating your formula into Stan code and compiling that to C++, not sampling. Fit the model once, save the object, and reuse it for summaries and predictions. Installing the <a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">cmdstanr backend</a> speeds compilation noticeably if you fit many models.</p>
+
+<p><strong>How many chains and iterations do I actually need?</strong> The brms defaults, 4 chains of 2,000 iterations, are a sensible starting point. These exercises use 2 chains of 1,000 to run fast. The right number is not fixed: watch R-hat and effective sample size from Exercise 8. If R-hat sits at 1.00 and ESS is in the hundreds, you have enough; if not, run more.</p>
+
+<p><strong>How do I choose a prior?</strong> Start weakly informative, letting the data lead, and add real domain knowledge only for the scale of an effect, as you did in Exercise 2. Always inspect what brms used with <code>prior_summary()</code>, and run a sensitivity check across a couple of reasonable priors. Fully flat priors are rarely the best choice and can make sampling harder.</p>
+
+<p><strong>How many groups do I need for a hierarchical model?</strong> Enough to estimate the group-level standard deviation, which is hard with only a handful. mtcars has three cylinder groups, which is why its <code>sd(Intercept)</code> interval in Exercise 6 was so wide. Aim for at least five to eight groups, and more when the group-level spread is the quantity you care about.</p>
+
+<h2>Summary</h2>
+
+<p>You worked through the full brms regression toolkit on one small dataset. Here is what each problem practiced and the function that carries it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Exercise</th>
+<th>Skill</th>
+<th>Key function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Fit a <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">Bayesian linear regression</a></td>
+<td><code>brm()</code>, <code>summary()</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Set an informative prior and compare</td>
+<td><code>prior()</code>, <code>as_draws_df()</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Report a credible interval</td>
+<td><code>fixef(probs = ...)</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Predict with full uncertainty</td>
+<td><code>posterior_predict()</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Fit a logistic regression</td>
+<td><code>brm(family = bernoulli())</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Build a hierarchical model</td>
+<td>`brm(y ~ x + (1</td>
+<td>group))`</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Compare models out of sample</td>
+<td><code>loo()</code>, <code>loo_compare()</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>Check convergence</td>
+<td><code>summarise_draws()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The thread running through all eight is that brms turns a familiar formula into a posterior distribution, and every quantity you care about, whether a slope, a prediction, or a model comparison, is just a summary of that posterior's draws.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Burkner, P. C. brms: An R Package for Bayesian Multilevel Models Using Stan. Journal of Statistical Software (2017). <a href="https://www.jstatsoft.org/article/view/v080i01">Link</a></li>
+
+<li>brms package on CRAN. <a href="https://cran.r-project.org/package=brms">Link</a></li>
+
+<li>brms package website and vignettes. <a href="https://paul-buerkner.github.io/brms/">Link</a></li>
+
+<li>Stan documentation. <a href="https://mc-stan.org/users/documentation/">Link</a></li>
+
+<li>loo package: efficient LOO cross-validation and model comparison. <a href="https://mc-stan.org/loo/">Link</a></li>
+
+<li>posterior package: tools for working with posterior draws (R-hat, ESS). <a href="https://mc-stan.org/posterior/">Link</a></li>
+
+<li>McElreath, R. Statistical Rethinking, a course and textbook on applied Bayesian modeling. <a href="https://xcelab.net/rm/statistical-rethinking/">Link</a></li>
+
+</ol>
+
+<h2>Continue learning</h2>
+
+<ul>
+
+<li><strong><a href="brms-in-R.html">brms in R: Bayesian Regression Without Writing Stan</a></strong>: the parent tutorial that explains every concept these exercises drill, from formula syntax to diagnostics.</li>
+
+<li><strong><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a></strong>: how priors and posteriors work, and what a credible interval really means.</li>
+
+<li><strong><a href="Bayesian-Statistics-Exercises-in-R.html">Bayesian Statistics Exercises in R</a></strong>: 20 more problems spanning <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">conjugate priors</a> and <a class="auto-link" href="Grid-Approximation-in-R.html" title="Grid Approximation in R: Compute Bayesian Posteriors Without MCMC">grid approximation</a>, plus deeper MCMC diagnostics.</li>
+
+<li><strong><a href="GLM-Exercises-in-R.html">GLM Exercises in R</a></strong>: frequentist generalized linear models that translate directly to Bayesian GLMs with brms.</li>
+
+<li><strong><a href="Mixed-Effects-Models-Exercises-in-R.html">Mixed Effects Models Exercises in R</a></strong>: more practice with the group structure you met in Exercise 6.</li>
+
+</ul>
+
+{% endraw %}
