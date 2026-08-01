@@ -2142,16 +2142,14 @@ _TIER_2_HUBS = {
 
 
 def _issuance_baseline(hub_slug):
-    """Deterministic, plausible issuance count for a hub. Returns an int.
-    Same hub always gets the same number; popular hubs cluster higher."""
-    import hashlib
-    key = (hub_slug or '').lower()
-    h = int(hashlib.md5(key.encode('utf-8')).hexdigest()[:6], 16)
-    if key in _TIER_1_HUBS:
-        return 700 + (h % 800)    # 700-1500
-    if key in _TIER_2_HUBS:
-        return 180 + (h % 380)    # 180-560
-    return 50 + (h % 160)         # 50-210
+    """Returns 0 - no fabricated issuance count is shown.
+
+    Previously this returned a deterministic, "plausible" fake count
+    (md5-seeded, 50-1500 per hub). That violated the no-fake-metrics rule,
+    so the count is suppressed (make_cert_final renders nothing when this
+    is 0). A real count lands here once assessment certificates are recorded
+    server-side: COUNT over the certificates table per track."""
+    return 0
 
 
 # Regex helpers for h2 → topic extraction
