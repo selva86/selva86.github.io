@@ -1,0 +1,887 @@
+---
+title: "Empirical Bayes in R: James-Stein and Shrinkage"
+description: "Empirical Bayes and James-Stein shrinkage in R, explained from scratch. See why pulling estimates toward the mean beats raw averages, with runnable code."
+keywords: "empirical Bayes in R, James-Stein estimator, shrinkage estimation, beta-binomial, borrowing strength, Stein's paradox, posterior mean, empirical Bayes estimation"
+mathjax: true
+webr: true
+curriculum_id: "FR-baye-3"
+post_type: "FR"
+auto_link_terms: "empirical Bayes|James-Stein estimator|James-Stein|shrinkage estimation|shrinkage estimator|Stein's paradox|borrowing strength|beta-binomial model|empirical Bayes estimation|shrinkage toward the mean"
+auto_link_case_sensitive: false
+fr_parent: "Conjugate-Priors-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Empirical Bayes is a method that estimates a prior from your own data, then uses it to pull each noisy estimate toward the group average. That pull, called shrinkage and made famous by the James-Stein estimator, lowers your total error when you estimate many quantities at once. This guide builds both ideas from scratch in R, using only base R so every number here runs in your browser.</p>
+
+<h2>Why do raw averages mislead you on small samples?</h2>
+
+<p>Imagine you run a sports desk and you want to predict how well 18 baseball players will hit this season. All you have so far is each player's first 45 at-bats. The obvious move is to use each player's early batting average as your prediction. Let's load that exact situation, the real 1970 data that Bradley Efron and Carl Morris studied, and look at it.</p>
+
+<div class="webr-container" data-block-title="Load the Efron-Morris baseball data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the Efron-Morris baseball data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 18 players: hits in their first 45 at-bats, and their eventual full-season average.
+players &lt;- c(&quot;Clemente&quot;,&quot;F Robinson&quot;,&quot;F Howard&quot;,&quot;Johnstone&quot;,&quot;Berry&quot;,&quot;Spencer&quot;,
+             &quot;Kessinger&quot;,&quot;L Alvarado&quot;,&quot;Santo&quot;,&quot;Swoboda&quot;,&quot;Unser&quot;,&quot;Williams&quot;,
+             &quot;Scott&quot;,&quot;Petrocelli&quot;,&quot;E Rodriguez&quot;,&quot;Campaneris&quot;,&quot;Munson&quot;,&quot;Alvis&quot;)
+hits    &lt;- c(18,17,16,15,14,14,13,12,11,11,10,10,10,10,10,9,8,7)
+season  &lt;- c(.346,.298,.276,.222,.273,.270,.263,.210,.269,.230,
+             .264,.256,.303,.264,.226,.285,.316,.200)
+
+p_hat &lt;- hits / 45   # each player's raw average from 45 at-bats
+baseball &lt;- data.frame(player = players, hits = hits,
+                       avg45 = round(p_hat, 3), season = season)
+head(baseball)
+#&gt;       player hits avg45 season
+#&gt; 1   Clemente   18 0.400  0.346
+#&gt; 2 F Robinson   17 0.378  0.298
+#&gt; 3   F Howard   16 0.356  0.276
+#&gt; 4  Johnstone   15 0.333  0.222
+#&gt; 5      Berry   14 0.311  0.273
+#&gt; 6    Spencer   14 0.311  0.270</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>avg45</code> column is the raw estimate, and <code>season</code> is the truth we are trying to hit. Right away something looks off. Clemente batted a blistering .400 across 45 at-bats, but his real season average was .346. The raw number overstated his ability.</p>
+
+<p>That is not bad luck for one player, it is a pattern. Let's measure how wide the raw averages spread out, and where their center sits.</p>
+
+<div class="webr-container" data-block-title="Spread and center of the raw averages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spread and center of the raw averages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(range(p_hat), 3)   # lowest and highest early average
+#&gt; [1] 0.156 0.400
+round(mean(p_hat), 3)    # the group average
+#&gt; [1] 0.265</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw averages run from .156 all the way to .400, centered around .265. Here is the key point: 45 at-bats is a tiny sample, so a player at either extreme got there partly on luck. A cold streak of 7-for-45 does not mean a .156 hitter, and a hot 18-for-45 does not mean a .400 hitter. Both extremes will drift back toward the pack.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Extreme results from small samples are extreme partly by luck.</strong> When a sample is small, the highest and lowest observed values almost always overstate how special those units really are, so the truth is usually tamer than the raw number.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">Summarize</a> how spread out the 18 raw averages are with a single number. Standard deviation is a natural choice.</p>
+<div class="webr-container" data-block-title="Your turn: measure the spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure the spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The raw averages range from .156 to .400.
+# Replace NULL with a single number that summarizes how spread out they are.
+ex_spread &lt;- NULL
+# Hint: standard deviation with sd() is one good one-number summary.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Spread of the raw averages solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spread of the raw averages solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sd(p_hat), 3)
+#&gt; [1] 0.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw averages have a standard deviation of about 0.07. A good chunk of that spread is just sampling noise from 45 at-bats, not real talent differences.</p>
+
+</details>
+</section>
+
+<h2>What exactly is shrinkage?</h2>
+
+<p>If the extremes are inflated by luck, the fix is intuitive: pull every estimate a little toward the group average. A cautious prediction sits between what one player did and what players do on average. That pulling is called shrinkage, and in its simplest form it is just a weighted average.</p>
+
+<p>Let's do it by hand. We will keep a fraction of each player's distance from the group mean and throw the rest away. A factor of 0.5 keeps half the gap.</p>
+
+<div class="webr-container" data-block-title="Shrink every average halfway to the mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrink every average halfway to the mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grand_mean  &lt;- mean(p_hat)                 # the shared center, about 0.265
+c_fixed     &lt;- 0.5                         # keep half of each player's gap
+shrunk_half &lt;- grand_mean + c_fixed * (p_hat - grand_mean)
+round(shrunk_half, 3)
+#&gt;  [1] 0.333 0.322 0.310 0.299 0.288 0.288 0.277 0.266 0.255 0.255 0.244 0.244
+#&gt; [13] 0.244 0.244 0.244 0.233 0.222 0.210</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Clemente's .400 became .333, and Alvis's .156 became .210. Every value moved toward .265, the extremes most of all. The diagram below shows the recipe: take one unit's noisy estimate, take the shared group average, and blend them.</p>
+
+<p><img src="screenshots/Empirical-Bayes-in-R-shrinkage-idea.webp" alt="Shrinkage blends one unit's noisy estimate with the shared group average." class="img-responsive img-zoomable" loading="lazy" width="1436" height="690" /></p>
+
+<p><em>Figure 1: Shrinkage blends one unit's noisy estimate with the shared group average.</em></p>
+
+<p>Does this cautious blending actually predict the season better? We can check, because we know the true season averages. The standard scorecard is total squared error: add up the squared gap between each prediction and the truth. Smaller is better.</p>
+
+<div class="webr-container" data-block-title="Compare total error: raw vs shrunk">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare total error: raw vs shrunk</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sse_raw  &lt;- sum((p_hat - season)^2)        # error of the raw averages
+sse_half &lt;- sum((shrunk_half - season)^2)  # error of the shrunk averages
+round(c(raw = sse_raw, shrunk_half = sse_half), 4)
+#&gt;         raw shrunk_half 
+#&gt;      0.0753      0.0292 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Shrinking cut the total error from 0.0753 to 0.0292, more than halving it. We deliberately biased every prediction toward the middle, and the predictions got better. That trade is the whole game.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Shrinkage trades a little bias for a big cut in variance.</strong> Each estimate is nudged away from the truth on purpose, but the wild swings caused by small samples shrink far more, so the total error drops.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A factor of 0.5 helped. Try shrinking harder with 0.3 (keep only 30 percent of each gap) and see whether the total error falls further.</p>
+<div class="webr-container" data-block-title="Your turn: shrink harder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrink harder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># shrunk_half used a factor of 0.5. Try a smaller factor so estimates
+# move even closer to the group mean, then check the total squared error.
+ex_c &lt;- 0.5   # change 0.5 to 0.3
+ex_shrunk_try &lt;- grand_mean + ex_c * (p_hat - grand_mean)
+# Compare sum((ex_shrunk_try - season)^2) against 0.0292 from before.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shrink harder solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrink harder solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_shrunk &lt;- grand_mean + 0.3 * (p_hat - grand_mean)
+round(sum((ex_shrunk - season)^2), 4)
+#&gt; [1] 0.0223</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Keeping only 30 percent of each gap drops the error to 0.0223, better still. For this data the true talent differences are small, so heavy shrinkage pays off. The obvious next question is how to pick the factor without peeking at the answer.</p>
+
+</details>
+</section>
+
+<h2>How does the James-Stein estimator pick the shrinkage factor?</h2>
+
+<p>We chose 0.5 and then 0.3 by hand, but that only worked because we could see the season truth. In real life you cannot. The James-Stein estimator solves this: it reads the right shrinkage factor straight from your data, no peeking required.</p>
+
+<p>Here is the intuition. If your estimates are bunched tightly together, they are mostly noise, so shrink hard. If they are spread far apart, real differences are driving them, so shrink gently. The estimator turns that idea into one formula. For $p$ quantities each measured with noise of variance 1, shrinking toward zero:</p>
+
+<p>$$\hat{\theta}^{JS} = \left(1 - \frac{p-2}{\sum_{i=1}^{p} y_i^2}\right) y$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_i$ = the raw measurement for quantity $i$</li>
+
+<li>$p$ = how many quantities you are estimating at once</li>
+
+<li>$\sum y_i^2$ = the total squared size of the measurements, which grows when they spread out</li>
+
+</ul>
+
+<p>The term in parentheses is the shrinkage factor. When the measurements spread out, the denominator grows, the fraction shrinks, and the factor moves toward 1 (gentle shrinkage). <em>If you are not interested in the formula, skip ahead, the code below is all you need.</em></p>
+
+<p>The famous part is Stein's paradox: as soon as you estimate three or more quantities at once ($p \ge 3$), this shrunken estimator beats the raw measurements on total error, always. Let's watch it happen. We invent 10 true values, observe each with noise, and score both estimators against the truth we secretly know.</p>
+
+<div class="webr-container" data-block-title="James-Stein on one simulated dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">James-Stein on one simulated dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+p     &lt;- 10
+theta &lt;- rnorm(p, mean = 0, sd = 2)   # the true values (we get to peek)
+y     &lt;- rnorm(p, mean = theta, sd = 1)  # noisy measurements, variance 1
+
+js_factor &lt;- 1 - (p - 2) / sum(y^2)   # the data-driven shrinkage factor
+theta_js  &lt;- js_factor * y            # shrink every measurement toward 0
+round(c(shrink_factor = js_factor,
+        sse_raw = sum((y - theta)^2),
+        sse_js  = sum((theta_js - theta)^2)), 3)
+#&gt; shrink_factor       sse_raw        sse_js 
+#&gt;         0.404        10.790         9.882 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimator picked a shrinkage factor of 0.404 on its own, and its total error (9.882) came in below the raw error (10.790). One run could be luck, though. Let's repeat the whole experiment 2,000 times and see who wins on average.</p>
+
+<div class="webr-container" data-block-title="Repeat the experiment 2000 times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repeat the experiment 2000 times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+sim_once &lt;- function(p = 10) {
+  theta &lt;- rnorm(p, 0, 2)
+  y     &lt;- rnorm(p, theta, 1)
+  js    &lt;- (1 - (p - 2) / sum(y^2)) * y
+  c(raw = sum((y - theta)^2), js = sum((js - theta)^2))
+}
+res &lt;- replicate(2000, sim_once())
+round(rowMeans(res), 3)              # average error of each estimator
+#&gt;   raw    js 
+#&gt; 9.969 8.354 
+round(mean(res[&quot;js&quot;, ] &lt; res[&quot;raw&quot;, ]), 3)   # share of runs where JS wins
+#&gt; [1] 0.773</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across 2,000 fresh datasets the James-Stein estimator averaged 8.354 total error versus 9.969 for the raw measurements, and it beat the raw estimator in 77 percent of individual runs. Shrinking toward an arbitrary point, zero, with a factor read off the data, reliably beats the obvious estimator.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>James-Stein guarantees a lower total error, not a better estimate for every unit.</strong> Some individual coordinates get worse. The win is on the sum across all of them, so use it when you care about the whole batch, not one single unit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The paradox needs at least three quantities. Rerun the single-dataset idea with just 3 means and confirm James-Stein still comes out ahead.</p>
+<div class="webr-container" data-block-title="Your turn: try just three means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try just three means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The paradox needs p &gt;= 3. Set the number of means to 3 and rerun the idea.
+ex_p &lt;- 10   # change 10 to 3
+# Then draw ex_p true means, observe them with noise, and compare raw vs JS.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three means solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three means solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_theta &lt;- rnorm(3, 0, 2)
+ex_y     &lt;- rnorm(3, ex_theta, 1)
+ex_js    &lt;- (1 - (3 - 2) / sum(ex_y^2)) * ex_y
+round(c(sse_raw = sum((ex_y - ex_theta)^2), sse_js = sum((ex_js - ex_theta)^2)), 3)
+#&gt; sse_raw  sse_js 
+#&gt;   2.010   1.818 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even with only three means, James-Stein (1.818) edges out the raw estimate (2.010). Notice we use $p - 2 = 1$ in the factor. Below three quantities the correction turns off and there is nothing to gain.</p>
+
+</details>
+</section>
+
+<h2>Does James-Stein actually help on the real baseball data?</h2>
+
+<p>Simulations are convincing, but you came for real data. Let's point James-Stein at the 18 batting averages. We treat each average as a noisy measurement of a player's true skill, shrink toward the group mean instead of zero, and use the version of the formula built for a shared target:</p>
+
+<p>$$\hat{\theta}_i^{JS} = \bar{y} + \left(1 - \frac{(p-3)\,\sigma^2}{\sum_i (y_i - \bar{y})^2}\right)(y_i - \bar{y})$$</p>
+
+<p>Here $\bar{y}$ is the group mean and $\sigma^2$ is the noise variance of a single average. A batting average from 45 at-bats has a known noise variance, roughly $\bar{p}(1-\bar{p}) / 45$, so we can plug everything in.</p>
+
+<div class="webr-container" data-block-title="James-Stein on the batting averages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">James-Stein on the batting averages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pbar      &lt;- mean(p_hat)
+sigma2    &lt;- pbar * (1 - pbar) / 45          # noise variance of one 45-at-bat average
+S         &lt;- sum((p_hat - pbar)^2)           # how spread out the averages are
+shrink_js &lt;- 1 - (length(p_hat) - 3) * sigma2 / S
+js_est    &lt;- pbar + shrink_js * (p_hat - pbar)
+
+round(shrink_js, 3)                          # the data-chosen shrinkage factor
+#&gt; [1] 0.212
+round(c(sse_raw = sum((p_hat - season)^2),
+        sse_js  = sum((js_est - season)^2),
+        improvement = sum((p_hat - season)^2) / sum((js_est - season)^2)), 4)
+#&gt;     sse_raw      sse_js improvement 
+#&gt;      0.0753      0.0213      3.5349 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimator chose to keep only 21 percent of each player's gap from the mean, and the payoff is dramatic: total error dropped from 0.0753 to 0.0213, about 3.5 times more accurate than trusting the raw averages. This is the original 1975 Efron-Morris result, and you just reproduced it from scratch.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>We treated each proportion as an approximately normal measurement.</strong> That works because 45 at-bats is enough for a <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Normal approximation</a>. When you have counts and proportions, though, there is a more natural route that models them directly. That route is empirical Bayes, and it is next.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <code>js_est</code> holds the James-Stein estimate for every player. Find the worst early hitter and read off his raw, James-Stein, and true averages to see which way he moved.</p>
+<div class="webr-container" data-block-title="Your turn: shrink the worst hitter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrink the worst hitter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># js_est holds the James-Stein estimate for every player.
+# Find the worst early hitter and read off his raw, JS, and true averages.
+ex_worst &lt;- which.min(p_hat)   # index of the lowest early average
+# Print p_hat[ex_worst], js_est[ex_worst], and season[ex_worst].</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Worst hitter solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Worst hitter solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(alvis_raw = p_hat[18], alvis_js = js_est[18], alvis_true = season[18]), 3)
+#&gt;  alvis_raw   alvis_js alvis_true 
+#&gt;      0.156      0.242      0.200 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Alvis looked like a .156 hitter after 45 at-bats. James-Stein lifted him to .242, and his real season average was .200. The shrunken guess landed much closer to the truth than the low raw number.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate the prior from the data itself?</h2>
+
+<p>So far we have shrunk toward the group mean, but we never asked how strong that pull should be in a principled way. Empirical Bayes answers that by treating the whole group as evidence about a <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">prior distribution</a>, then letting Bayes' rule do the shrinking. The word "empirical" means we do not assume a prior, we estimate it from the data.</p>
+
+<p>The workflow has two steps, shown below. First, look at all 18 players together and fit a prior distribution for batting skill. Second, combine that prior with each player's own record to get a posterior estimate.</p>
+
+<p><img src="screenshots/Empirical-Bayes-in-R-eb-workflow.webp" alt="Empirical Bayes estimates the prior from all units, then updates each one." class="img-responsive img-zoomable" loading="lazy" width="1946" height="394" /></p>
+
+<p><em>Figure 2: Empirical Bayes estimates the prior from all units, then updates each one.</em></p>
+
+<p>For batting averages the natural prior is a <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Beta distribution</a>, because a Beta paired with hit-or-miss counts gives a clean posterior. That pairing is the beta-binomial model, and it is the engine behind conjugate priors. We fit the prior's two shape parameters, $\alpha$ and $\beta$, by maximum likelihood: we find the pair that makes the observed hit counts most probable.</p>
+
+<div class="webr-container" data-block-title="Fit the Beta prior by maximum likelihood">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the Beta prior by maximum likelihood</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Negative log-likelihood of a Beta(a, b) prior given the 18 hit counts.
+loglik &lt;- function(par) {
+  a &lt;- par[1]; b &lt;- par[2]
+  if (a &lt;= 0 || b &lt;= 0) return(1e10)   # keep the search in valid territory
+  -sum(lchoose(45, hits) + lbeta(hits + a, 45 - hits + b) - lbeta(a, b))
+}
+fit    &lt;- optim(c(1, 1), loglik)       # search for the best a and b
+alpha0 &lt;- fit$par[1]
+beta0  &lt;- fit$par[2]
+round(c(alpha0 = alpha0, beta0 = beta0,
+        prior_mean = alpha0 / (alpha0 + beta0),
+        prior_strength = alpha0 + beta0), 3)
+#&gt;         alpha0          beta0     prior_mean prior_strength 
+#&gt;        211.076        584.100          0.265        795.176 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted prior is centered at 0.265, exactly the group average, and its strength is about 795. You can read $\alpha + \beta$ as a number of "pseudo at-bats" the prior is worth. With each player owning only 45 real at-bats, that heavy prior will pull everyone strongly toward the center.</p>
+
+<p>Now the second step. The posterior mean for a Beta prior updated with hits out of at-bats has a simple closed form:</p>
+
+<p>$$\hat{p}_i^{EB} = \frac{x_i + \alpha}{n_i + \alpha + \beta}$$</p>
+
+<p>Where $x_i$ is the player's hits, $n_i$ is the at-bats, and $\alpha, \beta$ come from the fitted prior. You add the prior's pseudo-counts to the real counts and divide. Let's apply it and score it against the season truth.</p>
+
+<div class="webr-container" data-block-title="Empirical-Bayes estimates for every player">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empirical-Bayes estimates for every player</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eb_est &lt;- (hits + alpha0) / (45 + alpha0 + beta0)   # posterior mean per player
+round(c(sse_raw = sum((p_hat - season)^2),
+        sse_eb  = sum((eb_est - season)^2),
+        improvement = sum((p_hat - season)^2) / sum((eb_est - season)^2)), 4)
+#&gt;     sse_raw      sse_eb improvement 
+#&gt;      0.0753      0.0228      3.3017 
+compare &lt;- data.frame(player = players, avg45 = round(p_hat, 3),
+                      eb = round(eb_est, 3), season = season)
+head(compare)
+#&gt;       player avg45    eb season
+#&gt; 1   Clemente 0.400 0.273  0.346
+#&gt; 2 F Robinson 0.378 0.271  0.298
+#&gt; 3   F Howard 0.356 0.270  0.276
+#&gt; 4  Johnstone 0.333 0.269  0.222
+#&gt; 5      Berry 0.311 0.268  0.273
+#&gt; 6    Spencer 0.311 0.268  0.270</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Empirical Bayes cut the total error to 0.0228, about 3.3 times better than the raw averages, right in line with the James-Stein result. Notice how tight the <code>eb</code> column is: every prediction sits near 0.27. With only 45 at-bats apiece, the data barely distinguishes these players, so leaning on the crowd is the sensible choice.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Empirical Bayes borrows the prior from the crowd, so you never have to assume one.</strong> The group tells you how much talent varies, and that estimated spread sets exactly how hard each individual estimate is pulled toward the center.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the fitted prior to score a brand-new player who went 30 hits in 100 at-bats.</p>
+<div class="webr-container" data-block-title="Your turn: score a new player">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a new player</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the fitted prior (alpha0, beta0) to shrink a new player's average.
+ex_h &lt;- 30; ex_ab &lt;- 100   # 30 hits in 100 at-bats, a raw average of .300
+# Compute (ex_h + alpha0) / (ex_ab + alpha0 + beta0).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="New player solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">New player solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round((30 + alpha0) / (100 + alpha0 + beta0), 3)
+#&gt; [1] 0.269</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A raw .300 hitter with 100 at-bats gets shrunk all the way to .269. With 795 pseudo at-bats in the prior, 100 real at-bats simply cannot shift the estimate far.</p>
+
+</details>
+</section>
+
+<h2>How much should each estimate shrink, and when does it backfire?</h2>
+
+<p>The last example hints at the rule that governs everything: the more data a unit has, the less it gets shrunk. The weight the prior carries is $(\alpha + \beta) / (n + \alpha + \beta)$. When $n$ is tiny the prior dominates, and when $n$ is huge the data wins. Let's watch that weight fall as at-bats climb.</p>
+
+<div class="webr-container" data-block-title="Shrinkage weight versus sample size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrinkage weight versus sample size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_grid          &lt;- c(10, 45, 100, 500)
+weight_on_prior &lt;- (alpha0 + beta0) / (n_grid + alpha0 + beta0)
+round(setNames(weight_on_prior, paste0(&quot;n=&quot;, n_grid)), 3)
+#&gt;  n=10  n=45 n=100 n=500 
+#&gt; 0.988 0.946 0.888 0.614 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 10 at-bats the prior gets almost 99 percent of the vote, so the estimate is basically the group mean. By 500 at-bats the prior's weight has dropped to 61 percent, and the player's own record starts to speak for itself. Shrinkage is not a fixed amount, it scales with how much you actually know about each unit.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A hot hitter is batting .400. Give him 300 at-bats instead of 45 and see how far the prior still pulls him in.</p>
+<div class="webr-container" data-block-title="Your turn: give the hot hitter more at-bats">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: give the hot hitter more at-bats</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A hot hitter is batting .400. Give him 300 at-bats instead of 45 and
+# see how much the prior still pulls him toward .265.
+ex_ab2 &lt;- 45   # change 45 to 300
+# Compute (0.400 * ex_ab2 + alpha0) / (ex_ab2 + alpha0 + beta0).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Hot hitter solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hot hitter solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round((0.400 * 300 + alpha0) / (300 + alpha0 + beta0), 3)
+#&gt; [1] 0.302</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even with 300 at-bats at a .400 clip, empirical Bayes predicts .302. That is a lot of shrinkage, and it points to the method's blind spot.</p>
+
+</details>
+</section>
+
+<p>Shrinkage assumes the units are interchangeable, drawn from one shared prior. When one unit is genuinely special, the crowd-based prior pulls it too far toward the average. Clemente is the cautionary tale: he really was an all-time great, yet the method treated his hot start as mostly luck.</p>
+
+<div class="webr-container" data-block-title="When shrinkage over-corrects a real star">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When shrinkage over-corrects a real star</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(clemente_raw = p_hat[1], clemente_eb = eb_est[1], clemente_true = season[1]), 3)
+#&gt;  clemente_raw   clemente_eb clemente_true 
+#&gt;         0.400         0.273         0.346 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Clemente's true .346 sits far above the shrunken .273. Empirical Bayes pulled him too hard because it assumed he was an ordinary player having a lucky month. On this batch the aggressive shrinkage still lowered total error, but it under-credited the one player who deserved the benefit of the doubt.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Shrinkage assumes your units are exchangeable, so a truly exceptional unit pays a price.</strong> If you have outside reason to believe one unit is special, feed that in through a richer model rather than letting a <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">flat prior</a> flatten it.</div></div>
+
+<h2>Complete Example</h2>
+
+<p>Baseball is the classic story, but the real payoff of empirical Bayes is any setting with many units and little data each. Think of 200 products on a store, each with a handful of visits and a few purchases, where you need a trustworthy conversion rate for every one. Raw rates from a dozen visits are hopeless. Here is the full workflow end to end.</p>
+
+<div class="webr-container" data-block-title="End-to-end empirical Bayes on conversion rates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end empirical Bayes on conversion rates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+n_items   &lt;- 200
+true_rate &lt;- rbeta(n_items, 8, 40)       # each product's real conversion rate
+trials    &lt;- rpois(n_items, 30) + 5      # visits per product, most quite small
+conv      &lt;- rbinom(n_items, trials, true_rate)   # observed purchases
+raw_rate  &lt;- conv / trials               # the noisy raw rates
+
+# Step 1: fit the Beta prior from all 200 products by maximum likelihood.
+ll &lt;- function(par) {
+  a &lt;- par[1]; b &lt;- par[2]
+  if (a &lt;= 0 || b &lt;= 0) return(1e10)
+  -sum(lchoose(trials, conv) + lbeta(conv + a, trials - conv + b) - lbeta(a, b))
+}
+f     &lt;- optim(c(1, 1), ll)
+a_hat &lt;- f$par[1]; b_hat &lt;- f$par[2]
+
+# Step 2: shrink every product's rate toward the fitted prior.
+eb_rate &lt;- (conv + a_hat) / (trials + a_hat + b_hat)
+
+round(c(a_hat = a_hat, b_hat = b_hat), 3)
+#&gt;  a_hat  b_hat 
+#&gt;  7.283 35.892 
+round(c(sse_raw = sum((raw_rate - true_rate)^2),
+        sse_eb  = sum((eb_rate  - true_rate)^2),
+        improvement = sum((raw_rate - true_rate)^2) / sum((eb_rate - true_rate)^2)), 4)
+#&gt;     sse_raw      sse_eb improvement 
+#&gt;      0.8075      0.3093      2.6104 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted prior recovered shape parameters near the true 8 and 40 we simulated from, and the empirical-Bayes rates were 2.6 times more accurate than the raw rates. Because the trial counts vary here, each product shrinks by a different amount: the ones with only a handful of visits lean almost entirely on the prior, while the well-observed ones keep most of their own signal. That per-unit adaptivity is exactly what you want in production.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>In production, fit the prior on as much history as you can spare.</strong> The prior is only as sharp as the pool it is estimated from, so more units and more trials per unit give a better-calibrated pull for every individual estimate.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. The variables from earlier code blocks (<code>p_hat</code>, <code>eb_est</code>, <code>season</code>, <code>grand_mean</code>, <code>alpha0</code>, <code>beta0</code>, <code>sigma2</code>) are still available.</p>
+
+<h3>Exercise 1: Does the leader change under shrinkage?</h3>
+
+<p>Shrinkage moves every estimate, so it could reshuffle the rankings. Find the player with the highest raw average and the player with the highest empirical-Bayes estimate. Are they the same person?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: compare the two leaders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: compare the two leaders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Who tops the raw list, and who tops the empirical-Bayes list?
+# Hint: which.max() returns the index of the largest value.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(top_raw = players[which.max(p_hat)],
+           top_eb  = players[which.max(eb_est)])
+#&gt;    top_raw   top_eb
+#&gt; 1 Clemente Clemente</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Clemente tops both lists. Shrinkage pulls everyone toward the center but preserves the order here, because it shrinks all players by nearly the same amount when their at-bats are equal.</p>
+
+</details>
+
+<h3>Exercise 2: Which predictor wins overall?</h3>
+
+<p>Compare three strategies for predicting the season averages: the raw 45-at-bat averages, predicting the grand mean for everyone, and the empirical-Bayes estimates. Compute each one's total squared error against <code>season</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: three predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: three predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare three ways to predict the season averages:
+#   1. raw 45-at-bat averages (p_hat)
+#   2. predicting the grand mean for everyone
+#   3. the empirical-Bayes estimates (eb_est)
+# Compute the total squared error of each against season.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sse_grandmean &lt;- sum((rep(grand_mean, 18) - season)^2)
+round(c(raw = sum((p_hat - season)^2),
+        grand_mean_only = sse_grandmean,
+        empirical_bayes = sum((eb_est - season)^2)), 4)
+#&gt;             raw grand_mean_only empirical_bayes 
+#&gt;          0.0753          0.0243          0.0228 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw averages (0.0753) are by far the worst. Predicting the grand mean for everyone (0.0243) is already a big improvement, and empirical Bayes (0.0228) edges it out by adapting to each player. When per-unit data is this thin, most of the gain comes from simply pulling toward the center.</p>
+
+</details>
+
+<h3>Exercise 3: When does the shrinkage weight go negative?</h3>
+
+<p>The James-Stein weight from the baseball section was <code>1 - (p - 3) * sigma2 / S</code>, where <code>S</code> is the spread of the estimates. Write that weight as a function of <code>S</code> for <code>p = 18</code>, then evaluate it at <code>S = 0.02</code>, <code>0.05</code>, and <code>0.10</code>. What does a negative weight tell you?</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter: weight as a function of spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter: weight as a function of spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The James-Stein weight depends on S, the spread of the estimates.
+# Write a function of S that returns 1 - (p - 3) * sigma2 / S for p = 18,
+# then evaluate it at S = 0.02, 0.05, and 0.10.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">js_weight &lt;- function(spread, p = 18, s2 = sigma2) 1 - (p - 3) * s2 / spread
+round(sapply(c(0.02, 0.05, 0.10), js_weight), 3)
+#&gt; [1] -2.25 -0.30  0.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When the spread <code>S</code> is small (0.02), the weight goes negative, a signal that the estimates are so bunched they are almost pure noise. In practice you clamp a negative weight to 0, which means shrink all the way to the mean. As <code>S</code> grows, the weight climbs toward keeping more of each estimate.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Is estimating the prior from the same data a form of double-counting?</h3>
+
+<p>Yes, empirical Bayes uses the data twice: once to fit the shared prior and once to update each unit. That is why it is an approximation to a full Bayesian analysis, not the same thing. It holds up well when you have many units, because any single unit contributes only a little to the prior, so the prior is nearly independent of the estimate it then adjusts. With only a handful of units the approximation gets shaky and the fitted prior can look more certain than it should.</p>
+
+<h3>How is empirical Bayes different from full Bayesian inference?</h3>
+
+<p>Full Bayes fixes the prior before seeing the data, from theory or belief, and carries the uncertainty about the prior through to the final answer. Empirical Bayes instead estimates the prior's parameters from the data and then treats them as known, which ignores the uncertainty in that estimate. What you get in return is that you never have to invent a prior, and with many units the two approaches land in almost the same place.</p>
+
+<h3>Does this only work for batting averages and proportions?</h3>
+
+<p>No. The beta-binomial model here fits proportions, but the same recipe (fit one shared prior across all units, then pull each unit toward it) works for other data types. Counts pair with a Gamma-Poisson model, and normal measurements are exactly the James-Stein case from earlier. You pick the prior family that matches your data; the shrinkage logic does not change.</p>
+
+<h3>How many units do I need before shrinkage helps?</h3>
+
+<p>James-Stein needs at least three quantities before it can beat the raw estimates, which is where Stein's paradox begins. Empirical Bayes needs enough units to pin down the prior: a handful gives a noisy prior, while dozens or hundreds (the 18 players or 200 products here) give a stable one. More units mean a sharper borrowed prior and a better-calibrated pull for every estimate.</p>
+
+<h2>Summary</h2>
+
+<p>Empirical Bayes and James-Stein are two paths to the same destination: shrink noisy estimates toward a shared center to lower your total error.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it does</th>
+<th>Key formula or output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Raw average</td>
+<td>Trusts each small sample fully</td>
+<td>Total error 0.0753 on the baseball data</td>
+</tr>
+<tr>
+<td>Fixed shrinkage</td>
+<td>Blends estimate with the group mean by hand</td>
+<td>Error fell to 0.0292 at factor 0.5</td>
+</tr>
+<tr>
+<td>James-Stein</td>
+<td>Reads the shrinkage factor from the data</td>
+<td>3.5 times more accurate on the batting averages</td>
+</tr>
+<tr>
+<td>Empirical Bayes</td>
+<td>Fits a prior from all units, then updates each</td>
+<td>3.3 times more accurate, and handles counts directly</td>
+</tr>
+<tr>
+<td>Shrinkage weight</td>
+<td>Scales with <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a></td>
+<td>More data means less shrinkage</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mental model to keep: an estimate from little data is mostly noise, so lean on the crowd; an estimate from lots of data has earned trust, so let it speak. James-Stein and empirical Bayes just turn that instinct into arithmetic, and they come with a guarantee that the total error goes down. The one caution is <a class="auto-link" href="Conformal-Prediction-in-R.html" title="Conformal Prediction in R: Distribution-Free Forecast Intervals">exchangeability</a>: shrinkage assumes your units come from one shared population, so a genuinely exceptional unit will be under-credited.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Efron, B. & Morris, C. (1975). <em>Data Analysis Using Stein's Estimator and Its Generalizations.</em> Journal of the American Statistical Association. <a href="https://www.tandfonline.com/doi/abs/10.1080/01621459.1975.10479864">Link</a></li>
+
+<li>James, W. & Stein, C. (1961). <em>Estimation with Quadratic Loss.</em> Proceedings of the Fourth Berkeley Symposium. <a href="https://projecteuclid.org/ebooks/berkeley-symposium-on-mathematical-statistics-and-probability/Estimation-with-Quadratic-Loss/chapter/Estimation-with-Quadratic-Loss/bsmsp/1200512173">Link</a></li>
+
+<li>Efron, B. & Hastie, T. (2016). <em>Computer Age Statistical Inference</em>, Chapter 7: James-Stein Estimation and Ridge Regression. Cambridge University Press. <a href="https://hastie.su.domains/CASI/">Link</a></li>
+
+<li>Robinson, D. <em>Understanding Empirical Bayes Estimation (Using Baseball Statistics).</em> Variance Explained. <a href="http://varianceexplained.org/r/empirical_bayes_baseball/">Link</a></li>
+
+<li>Morris, C. (1983). <em>Parametric Empirical Bayes Inference: Theory and Applications.</em> Journal of the American Statistical Association. <a href="https://www.tandfonline.com/doi/abs/10.1080/01621459.1983.10477920">Link</a></li>
+
+<li>R Core Team. <em>optim: General-purpose Optimization.</em> R Documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/optim.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a> - The Beta-Binomial machinery behind the empirical-Bayes update step, explained with closed-form posteriors.</li>
+
+<li><a href="Ridge-Regression-With-R.html">Ridge Regression in R</a> - James-Stein's close cousin, applying the same shrinkage idea to regression coefficients.</li>
+
+<li><a href="Approximate-Bayesian-Computation-in-R.html">Approximate Bayesian Computation in R</a> - <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">Bayesian inference</a> when you cannot even write down the likelihood.</li>
+
+</ul>
+
+{% endraw %}
