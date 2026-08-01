@@ -1,0 +1,1073 @@
+---
+title: "Monitoring Forecast Models in Production With R"
+description: "Monitor forecast models in production with R: track rolling accuracy and bias, check interval coverage, flag drift with a CUSUM alarm, and trigger retraining."
+keywords: "forecast monitoring in R, monitoring forecast models, production forecasting, forecast accuracy monitoring, forecast drift detection, tracking signal, forecast bias, prediction interval coverage, retraining trigger, CUSUM control chart"
+mathjax: true
+webr: true
+curriculum_id: "TS2-13.2"
+post_type: "C"
+auto_link_terms: "forecast monitoring|monitoring forecast models|monitor forecasts in production|forecast model monitoring|tracking signal|forecast bias|forecast drift|concept drift|model drift|production monitoring|retraining trigger|rolling forecast accuracy|forecast degradation"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Forecast Monitoring"
+sidebar_order: "65"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Monitoring a forecast model in production means checking, on a schedule, whether the forecasts it still produces stay accurate, unbiased, and well-calibrated as real values arrive, and raising an alert the moment they stop.</p>
+
+<p>Training a forecasting model is the easy part. The hard part starts the day it goes live and quietly begins to age. This tutorial builds a complete monitoring system in plain R, step by step, so you can catch a decaying model before it costs you a bad decision. We work entirely from a forecast log using base R plus a little dplyr, so everything runs in the code blocks below with nothing to install.</p>
+
+<h2>Why do forecast models quietly rot after you deploy them?</h2>
+
+<p>A model that scored beautifully in testing can decay the moment it is live, and the scary part is that it keeps producing confident-looking numbers the whole time. The world shifts under it: a demand drop, a new competitor, a pricing change, a broken data feed. Seasonality moves. The forecasts drift further from reality every month, and because nothing crashes, nobody notices until a bad decision has already been made. Monitoring is the smoke detector that goes off first.</p>
+
+<p>Let's make that concrete. In production you keep a <strong>forecast log</strong>: one row per period, storing the value the model predicted, its uncertainty interval, and later, the actual value that arrived. Here is such a log for a model that has been live for two years. We build it inline so the whole tutorial runs, but in practice these columns come straight from your pipeline's saved output.</p>
+
+<div class="webr-container" data-block-title="Load the forecast log and check the latest month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the forecast log and check the latest month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages(library(dplyr))
+
+# A forecast log your pipeline saved: 24 monthly rows.
+# actual = the value that arrived; forecast = what the model predicted;
+# lower/upper = the model's 80% prediction interval.
+set.seed(176)
+months      &lt;- seq(as.Date(&quot;2024-01-01&quot;), by = &quot;month&quot;, length.out = 24)
+signal      &lt;- 1000 + 4 * (1:24) + 90 * sin(2 * pi * (1:24) / 12)
+forecast_pt &lt;- round(signal)
+half80      &lt;- round(qnorm(0.9) * 22)               # 80% interval half-width
+shift       &lt;- ifelse((1:24) &gt;= 13, -70, 0)         # a demand drop the model never saw
+actual      &lt;- round(signal + rnorm(24, 0, 20) + shift)
+
+log_tbl &lt;- tibble(
+  date     = months,
+  actual   = actual,
+  forecast = forecast_pt,
+  lower    = forecast_pt - half80,
+  upper    = forecast_pt + half80
+)
+
+tail(log_tbl, 4)
+#&gt; # A tibble: 4 × 5
+#&gt;   date       actual forecast lower upper
+#&gt;   &lt;date&gt;      &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2025-09-01    922      994   966  1022
+#&gt; 2 2025-10-01    955     1010   982  1038
+#&gt; 3 2025-11-01    948     1047  1019  1075
+#&gt; 4 2025-12-01   1014     1096  1068  1124
+
+# how far off was the latest forecast?
+tail(log_tbl, 1)$actual - tail(log_tbl, 1)$forecast
+#&gt; [1] -82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the last four rows. The model is calling for values near 1000 to 1096, but the actuals coming in are only 922 to 1014. The most recent forecast missed by 82 units, and every recent actual sits below its own lower bound. The model has clearly stopped tracking reality, yet on its own it would happily keep forecasting forever.</p>
+
+<p>That gap is exactly what monitoring exists to catch. The rest of this tutorial turns this log into a set of automatic health checks. The whole process is a loop: score every forecast as actuals arrive, decide whether the model is still healthy, and either keep it or retrain.</p>
+
+<p><img src="screenshots/Forecast-Monitoring-in-R-monitoring-loop.webp" alt="The monitoring loop: score every forecast as actuals arrive, then keep or retrain." class="img-responsive img-zoomable" loading="lazy" width="2248" height="464" /></p>
+
+<p><em>Figure 1: The monitoring loop. Score every forecast as actuals arrive, then keep or retrain.</em></p>
+
+<p>One property of forecasting makes this loop special. You cannot score a forecast until the truth shows up, and for a 12-month-ahead forecast that can be a year away. So monitoring is retrospective: you match each forecast to the actual that eventually lands, then update your health metrics. That is why a saved log matters so much.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A forecast log is the only artifact you need to monitor a model.</strong> Every check in this tutorial works on the same four columns (actual, forecast, lower, upper), so the approach is model-agnostic: it does not care whether the numbers came from <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA</a>, <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS</a>, Prophet, or a gradient-booster.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the error for the very first month in the log, defined as the actual value minus the forecast.</p>
+<div class="webr-container" data-block-title="Your turn: first month error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: first month error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Replace NA with: the first actual minus the first forecast
+ex_first_error &lt;- NA
+ex_first_error
+#&gt; Expected: -30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="First month error solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First month error solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_first_error &lt;- log_tbl$actual[1] - log_tbl$forecast[1]
+ex_first_error
+#&gt; [1] -30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> In month one the actual was 1019 and the forecast was 1049, so the error is 1019 minus 1049, which is -30. A negative error means the model predicted more than actually happened.</p>
+
+</details>
+</section>
+
+<h2>How do you measure whether the latest forecasts are still accurate?</h2>
+
+<p>Accuracy monitoring starts with one number per period: the <strong>forecast error</strong>, the actual minus the forecast. From that single column, every <a class="auto-link" href="yardstick-accuracy-in-R.html" title="yardstick accuracy() in R: Score Classification Models">accuracy metric</a> follows. Let's add three helper columns to the log so we can work with them: the raw error, its absolute value (how far off, ignoring direction), and the percentage error (the miss relative to the actual).</p>
+
+<div class="webr-container" data-block-title="Compute the error for every month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the error for every month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_tbl &lt;- log_tbl |&gt;
+  mutate(
+    error     = actual - forecast,
+    abs_error = abs(error),
+    pct_error = round(100 * error / actual, 1)
+  )
+
+log_tbl |&gt;
+  select(date, actual, forecast, error, abs_error) |&gt;
+  slice(c(1:3, 22:24))
+#&gt; # A tibble: 6 × 5
+#&gt;   date       actual forecast error abs_error
+#&gt;   &lt;date&gt;      &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 2024-01-01   1019     1049   -30        30
+#&gt; 2 2024-02-01   1086     1086     0         0
+#&gt; 3 2024-03-01   1113     1102    11        11
+#&gt; 4 2025-10-01    955     1010   -55        55
+#&gt; 5 2025-11-01    948     1047   -99        99
+#&gt; 6 2025-12-01   1014     1096   -82        82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>slice(c(1:3, 22:24))</code> call shows the first three and last three months side by side. Early on, the absolute errors are tiny (30, 0, 11). By the end they are huge (55, 99, 82). The <code>pct_error</code> column is added here too; we will use it in the exercises. The story of degradation is already visible, but eyeballing a table does not scale, so let's <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> it into standard metrics.</p>
+
+<p>Three metrics do most of the work. <strong>MAE</strong> (<a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a>) is the average of the absolute errors, in the same units as your data. <strong>RMSE</strong> (<a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a>) is similar but squares the errors first, so it punishes big misses harder. <strong>MAPE</strong> (<a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>) expresses the miss as a percentage, which makes it easy to compare across series of different sizes.</p>
+
+<p>If you build models with the <code>fable</code> package, you do not have to compute these by hand for a one-time check. Its <code>accuracy()</code> function returns them in a single call. Here it is on a short demonstration series, fitting an <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model on a training window and scoring it on a 12-month holdout.</p>
+
+<div class="webr-container" data-block-title="Get a one-time accuracy report with fable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get a one-time accuracy report with fable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages(library(fable))
+suppressPackageStartupMessages(library(tsibble))
+
+set.seed(11)
+demo &lt;- tibble(
+  ym = yearmonth(seq(as.Date(&quot;2022-01-01&quot;), by = &quot;month&quot;, length.out = 36)),
+  y  = as.numeric(1000 + 4 * (1:36) + 90 * sin(2 * pi * (1:36) / 12) + rnorm(36, 0, 20))
+) |&gt; as_tsibble(index = ym)
+
+train &lt;- demo |&gt; filter(ym &lt; yearmonth(&quot;2024 Jan&quot;))
+fit   &lt;- train |&gt; model(ets = ETS(y))
+fc    &lt;- fit |&gt; forecast(h = 12)
+
+accuracy(fc, demo) |&gt; select(.model, MAE, RMSE, MASE)
+#&gt; # A tibble: 1 × 4
+#&gt;   .model   MAE  RMSE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets     55.0  59.9  1.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One line gives you MAE, RMSE, and a fourth metric, <strong>MASE</strong> (<a class="auto-link" href="yardstick-mase-in-R.html" title="yardstick mase() in R: Scale-Free Forecast Error">mean absolute scaled error</a>). MASE compares your model to a simple seasonal-naive baseline: below 1 means you beat the baseline, above 1 means you did worse. Here it is 1.18, a hair worse than naive on this sample. We come back to that benchmarking idea near the end.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The accuracy report is a single snapshot, taken once.</strong> That is perfect for a pre-deployment backtest, but a model in production needs these numbers recomputed continuously as new actuals arrive. Monitoring is accuracy evaluation that never stops, and it works on your forecast log no matter which package produced the forecasts.</div></div>
+
+<p>To watch accuracy over time rather than as one lump sum, use a <strong>rolling window</strong>: recompute MAE over only the most recent months, then slide the window forward. A trailing 6-month MAE reacts to recent behavior while smoothing out single-month noise. We write a tiny helper for it, because it is a pattern you will reuse for every rolling metric in this tutorial.</p>
+
+<div class="webr-container" data-block-title="Track a rolling 6-month MAE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Track a rolling 6-month MAE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">roll_mean &lt;- function(x, k) {
+  sapply(seq_along(x), function(i) if (i &lt; k) NA else mean(x[(i - k + 1):i]))
+}
+
+log_tbl &lt;- log_tbl |&gt;
+  mutate(roll_mae = round(roll_mean(abs_error, 6), 1))
+
+log_tbl |&gt; select(date, abs_error, roll_mae) |&gt; slice(seq(6, 24, 3))
+#&gt; # A tibble: 7 × 3
+#&gt;   date       abs_error roll_mae
+#&gt;   &lt;date&gt;         &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 2024-06-01        16     15.3
+#&gt; 2 2024-09-01        15     15.5
+#&gt; 3 2024-12-01        21     12.7
+#&gt; 4 2025-03-01        16     29.3
+#&gt; 5 2025-06-01        88     63.3
+#&gt; 6 2025-09-01        72     73  
+#&gt; 7 2025-12-01        82     72.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>roll_mean()</code> helper averages the trailing <code>k</code> values and returns <code>NA</code> until it has enough history. Reading down the <code>roll_mae</code> column tells the whole story at a glance: the rolling MAE sits near 13 to 15 through 2024, then climbs to 29, 63, and finally 73 across 2025. The model's typical miss roughly quintupled.</p>
+
+<p>That is your first monitoring signal. A rolling MAE that is trending sharply upward, and now sits far above its calm baseline, is the clearest evidence that a model has stopped working.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A rolling window turns one accuracy score into a trend you can watch.</strong> A single MAE tells you how good a model was on average. A rolling MAE tells you the direction it is heading, which is what you actually need to decide whether to act.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recompute the rolling MAE with a 3-month window instead of 6, then read the value at the final month.</p>
+<div class="webr-container" data-block-title="Your turn: 3-month rolling MAE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 3-month rolling MAE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change the window argument to 3, then read the last value.
+ex_roll3 &lt;- round(roll_mean(log_tbl$abs_error, 6), 1)   # &lt;- edit the 6
+tail(ex_roll3, 1)
+#&gt; Expected: 78.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="3-month rolling MAE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">3-month rolling MAE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_roll3 &lt;- round(roll_mean(log_tbl$abs_error, 3), 1)
+tail(ex_roll3, 1)
+#&gt; [1] 78.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A shorter window averages only the last three absolute errors (55, 99, 82), giving 78.7. Shorter windows react faster to change but are noisier; longer windows are steadier but slower to sound the alarm.</p>
+
+</details>
+</section>
+
+<h2>Is the model consistently over- or under-forecasting?</h2>
+
+<p>Accuracy alone can hide a serious problem. A model can have a middling average error yet lean the same way every single month, always a little high or always a little low. That systematic lean is called <strong>bias</strong>, and it is dangerous because it compounds. Think of a clock that is always five minutes fast: individually each reading looks fine, but you keep showing up early.</p>
+
+<p>Bias is just the <strong>mean error</strong> (not the mean absolute error). If the average error is near zero, the misses cancel out and the model is unbiased. If it drifts away from zero, the model has a consistent direction. The classic production tool for watching this is the <strong>tracking signal</strong>: the running sum of errors divided by the <a class="auto-link" href="dplyr-cummean-in-R.html" title="dplyr cummean() in R: Running Mean Across a Vector">running mean</a> absolute deviation. It answers "how many typical errors of accumulated bias have we piled up?"</p>
+
+<div class="webr-container" data-block-title="Measure forecast bias with a tracking signal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure forecast bias with a tracking signal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_tbl &lt;- log_tbl |&gt;
+  mutate(
+    rsfe            = cumsum(error),                          # running sum of errors
+    run_mad         = cumsum(abs_error) / seq_along(abs_error), # running mean abs deviation
+    tracking_signal = round(rsfe / run_mad, 2)
+  )
+
+log_tbl |&gt; select(date, error, rsfe, tracking_signal) |&gt; slice(seq(6, 24, 3))
+#&gt; # A tibble: 7 × 4
+#&gt;   date       error  rsfe tracking_signal
+#&gt;   &lt;date&gt;     &lt;dbl&gt; &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1 2024-06-01    16    -8           -0.52
+#&gt; 2 2024-09-01    15    -6           -0.4 
+#&gt; 3 2024-12-01    21    12            0.86
+#&gt; 4 2025-03-01   -16  -130           -6.29
+#&gt; 5 2025-06-01   -88  -368          -12.1 
+#&gt; 6 2025-09-01   -72  -568          -16.0 
+#&gt; 7 2025-12-01   -82  -804          -19.6 
+
+# first month the tracking signal breaches the +/-4 limit
+log_tbl$date[which(abs(log_tbl$tracking_signal) &gt; 4)[1]]
+#&gt; [1] &quot;2025-02-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cumsum(error)</code> accumulates every error into a <a class="auto-link" href="purrr-accumulate-in-R.html" title="purrr accumulate() in R: Running Reductions Over a List">running total</a> (the <code>rsfe</code>), and dividing by the running mean absolute deviation rescales it into "typical errors" of bias. Through 2024 the tracking signal hovers between -0.5 and 0.9: the positive and negative errors cancel, so no bias. From early 2025 it plunges to -6, -12, -16, and -20. The <code>which()</code> line pinpoints the first breach: February 2025.</p>
+
+<p>The convention is to alarm when the tracking signal moves outside roughly plus or minus 4. Our signal blows past -4 in February 2025 and keeps falling. The persistently negative value tells you the direction, too: the model is over-forecasting, predicting more than reality delivers, month after month.</p>
+
+<p>If you want the formula behind the number, here it is. Skip to the next section if you just want the code, the running sum is all you really need.</p>
+
+<p>$$\text{Tracking signal}_t = \frac{\sum_{i=1}^{t} e_i}{\frac{1}{t}\sum_{i=1}^{t} \lvert e_i \rvert}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$e_i = \text{actual}_i - \text{forecast}_i$, the error at period $i$</li>
+
+<li>the numerator is the running sum of errors, which grows when errors share a sign</li>
+
+<li>the denominator is the mean absolute deviation, the average size of a miss</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Bias can hide inside a healthy-looking average error.</strong> A model that alternates plus 50 and minus 50 has the same MAE as one that misses by minus 50 every time, but only the second is biased and dangerous. Always monitor the mean error alongside the mean absolute error.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the model's mean error over the last 6 months (rows 19 to 24). A large negative value confirms it is over-forecasting.</p>
+<div class="webr-container" data-block-title="Your turn: recent bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recent bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average the error over the last 6 months. Fix the row range.
+ex_recent_bias &lt;- mean(log_tbl$error[1:24])   # &lt;- narrow this to the last 6 months
+round(ex_recent_bias, 1)
+#&gt; Expected: -72.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recent bias solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recent bias solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_recent_bias &lt;- mean(log_tbl$error[19:24])
+round(ex_recent_bias, 1)
+#&gt; [1] -72.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Over the final half-year the model's errors average -72.7, meaning it over-forecasts by about 73 units every month. A bias that large will wreck any decision built on top of it, such as inventory or staffing plans.</p>
+
+</details>
+</section>
+
+<h2>How do you turn error tracking into an automatic alarm?</h2>
+
+<p>Charts and tracking signals are great when you watch one series. But production teams forecast hundreds or thousands of series, and no human is going to eyeball them all every morning. You need a rule that fires by itself. This is where <strong>statistical process control</strong> comes in, the same math factories use to catch a machine drifting out of spec.</p>
+
+<p>The workhorse is the <strong>CUSUM</strong> chart (cumulative sum). It accumulates how far each error strays from a target, and it trips an alarm when that running sum crosses a decision limit. Two settings control it: a slack value <code>k</code> that lets small, normal wobbles pass without accumulating, and a limit <code>h</code> that defines "too far." Because a stale model here over-forecasts (negative errors), we track the downward-accumulating side.</p>
+
+<p>Before running it, we calibrate on the calm early period: what does a normal error spread look like? We estimate that from the first six months and use it to standardize every later error, so the CUSUM speaks in units of typical error size.</p>
+
+<div class="webr-container" data-block-title="Build a CUSUM alarm on the errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a CUSUM alarm on the errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sigma0 &lt;- sd(log_tbl$error[1:6])   # normal error spread, from the calm start
+round(sigma0, 2)
+#&gt; [1] 19.45
+
+k &lt;- 0.5   # slack: ignore drifts smaller than half a typical error
+h &lt;- 4     # decision limit: alarm when the cumulative sum passes 4
+d &lt;- log_tbl$error / sigma0        # standardized errors (target is 0)
+
+Slo &lt;- numeric(24)
+for (t in 2:24) {
+  Slo[t] &lt;- max(0, Slo[t - 1] - d[t] - k)
+}
+log_tbl$cusum_lo &lt;- round(Slo, 2)
+
+# first month the alarm trips
+log_tbl$date[which(Slo &gt; h)[1]]
+#&gt; [1] &quot;2025-02-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loop is the heart of it. Each month it takes the previous cumulative sum, subtracts the standardized error and the slack, and floors the result at zero so quiet periods reset toward zero instead of drifting. While errors are small and balanced, <code>Slo</code> stays near zero. Once the model starts over-forecasting, the negative errors feed it and it climbs fast, crossing the limit of 4 in February 2025.</p>
+
+<p>That is the same month the tracking signal flagged, which is reassuring: two independent methods agree the break happened at the start of 2025. The difference is that the CUSUM is a single boolean rule you can run unattended across every series in your portfolio.</p>
+
+<p>Here is the recursion in symbols, for the lower (over-forecasting) side:</p>
+
+<p>$$S^{-}_t = \max\!\left(0,\; S^{-}_{t-1} - \frac{e_t - \mu_0}{\sigma_0} - k\right), \quad \text{alarm when } S^{-}_t > h$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\mu_0$ is the target error, which is 0 for an unbiased model</li>
+
+<li>$\sigma_0$ is the calibrated normal error spread (here 19.45)</li>
+
+<li>$k$ is the slack (0.5) and $h$ is the decision limit (4)</li>
+
+</ul>
+
+<p>A picture makes the alarm obvious. Plotting the cumulative sum against its limit shows exactly when the process left control.</p>
+
+<div class="webr-container" data-block-title="Plot the CUSUM against its alarm limit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the CUSUM against its alarm limit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages(library(ggplot2))
+
+ggplot(log_tbl, aes(date, cusum_lo)) +
+  geom_line(colour = &quot;#2b6cb0&quot;, linewidth = 0.9) +
+  geom_hline(yintercept = h, linetype = &quot;dashed&quot;, colour = &quot;#c53030&quot;) +
+  labs(
+    title    = &quot;Lower CUSUM of forecast errors&quot;,
+    subtitle = &quot;It crosses the dashed limit once the model starts over-forecasting&quot;,
+    x = NULL, y = &quot;CUSUM&quot;
+  ) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The blue line hugs zero for the first year, then lifts off in early 2025 and shoots past the red limit, staying above it for the rest of the window. That sustained breach, not a single spike, is the signature of a real regime change rather than a one-off bad month.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sensible CUSUM defaults are k = 0.5 and h between 4 and 5.</strong> With k at half a standard deviation and h at 4, the chart catches a sustained shift of about one standard deviation quickly while rarely firing on noise. Loosen h toward 5 if you get too many false alarms, tighten it toward 4 if real drifts slip through.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>cusum_lo</code> column is already computed. Using a stricter limit of 6 instead of 4, find the first month the alarm trips.</p>
+<div class="webr-container" data-block-title="Your turn: stricter alarm limit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stricter alarm limit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use a stricter limit of 6 (edit the 4).
+ex_alarm6 &lt;- log_tbl$date[which(log_tbl$cusum_lo &gt; 4)[1]]   # &lt;- change 4 to 6
+ex_alarm6
+#&gt; Expected: &quot;2025-04-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stricter alarm limit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stricter alarm limit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alarm6 &lt;- log_tbl$date[which(log_tbl$cusum_lo &gt; 6)[1]]
+ex_alarm6
+#&gt; [1] &quot;2025-04-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A higher limit needs more accumulated evidence, so the alarm fires two months later, in April 2025 instead of February. That is the core trade-off in any alarm: a stricter limit means fewer false alarms but slower detection.</p>
+
+</details>
+</section>
+
+<h2>Are the prediction intervals still trustworthy?</h2>
+
+<p>So far we have judged the point forecast, the single predicted number. But a good forecast also comes with an interval that says how uncertain it is, and that interval can rot independently. An <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">80% prediction interval</a> makes a promise: about 80% of the time, the actual value should land inside it. Checking whether it keeps that promise is called measuring <strong>coverage</strong>.</p>
+
+<p>Coverage is simple to compute: mark each month as a hit if the actual fell between the lower and upper bounds, then average those hits. Do it on a rolling window and you can watch calibration drift just like accuracy.</p>
+
+<div class="webr-container" data-block-title="Check prediction interval coverage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check prediction interval coverage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_tbl &lt;- log_tbl |&gt;
+  mutate(
+    in_interval = actual &gt;= lower &amp; actual &lt;= upper,
+    roll_cov    = round(roll_mean(in_interval, 6), 2)
+  )
+
+# overall share of actuals that landed inside the 80% interval
+round(mean(log_tbl$in_interval), 2)
+#&gt; [1] 0.5
+
+log_tbl |&gt; select(date, in_interval, roll_cov) |&gt; slice(seq(6, 24, 3))
+#&gt; # A tibble: 7 × 3
+#&gt;   date       in_interval roll_cov
+#&gt;   &lt;date&gt;     &lt;lgl&gt;          &lt;dbl&gt;
+#&gt; 1 2024-06-01 TRUE            0.83
+#&gt; 2 2024-09-01 TRUE            1   
+#&gt; 3 2024-12-01 TRUE            1   
+#&gt; 4 2025-03-01 TRUE            0.67
+#&gt; 5 2025-06-01 FALSE           0.17
+#&gt; 6 2025-09-01 FALSE           0   
+#&gt; 7 2025-12-01 FALSE           0   </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>in_interval</code> column is a simple TRUE/FALSE test, and averaging it gives the coverage rate. Overall coverage across the two years is 0.50, but the rolling column shows that average is misleading. Through 2024 the rolling coverage sits near 0.83 to 1.0, close to or above the 80% target. Across 2025 it collapses to 0.17, then 0, and stays there.</p>
+
+<p>That collapse is a distinct failure from the rising MAE. It says the model's intervals have become dangerously overconfident: they promise to contain the truth 80% of the time but now contain it almost never. Anyone using those intervals for risk planning, safety stock, or capacity, is being told the future is far more certain than it is.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coverage measures calibration, which is separate from point accuracy.</strong> A model can have decent point accuracy but intervals that are too narrow, or good coverage with a biased center. Because they fail independently, monitor coverage as its own signal rather than assuming a good MAE implies trustworthy intervals.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> What fraction of actuals fell inside the interval during the second year only (rows 13 to 24)?</p>
+<div class="webr-container" data-block-title="Your turn: second-year coverage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: second-year coverage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average the in_interval flag over the second year.
+ex_cov2 &lt;- mean(log_tbl$in_interval)   # &lt;- restrict to rows 13:24
+round(ex_cov2, 2)
+#&gt; Expected: 0.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Second-year coverage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Second-year coverage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cov2 &lt;- mean(log_tbl$in_interval[13:24])
+round(ex_cov2, 2)
+#&gt; [1] 0.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> In the second year only 8% of actuals landed inside an interval that was supposed to hold 80%. An interval that overconfident is worse than no interval at all, because it invites false confidence.</p>
+
+</details>
+</section>
+
+<h2>When should you actually retrain the model?</h2>
+
+<p>Every signal so far points to the same thing: something is wrong. But "wrong" is not the same as "retrain now," and retraining on every wobble is its own mistake: it is expensive, it can chase noise, and a fresh model is not automatically better. You need a principled bar. The cleanest one is to ask a blunt question: is the model still beating a dumb baseline?</p>
+
+<p>The baseline for seasonal data is <strong><a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">seasonal naive</a></strong>: just predict what happened one full season ago. If your sophisticated model cannot beat "same month last year" on recent data, it has lost its edge. We measure that with a <strong>relative MAE</strong>: the model's recent MAE divided by the baseline's. Below 1 means the model still wins, above 1 means a naive rule would serve you better.</p>
+
+<div class="webr-container" data-block-title="Compare the model against a seasonal-naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the model against a seasonal-naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># seasonal naive: the actual from 12 months earlier
+snaive   &lt;- c(rep(NA, 12), log_tbl$actual[1:12])
+naive_ae &lt;- abs(log_tbl$actual - snaive)
+
+# model error vs naive error over the most recent year
+rel_mae  &lt;- mean(log_tbl$abs_error[13:24]) / mean(naive_ae[13:24])
+round(rel_mae, 2)
+#&gt; [1] 2.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We build the seasonal-naive forecast by shifting the actuals forward 12 months, then compare average absolute errors over the second year. The relative MAE is 2.36, meaning the deployed model is now about two and a third times worse than simply repeating last year's value. When a model loses to seasonal naive that badly, retraining is no longer optional.</p>
+
+<p>Rather than lean on any single signal, combine them. Each check we built catches a different failure mode, so a combined trigger fires when any of them crosses its line. We assemble them into one named vector so the verdict is auditable.</p>
+
+<div class="webr-container" data-block-title="Combine every signal into one retraining trigger">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine every signal into one retraining trigger</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">signals &lt;- c(
+  accuracy_up     = tail(log_tbl$roll_mae, 1) &gt; 2 * min(log_tbl$roll_mae, na.rm = TRUE),
+  bias_breach     = any(abs(log_tbl$tracking_signal) &gt; 4, na.rm = TRUE),
+  cusum_alarm     = any(log_tbl$cusum_lo &gt; 4),
+  low_coverage    = tail(log_tbl$roll_cov, 1) &lt; 0.6,
+  beaten_by_naive = rel_mae &gt; 1
+)
+signals
+#&gt;     accuracy_up     bias_breach     cusum_alarm    low_coverage beaten_by_naive 
+#&gt;            TRUE            TRUE            TRUE            TRUE            TRUE 
+
+any(signals)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each element is a plain yes/no test: has the rolling MAE at least doubled from its best, did the tracking signal breach 4, did the CUSUM alarm, has coverage fallen below 0.6, is the model beaten by naive. Every one is TRUE, so <code>any(signals)</code> returns TRUE and the trigger fires. Keeping the individual flags visible matters, because the vector tells you not just that you should retrain but why.</p>
+
+<p><img src="screenshots/Forecast-Monitoring-in-R-four-signals.webp" alt="Four independent health checks feed one retraining decision." class="img-responsive img-zoomable" loading="lazy" width="1546" height="1090" /></p>
+
+<p><em>Figure 2: Four independent health checks feed one retraining decision.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Retrain on a confirmed trigger, not on a single bad month.</strong> Combine a fast signal (CUSUM or tracking signal) with a slow one (relative MAE over a full season) and require the problem to persist. Pair that with a time-based cadence, say a scheduled refit every quarter, so drift never goes unaddressed even when no alarm has fired yet.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a rule that flags when the most recent rolling coverage drops below 0.5. Does it fire?</p>
+<div class="webr-container" data-block-title="Your turn: add a coverage rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a coverage rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Flag when the latest rolling coverage is below 0.5.
+ex_cov_rule &lt;- tail(log_tbl$roll_cov, 1) &lt; 0   # &lt;- change 0 to 0.5
+ex_cov_rule
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Coverage rule solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coverage rule solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cov_rule &lt;- tail(log_tbl$roll_cov, 1) &lt; 0.5
+ex_cov_rule
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The latest rolling coverage is 0, which is below 0.5, so the rule returns TRUE. You could drop this straight into the <code>signals</code> vector as one more independent check.</p>
+
+</details>
+</section>
+
+<h2>Putting it together: a reusable monitoring function</h2>
+
+<p>Scattered snippets are fine for learning, but production wants one function you can call on any forecast log and schedule to run automatically. Let's fold every check into <code>monitor_forecasts()</code>. It takes the four log columns and returns a tidy report: one row per period, with the rolling accuracy, coverage, bias, and CUSUM, plus a <code>status</code> column that reads ALERT the moment either the tracking signal or the CUSUM crosses its limit.</p>
+
+<div class="webr-container" data-block-title="Wrap the checks into one monitoring function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap the checks into one monitoring function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">monitor_forecasts &lt;- function(actual, forecast, lower, upper,
+                              window = 6, k = 0.5, h = 4) {
+  n         &lt;- length(actual)
+  error     &lt;- actual - forecast
+  abs_error &lt;- abs(error)
+  in_pi     &lt;- actual &gt;= lower &amp; actual &lt;= upper
+  ts_sig    &lt;- cumsum(error) / (cumsum(abs_error) / seq_len(n))
+  sigma0    &lt;- sd(error[seq_len(window)])
+  d         &lt;- error / sigma0
+  Slo       &lt;- numeric(n)
+  for (t in 2:n) Slo[t] &lt;- max(0, Slo[t - 1] - d[t] - k)
+
+  tibble(
+    period   = seq_len(n),
+    error    = error,
+    roll_mae = round(roll_mean(abs_error, window), 1),
+    coverage = round(roll_mean(in_pi, window), 2),
+    tracking = round(ts_sig, 2),
+    cusum    = round(Slo, 2),
+    status   = ifelse(Slo &gt; h | abs(ts_sig) &gt; 4, &quot;ALERT&quot;, &quot;ok&quot;)
+  )
+}
+
+report &lt;- monitor_forecasts(log_tbl$actual, log_tbl$forecast,
+                            log_tbl$lower, log_tbl$upper)
+tail(report, 8)
+#&gt; # A tibble: 8 × 7
+#&gt;   period error roll_mae coverage tracking cusum status
+#&gt;    &lt;int&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt; 
+#&gt; 1     17   -51     52.2     0.33    -10.4  12.5 ALERT 
+#&gt; 2     18   -88     63.3     0.17    -12.1  16.5 ALERT 
+#&gt; 3     19   -72     66.5     0.17    -13.5  19.7 ALERT 
+#&gt; 4     20   -56     63.7     0.17    -14.7  22.1 ALERT 
+#&gt; 5     21   -72     73       0       -16.0  25.3 ALERT 
+#&gt; 6     22   -55     65.7     0       -17.1  27.6 ALERT 
+#&gt; 7     23   -99     73.7     0       -18.4  32.2 ALERT 
+#&gt; 8     24   -82     72.7     0       -19.6  36.0 ALERT </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function just packages the exact calculations from earlier sections into one place, so the report reproduces every number we found: rolling MAE in the 50s to 70s, coverage collapsed to near zero, tracking signal past -10, and CUSUM climbing well beyond the limit. Every one of the final eight months carries an ALERT.</p>
+
+<p>Now the payoff. A monitoring system should tell you not just that a model failed, but exactly when the failure began. Two short lines extract that.</p>
+
+<div class="webr-container" data-block-title="Find the first alert and the retraining verdict">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the first alert and the retraining verdict</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># first month the monitor fired, and whether to retrain at all
+report$period[report$status == &quot;ALERT&quot;][1]
+#&gt; [1] 14
+
+any(report$status == &quot;ALERT&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The monitor first raised an ALERT at period 14, February 2025, and <code>any()</code> confirms the model needs attention. In a real pipeline you would run <code>monitor_forecasts()</code> on a schedule (a cron job, an Airflow task, or a step in your batch-forecasting run) and route any ALERT to a dashboard or a message to the on-call analyst. The whole system is now one function call away.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Good monitoring pinpoints when a model broke, not just that it broke.</strong> Knowing the failure started in February 2025 lets you investigate what changed then, choose the right training window for the refit, and measure how long you were shipping bad forecasts before you caught it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the monitor with a shorter 3-month window, then read the final row's rolling MAE.</p>
+<div class="webr-container" data-block-title="Your turn: monitor with a 3-month window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: monitor with a 3-month window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Re-run with a shorter 3-month window, then read the final roll_mae.
+ex_report3 &lt;- monitor_forecasts(log_tbl$actual, log_tbl$forecast,
+                                log_tbl$lower, log_tbl$upper, window = 6)   # &lt;- change 6 to 3
+tail(ex_report3, 1)$roll_mae
+#&gt; Expected: 78.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Monitor with a 3-month window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monitor with a 3-month window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_report3 &lt;- monitor_forecasts(log_tbl$actual, log_tbl$forecast,
+                                log_tbl$lower, log_tbl$upper, window = 3)
+tail(ex_report3, 1)$roll_mae
+#&gt; [1] 78.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With a 3-month window the final rolling MAE is 78.7 instead of 72.7, because a shorter window weights the most recent, largest misses more heavily. The function stayed the same; you only changed one argument.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each runs in the same session as the code above, so <code>log_tbl</code>, <code>roll_mean()</code>, <code>sigma0</code>, and <code>report</code> are all available. Distinct variable names keep your work from overwriting the tutorial state.</p>
+
+<h3>Exercise 1: Add a rolling percentage-error monitor</h3>
+
+<p>Using the <code>pct_error</code> column already in <code>log_tbl</code>, build a rolling 6-month MAPE column named <code>roll_mape</code>, then count how many months exceed a 5% threshold. Show the value at months 6, 12, 18, and 24.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: rolling MAPE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: rolling MAPE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: take abs(pct_error), then reuse roll_mean() with a window of 6.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rolling MAPE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling MAPE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_mape &lt;- log_tbl |&gt;
+  mutate(abs_pct   = abs(pct_error),
+         roll_mape = round(roll_mean(abs_pct, 6), 2))
+
+my_mape |&gt; select(date, roll_mape) |&gt; slice(seq(6, 24, 6))
+#&gt; # A tibble: 4 × 2
+#&gt;   date       roll_mape
+#&gt;   &lt;date&gt;         &lt;dbl&gt;
+#&gt; 1 2024-06-01      1.45
+#&gt; 2 2024-12-01      1.28
+#&gt; 3 2025-06-01      6.1 
+#&gt; 4 2025-12-01      7.58
+
+sum(my_mape$roll_mape &gt; 5, na.rm = TRUE)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Rolling MAPE stays near 1.3% while the model is healthy, then climbs above 6% once it decays. Seven months breach the 5% line, all in the degraded stretch. MAPE is handy for reporting to non-technical stakeholders because a percentage needs no units.</p>
+
+</details>
+
+<h3>Exercise 2: Watch the other side with an upper CUSUM</h3>
+
+<p>Our CUSUM only watched for over-forecasting. Build the upper-side CUSUM that would catch <strong>under-forecasting</strong> (errors drifting positive), using the same <code>sigma0</code> and slack <code>k = 0.5</code>. Report its maximum value and whether it ever alarms.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: upper-side CUSUM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: upper-side CUSUM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: the recursion is max(0, prev + d[t] - 0.5), where d = error / sigma0.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Upper-side CUSUM solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Upper-side CUSUM solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Shi  &lt;- numeric(24)
+d_up &lt;- log_tbl$error / sigma0
+for (t in 2:24) Shi[t] &lt;- max(0, Shi[t - 1] + d_up[t] - 0.5)
+
+round(max(Shi), 2)
+#&gt; [1] 0.59
+any(Shi &gt; 4)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The upper CUSUM peaks at 0.59 and never approaches the limit of 4, correctly reporting no under-forecasting. In production you run both sides at once, so a drift in either direction is caught.</p>
+
+</details>
+
+<h3>Exercise 3: Report the first alerting date</h3>
+
+<p>Write a function <code>first_alert(report, dates)</code> that returns the calendar date of the first ALERT in a monitoring report, or <code>NA</code> if the model was healthy throughout. Run it on <code>report</code> with <code>log_tbl$date</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: first alerting date">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: first alerting date</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: find which(report$status == &quot;ALERT&quot;)[1], then index into dates.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="First alerting date solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First alerting date solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first_alert &lt;- function(report, dates) {
+  hit &lt;- which(report$status == &quot;ALERT&quot;)[1]
+  if (is.na(hit)) return(NA)
+  dates[hit]
+}
+
+first_alert(report, log_tbl$date)
+#&gt; [1] &quot;2025-02-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function finds the first ALERT row, returns its date, and guards against a clean report by returning <code>NA</code> when there is no alert. Turning a monitor into a single actionable date like this is what makes it useful on a dashboard.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>How often should I run forecast monitoring?</h3>
+
+<p>Tie the cadence to how often new actuals arrive. For a monthly series you recompute the checks each month as the new actual lands; for daily data you run them daily. Because a forecast can only be scored once its actual shows up, monitoring naturally runs on the same clock as your data. It is still worth pairing that with a scheduled review, say once a quarter, so a slow drift never goes unnoticed during a quiet stretch.</p>
+
+<h3>What is the difference between a tracking signal and a CUSUM chart?</h3>
+
+<p>Both watch accumulated bias, but they are tuned differently. The tracking signal divides the running sum of errors by the average size of a miss and alarms outside about plus or minus 4, which makes it easy to read at a glance. The CUSUM standardizes each error, adds a slack term so small wobbles do not build up, and floors at zero, which makes it quicker to catch a small sustained shift and simple to run unattended across many series. On a large break the two agree, as both flagged February 2025 in this tutorial.</p>
+
+<h3>My CUSUM fires too many false alarms. What should I change?</h3>
+
+<p>Raise the decision limit <code>h</code> toward 5, or widen the slack <code>k</code> so more of the normal error spread is ignored before the sum starts to climb. A subtler cause is a badly calibrated <code>sigma0</code>: if you estimate the normal spread from a stretch that was already drifting, every later error looks small and the chart turns jumpy or numb. Re-estimate <code>sigma0</code> from a genuinely stable period of history.</p>
+
+<h3>Can I monitor a model that outputs only point forecasts, with no intervals?</h3>
+
+<p>Yes. Every check except coverage reads only the actual and forecast columns, so rolling accuracy, the tracking signal, the CUSUM, and the seasonal-naive benchmark all keep working. Coverage is the single signal that needs the lower and upper bounds, so a point-only pipeline just drops it. If your model can produce intervals, keep coverage, because it catches an overconfidence failure that the point-error checks miss.</p>
+
+<h3>Does this work for machine-learning forecasts, not just ARIMA or ETS?</h3>
+
+<p>Yes, and that is the reason everything runs off a forecast log. Each check reads only the actual, forecast, lower, and upper columns, so it does not care whether those numbers came from ETS, Prophet, or a gradient-boosted model. Monitoring built this way stays model-agnostic by construction.</p>
+
+<h2>Summary</h2>
+
+<p>Monitoring turns a deployed forecast model from a black box you hope still works into a system that tells you the moment it stops. Everything runs off one forecast log of actuals, forecasts, and intervals, and each check catches a different failure mode.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Check</th>
+<th>R measure</th>
+<th>Red flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Accuracy</td>
+<td>Rolling MAE, RMSE, MAPE</td>
+<td>Rolling error trending sharply up</td>
+</tr>
+<tr>
+<td>Bias</td>
+<td>Mean error, tracking signal</td>
+<td>Tracking signal outside plus or minus 4</td>
+</tr>
+<tr>
+<td>Alerting</td>
+<td>CUSUM control chart</td>
+<td>Cumulative sum crosses the limit h</td>
+</tr>
+<tr>
+<td>Calibration</td>
+<td>Interval coverage rate</td>
+<td>Coverage far below the interval's promise</td>
+</tr>
+<tr>
+<td>Benchmark</td>
+<td>Relative MAE vs seasonal naive</td>
+<td>Ratio above 1 (beaten by naive)</td>
+</tr>
+<tr>
+<td>Decision</td>
+<td>Combined trigger + <code>monitor_forecasts()</code></td>
+<td>Any signal fires; then retrain</td>
+</tr>
+</tbody>
+</table>
+
+<p>The most important habit is to watch these continuously, not once. A single backtest tells you a model was good on the day you built it. Monitoring tells you whether it is still good today.</p>
+
+<p><img src="screenshots/Forecast-Monitoring-in-R-overview-mindmap.webp" alt="The forecast monitoring toolkit at a glance." class="img-responsive img-zoomable" loading="lazy" width="1556" height="1034" /></p>
+
+<p><em>Figure 3: The forecast monitoring toolkit at a glance.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em> (3rd ed.), Chapter 5: Evaluating forecast accuracy. <a href="https://otexts.com/fpp3/accuracy.html">Link</a></li>
+
+<li>fabletools documentation. <code>accuracy()</code>: Evaluate accuracy of a forecast or model. <a href="https://fabletools.tidyverts.org/reference/accuracy.html">Link</a></li>
+
+<li>O'Hara-Wild, M., Hyndman, R.J. et al. <em>Tidy forecasting principles</em>, Forecast evaluation. <a href="https://tidyverts.github.io/tidy-forecasting-principles/accuracy.html">Link</a></li>
+
+<li>NIST/SEMATECH <em>e-Handbook of Statistical Methods</em>, CUSUM control charts. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm">Link</a></li>
+
+<li>Gardner, E.S. (1983). Automatic monitoring of forecast errors. <em>Journal of Forecasting</em>, 2(1). <a href="https://onlinelibrary.wiley.com/doi/10.1002/for.3980020103">Link</a></li>
+
+<li>Arthur.ai. Detecting unexpected drift in time series features. <a href="https://www.arthur.ai/blog/detecting-unexpected-drift-in-time-series-features">Link</a></li>
+
+<li>Hyndman, R.J. <em>forecast</em> package reference. <a href="https://pkg.robjhyndman.com/forecast/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> - the full set of point and scaled error metrics, and how to interpret each one.</li>
+
+<li><a href="Backtesting-Forecasts-in-R.html">Backtesting Forecasts in R</a> - evaluate a model on <a class="auto-link" href="Backtesting-Forecasts-in-R.html" title="Backtesting Forecast Models in R at Scale">rolling origins</a> before you deploy, the pre-production companion to monitoring.</li>
+
+<li><a href="Batch-Forecasting-in-R.html">Batch Forecasting in R</a> - <a class="auto-link" href="Batch-Forecasting-in-R.html" title="Forecast Hundreds of Series Automatically in R">forecast hundreds of series</a> at once, the natural place to bolt on the monitoring function from this tutorial.</li>
+
+</ul>
+
+{% endraw %}
