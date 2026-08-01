@@ -54,6 +54,12 @@ def inline_skill_prompt(aid, meta):
     """CLI 2.1.207+ does not resolve slash commands in `claude -p`, so the
     skill body is inlined as the prompt (same pattern as batch_pseo)."""
     body = open(SKILL_PATH, encoding='utf-8').read()
+    # Strip the YAML frontmatter. Left in, the prompt starts with '---' and the
+    # CLI parses it as an option: "error: unknown option '---".
+    if body.lstrip().startswith('---'):
+        parts = body.lstrip().split('---', 2)
+        if len(parts) == 3:
+            body = parts[2].lstrip()
     chapters = '\n'.join(f'  - {s}' for s in meta.get('chapter_slugs', []))
     return (
         f'{body}\n\n---\n\n'
