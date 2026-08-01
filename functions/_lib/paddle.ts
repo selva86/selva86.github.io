@@ -58,7 +58,16 @@ export async function verifyPaddleSignature(
   rawBody: string,
   signatureHeader: string | null,
   secret: string,
-  toleranceSec = 300,
+  // 30 days, not 5 minutes. A short window silently breaks Paddle's own
+  // replay feature: a replayed notification carries the ORIGINAL event's
+  // timestamp, so any old event fails tolerance no matter how valid its
+  // signature is. That cost two customers their access for a week.
+  //
+  // Replay attacks are already defeated downstream by the event_id
+  // idempotency check in the webhook handler, which no-ops any event_id it
+  // has seen before. The timestamp is defence-in-depth against very stale
+  // captured payloads, not the primary control.
+  toleranceSec = 30 * 24 * 3600,
   nowSec = Math.floor(Date.now() / 1000),
 ): Promise<VerifyResult> {
   if (!secret) return { ok: false, reason: "no_secret_configured" };

@@ -152,8 +152,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const sig = context.request.headers.get("Paddle-Signature");
   const verify = await verifyPaddleSignature(raw, sig, context.env.PADDLE_WEBHOOK_SECRET);
   if (!verify.ok) {
+    // Surface the distinct reason. Collapsing every cause into "bad_signature"
+    // made a timestamp-tolerance rejection indistinguishable from a genuine
+    // key mismatch, which is why 107 rejected deliveries went undiagnosed.
     console.error(`[webhook.paddle] signature rejected: ${verify.reason}`);
-    return jsonError(401, "bad_signature", "Signature verification failed");
+    return jsonError(401, "bad_signature", `Signature verification failed: ${verify.reason}`);
   }
 
   // 2. Parse the (already-verified) body.
