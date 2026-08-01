@@ -1,0 +1,699 @@
+---
+title: "Bayesian t-Test in R with the BayesFactor Package"
+description: "Learn the Bayesian t-test in R with the BayesFactor package: run ttestBF, read the BF10 evidence, set the prior, test direction, and estimate the effect size."
+keywords: "bayesian t-test in r, BayesFactor package, ttestBF, bayes factor t-test, BF10, one-sample bayesian t-test, paired bayesian t-test, JZS prior, rscale, cauchy prior"
+mathjax: true
+webr: true
+curriculum_id: "FR-baye-8"
+post_type: "FR"
+auto_link_terms: "Bayesian t-test|Bayesian t-test in R|ttestBF|ttestBF()|BayesFactor package|Bayes factor t-test|BF10|one-sample Bayesian t-test|paired Bayesian t-test|JZS prior|Cauchy prior|Bayes factor for a t-test"
+auto_link_case_sensitive: false
+fr_parent: "Bayesian-ANOVA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A Bayesian t-test compares two ideas, that a real difference exists versus that it does not, and returns a Bayes factor: one number telling you how many times more likely your data is under one idea than the other. In R you run it with <code>ttestBF()</code> from the <a class="auto-link" href="Bayes-Factors-in-R.html" title="Bayes Factors in R: BayesFactor Package as Alternative to p-Values">BayesFactor package</a>, and unlike a p-value it can give you evidence <em>for</em> the "no difference" case.</p>
+
+<h2>How is a Bayesian t-test different from a normal t-test?</h2>
+
+<p>The ordinary t-test you already know has a blind spot. When it hands back a large p-value, beginners often read that as "there is no difference," but the test never actually says that. It only says the data was not surprising enough to rule out "no difference." A Bayesian t-test fixes that gap by weighing both ideas against each other directly. Let's start from a t-test you can read at a glance.</p>
+
+<p>Here we compare tooth growth in guinea pigs given vitamin C by two delivery methods, orange juice (OJ) or a supplement (VC), using the built-in <code>ToothGrowth</code> data. This whole tutorial uses base R plus one add-on package, so run this first block now.</p>
+
+<div class="webr-container" data-block-title="Run a familiar t-test first">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run a familiar t-test first</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tooth &lt;- ToothGrowth
+t.test(len ~ supp, data = tooth, var.equal = TRUE)
+#&gt; 	Two Sample t-test
+#&gt;
+#&gt; data:  len by supp
+#&gt; t = 1.9153, df = 58, p-value = 0.06039
+#&gt; alternative hypothesis: true difference in means between group OJ and group VC is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -0.1670064  7.5670064
+#&gt; sample estimates:
+#&gt; mean in group OJ mean in group VC
+#&gt;         20.66333         16.96333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is <code>0.06039</code>. By the usual 0.05 rule that counts as "not significant," so a beginner might conclude the delivery method does not matter. That conclusion is not supported. The p-value measures how surprising this data would be if the two methods were truly identical. It cannot tell you how likely "truly identical" is. That is exactly the question a Bayesian t-test answers.</p>
+
+<p><img src="screenshots/Bayesian-t-Test-in-R-question-framing.webp" alt="A frequentist t-test and a Bayesian t-test ask different questions of the same two groups." class="img-responsive img-zoomable" loading="lazy" width="1298" height="690" /></p>
+
+<p><em>Figure 1: Two tests, two different questions about the same two groups of data.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Everything here runs in real R.</strong> The <code>t.test()</code> block above runs directly in your browser. The BayesFactor blocks below are marked "run this locally" because that package is not built into the in-page runner, so paste them into RStudio to reproduce the exact numbers shown.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Before running any Bayesian test, get a feel for the data. Compute the average tooth length for each supplement group.</p>
+<div class="webr-container" data-block-title="Your turn: group means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: group means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: one mean per supplement (OJ and VC).
+# Hint: tapply(values, group, mean) does this in one line.
+# ex_means &lt;- tapply(...)
+# ex_means</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Group means solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group means solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_means &lt;- tapply(ToothGrowth$len, ToothGrowth$supp, mean)
+ex_means
+#&gt;       OJ       VC
+#&gt; 20.66333 16.96333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tapply()</code> splits <code>len</code> by <code>supp</code> and applies <code>mean()</code> to each piece. OJ averages about 3.7 units higher, the same gap the t-test reported.</p>
+
+</details>
+</section>
+
+<h2>How do you run a Bayesian t-test with the BayesFactor package?</h2>
+
+<p>The BayesFactor package gives you one function, <code>ttestBF()</code>, that covers every flavor of t-test. Install it once with <code>install.packages(&quot;BayesFactor&quot;)</code>, then load it. The call mirrors <code>t.test()</code>: the same <code>formula = outcome ~ group</code> interface, the same data frame.</p>
+
+<p>Run this locally to score the tooth-growth comparison the Bayesian way.</p>
+
+<pre><code class="language-r">library(BayesFactor)
+bf_tooth &lt;- ttestBF(formula = len ~ supp, data = ToothGrowth)
+bf_tooth
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Alt., r=0.707 : 1.198757
+#&gt;
+#&gt; Against denominator:
+#&gt;   Null, mu1-mu2 = 0
+#&gt; ---
+#&gt; Bayes factor type: BFindepSample, JZS</code></pre>
+
+<p>Read the printout top to bottom. The line marked <code>[1]</code> is the numerator: the "alternative" idea that a difference exists, with <code>r=0.707</code> naming the default prior (more on that later). The <code>Against denominator</code> line is the comparison idea: the "null" that the two means are equal, written <code>mu1-mu2 = 0</code>. The number <code>1.198757</code> is the Bayes factor comparing them.</p>
+
+<p>That number, usually written $BF_{10}$, is the whole point. Pull it out on its own so you can use it in later code.</p>
+
+<pre><code class="language-r">extractBF(bf_tooth)$bf
+#&gt; [1] 1.198757</code></pre>
+
+<p>A $BF_{10}$ of about <code>1.2</code> means your data is only 1.2 times more likely if a difference exists than if it does not. That is a hair above dead even. The Bayesian test and the frequentist p-value of 0.06 agree on the real message here: this data is inconclusive, not proof of "no effect."</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The BayesFactor blocks run locally, not in the page.</strong> Copy them into RStudio or any R console after <code>install.packages(&quot;BayesFactor&quot;)</code>. The numbers you get will match this page exactly, because <code>ttestBF()</code> is deterministic.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The value <code>1.198757</code> is the evidence for a difference. The evidence for "no difference," written $BF_{01}$, is simply its reciprocal. Compute it.</p>
+<div class="webr-container" data-block-title="Your turn: flip the Bayes factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the Bayes factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># BF01 = 1 / BF10 tells you the evidence for the null instead.
+bf10 &lt;- 1.198757
+# bf01 &lt;- ...
+# round(bf01, 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Flip the Bayes factor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the Bayes factor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf10 &lt;- 1.198757
+bf01 &lt;- 1 / bf10
+round(bf01, 3)
+#&gt; [1] 0.834</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $BF_{01} = 1 / BF_{10} = 0.834$. The data is 0.83 times as likely under "no difference," which is almost the same as 1. Neither side is favored, matching what the p-value hinted.</p>
+
+</details>
+</section>
+
+<h2>What does the Bayes factor number actually mean?</h2>
+
+<p>A Bayes factor is a ratio of two likelihoods. It asks: how well does the "difference exists" idea ($H_1$) predict the data you saw, compared to the "no difference" idea ($H_0$)?</p>
+
+<p>$$BF_{10} = \frac{P(\text{data} \mid H_1)}{P(\text{data} \mid H_0)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P(\text{data} \mid H_1)$ = how likely your data is if a real difference exists</li>
+
+<li>$P(\text{data} \mid H_0)$ = how likely your data is if there is no difference</li>
+
+<li>$BF_{10}$ = the ratio of the two, the number <code>ttestBF()</code> prints</li>
+
+</ul>
+
+<p>The reading rule is short. $BF_{10}$ above 1 favors a difference, and the bigger it gets the stronger that support. $BF_{10}$ below 1 favors "no difference." A value near 1 means the data cannot tell the two apart. To turn a raw number into words, statisticians use a labelled scale (the JASP and Jeffreys convention). This helper applies it.</p>
+
+<div class="webr-container" data-block-title="Label a Bayes factor by strength">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label a Bayes factor by strength</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interpret_bf &lt;- function(bf10) {
+  cut(bf10,
+      breaks = c(0, 1/30, 1/10, 1/3, 1, 3, 10, 30, Inf),
+      labels = c(&quot;Very strong for H0&quot;, &quot;Strong for H0&quot;, &quot;Moderate for H0&quot;,
+                 &quot;Anecdotal for H0&quot;, &quot;Anecdotal for H1&quot;, &quot;Moderate for H1&quot;,
+                 &quot;Strong for H1&quot;, &quot;Very strong for H1&quot;))
+}
+
+data.frame(BF10 = c(0.05, 0.33, 1.2, 8, 40),
+           evidence = interpret_bf(c(0.05, 0.33, 1.2, 8, 40)))
+#&gt;    BF10           evidence
+#&gt; 1  0.05      Strong for H0
+#&gt; 2  0.33    Moderate for H0
+#&gt; 3  1.20   Anecdotal for H1
+#&gt; 4  8.00    Moderate for H1
+#&gt; 5 40.00 Very strong for H1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table walks the whole range. A tiny $BF_{10}$ of 0.05 is real support for the null, our tooth-growth value of 1.2 is barely worth mentioning ("anecdotal"), and a value of 40 is very strong support for a difference. The picture below shows the same scale as a strip you can eyeball.</p>
+
+<p><img src="screenshots/Bayesian-t-Test-in-R-evidence-scale.webp" alt="How the Bayes factor value maps onto strength-of-evidence labels." class="img-responsive img-zoomable" loading="lazy" width="2248" height="362" /></p>
+
+<p><em>Figure 2: Reading a Bayes factor, from support for the null on the left to strong support for an effect on the right.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Bayes factor can support the null; a p-value never can.</strong> A large p-value only means "not enough evidence against the null." A Bayes factor below 1 is positive evidence that the null predicts your data better, which is a genuinely different and often more useful answer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose a study reports $BF_{10} = 1/3.5$. Label it with the helper you just built.</p>
+<div class="webr-container" data-block-title="Your turn: classify a Bayes factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify a Bayes factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># interpret_bf() is already defined above.
+# ex_evidence &lt;- interpret_bf( ... )
+# ex_evidence</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Classify a Bayes factor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify a Bayes factor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_evidence &lt;- interpret_bf(1 / 3.5)
+ex_evidence
+#&gt; [1] Moderate for H0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $1/3.5 \approx 0.29$, which lands between $1/10$ and $1/3$, so the scale calls it moderate evidence for the null.</p>
+
+</details>
+</section>
+
+<h2>How do you run one-sample and paired Bayesian t-tests?</h2>
+
+<p>The same <code>ttestBF()</code> covers the other two designs by swapping arguments. A one-sample test checks whether one group's mean differs from a fixed value, set with <code>mu</code>. Here we ask whether a sleep drug changed sleep at all, testing the <code>extra</code> hours for one drug in the built-in <code>sleep</code> data against <code>mu = 0</code>.</p>
+
+<pre><code class="language-r">drug2 &lt;- sleep$extra[sleep$group == 2]
+ttestBF(x = drug2, mu = 0)
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Alt., r=0.707 : 10.71554
+#&gt;
+#&gt; Against denominator:
+#&gt;   Null, mu = 0
+#&gt; ---
+#&gt; Bayes factor type: BFoneSample, JZS</code></pre>
+
+<p>A $BF_{10}$ of about <code>10.7</code> is strong evidence that this drug moved sleep away from zero. A paired test is for before-and-after measurements on the same subjects. The <code>sleep</code> data records each of 10 patients under two drugs, so we pass both vectors with <code>paired = TRUE</code>.</p>
+
+<pre><code class="language-r">g1 &lt;- sleep$extra[sleep$group == 1]
+g2 &lt;- sleep$extra[sleep$group == 2]
+bf_paired &lt;- ttestBF(x = g1, y = g2, paired = TRUE)
+bf_paired
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Alt., r=0.707 : 17.25888
+#&gt;
+#&gt; Against denominator:
+#&gt;   Null, mu = 0
+#&gt; ---
+#&gt; Bayes factor type: BFoneSample, JZS</code></pre>
+
+<p>The $BF_{10}$ of about <code>17.3</code> is strong evidence that the two drugs differ in effect. Notice the printout says <code>BFoneSample</code>: internally a paired test is a one-sample test on the differences between each pair. You can prove that to yourself by running a one-sample test on the differences directly.</p>
+
+<pre><code class="language-r">diff_scores &lt;- g1 - g2
+extractBF(ttestBF(x = diff_scores))$bf
+#&gt; [1] 17.25888</code></pre>
+
+<p>Same <code>17.25888</code>, exactly. That equivalence is worth remembering, because it means anything you learn about one-sample tests applies to paired tests too.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match the interface to the design.</strong> Use <code>formula = y ~ group</code> for two independent groups, <code>x</code> with <code>mu</code> for one sample, and <code>x</code> plus <code>y</code> with <code>paired = TRUE</code> for repeated measures on the same subjects.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The paired test works on the 10 pair differences. Compute those differences and report their mean and count.</p>
+<div class="webr-container" data-block-title="Your turn: the pair differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the pair differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Subtract group 2 from group 1 for each patient.
+# ex_diff &lt;- sleep$extra[sleep$group == 1] - sleep$extra[sleep$group == 2]
+# c(mean_difference = mean(ex_diff), n = length(ex_diff))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pair differences solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pair differences solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_diff &lt;- sleep$extra[sleep$group == 1] - sleep$extra[sleep$group == 2]
+c(mean_difference = mean(ex_diff), n = length(ex_diff))
+#&gt; mean_difference               n
+#&gt;           -1.58           10.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On average, drug 1 gave 1.58 fewer hours of extra sleep than drug 2 across the 10 patients. That consistent gap is what drives the Bayes factor up to 17.3.</p>
+
+</details>
+</section>
+
+<h2>How does the prior change the answer (rscale)?</h2>
+
+<p>Every Bayesian test needs a prior: a statement of what sizes of effect you consider plausible before seeing data. For <code>ttestBF()</code>, that prior sits on the standardized <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> $\delta$ (the difference in means expressed in standard-deviation units). BayesFactor uses a <a class="auto-link" href="Cauchy-and-Heavy-Tailed-Distributions-in-R.html" title="Cauchy & Heavy-Tailed Distributions in R: When the CLT Fails You">Cauchy distribution</a> centered at zero, a bell-like curve with heavy tails that allows both small and large effects.</p>
+
+<p>$$\delta \sim \text{Cauchy}(0, r)$$</p>
+
+<p>This default setup, a Cauchy prior on the effect size, is called the JZS prior (after Jeffreys, Zellner, and Siow). That is the <code>JZS</code> label printed at the bottom of every <code>ttestBF()</code> result you have seen so far.</p>
+
+<p>The single knob $r$, the <code>rscale</code> argument, sets how wide that curve is. A bigger $r$ says "I would not be shocked by a large effect." BayesFactor ships three named settings: <code>&quot;medium&quot;</code> ($r = 0.707$, the default), <code>&quot;wide&quot;</code> ($r = 1$), and <code>&quot;ultrawide&quot;</code> ($r = 1.414$). A careful analyst reports the answer under more than one, to show the conclusion does not hinge on the prior. Run all three on the paired sleep test.</p>
+
+<pre><code class="language-r">bf_scales &lt;- c(
+  medium    = extractBF(ttestBF(x = g1, y = g2, paired = TRUE, rscale = &quot;medium&quot;))$bf,
+  wide      = extractBF(ttestBF(x = g1, y = g2, paired = TRUE, rscale = &quot;wide&quot;))$bf,
+  ultrawide = extractBF(ttestBF(x = g1, y = g2, paired = TRUE, rscale = &quot;ultrawide&quot;))$bf
+)
+round(bf_scales, 2)
+#&gt;    medium      wide ultrawide
+#&gt;     17.26     18.42     18.02</code></pre>
+
+<p>All three land near 17 to 18, well inside "strong evidence." The prior barely moved the verdict, so the finding is robust. When your three numbers straddle the "anecdotal" boundary instead, that is a signal to collect more data before claiming anything.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report a <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">robustness check</a>, not a single number.</strong> Quoting the Bayes factor under the default and the wide prior takes one extra line of code and heads off the fair criticism that you cherry-picked a prior.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Quantify how much the answer shifted. Compute the percent change from the medium prior to the wide prior using the two values in the table.</p>
+<div class="webr-container" data-block-title="Your turn: prior sensitivity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: prior sensitivity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Percent change = 100 * (wide - medium) / medium
+bf_medium &lt;- 17.26
+bf_wide &lt;- 18.42
+# round(100 * (bf_wide - bf_medium) / bf_medium, 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Prior sensitivity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prior sensitivity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf_medium &lt;- 17.26
+bf_wide &lt;- 18.42
+round(100 * (bf_wide - bf_medium) / bf_medium, 1)
+#&gt; [1] 6.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Widening the prior nudged the Bayes factor up by only 6.7 percent. A shift that small means the <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">prior choice</a> is not driving the conclusion.</p>
+
+</details>
+</section>
+
+<h2>How do you test a one-sided (directional) hypothesis?</h2>
+
+<p>Often you predict a direction, not just "some difference." Maybe theory says drug 2 should raise sleep more than drug 1, which means the pair difference <code>g1 - g2</code> should be negative. The <code>nullInterval</code> argument restricts the alternative to a range of effect sizes, so you can put all the prior weight on the direction you expect. Passing <code>c(-Inf, 0)</code> says "the effect is negative."</p>
+
+<pre><code class="language-r">bf_dir &lt;- ttestBF(x = g1, y = g2, paired = TRUE, nullInterval = c(-Inf, 0))
+bf_dir
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Alt., r=0.707 -Inf&lt;d&lt;0    : 34.41694
+#&gt; [2] Alt., r=0.707 !(-Inf&lt;d&lt;0) : 0.1008246
+#&gt;
+#&gt; Against denominator:
+#&gt;   Null, mu = 0
+#&gt; ---
+#&gt; Bayes factor type: BFoneSample, JZS</code></pre>
+
+<p>The output now has two rows. Row <code>[1]</code> is the evidence for your directional prediction (effect negative), and row <code>[2]</code> is the evidence for the opposite direction. The directional $BF_{10}$ of about <code>34.4</code> is roughly double the two-sided <code>17.3</code> from earlier. That makes sense: when the data falls in the predicted direction, concentrating all the prior weight on that one direction makes the alternative fit the data better, which raises the Bayes factor. Row <code>[2]</code>, near <code>0.1</code>, shows the wrong-direction idea is strongly contradicted.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The directional test paid off because almost every patient moved the same way. Count how many of the 10 pair differences were negative, positive, or zero.</p>
+<div class="webr-container" data-block-title="Your turn: count the directions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the directions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sign() returns -1, 0, or 1 for each difference; table() tallies them.
+# ex_signs &lt;- sign(sleep$extra[sleep$group == 1] - sleep$extra[sleep$group == 2])
+# table(ex_signs)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count the directions solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the directions solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_signs &lt;- sign(sleep$extra[sleep$group == 1] - sleep$extra[sleep$group == 2])
+table(ex_signs)
+#&gt; ex_signs
+#&gt; -1  0
+#&gt;  9  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Nine of the 10 patients had a negative difference (drug 1 below drug 2) and one was a tie. That near-unanimous direction is why restricting the test to "negative" strengthened the evidence.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate the effect size (posterior sampling)?</h2>
+
+<p>A Bayes factor tells you whether an effect exists, but not how big it is. For that, <code>posterior()</code> draws samples from the <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a> of the effect size, giving you a credible interval: a range that, given the data and prior, holds the true standardized effect with 95 percent probability. Sampling uses random draws, so <code>set.seed()</code> makes the result reproducible.</p>
+
+<pre><code class="language-r">set.seed(1234)
+post &lt;- posterior(bf_paired, iterations = 10000, progress = FALSE)
+round(quantile(post[, &quot;delta&quot;], c(0.025, 0.5, 0.975)), 3)
+#&gt;   2.5%    50%  97.5%
+#&gt; -1.976 -1.086 -0.298</code></pre>
+
+<p>The <code>delta</code> column holds the standardized effect. The median is about <code>-1.09</code>, a large effect, and the 95 percent credible interval runs from <code>-1.98</code> to <code>-0.30</code>. Because that entire range sits below zero, you can say the effect is credibly negative, not just that "an effect exists." This is the everyday-language conclusion a frequentist confidence interval cannot give you, because it is not a probability statement about the true effect.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><a class="auto-link" href="Grid-Approximation-in-R.html" title="Grid Approximation in R: Compute Bayesian Posteriors Without MCMC">Posterior sampling</a> is approximate.</strong> It uses a random simulation (MCMC), so tiny run-to-run wobble is normal. Setting a seed and raising <code>iterations</code> (10000 is a sensible default) keeps the numbers stable and precise.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A 95 percent interval is just the 2.5th and 97.5th percentiles. Practice on a plain numeric sample.</p>
+<div class="webr-container" data-block-title="Your turn: a 95 percent interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a 95 percent interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># set.seed(7) then draw, then take the two percentiles.
+# ex_samples &lt;- rnorm(10000, mean = 1.5, sd = 0.4)
+# round(quantile(ex_samples, c(0.025, 0.975)), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A 95 percent interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A 95 percent interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_samples &lt;- rnorm(10000, mean = 1.5, sd = 0.4)
+round(quantile(ex_samples, c(0.025, 0.975)), 2)
+#&gt;  2.5% 97.5%
+#&gt;  0.72  2.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>quantile()</code> with <code>c(0.025, 0.975)</code> returns the interval boundaries. The same idea, applied to <code>delta</code> samples, produced the credible interval above.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution.</p>
+
+<h3>Exercise 1: A reporting helper</h3>
+
+<p>Write a function <code>bf_to_evidence()</code> that takes a $BF_{10}$ and returns a list with three items: the rounded $BF_{10}$, the rounded $BF_{01}$ (its reciprocal), and the evidence label from <code>interpret_bf()</code>. Test it on the tooth-growth value <code>1.198757</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse interpret_bf() from earlier in the page.
+my_bf10 &lt;- 1.198757
+# bf_to_evidence &lt;- function(bf10) { ... }
+# bf_to_evidence(my_bf10)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf_to_evidence &lt;- function(bf10) {
+  bf01 &lt;- 1 / bf10
+  strength &lt;- interpret_bf(bf10)
+  list(BF10 = round(bf10, 3), BF01 = round(bf01, 3), evidence = as.character(strength))
+}
+bf_to_evidence(1.198757)
+#&gt; $BF10
+#&gt; [1] 1.199
+#&gt;
+#&gt; $BF01
+#&gt; [1] 0.834
+#&gt;
+#&gt; $evidence
+#&gt; [1] &quot;Anecdotal for H1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function bundles both directions of the Bayes factor and the plain-language label, which is exactly what you would put in a results write-up.</p>
+
+</details>
+
+<h3>Exercise 2: Are the scores different from a target?</h3>
+
+<p>A batch of 10 exam scores should center on 5. Run a one-sample Bayesian t-test of these scores against <code>mu = 5</code>, under both the medium and wide priors, and compare. Run this one locally because it uses BayesFactor.</p>
+
+<pre><code class="language-r"># Fill in a one-sample ttestBF against mu = 5 for each rscale.
+scores &lt;- c(4.2, 5.1, 6.3, 4.8, 5.5, 6.0, 5.9, 4.4, 5.8, 6.1)
+# ttestBF(x = scores, mu = 5, rscale = &quot;medium&quot;)</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">scores &lt;- c(4.2, 5.1, 6.3, 4.8, 5.5, 6.0, 5.9, 4.4, 5.8, 6.1)
+c(medium = extractBF(ttestBF(x = scores, mu = 5, rscale = &quot;medium&quot;))$bf,
+  wide   = extractBF(ttestBF(x = scores, mu = 5, rscale = &quot;wide&quot;))$bf)
+#&gt;    medium      wide
+#&gt; 0.9549752 0.8060405</code></pre>
+
+<p><strong>Explanation:</strong> Both Bayes factors are below 1, so the data slightly favors "the mean is 5." The wide prior favors the null a bit more, because it expected larger effects and did not find one. The conclusion is the same either way: no convincing departure from 5.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Do I need to check normality and equal variance first?</h3>
+
+<p><code>ttestBF()</code> assumes the data is roughly normal and that the two groups share a variance, the same footing as <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">Student's t-test</a> (<code>var.equal = TRUE</code>). There is no <code>var.equal</code> switch here, so for badly skewed data prefer a transformation or a rank-based approach. For most tidy continuous measurements the default is fine.</p>
+
+<h3>What should I do if my Bayes factor is close to 1?</h3>
+
+<p>Treat it honestly as "not enough evidence either way." A value between roughly 1/3 and 3 is anecdotal, meaning the data does not clearly favor a difference or its absence. The right move is usually to collect more data rather than to force a verdict.</p>
+
+<h3>Should I report BF10 or BF01?</h3>
+
+<p>Report whichever is above 1, and say which it is. If the evidence favors a difference, quote $BF_{10}$. If it favors "no difference," quote $BF_{01} = 1 / BF_{10}$ so the number reads as "how much the null is favored." Always state the prior scale you used.</p>
+
+<h3>Is the default prior (r = 0.707) objective?</h3>
+
+<p>It is a sensible default, not a universal truth. The medium scale expects effects of moderate size and works well across many fields. The honest practice is to also report a wider prior, as shown above, so readers can see the conclusion is stable.</p>
+
+<h3>Can a Bayesian t-test actually confirm the null?</h3>
+
+<p>Yes, and this is its signature advantage. A $BF_{10}$ well below 1 (say 0.1) is direct evidence that "no difference" predicts your data better. A frequentist t-test can only ever fail to reject the null, never support it.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The core output</td>
+<td><code>ttestBF()</code> returns $BF_{10}$, how many times more likely the data is under "a difference" than "no difference"</td>
+</tr>
+<tr>
+<td>Reading it</td>
+<td>Above 1 favors an effect, below 1 favors the null, near 1 is inconclusive; use the labelled scale</td>
+</tr>
+<tr>
+<td>Two directions</td>
+<td>$BF_{01} = 1 / BF_{10}$ reports the evidence for the null</td>
+</tr>
+<tr>
+<td>Three designs</td>
+<td>Formula for independent groups, <code>mu</code> for one sample, <code>x</code> and <code>y</code> with <code>paired = TRUE</code> for repeated measures</td>
+</tr>
+<tr>
+<td>The prior</td>
+<td><code>rscale</code> sets the Cauchy width on the effect size; report a robustness check</td>
+</tr>
+<tr>
+<td>Direction</td>
+<td><code>nullInterval</code> tests a one-sided prediction and can strengthen evidence</td>
+</tr>
+<tr>
+<td>Effect size</td>
+<td><code>posterior()</code> gives a credible interval for how big the effect is</td>
+</tr>
+<tr>
+<td>Versus p-values</td>
+<td>A Bayes factor can support the null, which a p-value never can</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Morey, R. D., & Rouder, J. N. BayesFactor package (CRAN). <a href="https://cran.r-project.org/package=BayesFactor">Link</a></li>
+
+<li>Morey, R. D. Using the BayesFactor package (official manual and t-test examples). <a href="https://richarddmorey.github.io/BayesFactor/">Link</a></li>
+
+<li>BayesFactor vignette on CRAN, one-sample and two-sample designs. <a href="https://cran.r-project.org/web/packages/BayesFactor/vignettes/manual.html">Link</a></li>
+
+<li><code>ttestBF</code> function reference (arguments: <code>mu</code>, <code>paired</code>, <code>rscale</code>, <code>nullInterval</code>). <a href="https://rdrr.io/cran/BayesFactor/man/ttestBF.html">Link</a></li>
+
+<li>Rouder, J. N., Speckman, P. L., Sun, D., Morey, R. D., & Iverson, G. (2009). Bayesian t tests for accepting and rejecting the null hypothesis. <em>Psychonomic Bulletin & Review</em>. <a href="https://doi.org/10.3758/PBR.16.2.225">Link</a></li>
+
+<li>Bayes factor, definition and interpretation scale. <a href="https://en.wikipedia.org/wiki/Bayes_factor">Link</a></li>
+
+<li>R Documentation, the <code>sleep</code> dataset used in the paired examples. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/sleep.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-ANOVA-in-R.html">Bayesian ANOVA in R</a>: extend the same Bayes-factor thinking from two groups to many groups.</li>
+
+<li><a href="Bayes-Factors-in-R.html">Bayes Factors in R</a>: a deeper look at what Bayes factors are and how to compute them for other models.</li>
+
+<li><a href="Credible-Intervals-vs-Confidence-Intervals.html">Credible Intervals vs Confidence Intervals</a>: understand the interval that <code>posterior()</code> produced and how it differs from the frequentist version.</li>
+
+<li><a href="RStan-vs-brms-vs-BayesFactor-in-R.html">RStan vs brms vs BayesFactor in R</a>: see where BayesFactor fits among the main Bayesian toolkits in R.</li>
+
+</ul>
+
+{% endraw %}
