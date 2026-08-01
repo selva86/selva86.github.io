@@ -1,0 +1,634 @@
+---
+title: "Bayesian Factor Analysis in R with blavaan"
+description: "Fit a Bayesian confirmatory factor analysis in R with blavaan: set priors, read posterior factor loadings and credible intervals, and check Rhat convergence."
+keywords: "Bayesian factor analysis in R, blavaan, bcfa, Bayesian CFA, confirmatory factor analysis, posterior distribution, credible interval, factor loadings, Rhat, prior distribution"
+mathjax: true
+webr: true
+curriculum_id: "FR-baye-5"
+post_type: "FR"
+auto_link_terms: "Bayesian factor analysis|Bayesian factor analysis in R|blavaan|blavaan package|Bayesian CFA|Bayesian confirmatory factor analysis|bcfa|Bayesian latent variable analysis|posterior factor loadings|Bayesian SEM|prior on factor loadings|credible interval for loadings"
+auto_link_case_sensitive: false
+fr_parent: "Bayesian-Linear-Regression-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Bayesian factor analysis uncovers the hidden factors behind a set of correlated measurements, and instead of a single number for each factor loading it hands you a full probability distribution, so you see both the estimate and how sure you can be about it. In R, the blavaan package fits these models with almost the same syntax as lavaan, so if you can write a classical factor model you can write a Bayesian one.</p>
+
+<p>This tutorial builds the idea from the ground up. You will simulate data with a known hidden structure and run it right here on the page, watch a classical factor analysis recover that structure as bare point estimates, and then upgrade to blavaan to get the full posterior: loadings with credible intervals, convergence checks, and a look at how much your priors actually change the answer. The hands-on intuition uses base R, so nothing needs installing to follow along. The blavaan sections are marked to run in your own R install, because they lean on the Stan engine.</p>
+
+<h2>What is factor analysis, and where do the hidden factors come from?</h2>
+
+<p>Suppose you gave 250 students six short tests. You cannot measure "math ability" with a ruler, but if it exists, the math-flavored tests should rise and fall together, and so should the verbal ones. Factor analysis works backward from those correlations to the hidden abilities that could have produced them. Let us build exactly that situation, so we know the true answer before we look.</p>
+
+<p>We will create two hidden factors, a math factor and a verbal factor, and let them be mildly correlated (real abilities usually are). Then we build six observed test scores: three driven mostly by math, three driven mostly by verbal, each with its own random noise. Because we made the data, we know the truth going in.</p>
+
+<div class="webr-container" data-block-title="Simulate six scores from two hidden factors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate six scores from two hidden factors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 250
+math   &lt;- rnorm(n)
+verbal &lt;- 0.4 * math + sqrt(1 - 0.4^2) * rnorm(n)   # verbal correlates ~0.4 with math
+
+m1 &lt;- 0.80 * math   + rnorm(n, 0, 0.6)
+m2 &lt;- 0.70 * math   + rnorm(n, 0, 0.6)
+m3 &lt;- 0.60 * math   + rnorm(n, 0, 0.6)
+v1 &lt;- 0.80 * verbal + rnorm(n, 0, 0.6)
+v2 &lt;- 0.70 * verbal + rnorm(n, 0, 0.6)
+v3 &lt;- 0.60 * verbal + rnorm(n, 0, 0.6)
+
+scores &lt;- data.frame(m1, m2, m3, v1, v2, v3)
+dim(scores)
+#&gt; [1] 250   6
+round(head(scores, 3), 2)
+#&gt;      m1   m2    m3    v1   v2   v3
+#&gt; 1  1.25 0.56  0.56  1.86 2.91 1.35
+#&gt; 2 -0.06 0.71 -0.02  0.92 0.13 0.11
+#&gt; 3  0.39 1.08 -0.61 -0.62 1.06 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The block created a data frame of 250 rows and 6 columns, one column per test. Notice that the two factors themselves, <code>math</code> and <code>verbal</code>, are not in the data frame. That is the whole point: in real life you never observe the factor, only the noisy scores it produced. The diagram below shows the machine we just built.</p>
+
+<p><img src="screenshots/Bayesian-Factor-Analysis-in-R-measurement-model.webp" alt="How factor analysis sees your data, with each hidden factor driving its own scores" class="img-responsive img-zoomable" loading="lazy" width="1328" height="1124" /></p>
+
+<p><em>Figure 1: Each hidden factor drives its own set of observed scores, and the two factors can correlate.</em></p>
+
+<p>If the hidden factors are real, their fingerprints show up as correlations. Scores driven by the same factor should correlate strongly with each other and weakly with scores from the other factor. Let us look at the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> and check.</p>
+
+<div class="webr-container" data-block-title="Read the correlation fingerprints">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the correlation fingerprints</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(scores), 2)
+#&gt;      m1   m2   m3   v1   v2   v3
+#&gt; m1 1.00 0.66 0.67 0.33 0.36 0.28
+#&gt; m2 0.66 1.00 0.61 0.28 0.36 0.23
+#&gt; m3 0.67 0.61 1.00 0.28 0.32 0.26
+#&gt; v1 0.33 0.28 0.28 1.00 0.59 0.52
+#&gt; v2 0.36 0.36 0.32 0.59 1.00 0.47
+#&gt; v3 0.28 0.23 0.26 0.52 0.47 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the matrix in two blocks. The top-left three-by-three corner (the m tests) shows correlations around 0.6, and so does the bottom-right corner (the v tests). The off-diagonal block linking m tests to v tests sits lower, around 0.3. That two-block pattern is the visible trace of two hidden factors. A quick heatmap makes the blocks jump out.</p>
+
+<div class="webr-container" data-block-title="Picture the correlation blocks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Picture the correlation blocks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cols &lt;- colorRampPalette(c(&quot;white&quot;, &quot;steelblue&quot;))(20)
+image(1:6, 1:6, cor(scores)[, 6:1], col = cols, axes = FALSE,
+      xlab = &quot;&quot;, ylab = &quot;&quot;, main = &quot;Correlations light up in two blocks&quot;)
+axis(1, at = 1:6, labels = colnames(scores))
+axis(2, at = 1:6, labels = rev(colnames(scores)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The darker the square, the stronger the correlation. Two dark blocks appear along the diagonal, one for the math tests and one for the verbal tests, with paler squares linking the two groups. Factor analysis is the formal tool that turns this eyeballed pattern into numbers.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Correlations are the clue; factors are the explanation.</strong> Factor analysis never measures the hidden abilities directly. It reads the pattern of correlations and works backward to the smallest set of hidden factors that could plausibly have produced that pattern.</div></div>
+
+<p>The word "Bayesian" adds one more idea on top. A Bayesian analysis starts with a prior, a statement of what you believe before seeing the data, then updates it with the data to produce a posterior, a full distribution of plausible values. If that language is new, the <a href="MCMC-in-R.html">MCMC in R</a> and <a href="Grid-Approximation-in-R.html">Grid Approximation in R</a> tutorials build it from scratch. Here you only need the one-line version: Bayesian factor analysis returns a distribution for every loading, not a single number.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the block pattern yourself. Compute the correlation between two math tests (<code>m1</code> and <code>m2</code>) and between a math test and a verbal test (<code>m1</code> and <code>v1</code>), and see which is larger.</p>
+<div class="webr-container" data-block-title="Your turn: compare two correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare two correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the two cor() calls, then run.
+ex_within  &lt;- 0   # cor of m1 and m2 (same factor)
+ex_between &lt;- 0   # cor of m1 and v1 (different factors)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare two correlations solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two correlations solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_within  &lt;- cor(scores$m1, scores$m2)
+ex_between &lt;- cor(scores$m1, scores$v1)
+round(c(within = ex_within, between = ex_between), 2)
+#&gt; within between 
+#&gt;   0.66    0.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two tests driven by the same factor correlate about twice as strongly (0.66) as two tests from different factors (0.33). That gap is exactly what factor analysis exploits.</p>
+
+</details>
+</section>
+
+<h2>What does classical factor analysis give you, and what does it leave out?</h2>
+
+<p>Before fitting anything, a factor analysis asks one question: how many factors? A common quick check counts how many <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigenvalues</a> of the correlation matrix exceed 1. Each eigenvalue measures how much shared variance one direction captures, and a value above 1 means that direction explains more than a single test's worth of variance. Let us compute them.</p>
+
+<div class="webr-container" data-block-title="Count the factors with eigenvalues">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the factors with eigenvalues</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ev &lt;- eigen(cor(scores))$values
+round(ev, 2)
+#&gt; [1] 3.09 1.27 0.54 0.41 0.37 0.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two eigenvalues sit above 1 (3.09 and 1.27) and the rest fall well below, so the data point clearly to two factors. That matches how we built it. Now we run a classical factor analysis. Base R ships <code>factanal()</code>, which fits a factor model by maximum likelihood and rotates the result so each test loads cleanly on one factor.</p>
+
+<div class="webr-container" data-block-title="Fit a classical factor analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a classical factor analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fa &lt;- factanal(scores, factors = 2, rotation = &quot;promax&quot;)
+print(fa$loadings, cutoff = 0.3)
+#&gt; 
+#&gt; Loadings:
+#&gt;    Factor1 Factor2
+#&gt; m1  0.842         
+#&gt; m2  0.776         
+#&gt; m3  0.800         
+#&gt; v1          0.838 
+#&gt; v2          0.686 
+#&gt; v3          0.648 
+#&gt; 
+#&gt;                Factor1 Factor2
+#&gt; SS loadings      1.961   1.593
+#&gt; Proportion Var   0.327   0.265
+#&gt; Cumulative Var   0.327   0.592</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loadings table splits perfectly. The three m tests load on Factor1 (values around 0.8) and the three v tests load on Factor2, with the small cross-loadings hidden by the 0.3 cutoff. A loading is just the strength of the link between a test and its factor, on a scale where 1 is a perfect match and 0 is no relationship. Together the two factors explain about 59 percent of the total variance (the cumulative variance row).</p>
+
+<p>This is a good result, and for many jobs it is enough. But look closely at what you got: one number per loading, and nothing else. There is no sense of how firm the 0.842 is. If you collected a fresh sample of 250 students, would it come back as 0.84, or could it be 0.72 or 0.95? The point estimate cannot say. The diagram below frames the gap this tutorial closes.</p>
+
+<p><img src="screenshots/Bayesian-Factor-Analysis-in-R-point-vs-posterior.webp" alt="Classical CFA returns one number per loading while Bayesian CFA returns a full posterior" class="img-responsive img-zoomable" loading="lazy" width="1376" height="738" /></p>
+
+<p><em>Figure 2: Classical CFA returns one number per loading; Bayesian CFA returns a full posterior with a <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">credible interval</a>.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A single loading number hides how sure you are.</strong> Classical factor analysis hands you one value per loading with no built-in sense of how much it might wobble in a new sample. Two studies can both report a 0.84 loading while one is rock solid and the other is barely distinguishable from zero.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <code>factanal()</code> also reports uniquenesses, the share of each test's variance that its factor does not explain. Pull them out of the fitted object with <code>fa$uniquenesses</code> and find the largest one.</p>
+<div class="webr-container" data-block-title="Your turn: find the largest uniqueness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the largest uniqueness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The uniquenesses live in fa$uniquenesses.
+# Round them, then find which test has the biggest.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Largest uniqueness solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Largest uniqueness solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(fa$uniquenesses, 2)
+#&gt;   m1   m2   m3   v1   v2   v3 
+#&gt; 0.28 0.40 0.37 0.34 0.47 0.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>v3</code> has the largest uniqueness (0.58), meaning its verbal factor explains the least of its variance. High uniqueness marks a test that is only loosely tied to its factor.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a Bayesian factor analysis with blavaan?</h2>
+
+<p>Now we switch from exploring to confirming. So far <code>factanal()</code> discovered the structure for us. In a <a class="auto-link" href="CFA-and-Structural-Equation-Modeling-in-R.html" title="SEM and CFA in R With lavaan: From Path Diagram to Fit Statistics">confirmatory factor analysis</a> you state the structure up front, which m tests belong to math and which v tests belong to verbal, and let the model estimate the loadings for that fixed design. The lavaan package writes this structure with a compact syntax where <code>=~</code> reads as "is measured by".</p>
+
+<p>The classical confirmatory fit is a natural stepping stone, because blavaan reuses the exact same model string. First the frequentist version with lavaan's <code>cfa()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>blavaan needs a full local R setup.</strong> The blavaan package fits its models with the Stan engine, which compiles and samples outside the lightweight editor on this page. Run every blavaan block from here on in your own <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a>, where blavaan, lavaan, and <a class="auto-link" href="Stan-in-R.html" title="Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes">rstan</a> are installed.</div></div>
+
+<pre><code class="language-r">library(lavaan)
+
+model &lt;- '
+  math   =~ m1 + m2 + m3
+  verbal =~ v1 + v2 + v3
+'
+
+fit_ml &lt;- cfa(model, data = scores, std.lv = TRUE)
+parameterEstimates(fit_ml)[1:6, c(&quot;lhs&quot;, &quot;op&quot;, &quot;rhs&quot;, &quot;est&quot;, &quot;se&quot;, &quot;pvalue&quot;)]
+#&gt;      lhs op rhs   est    se pvalue
+#&gt; 1   math =~  m1 0.856 0.056      0
+#&gt; 2   math =~  m2 0.707 0.052      0
+#&gt; 3   math =~  m3 0.671 0.048      0
+#&gt; 4 verbal =~  v1 0.765 0.061      0
+#&gt; 5 verbal =~  v2 0.639 0.053      0
+#&gt; 6 verbal =~  v3 0.506 0.050      0</code></pre>
+
+<p>The <code>std.lv = TRUE</code> argument fixes each factor's variance to 1, which puts all six loadings on the same readable scale. The frequentist fit gives an estimate (<code>est</code>), a standard error (<code>se</code>), and a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> for each loading. That is more than <code>factanal()</code> offered, but the standard error still summarizes uncertainty as one number and leans on a large-sample approximation. The Bayesian fit replaces that approximation with the real thing.</p>
+
+<p>To go Bayesian, change <code>cfa()</code> to <code>bcfa()</code>. The model string, the data, and <code>std.lv = TRUE</code> stay identical. The new arguments describe the sampler: how many chains to run, how many warmup iterations to discard, how many to keep, and a seed so the run is reproducible.</p>
+
+<pre><code class="language-r">library(blavaan)
+
+fit &lt;- bcfa(model, data = scores, std.lv = TRUE,
+            n.chains = 2, burnin = 500, sample = 500,
+            seed = 1234, bcontrol = list(cores = 1))
+summary(fit)
+#&gt; blavaan 0.5.10 ended normally after 500 iterations
+#&gt; 
+#&gt;   Estimator                                      BAYES
+#&gt;   Optimization method                             MCMC
+#&gt;   Number of model parameters                        13
+#&gt; 
+#&gt;   Number of observations                           250
+#&gt; 
+#&gt;   Statistic                                 MargLogLik         PPP
+#&gt;   Value                                      -1728.171       0.630
+#&gt; 
+#&gt; Parameter Estimates:
+#&gt; 
+#&gt; Latent Variables:
+#&gt;                    Estimate  Post.SD pi.lower pi.upper     Rhat    Prior
+#&gt;   math =~
+#&gt;     m1                0.866    0.059    0.754    0.986    1.000    normal(0,10)
+#&gt;     m2                0.716    0.056    0.612    0.826    1.001    normal(0,10)
+#&gt;     m3                0.679    0.051    0.579    0.781    1.000    normal(0,10)
+#&gt;   verbal =~
+#&gt;     v1                0.775    0.062    0.657    0.901    0.999    normal(0,10)
+#&gt;     v2                0.647    0.059    0.531    0.755    0.998    normal(0,10)
+#&gt;     v3                0.511    0.053    0.409    0.620    0.999    normal(0,10)
+#&gt; 
+#&gt; Covariances:
+#&gt;                    Estimate  Post.SD pi.lower pi.upper     Rhat    Prior
+#&gt;   math ~~
+#&gt;     verbal            0.510    0.063    0.386    0.629    0.999     lkj_corr(1)
+#&gt; 
+#&gt; Variances:
+#&gt;                    Estimate  Post.SD pi.lower pi.upper     Rhat    Prior
+#&gt;    .m1                0.283    0.050    0.191    0.386    0.999 gamma(1,.5)[sd]
+#&gt;    .m2                0.343    0.043    0.267    0.435    0.998 gamma(1,.5)[sd]
+#&gt;    .m3                0.272    0.036    0.206    0.342    0.998 gamma(1,.5)[sd]
+#&gt;    .v1                0.378    0.065    0.252    0.503    1.000 gamma(1,.5)[sd]
+#&gt;    .v2                0.314    0.049    0.223    0.411    1.000 gamma(1,.5)[sd]
+#&gt;    .v3                0.368    0.043    0.293    0.458    0.998 gamma(1,.5)[sd]
+#&gt;     math              1.000
+#&gt;     verbal            1.000</code></pre>
+
+<p>There is a lot here, so take it one piece at a time. Under <code>Latent Variables</code> you get the loadings, one row per test. The <code>Estimate</code> column is the posterior mean loading, and it lands right where we built the data: about 0.87, 0.72, 0.68 for the math tests and 0.78, 0.65, 0.51 for the verbal tests. The model recovered the hidden structure. Under <code>Covariances</code>, the <code>math ~~ verbal</code> row estimates the correlation between the two factors at 0.510, in the same moderate range as the 0.4 we baked in.</p>
+
+<p>The three columns that classical factor analysis could never give you are <code>Post.SD</code>, <code>pi.lower</code>, and <code>pi.upper</code>. Together they turn each loading from a lone number into a range, which the next section reads in detail. The <code>Rhat</code> column and the <code>PPP</code> value near the top are health checks we cover after that.</p>
+
+<p>Behind the scenes, blavaan drew a thousand plausible parameter sets from the posterior using <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov chain</a> Monte Carlo, the same sampling engine behind <a href="Bayesian-Linear-Regression-in-R.html">Bayesian linear regression</a>. Every number in the summary is a summary of those draws.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The summary is formatted for reading, but you often want the loadings as a plain table you can compute on. Extract them with <code>parameterEstimates(fit)</code> and keep only the loading rows (the ones where <code>op</code> equals <code>&quot;=~&quot;</code>).</p>
+<pre><code class="language-r"># parameterEstimates(fit) returns one row per parameter.
+# Keep only the rows where op == &quot;=~&quot;.</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">pe &lt;- parameterEstimates(fit)
+pe[pe$op == &quot;=~&quot;, ]
+#&gt;      lhs op rhs   est
+#&gt; 1   math =~  m1 0.866
+#&gt; 2   math =~  m2 0.716
+#&gt; 3   math =~  m3 0.679
+#&gt; 4 verbal =~  v1 0.775
+#&gt; 5 verbal =~  v2 0.647
+#&gt; 6 verbal =~  v3 0.511</code></pre>
+
+<p><strong>Explanation:</strong> <code>parameterEstimates()</code> returns every model parameter as a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame. Filtering to <code>op == &quot;=~&quot;</code> leaves just the six loadings, ready to plot or compare.</p>
+
+</details>
+</section>
+
+<h2>How do you read the posterior loadings and credible intervals?</h2>
+
+<p>The payoff of going Bayesian is the credible interval. For the loading of <code>m1</code>, the summary reported a posterior mean of 0.866 with a 95 percent interval from <code>pi.lower</code> 0.754 to <code>pi.upper</code> 0.986. Read that as a direct probability statement: given the data and priors, there is a 95 percent probability that the true loading of <code>m1</code> lies between 0.754 and 0.986.</p>
+
+<p>That is exactly the sentence people wish they could say about a classical confidence interval but technically cannot. A confidence interval is a statement about a procedure repeated across many hypothetical samples, not about this one number. The credible interval is about your actual result.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A credible interval says what you actually want to hear.</strong> A 95 percent credible interval means there is a 95 percent probability the loading lies inside it, given your data and priors. That is the plain-language claim people mistakenly attach to classical <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>.</div></div>
+
+<p>Two loadings can share the same estimate yet carry very different certainty, and the interval width is what tells them apart. A narrow interval means the data pin the loading down; a wide interval means the loading is still fuzzy. In our fit every loading interval sits comfortably above zero, so every test is clearly tied to its factor.</p>
+
+<p>If you want the formal picture, the model behind all of this is one small equation per test. Each observed score is its factor times a loading, plus its own noise:</p>
+
+<p>$$x_i = \lambda_i \, \xi + \varepsilon_i$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x_i$ = the observed score on test $i$</li>
+
+<li>$\lambda_i$ = the loading, how strongly the factor drives test $i$</li>
+
+<li>$\xi$ = the hidden factor score for a person</li>
+
+<li>$\varepsilon_i$ = the unique noise in test $i$ that the factor does not explain</li>
+
+</ul>
+
+<p>If the math is not your thing, skip it: the loadings and their credible intervals in the summary are all you need to act on.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count how many of the six loadings have a posterior mean above 0.6, a rough line for a "strong" loading. Reuse the <code>pe</code> table from the last exercise.</p>
+<pre><code class="language-r"># The loading estimates are pe$est where pe$op == &quot;=~&quot;.
+# Count how many exceed 0.6.</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">load_est &lt;- pe$est[pe$op == &quot;=~&quot;]
+sum(load_est &gt; 0.6)
+#&gt; [1] 5</code></pre>
+
+<p><strong>Explanation:</strong> Five of the six loadings clear 0.6. Only <code>v3</code>, at 0.511, falls short, matching the high uniqueness we found for it earlier.</p>
+
+</details>
+</section>
+
+<h2>How do you check the chains converged and the model fits?</h2>
+
+<p>Before trusting any of those numbers, you must confirm the sampler actually worked. Markov chain Monte Carlo explores the posterior by wandering through it, and you run several chains from different starting points. If they all end up describing the same distribution, you can trust the summary. The diagnostic that measures this is Rhat: it compares the variation within each chain to the variation between chains, and it should sit at or just above 1.00. A common rule is that every Rhat must be below 1.01.</p>
+
+<pre><code class="language-r">round(blavInspect(fit, &quot;rhat&quot;), 3)
+#&gt;     math=~m1     math=~m2     math=~m3   verbal=~v1   verbal=~v2   verbal=~v3       m1~~m1 
+#&gt;        1.000        1.001        1.000        0.999        0.998        0.999        0.999 
+#&gt;       m2~~m2       m3~~m3       v1~~v1       v2~~v2       v3~~v3 math~~verbal 
+#&gt;        0.998        0.998        1.000        1.000        0.998        0.999</code></pre>
+
+<p>Every value is essentially 1.00, so the chains converged and the estimates are safe to read. A companion number, the <a class="auto-link" href="MCMC-Diagnostics-in-R.html" title="MCMC Diagnostics in R: 4 Tests for Chain Convergence">effective sample size</a> from <code>blavInspect(fit, &quot;neff&quot;)</code>, tells you how many independent draws you effectively have; here it runs into the hundreds for every parameter, which is plenty.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never read the estimates until the chains have converged.</strong> If any Rhat is well above 1.01, the sampler has not settled and the numbers in the summary are not yet trustworthy. Check convergence first, interpret second.</div></div>
+
+<p>Convergence tells you the sampler worked, but not whether the model fits the data. For that, blavaan reports a <a class="auto-link" href="Top-20-Bayesian-Problems-in-R.html" title="Top 20 Bayesian Problems to Solve in R">posterior predictive</a> p-value, or PPP. It simulates fresh data from the fitted model and asks how often that <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> looks as extreme as your real data. A value near 0.5 means the model reproduces the data well; values near 0 or 1 signal misfit.</p>
+
+<pre><code class="language-r">fitMeasures(fit, &quot;ppp&quot;)
+#&gt;  ppp 
+#&gt; 0.63</code></pre>
+
+<p>A PPP of 0.63 is comfortably mid-range, so the two-factor model is a good description of the six tests. That makes sense, because two factors are exactly how we built the data.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convergence checks are worth automating. Write one line that returns the largest Rhat across all parameters, so you can confirm at a glance that it clears the 1.01 rule.</p>
+<pre><code class="language-r"># blavInspect(fit, &quot;rhat&quot;) returns every Rhat.
+# Return the largest one.</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(max(blavInspect(fit, &quot;rhat&quot;)), 3)
+#&gt; [1] 1.001</code></pre>
+
+<p><strong>Explanation:</strong> The worst Rhat in the whole model is 1.001, well under 1.01, so every chain converged. Wrapping the check in <code>max()</code> scales to models with hundreds of parameters.</p>
+
+</details>
+</section>
+
+<h2>How much do your priors change the result?</h2>
+
+<p>Every Bayesian model starts from priors, and blavaan picks sensible defaults so you rarely have to. You can see them all with <code>dpriors()</code>.</p>
+
+<pre><code class="language-r">dpriors()
+#&gt;                nu             alpha            lambda              beta             theta 
+#&gt;    &quot;normal(0,32)&quot;    &quot;normal(0,10)&quot;    &quot;normal(0,10)&quot;    &quot;normal(0,10)&quot; &quot;gamma(1,.5)[sd]&quot; 
+#&gt;               psi               rho             ibpsi               tau 
+#&gt; &quot;gamma(1,.5)[sd]&quot;       &quot;beta(1,1)&quot; &quot;wishart(3,iden)&quot;   &quot;normal(0,1.5)&quot;</code></pre>
+
+<p>The one that matters most for factor analysis is <code>lambda</code>, the prior on the loadings, set to <code>normal(0, 10)</code>. A normal centered at 0 with a standard deviation of 10 is very wide: it says a loading could plausibly be almost anything in the usual range, so the data do nearly all the talking. Priors like this are called weakly informative. The residual variances (<code>theta</code>) and factor variances (<code>psi</code>) get a <code>gamma</code> prior that keeps them positive.</p>
+
+<p>Do the priors actually move the answer? Let us find out by refitting with a much tighter prior on the loadings, <code>normal(0, 1)</code>, using the <code>dp</code> argument, and comparing the loadings side by side.</p>
+
+<pre><code class="language-r">fit_info &lt;- bcfa(model, data = scores, std.lv = TRUE,
+                 dp = dpriors(lambda = &quot;normal(0,1)&quot;),
+                 n.chains = 2, burnin = 500, sample = 500,
+                 seed = 4321, bcontrol = list(cores = 1))
+
+pe_d &lt;- parameterEstimates(fit)
+pe_i &lt;- parameterEstimates(fit_info)
+ld   &lt;- pe_d$op == &quot;=~&quot;
+data.frame(loading     = paste0(pe_d$lhs, pe_d$op, pe_d$rhs)[ld],
+           default     = round(pe_d$est[ld], 3),
+           informative = round(pe_i$est[ld], 3))
+#&gt;      loading default informative
+#&gt; 1   math=~m1   0.866       0.859
+#&gt; 2   math=~m2   0.716       0.712
+#&gt; 3   math=~m3   0.679       0.675
+#&gt; 4 verbal=~v1   0.775       0.768
+#&gt; 5 verbal=~v2   0.647       0.641
+#&gt; 6 verbal=~v3   0.511       0.507</code></pre>
+
+<p>The loadings barely budge. Tightening the prior tenfold shifts every estimate by less than 0.01. With 250 rows of data, the likelihood overwhelms the prior, so the exact prior choice hardly matters here. That is the reassuring case, and it is common with a healthy sample size.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Check <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">prior sensitivity</a> whenever your sample is small.</strong> With plenty of data the likelihood dominates and the prior barely matters, as you just saw. When data are scarce, refit with both a tighter and a looser prior and watch how much the answer moves before you trust it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Quantify how little changed. Compute the largest absolute difference between the default and informative loadings, reusing the <code>pe_d</code>, <code>pe_i</code>, and <code>ld</code> objects from the last block.</p>
+<pre><code class="language-r"># Compare pe_d$est[ld] with pe_i$est[ld].
+# Report the biggest absolute difference.</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(max(abs(pe_d$est[ld] - pe_i$est[ld])), 3)
+#&gt; [1] 0.007</code></pre>
+
+<p><strong>Explanation:</strong> The largest single change is 0.007, tiny on a loading scale where 1 is a perfect link. The two priors lead to practically the same conclusions.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each solution runs in your own R session on top of the <code>fit</code> object you built above. Use fresh variable names so you do not overwrite the tutorial's objects.</p>
+
+<h3>Exercise 1: Report the factor correlation with certainty</h3>
+
+<p>A key question in factor analysis is how related the factors are. Pull the posterior mean correlation between <code>math</code> and <code>verbal</code> from the fitted model, then find its 95 percent credible interval in the summary output and state whether the interval excludes zero.</p>
+
+<pre><code class="language-r"># The factor correlation is the math ~~ verbal row of parameterEstimates(fit).
+# Its credible interval (pi.lower, pi.upper) is in summary(fit).
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">pe &lt;- parameterEstimates(fit)
+round(pe$est[pe$op == &quot;~~&quot; &amp; pe$lhs == &quot;math&quot; &amp; pe$rhs == &quot;verbal&quot;], 2)
+#&gt; [1] 0.51</code></pre>
+
+<p><strong>Explanation:</strong> The posterior mean correlation is 0.51. The summary reported its 95 percent credible interval as 0.386 to 0.629, which stays well above zero, so the two factors are clearly and reliably related rather than independent.</p>
+
+</details>
+
+<h3>Exercise 2: Prove a wrong model with a fit check</h3>
+
+<p>A CFA can only be trusted if you check that the structure fits. Fit a deliberately wrong one-factor model that forces all six tests onto a single factor <code>g</code>, then compare its posterior predictive p-value to the correct two-factor model. Decide which model the data prefer.</p>
+
+<pre><code class="language-r"># Build a one-factor model:  g =~ m1 + m2 + m3 + v1 + v2 + v3
+# Fit it with bcfa(..., std.lv = TRUE, seed = 777)
+# Compare fitMeasures(fit, &quot;ppp&quot;) with fitMeasures(fit_1f, &quot;ppp&quot;)
+
+# Write your code below:
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">model_1f &lt;- ' g =~ m1 + m2 + m3 + v1 + v2 + v3 '
+fit_1f &lt;- bcfa(model_1f, data = scores, std.lv = TRUE,
+               n.chains = 2, burnin = 500, sample = 500,
+               seed = 777, bcontrol = list(cores = 1))
+
+cat(&quot;two-factor ppp:&quot;, round(fitMeasures(fit, &quot;ppp&quot;), 2), &quot;\n&quot;)
+cat(&quot;one-factor ppp:&quot;, round(fitMeasures(fit_1f, &quot;ppp&quot;), 2), &quot;\n&quot;)
+#&gt; two-factor ppp: 0.63 
+#&gt; one-factor ppp: 0</code></pre>
+
+<p><strong>Explanation:</strong> The one-factor model has a PPP of 0, a clear sign of misfit, while the two-factor model sits at a healthy 0.63. The data strongly prefer two factors, which is the structure we built. The posterior predictive p-value catches the wrong model that the loadings alone would not.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Bayesian factor analysis takes the same confirmatory model you would fit with lavaan and returns a full posterior for every parameter, so uncertainty is built in rather than bolted on. Here is the shape of what you learned.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>Classical factor analysis</th>
+<th>Bayesian factor analysis (blavaan)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Loading result</td>
+<td>one point estimate</td>
+<td>posterior mean plus a credible interval</td>
+</tr>
+<tr>
+<td>Uncertainty</td>
+<td>standard error, large-sample approximation</td>
+<td>full <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a>, exact</td>
+</tr>
+<tr>
+<td>Interval meaning</td>
+<td>confidence interval (about the procedure)</td>
+<td>credible interval (95 percent probability the value is inside)</td>
+</tr>
+<tr>
+<td>Convergence check</td>
+<td>not applicable</td>
+<td>Rhat below 1.01, effective sample size</td>
+</tr>
+<tr>
+<td>Fit check</td>
+<td>fit indices</td>
+<td>posterior predictive p-value near 0.5</td>
+</tr>
+<tr>
+<td>Prior control</td>
+<td>none</td>
+<td>defaults via dpriors(), overridable</td>
+</tr>
+</tbody>
+</table>
+
+<p>The workflow is short and repeatable: write the measurement model with <code>=~</code>, fit it with <code>bcfa(..., std.lv = TRUE)</code>, confirm every Rhat is below 1.01, read the loadings and their credible intervals, sanity-check fit with the posterior predictive p-value, and refit with different priors if your sample is small. If you can do classical CFA, you already know 90 percent of this.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Is Bayesian factor analysis the same as confirmatory factor analysis?</strong> Confirmatory factor analysis (CFA) is the model: you fix which tests load on which factor and estimate the loadings. Bayesian factor analysis is one way to estimate that model, using priors and <a class="auto-link" href="Grid-Approximation-in-R.html" title="Grid Approximation in R: Compute Bayesian Posteriors Without MCMC">posterior sampling</a> instead of maximum likelihood. blavaan fits Bayesian CFA and, more broadly, Bayesian structural equation models.</p>
+
+<p><strong>When should I prefer blavaan over lavaan?</strong> Reach for blavaan when you want full uncertainty on every parameter, when your sample is small enough that the large-sample approximations behind classical standard errors get shaky, or when you want to bring in prior knowledge about a loading. For a large clean dataset where you only need point estimates, classical lavaan is faster and often enough.</p>
+
+<p><strong>How many MCMC samples do I need?</strong> Enough that every Rhat is at or below 1.01 and the effective sample sizes are in the hundreds or more. The 500 warmup and 500 sampling iterations per chain used here were plenty for this small model, but a larger model with more parameters usually needs more. Always let the diagnostics, not a fixed number, tell you when to stop.</p>
+
+<p><strong>Do the priors bias my results?</strong> Weakly informative priors like the default normal(0, 10) on loadings barely move the answer when you have a healthy amount of data, as the prior-sensitivity check in this tutorial showed. Priors matter most with small samples, which is exactly when a little sensible prior information helps rather than hurts. Report a prior sensitivity check so readers can see the effect for themselves.</p>
+
+<p><strong>Why is the first loading not fixed to 1 here?</strong> By default blavaan fixes the first loading of each factor to 1 to set the scale. Passing <code>std.lv = TRUE</code> instead fixes each factor's variance to 1 and frees every loading, which is what puts all six loadings on the same readable scale you saw in the summary.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Merkle, E. C. and Rosseel, Y. (2018). blavaan: Bayesian Structural Equation Models via Parameter Expansion. <em>Journal of Statistical Software</em>. <a href="https://arxiv.org/abs/1511.05604">Link</a></li>
+
+<li>Merkle, E. C., Fitzsimmons, E., Uanhoro, J., and Goodrich, B. (2021). Efficient Bayesian Structural Equation Modeling in Stan. <em>Journal of Statistical Software</em>. <a href="https://arxiv.org/abs/2008.07733">Link</a></li>
+
+<li>blavaan documentation: Specifying Prior Distributions. <a href="https://blavaan.org/articles/prior.html">Link</a></li>
+
+<li>blavaan package on CRAN. <a href="https://cran.r-project.org/package=blavaan">Link</a></li>
+
+<li>lavaan project home. <a href="https://lavaan.ugent.be/">Link</a></li>
+
+<li>lavaan tutorial: Confirmatory Factor Analysis. <a href="https://lavaan.ugent.be/tutorial/cfa.html">Link</a></li>
+
+<li>Stan case study: Bayesian Structural Equation Modeling using blavaan. <a href="https://mc-stan.org/learn-stan/case-studies/sem.html">Link</a></li>
+
+<li>R documentation for factanal(). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/factanal.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Linear-Regression-in-R.html">Bayesian Linear Regression in R</a>: the parent tutorial that introduces priors, posteriors, and MCMC on a simpler model before you meet factors.</li>
+
+<li><a href="CFA-and-Structural-Equation-Modeling-in-R.html">SEM and CFA in R With lavaan</a>: the frequentist confirmatory factor analysis this tutorial mirrors, with the full lavaan workflow.</li>
+
+<li><a href="Exploratory-Factor-Analysis-in-R.html">Exploratory Factor Analysis in R</a>: how to discover the factor structure when you do not yet know it, the step before confirmation.</li>
+
+</ul>
+
+{% endraw %}
