@@ -89,7 +89,10 @@ def push(sql_text, env):
     with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
         f.write(sql_text)
     cmd = f'npx wrangler d1 execute {DBS[env]} --remote --file "{tmp}" --yes'
-    r = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, shell=True)
+    # encoding must be explicit: wrangler emits unicode and Windows defaults
+    # to cp1252, which crashes the reader thread mid-seed.
+    r = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True,
+                       shell=True, encoding='utf-8', errors='replace')
     os.unlink(tmp)
     if r.returncode != 0:
         print((r.stdout or '')[-1500:])

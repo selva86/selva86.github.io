@@ -1,0 +1,889 @@
+{
+  "assessment_id": "ts-10",
+  "title": "Probabilistic forecasting and evaluation",
+  "book": "The Time Series Forecasting Handbook, Part 10",
+  "notes": "Scope is Part 10 only: the fable distribution column and the summaries you pull from it, proper scoring rules (CRPS, pinball, Winkler, skill), forecast combination and the ambiguity decomposition, rolling-origin backtesting at scale, and the M-competition findings. All six output blocks were executed in one session against local R 4.6.0 (fable 0.5.0, forecast 9.0.2) and the printed output pasted back verbatim.",
+  "questions": [
+    {
+      "kind": "single",
+      "prompt": "A colleague reads November's forecast out of a fable, where the distribution column prints N(432, 428), and reports the planning range as 432 plus or minus 428. You know the point forecast is right. What is wrong with the range?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The second number is the variance, so the spread to reason about is its square root, roughly 20.7 rather than 428."
+        },
+        {
+          "key": "b",
+          "text": "The second number is the standard deviation, but a range still needs the qnorm multiplier for the coverage you want."
+        },
+        {
+          "key": "c",
+          "text": "The second number is the half-width of the 80 percent interval, so plus or minus 428 is only right at that one level."
+        },
+        {
+          "key": "d",
+          "text": "The second number is the residual variance of the fit, so it must be multiplied by the horizon before use."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The two numbers printed inside N() are the mean and the variance. A range built from the variance directly is about fifteen times too wide here, and the standard deviation is sqrt(428), about 20.7.",
+      "chapter_slug": "Distributional-Forecasts-in-R",
+      "chapter_title": "Distributional forecasts in R with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "This model was fitted as ETS(log(Turnover)), so fable back-transforms the forecast to dollars for you. These are four summaries of the December forecast distribution. What may you conclude about that distribution?",
+      "code": "library(fable)\nlibrary(tsibble)\nlibrary(tsibbledata)\nlibrary(dplyr)\nvic <- aus_retail |>\n  filter(State == \"Victoria\", Industry == \"Department stores\") |>\n  summarise(Turnover = sum(Turnover)) |>\n  filter_index(\"2000 Jan\" ~ \"2018 Dec\")\nfit_log <- vic |> filter_index(~ \"2017 Dec\") |> model(ets_log = ETS(log(Turnover)))\ndec <- (fit_log |> forecast(h = 12))$Turnover[12]\ndata.frame(mean   = round(mean(dec), 1),\n           median = round(median(dec), 1),\n           lower  = round(quantile(dec, 0.025), 1),\n           upper  = round(quantile(dec, 0.975), 1))\n#>    mean median lower upper\n#> 1 725.6  724.7   659 797.1",
+      "options": [
+        {
+          "key": "a",
+          "text": "It is right-skewed on the dollar scale, so the mean sits above the median and the interval reaches further above the median than below it."
+        },
+        {
+          "key": "b",
+          "text": "The mean and median differ only because the distribution is held as a finite set of draws, so more simulations would make them agree."
+        },
+        {
+          "key": "c",
+          "text": "Exponentiating the log-scale point forecast returns 725.6, and 724.7 is the bias-adjusted figure fable reports as its mean."
+        },
+        {
+          "key": "d",
+          "text": "The interval is lopsided because the seasonal term is multiplicative, and asking for it through hilo() would return a symmetric one."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Bending a symmetric log-scale normal back to dollars stretches the upper side more than the lower one. The median sits 65.7 above the lower bound and 72.4 below the upper bound, and the mean carries the extra sigma squared over two term that puts it above the median.",
+      "chapter_slug": "Distributional-Forecasts-in-R",
+      "chapter_title": "Distributional forecasts in R with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You are setting a December stock cover level and want the number that demand should stay under about 95 percent of the time. The forecast is a fable with a Turnover distribution column. Which call gives you that number?",
+      "options": [
+        {
+          "key": "a",
+          "text": "quantile(Turnover, 0.95), which is the one-sided level the decision actually asked for."
+        },
+        {
+          "key": "b",
+          "text": "hilo(95) and read the upper bound, which returns the same number by construction."
+        },
+        {
+          "key": "c",
+          "text": ".mean multiplied by 1.05, since the 95th percentile sits five percent above the expected value."
+        },
+        {
+          "key": "d",
+          "text": ".mean plus the variance printed inside N(), which is what covers the upper tail."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "An interval is two-sided, so hilo(95) leaves 2.5 percent in each tail and its upper bound is the 97.5th percentile, not the 95th. A one-sided cover level is a quantile, so ask for the quantile.",
+      "chapter_slug": "Distributional-Forecasts-in-R",
+      "chapter_title": "Distributional forecasts in R with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "You have a table of monthly 80 and 95 percent intervals for the twelve months ahead, and you also have the fitted model. Select the two questions that the interval table cannot answer and that require simulated sample paths from generate().",
+      "options": [
+        {
+          "key": "a",
+          "text": "The probability that the twelve months together total more than 4800 million dollars."
+        },
+        {
+          "key": "b",
+          "text": "The probability that at least one month in the year exceeds 500 million dollars."
+        },
+        {
+          "key": "c",
+          "text": "The 95th percentile of December turnover considered on its own."
+        },
+        {
+          "key": "d",
+          "text": "The width of the 80 percent interval for March, expressed as a share of the point forecast."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "A total and a yearly maximum both depend on how the months move together, which no collection of separate monthly intervals records. A single month's percentile or interval width is a question about one distribution, so the table already answers it.",
+      "chapter_slug": "Distributional-Forecasts-in-R",
+      "chapter_title": "Distributional forecasts in R with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Working from a model fitted as ETS(log(Turnover)), you exponentiate the log-scale point forecast by hand and get a figure slightly below the .mean column. You plan to add twelve of your hand-computed figures into an annual total. What is true?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Your figure is the median of the forecast distribution, and summing medians understates the annual total because only means add."
+        },
+        {
+          "key": "b",
+          "text": "Your figure is the mean and .mean has the seasonal component added back, so .mean is the column to discard here."
+        },
+        {
+          "key": "c",
+          "text": "Both figures are means and differ only by floating point, so either one can be summed into the annual total."
+        },
+        {
+          "key": "d",
+          "text": "Your figure is the mode, and fable reports the mean instead because the mode has no closed form after a transform."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The exponential of the log-scale forecast is the median of the back-transformed distribution. fable's .mean is bias adjusted so it is the true mean in dollars, and for a right-skewed distribution the median sits below it, so a sum of medians runs low.",
+      "chapter_slug": "Distributional-Forecasts-in-R",
+      "chapter_title": "Distributional forecasts in R with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You forecast with bootstrap = TRUE and times = 1000, so the distribution column prints sample[1000]. A risk colleague wants the 99.9th percentile of that distribution for a worst-case plan. What do you tell them?",
+      "options": [
+        {
+          "key": "a",
+          "text": "A 99.9th percentile of 1000 draws rests on about one observation, so raise times to 10000 or more before trusting it."
+        },
+        {
+          "key": "b",
+          "text": "A sample distribution has no quantile method, so the model has to be refitted with the normal recipe first."
+        },
+        {
+          "key": "c",
+          "text": "The figure is exact already, because quantile() interpolates between the sorted draws rather than picking one."
+        },
+        {
+          "key": "d",
+          "text": "Bootstrapping fixes the tail by construction, so its 99.9th percentile is more reliable than the normal one."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A thousand draws is plenty for an ordinary 80 or 95 percent interval, because those rest on dozens of observations. An extreme quantile is estimated from a handful of draws, so it needs a much larger simulation.",
+      "chapter_slug": "Distributional-Forecasts-in-R",
+      "chapter_title": "Distributional forecasts in R with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "The truth here really is a normal distribution centred on 100 with a standard deviation of 8, and 20,000 days are drawn from it. A forecaster reports the correct centre of 100 every day but three different spreads. What do these two score columns establish?",
+      "code": "crps_norm <- function(y, mu, sigma) {\n  z <- (y - mu) / sigma\n  sigma * (z * (2 * pnorm(z) - 1) + 2 * dnorm(z) - 1 / sqrt(pi))\n}\nset.seed(2026)\ntruth <- rnorm(20000, mean = 100, sd = 8)\nreported <- c(4, 8, 14)\ndata.frame(reported_sd = reported,\n           avg_crps    = round(sapply(reported, function(s) mean(crps_norm(truth, 100, s))), 3),\n           avg_abs_err = round(sapply(reported, function(s) mean(abs(truth - 100))), 3))\n#>   reported_sd avg_crps avg_abs_err\n#> 1           4    4.897         6.4\n#> 2           8    4.528         6.4\n#> 3          14    4.978         6.4",
+      "options": [
+        {
+          "key": "a",
+          "text": "Average CRPS is lowest where the reported spread matches the truth, and absolute error cannot tell the three reports apart at all."
+        },
+        {
+          "key": "b",
+          "text": "The forecaster should report a spread of 4, since its 4.897 is comfortably below the 6.4 in the last column."
+        },
+        {
+          "key": "c",
+          "text": "The two columns disagree about which report is best, so they must be grading two different sets of forecasts."
+        },
+        {
+          "key": "d",
+          "text": "The flat last column shows absolute error is the more stable measure, which makes it the safer grade to publish."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "This is propriety in a table. The reported spread never appears in the absolute error formula, so that column is pinned at 6.4, while CRPS bottoms out at the honest spread of 8. The two columns are also on different scales, so comparing 4.897 against 6.4 says nothing.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "Both rows forecast a 90th percentile of 100 and both miss the actual value by exactly 4 units, once low and once high. Why does the rule charge nine times more for one of them?",
+      "code": "pinball <- function(y, q, tau) ifelse(y >= q, tau * (y - q), (1 - tau) * (q - y))\ndata.frame(actual       = c(96, 104),\n           forecast_q90 = 100,\n           miss_size    = c(4, 4),\n           pinball_loss = pinball(c(96, 104), 100, 0.9))\n#>   actual forecast_q90 miss_size pinball_loss\n#> 1     96          100         4          0.4\n#> 2    104          100         4          3.6",
+      "options": [
+        {
+          "key": "a",
+          "text": "A 90th percentile promises the actual value lands below it, so landing above it breaks that promise and carries the heavy weight."
+        },
+        {
+          "key": "b",
+          "text": "The rule squares the miss on the high side only, so a 4-unit overshoot enters the formula as 16 before weighting."
+        },
+        {
+          "key": "c",
+          "text": "The heavier penalty always falls on whichever outcome sits further from the forecast mean, which is 104 in this table."
+        },
+        {
+          "key": "d",
+          "text": "The weights tau and 1 minus tau multiply the actual value, so the larger actual value simply produces the larger loss."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The two branches weight the same miss by tau and by 1 minus tau, which is 0.9 against 0.1 here. The expected case for a high quantile is sitting above the actual value, so that mistake is cheap and being blown past is expensive.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You score a median forecast with your own pinball function at tau = 0.5 and get exactly half of what quantile_score() reports for the same forecast and the same actual value. Which explanation is right?",
+      "options": [
+        {
+          "key": "a",
+          "text": "fabletools doubles the plain pinball loss so the median case equals absolute error, and doubling every score leaves rankings unchanged."
+        },
+        {
+          "key": "b",
+          "text": "quantile_score() sums the loss over both tails of the distribution, so each miss is counted twice by construction."
+        },
+        {
+          "key": "c",
+          "text": "Your function is grading the median while quantile_score() grades the mean, and the two differ by roughly a factor of two."
+        },
+        {
+          "key": "d",
+          "text": "quantile_score() returns a squared loss, which at this scale of error happens to come out near double the absolute loss."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The plain pinball loss at tau = 0.5 is half the absolute error, and fabletools and the fpp3 textbook both use twice that so the median case matches MAE. Printed numbers differ by two, model rankings do not.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "On ten held-out quarters of beer production, MAE ranks tslm first at 7.27 against 8.99 for ets, while CRPS reverses the order at 5.82 for ets against 5.86 for tslm. What you publish every quarter is an 80 percent interval. Which measure should drive the choice, and why?",
+      "options": [
+        {
+          "key": "a",
+          "text": "CRPS, because MAE reads only the mean of each forecast while the interval you publish is what CRPS grades."
+        },
+        {
+          "key": "b",
+          "text": "MAE, because a 19 percent margin is far wider than the CRPS gap and so is the more trustworthy signal."
+        },
+        {
+          "key": "c",
+          "text": "Either one, because CRPS generalises MAE and therefore ranks the same set of forecasts in the same order."
+        },
+        {
+          "key": "d",
+          "text": "Neither yet, because two scoring rules disagreeing on the same forecasts means one of them is misconfigured."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Match the rule to the deliverable: MAE cannot see the spread a model claimed, so it cannot separate honest intervals from overconfident ones. Note that 5.82 against 5.86 on ten quarters is a thin margin, so CRPS picks the right criterion here rather than a decisive winner.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "Your report converts each model's CRPS into a skill score against the seasonal naive benchmark. Select the two statements about those skill scores that are correct.",
+      "options": [
+        {
+          "key": "a",
+          "text": "A skill of 0.33 means the model scored 33 percent better than the benchmark on that series."
+        },
+        {
+          "key": "b",
+          "text": "Skill can be averaged across series on different scales, because the units cancel in the ratio."
+        },
+        {
+          "key": "c",
+          "text": "A negative skill means the benchmark's own raw score came out below zero on that series."
+        },
+        {
+          "key": "d",
+          "text": "Skill is at its most stable when the benchmark score is close to zero, which is when it is most useful."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Skill is (benchmark minus yours) divided by the benchmark, so it is a unit-free percentage improvement and negative simply means the benchmark beat you. A benchmark score near zero is the danger case, because dividing by it inflates the skill of a model that is barely worse.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "At level 80 the Winkler score puts tslm third at 39.8 and arima second at 37.3. Both models missed their interval in exactly one quarter out of ten, and their average interval widths are within one percent of each other. What produced the gap?",
+      "options": [
+        {
+          "key": "a",
+          "text": "In the quarter both missed, tslm's upper bound sat about 1.9 lower, and the multiplier of ten turned that into a 19 point gap."
+        },
+        {
+          "key": "b",
+          "text": "tslm produced wider intervals in the nine quarters it covered, and the ten-quarter average carries that extra width forward."
+        },
+        {
+          "key": "c",
+          "text": "The score adds a fixed penalty for each miss, so any model that misses once ends up roughly 19 points behind one that does not."
+        },
+        {
+          "key": "d",
+          "text": "tslm missed its interval in more quarters than arima did, so it collected the outside-the-interval penalty more often."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "For an 80 percent interval the penalty multiplier 2 divided by alpha is ten, so every unit outside costs ten times a unit of width. Overshoots of 5.46 and 3.57 megalitres became penalties of 54.6 and 35.7, which is the whole difference.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Your best model won the CRPS comparison by a clear margin. A stakeholder concludes from that alone that its 80 percent intervals are well calibrated and can be quoted to customers. How should you answer?",
+      "options": [
+        {
+          "key": "a",
+          "text": "A proper score only ranks the candidates you handed it, so check coverage separately by counting how often the actual value fell inside the band."
+        },
+        {
+          "key": "b",
+          "text": "The conclusion is safe, because a strictly proper rule is minimised only by a forecast whose intervals are correctly calibrated."
+        },
+        {
+          "key": "c",
+          "text": "Calibration follows from a low CRPS whenever the score sits below about one percent of the series mean, which it does here."
+        },
+        {
+          "key": "d",
+          "text": "Coverage is the stronger grade of the two, so replace CRPS with a coverage percentage in the report from now on."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The winner of a comparison can still be the best of a badly calibrated set. Coverage is useless as a grade, since you can always widen your way to it, but it is the right diagnostic to run beside a proper score.",
+      "chapter_slug": "Forecast-Scoring-Rules-in-R",
+      "chapter_title": "Forecast scoring rules in R: CRPS and pinball loss",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "Three models were fitted to airline passengers through 1959 and scored on the twelve months of 1960, then the ambiguity decomposition was computed. Which reading of these four numbers is correct?",
+      "code": "library(forecast)\ntrain <- window(AirPassengers, end = c(1959, 12))\ntest  <- window(AirPassengers, start = c(1960, 1))\nf_ets   <- forecast::forecast(ets(train), h = 12)$mean\nf_arima <- forecast::forecast(auto.arima(train), h = 12)$mean\nf_stl   <- stlf(train, h = 12)$mean\nmembers <- cbind(f_ets, f_arima, f_stl)\nmse <- function(f) mean((test - f)^2)\ndata.frame(avg_member_mse  = round(mean(c(mse(f_ets), mse(f_arima), mse(f_stl))), 2),\n           disagreement    = round(mean(apply(members, 1, function(r) mean((r - mean(r))^2))), 2),\n           combo_mse       = round(mse(rowMeans(members)), 2),\n           best_member_mse = round(min(mse(f_ets), mse(f_arima), mse(f_stl)), 2))\n#>   avg_member_mse disagreement combo_mse best_member_mse\n#> 1          830.9       335.57    495.33          572.73",
+      "options": [
+        {
+          "key": "a",
+          "text": "The disagreement term cannot be negative, so beating the average member is guaranteed, while beating the best member as it did here is not."
+        },
+        {
+          "key": "b",
+          "text": "Because 495.33 came out below 572.73, the identity guarantees that a combination beats the strongest member on any holdout window."
+        },
+        {
+          "key": "c",
+          "text": "The 335.57 is the combination's own error, and the identity says that figure is the gap between the best and worst member."
+        },
+        {
+          "key": "d",
+          "text": "The identity only closes when the members' errors are uncorrelated, which these three happened to be on this window."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "830.90 minus 335.57 is 495.33 exactly, and the disagreement term is an average of squares so it can never be negative. That makes the combination no worse than the average member on any data, and says nothing about the best member.",
+      "chapter_slug": "Combining-Forecasts-in-R",
+      "chapter_title": "Combining forecasts in R: ensemble averaging",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Rolling the origin across five years, ARIMA averaged 23.84 RMSE and the three-model combination averaged 26.45. The combination beat the average member in all five years and beat the best member in only two of them. How should you read that?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The guarantee held in every year, and what it protects you from is the average member, not a model that was stronger all along."
+        },
+        {
+          "key": "b",
+          "text": "The five-origin result contradicts the ambiguity decomposition, so one of the two calculations must contain an error."
+        },
+        {
+          "key": "c",
+          "text": "Combining failed because three members is too few for errors to cancel, and adding more members would fix the shortfall."
+        },
+        {
+          "key": "d",
+          "text": "The loss shows the members were too diverse, so screening for models that agree with each other would improve it."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Five out of five against the average member is the algebra showing up in data. Combining is insurance against picking badly, and on a clean trending series like this one ARIMA was genuinely the stronger method.",
+      "chapter_slug": "Combining-Forecasts-in-R",
+      "chapter_title": "Combining forecasts in R: ensemble averaging",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You estimate combination weights by regressing one validation year of actual values on the three member forecasts, then apply those weights to the next year. The result scores 68.32 RMSE against 22.26 for a plain average. What went wrong?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Four free parameters fitted on twelve months memorised that year's noise, and the estimation error swamped any gain from better weights."
+        },
+        {
+          "key": "b",
+          "text": "Least squares minimises squared error, which is the wrong objective when the forecast is later scored with RMSE."
+        },
+        {
+          "key": "c",
+          "text": "The negative coefficient on ETS shows the regression was fitted on the wrong scale and needs the series logged first."
+        },
+        {
+          "key": "d",
+          "text": "The validation year had unusually weak seasonality, so the same weights would have worked at a longer horizon."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The fitted weights included minus 0.893 on ETS and an intercept of minus 214.5, which are not weights in any meaningful sense. Equal weights carry zero estimation error, which is why they are so hard to beat with a short validation window.",
+      "chapter_slug": "Combining-Forecasts-in-R",
+      "chapter_title": "Combining forecasts in R: ensemble averaging",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "To publish a 95 percent interval around a three-model average, someone averages the three lower bounds and averages the three upper bounds. Why is that not a combined 95 percent interval?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Those bounds carry only each model's uncertainty about itself and drop the disagreement between models, so the band comes out too narrow."
+        },
+        {
+          "key": "b",
+          "text": "The bounds sit on different scales because each model has its own residual variance, so averaging them is arithmetically invalid."
+        },
+        {
+          "key": "c",
+          "text": "Averaging quantiles is valid only at the median, so the recipe works for a 50 percent interval but not for a 95 percent one."
+        },
+        {
+          "key": "d",
+          "text": "The average of the bounds is the interval of the average model, which comes out wider than the combination deserves."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "On the airline example the members disagreed by 38 passengers on average, and averaged bounds are arithmetically incapable of reflecting that. Treat the ensemble as a mixture, simulate from each member, and read the quantiles off the pooled draws.",
+      "chapter_slug": "Combining-Forecasts-in-R",
+      "chapter_title": "Combining forecasts in R: ensemble averaging",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "Your ensemble has five members and one of them is a drift forecast whose RMSE is about four times every other member's. Select the two statements that match what the chapter measured.",
+      "options": [
+        {
+          "key": "a",
+          "text": "The equal-weight mean is dragged in the same direction every month, because a badly wrong member carries the same weight as a good one."
+        },
+        {
+          "key": "b",
+          "text": "The median of five recovers part of the loss, because one extreme forecast cannot move a middle value the way it moves an average."
+        },
+        {
+          "key": "c",
+          "text": "The median removes the loss entirely, which is why it should be the default combining rule for an ensemble of any size."
+        },
+        {
+          "key": "d",
+          "text": "A trimmed mean with trim = 0.2 drops the bad member every month, so it matches the mean of the three good models exactly."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "The plain mean went from 22.26 to 37.35 once two weak members joined, and the median and trimmed mean landed near 32.5, recovering about half the loss. Robust rules reduce the damage rather than removing it, so screening members is the real fix.",
+      "chapter_slug": "Combining-Forecasts-in-R",
+      "chapter_title": "Combining forecasts in R: ensemble averaging",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "Your three members have error correlations of 0.878 between ETS and STL and 0.676 between ETS and ARIMA. You can add one more model and want the largest gain from adding it. What do you look for?",
+      "options": [
+        {
+          "key": "a",
+          "text": "A method whose errors are least correlated with the ones you have, even if it scores a little worse on its own."
+        },
+        {
+          "key": "b",
+          "text": "The most accurate method available, since the combination's error is the average of its members' errors."
+        },
+        {
+          "key": "c",
+          "text": "Another variant of exponential smoothing, since ETS fitted the training data more closely than the other two."
+        },
+        {
+          "key": "d",
+          "text": "A method correlating with ARIMA at about 0.676, since that is the pair the cancellation already came from."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The gain in the decomposition is the disagreement term, which only grows when members are wrong in different directions. Two models that miss together contribute nothing to cancel, however accurate each is alone.",
+      "chapter_slug": "Combining-Forecasts-in-R",
+      "chapter_title": "Combining forecasts in R: ensemble averaging",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "This series runs to December 2018 and the backtest horizon is 12 months. stretch_tsibble() returned 13 training windows but only 11 of them have a full year of future left. If you score all 13 anyway, what happens to the pooled error?",
+      "code": "dept <- aus_retail |>\n  filter(State == \"Victoria\", Industry == \"Department stores\",\n         lubridate::year(Month) >= 2005) |>\n  select(Month, Turnover) |>\n  as_tsibble(index = Month)\nends <- dept |> stretch_tsibble(.init = 96, .step = 6) |>\n  as_tibble() |> group_by(.id) |> summarise(train_end = max(Month))\ndata.frame(months_of_data = nrow(dept),\n           windows        = nrow(ends),\n           full_horizon   = sum(ends$train_end <= max(dept$Month) - 12))\n#>   months_of_data windows full_horizon\n#> 1            168      13           11",
+      "options": [
+        {
+          "key": "a",
+          "text": "The last two origins are scored on fewer than twelve horizons, and short horizons are easier, so the pooled error reads optimistic."
+        },
+        {
+          "key": "b",
+          "text": "accuracy() drops the unscoreable forecasts and warns you, so the pooled error is still right but rests on fewer rows."
+        },
+        {
+          "key": "c",
+          "text": "The two extra origins raise the pooled error, because forecasts falling past the end of the data count as complete misses."
+        },
+        {
+          "key": "d",
+          "text": "Nothing changes, since those two origins have the most training history and therefore the most reliable forecasts."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Origin 13 trains to the last month so none of its twelve forecasts can be scored, and origin 12 contributes only six. Nothing errors and nothing warns, which is exactly why the trim has to be explicit.",
+      "chapter_slug": "Backtesting-Forecasts-in-R",
+      "chapter_title": "Backtesting forecast models in R at scale",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You want RMSE by forecast horizon, so you add an h column to a fable holding three models across eleven origins using group_by(.id) then mutate(h = row_number()). The resulting table looks plausible but is wrong. What happened?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Row numbers ran 1 to 36 across the three stacked models, so only the first model received horizons 1 to 12."
+        },
+        {
+          "key": "b",
+          "text": "row_number() counted across the whole fable, so every origin after the first was numbered from 13 upward."
+        },
+        {
+          "key": "c",
+          "text": "accuracy() ignores an h column unless it is a factor, so the table was really grouped by origin the whole time."
+        },
+        {
+          "key": "d",
+          "text": "as_fable() dropped the distribution column, so those RMSE values were computed from training residuals instead."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Inside one .id there are 36 rows, twelve per model, so numbering by .id alone gives the second model horizons 13 to 24 and the third 25 to 36. Group by both .id and .model.",
+      "chapter_slug": "Backtesting-Forecasts-in-R",
+      "chapter_title": "Backtesting forecast models in R at scale",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "Across six retail categories, the cafes series contributes 38 percent of the total RMSE and the books series 4 percent. You need one number per model to choose with. Why report mean RMSSE rather than mean RMSE?",
+      "options": [
+        {
+          "key": "a",
+          "text": "RMSE keeps each series' own units, so a plain average hands the decision to whichever category has the biggest turnover."
+        },
+        {
+          "key": "b",
+          "text": "RMSE is biased upward on seasonal series, and dividing by a seasonal naive error is what removes that bias."
+        },
+        {
+          "key": "c",
+          "text": "RMSSE is on a percentage scale, which stakeholders read more easily than millions of dollars of turnover."
+        },
+        {
+          "key": "d",
+          "text": "Averaging RMSE is fine as long as every series contributed the same number of origins, which is rarely the case."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "In a plain average the cafes series casts about nine times the vote of the books series purely for being a bigger business. Dividing each error by that series' own seasonal naive error removes the units so the categories can be averaged.",
+      "chapter_slug": "Backtesting-Forecasts-in-R",
+      "chapter_title": "Backtesting forecast models in R at scale",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "A backtest can run cleanly, print a tidy table and still be wrong. Select the two practices below that silently bias the result without raising an error or a warning.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Estimating a log transform or a standardisation on the whole series before splitting it into training windows."
+        },
+        {
+          "key": "b",
+          "text": "Choosing the model specification on the full series first, then backtesting only that winner."
+        },
+        {
+          "key": "c",
+          "text": "Refitting every candidate model from scratch at every origin rather than reusing an earlier fit."
+        },
+        {
+          "key": "d",
+          "text": "Including SNAIVE() as a benchmark alongside the candidates you are actually considering."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Both leak information the model would not have had at the origin: a global transform estimated on all the data, and a selection step that already saw the holdout. Refitting at every origin and carrying a naive benchmark are the correct practices.",
+      "chapter_slug": "Backtesting-Forecasts-in-R",
+      "chapter_title": "Backtesting forecast models in R at scale",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Sweeping .init over 24, 60 and 96 months, ets scores 88.5, 14.4 and 16.0 RMSE while snaive scores 16.3, 16.3 and 16.5. What is the right conclusion to draw?",
+      "options": [
+        {
+          "key": "a",
+          "text": "One origin trained on two years produced an absurd ets forecast that dominated the pooled mean, so .init is part of the result."
+        },
+        {
+          "key": "b",
+          "text": "ets is inherently unstable and snaive is the safer model, which is the one verdict all three settings agree on."
+        },
+        {
+          "key": "c",
+          "text": "The pooled mean should be replaced by the maximum RMSE across origins, which is the only summary robust to this."
+        },
+        {
+          "key": "d",
+          "text": "More origins always make an average more reliable, so the .init = 24 row is the one that should be reported."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "With 24 months a seasonal model estimates twelve monthly effects from two observations each, and one blown fold moved the ets score by 74 RMSE while snaive moved by 0.2. Reporting the median across origins beside the mean flags that fast.",
+      "chapter_slug": "Backtesting-Forecasts-in-R",
+      "chapter_title": "Backtesting forecast models in R at scale",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Your backtest across six series and five origins picked ets, and the paired tests support the margin. You now need the 2019 forecast to ship. Which model do you fit?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Refit ets on the full history including the months the backtest held out, since the backtest chose the recipe and not the parameters."
+        },
+        {
+          "key": "b",
+          "text": "Reuse the fit from the final origin, because it is the only one that already saw the most recent months of data."
+        },
+        {
+          "key": "c",
+          "text": "Average the parameters across all the origin fits, so that every window's information reaches the shipped model."
+        },
+        {
+          "key": "d",
+          "text": "Refit on the last 96-month window, so the shipped model matches the window length the backtest actually scored."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The backtest exists to choose a specification, not to produce the forecast. Refit on everything so the model sees the most recent months, which are usually the most relevant ones.",
+      "chapter_slug": "Backtesting-Forecasts-in-R",
+      "chapter_title": "Backtesting forecast models in R at scale",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "Two methods were fitted to airline passengers through 1958 and forecast the following 24 months, then scored over the first six months and over the full two years. Your production plan is rebuilt monthly and only ever uses the next one to six months. What do you ship?",
+      "code": "tr <- window(AirPassengers, end = c(1958, 12))\nte <- window(AirPassengers, start = c(1959, 1))\np_ets   <- forecast::forecast(ets(tr), h = 24)$mean\np_theta <- thetaf(tr, h = 24)$mean\nrmse2 <- function(f, a) sqrt(mean((as.numeric(f) - as.numeric(a))^2))\ndata.frame(method     = c(\"ETS\", \"Theta\"),\n           RMSE_h1_6  = round(c(rmse2(p_ets[1:6], te[1:6]), rmse2(p_theta[1:6], te[1:6])), 1),\n           RMSE_h1_24 = round(c(rmse2(p_ets, te), rmse2(p_theta, te)), 1))\n#>   method RMSE_h1_6 RMSE_h1_24\n#> 1    ETS      28.3       72.5\n#> 2  Theta      32.2       71.4",
+      "options": [
+        {
+          "key": "a",
+          "text": "ETS, because it is the better method over the horizon the decision uses, and the 24-month average points the other way."
+        },
+        {
+          "key": "b",
+          "text": "Theta, because the 24-month figure has four times as many forecast points behind it and is therefore better measured."
+        },
+        {
+          "key": "c",
+          "text": "Either one, because the two columns are within a few units of each other and the difference is mostly rounding."
+        },
+        {
+          "key": "d",
+          "text": "Theta, because a method that wins at the long horizon must also win at the short one once you rescale by h."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The methods swap places between the two columns: ETS is clearly better over six months and Theta edges ahead over twenty-four. Score at the lead time the decision actually feeds, or the pooled number will point you at the wrong model.",
+      "chapter_slug": "M-Competition-Lessons-in-R",
+      "chapter_title": "What the M competitions teach about forecasting",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Over seven series, mean MASE came out at 1.154 for ETS, 1.183 for the equal-weight combination and 1.189 for Theta, and the combination was never the worst method on any single series. What is the practical case for shipping the combination?",
+      "options": [
+        {
+          "key": "a",
+          "text": "You cannot tell in advance which member will win on a given series, and the average is what stops you from shipping the worst one."
+        },
+        {
+          "key": "b",
+          "text": "The combination is within noise of ETS, so on seven series the two are statistically indistinguishable from each other."
+        },
+        {
+          "key": "c",
+          "text": "Averaging drives the variance of each member's forecast toward zero, which is where the accuracy gain comes from."
+        },
+        {
+          "key": "d",
+          "text": "MASE is the measure M4 leaned on, and a scaled measure systematically favours averaged forecasts over single ones."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The best method changed from series to series: ETS won four, the combination two and Theta one. The combination never topped the overall table and never came last either, which is the trade a forecaster with no advance knowledge should take.",
+      "chapter_slug": "M-Competition-Lessons-in-R",
+      "chapter_title": "What the M competitions teach about forecasting",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "A colleague cites M5 as proof that gradient-boosted trees beat ETS and ARIMA on forecasting problems generally, and proposes dropping statistical baselines from your reports. What does the competition record actually support?",
+      "options": [
+        {
+          "key": "a",
+          "text": "M5 supplied thousands of related retail series plus prices, promotions and calendar events, and cross-learning across them is what paid off."
+        },
+        {
+          "key": "b",
+          "text": "M4 had already settled it, since its winner was a neural network and the pure learning entries beat the statistical field."
+        },
+        {
+          "key": "c",
+          "text": "The M5 result carries over to any series, because gradient boosting won both of that competition's tracks outright."
+        },
+        {
+          "key": "d",
+          "text": "M5 repealed the classic lessons, so benchmarking a new model against seasonal naive is no longer informative."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "M4's winner was a hybrid of a neural network with exponential smoothing, and its pure machine-learning entries mostly lost to the combination benchmark. M5's win came with many related series and rich features, which is the condition the claim depends on.",
+      "chapter_slug": "M-Competition-Lessons-in-R",
+      "chapter_title": "What the M competitions teach about forecasting",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "A model scores a MASE of 1.10 on one of your series. What does that number say, and why did M4 lean on the measure?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It forecast worse than repeating the same month a year earlier, and dividing by that baseline makes the figure comparable across series."
+        },
+        {
+          "key": "b",
+          "text": "It missed by 110 percent of the actual value on average, and being a percentage is what makes it comparable across series."
+        },
+        {
+          "key": "c",
+          "text": "It came out 10 percent worse than the best model in the comparison, which is the baseline the measure divides by."
+        },
+        {
+          "key": "d",
+          "text": "Its squared errors were 1.10 times the seasonal naive's, which puts the figure on the same scale as RMSE."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "MASE divides the forecast's mean absolute error by the seasonal naive's mean absolute error on the training data, so 1 is the benchmark and above 1 is a failure. The division cancels the units, which is what let M4 average across 100,000 series of wildly different scales.",
+      "chapter_slug": "M-Competition-Lessons-in-R",
+      "chapter_title": "What the M competitions teach about forecasting",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "The chapter runs a miniature competition over seven built-in series with five methods, scoring each on MASE. Select the two claims that its results support.",
+      "options": [
+        {
+          "key": "a",
+          "text": "No single method had the lowest MASE on every series in the panel."
+        },
+        {
+          "key": "b",
+          "text": "Ignoring seasonality is expensive: plain naive scored far worse than seasonal naive on the airline series."
+        },
+        {
+          "key": "c",
+          "text": "The combination had the lowest MASE on more of the seven series than any single method did."
+        },
+        {
+          "key": "d",
+          "text": "ETS was the strongest method on every series that showed a visible upward trend."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "ETS won four series, the combination two and Theta one, so no method wins everywhere and ETS does not either. Plain naive scored 4.03 MASE against seasonal naive's 2.49 on the airline series, which is why seasonal naive is the honest floor for seasonal data.",
+      "chapter_slug": "M-Competition-Lessons-in-R",
+      "chapter_title": "What the M competitions teach about forecasting",
+      "difficulty": "hard"
+    }
+  ]
+}

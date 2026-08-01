@@ -1,0 +1,890 @@
+{
+  "assessment_id": "ts-2",
+  "title": "Patterns: trend, seasonality, cycles",
+  "book": "The Time Series Forecasting Handbook, Part 2",
+  "notes": "Scope is Part 2 only: classical and STL decomposition, MSTL and multiple seasonal periods, ADF/KPSS and differencing, ACF/PACF order reading, feasts features, and the periodogram. All output blocks verified against local R 4.6.0.",
+  "questions": [
+    {
+      "kind": "output",
+      "prompt": "STL was fitted to the log of a quarterly gas series with s.window = 13, which lets the seasonal shape change across the record. These are the first-quarter seasonal values at the two ends of that record. What does the change imply about using classical decompose() on this series?",
+      "code": "gs <- stl(log(UKgas), s.window = 13)$time.series[, \"seasonal\"]\ndata.frame(quarter   = \"Q1\",\n           seas_1960 = round(as.numeric(window(gs, c(1960, 1), c(1960, 1))), 3),\n           seas_1986 = round(as.numeric(window(gs, c(1986, 1), c(1986, 1))), 3))\n#>   quarter seas_1960 seas_1986\n#> 1      Q1     0.316     0.594",
+      "options": [
+        {
+          "key": "a",
+          "text": "The winter effect nearly doubled, and decompose() reuses one frozen seasonal shape, so it would average the two eras into a single wrong number."
+        },
+        {
+          "key": "b",
+          "text": "The values are on the log scale, so the difference cancels when you exponentiate and decompose() would return the same seasonal factors."
+        },
+        {
+          "key": "c",
+          "text": "The rise shows STL has over-smoothed the seasonal term, so decompose() would give the more honest fixed estimate on this series."
+        },
+        {
+          "key": "d",
+          "text": "The two values differ only because window() slices a quarterly series by year, so the comparison says nothing about the season itself."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Classical decomposition averages the detrended values by calendar position across all years, producing one seasonal shape for the whole record. A factor that moves from 0.316 to 0.594 is exactly the case that assumption cannot represent.",
+      "chapter_slug": "Time-Series-Decomposition-in-R",
+      "chapter_title": "Time series decomposition in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You run decompose() on 36 monthly observations, three years of data, and plan to read the last trend value to describe where the series is heading right now. What goes wrong?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The centred 2x12 moving average cannot reach within six months of either end, so the six most recent trend values are NA."
+        },
+        {
+          "key": "b",
+          "text": "decompose() refuses to run on fewer than five years of monthly data, so no trend component is produced at all."
+        },
+        {
+          "key": "c",
+          "text": "The trend is computed, but only the first six months come back NA, so the recent end of the series is safe to read."
+        },
+        {
+          "key": "d",
+          "text": "The trend is complete; the NA values in a short decomposition appear in the seasonal component rather than the trend."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The classical trend needs half a season of data on each side, six months for monthly data, so twelve values are lost in total and six of them are the newest ones.",
+      "chapter_slug": "Time-Series-Decomposition-in-R",
+      "chapter_title": "Time series decomposition in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Monthly revenue swings grow in proportion to the level of the series, and you want STL rather than classical decomposition. What is the standard way to handle the growing swing?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Decompose log(series) with stl(), then exponentiate the components to bring them back to the original units."
+        },
+        {
+          "key": "b",
+          "text": "Pass type = \"multiplicative\" to stl(), which switches it from adding the three components to multiplying them."
+        },
+        {
+          "key": "c",
+          "text": "Divide the series by its own trend first, then run stl() on the ratio and read the returned components directly."
+        },
+        {
+          "key": "d",
+          "text": "Run stl() on the raw series with robust = TRUE, which rescales the seasonal term as the underlying level rises."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "stl() only fits an additive model. Taking logs turns a product into a sum, so the additive fit is correct on the log scale and exp() returns the parts to the original units.",
+      "chapter_slug": "Time-Series-Decomposition-in-R",
+      "chapter_title": "Time series decomposition in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "You are choosing between decompose() and stl() for a monthly series whose seasonal shape has visibly changed over ten years and which contains two one-off spikes. Which two statements about stl() are correct?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Its seasonal component can drift gradually across the record when s.window is set to an odd number."
+        },
+        {
+          "key": "b",
+          "text": "It estimates the trend right to the first and last observation, so there is no NA gap at either end."
+        },
+        {
+          "key": "c",
+          "text": "It handles multiplicative seasonality directly through a type argument, the way decompose() does."
+        },
+        {
+          "key": "d",
+          "text": "It removes the effect of outliers automatically, because loess ignores extreme points by construction."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Loess can fit at the boundaries, which removes the edge NAs, and a numeric s.window lets the seasonal shape evolve. Multiplicative data needs a log first, and outlier down-weighting only happens when you pass robust = TRUE.",
+      "chapter_slug": "Time-Series-Decomposition-in-R",
+      "chapter_title": "Time series decomposition in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "A monthly series was decomposed with type = \"multiplicative\". A colleague seasonally adjusts it by subtracting the seasonal component from the observed values. Why is the result wrong?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The multiplicative seasonal component is a set of factors around 1, so subtracting it barely changes anything; you divide instead."
+        },
+        {
+          "key": "b",
+          "text": "Subtraction is right in principle but has to be applied to the trend component rather than to the observed series."
+        },
+        {
+          "key": "c",
+          "text": "The seasonal component of a multiplicative fit is stored on the log scale, so it must be exponentiated before subtracting."
+        },
+        {
+          "key": "d",
+          "text": "Nothing is wrong: subtraction and division give the same adjusted series whenever the trend component is smooth."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "In a multiplicative fit the factors sit near 1, for example 1.227 in July. Subtracting shifts every value by about one unit, which is not seasonal adjustment. Dividing by the factors is.",
+      "chapter_slug": "Time-Series-Decomposition-in-R",
+      "chapter_title": "Time series decomposition in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "This hourly series was built with a daily cycle, a weekly cycle and no trend at all. It was decomposed twice: once declaring only the 24-observation period, and once declaring 24 and 168. What is the trend of the first fit actually made of?",
+      "code": "suppressMessages(library(forecast))\nset.seed(310)\nnh <- 24 * 7 * 10\nhs <- 50 + 12 * sin(2 * pi * (1:nh) / 24) + 9 * sin(2 * pi * (1:nh) / 168) + rnorm(nh, 0, 1.5)\none <- as.data.frame(mstl(msts(hs, seasonal.periods = 24)))\ntwo <- as.data.frame(mstl(msts(hs, seasonal.periods = c(24, 168))))\ndata.frame(trend_sd_daily_only = round(sd(one$Trend), 2),\n           trend_sd_both       = round(sd(two$Trend), 2),\n           cor_with_weekly     = round(cor(one$Trend, two$Seasonal168), 3))\n#>   trend_sd_daily_only trend_sd_both cor_with_weekly\n#> 1                6.01          0.06           0.996",
+      "options": [
+        {
+          "key": "a",
+          "text": "The undeclared weekly cycle, which had nowhere else to go, as the near-perfect correlation with the weekly component shows."
+        },
+        {
+          "key": "b",
+          "text": "Genuine slow drift, which the two-period fit has wrongly smoothed away by spending a whole component on the week."
+        },
+        {
+          "key": "c",
+          "text": "The rnorm noise, which mstl() routes into the trend rather than the remainder when only one period is declared."
+        },
+        {
+          "key": "d",
+          "text": "The daily cycle at half amplitude, because a single-period fit splits each declared cycle between trend and season."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A cycle you do not declare does not disappear. Here it was absorbed by the trend, giving a standard deviation of 6.01 on a series built with no trend, correlating 0.996 with the weekly component from the correct fit.",
+      "chapter_slug": "MSTL-in-R",
+      "chapter_title": "MSTL: multiple seasonalities",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You build elec <- msts(x, seasonal.periods = c(48, 336)) and check frequency(elec), which returns 336. Why is that a poor way to confirm the object carries both periods?",
+      "options": [
+        {
+          "key": "a",
+          "text": "frequency() reports only the longest period as a compatibility fallback, so read attributes(x)$msts for the whole vector."
+        },
+        {
+          "key": "b",
+          "text": "frequency() reports how many periods were declared, so a value of 336 means the object holds 336 seasonal components."
+        },
+        {
+          "key": "c",
+          "text": "frequency() reports the shortest period, so a value of 336 tells you the 48-observation cycle was silently dropped."
+        },
+        {
+          "key": "d",
+          "text": "frequency() is undefined on an msts object, so the 336 is left over from whatever ts object the data came from."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "An msts is still a ts underneath, and frequency() has to return a single number for functions that expect one. It picks the longest period, so it can never confirm that a second one is present.",
+      "chapter_slug": "MSTL-in-R",
+      "chapter_title": "MSTL: multiple seasonalities",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "For a twelve-week half-hourly demand series the trend scores 0.809 on the strength measure and the daily component scores 0.996. The trend moves about 2,000 megawatts across the record while the daily cycle moves about 14,000. What does the 0.809 tell you?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The trend stands out cleanly from the remainder, which is a claim about visibility rather than about how far it moves."
+        },
+        {
+          "key": "b",
+          "text": "The trend accounts for 80.9 percent of the total variation, so it matters almost as much as the daily cycle does."
+        },
+        {
+          "key": "c",
+          "text": "The trend explains 80.9 percent of the daily cycle, which is why those two components are difficult to separate."
+        },
+        {
+          "key": "d",
+          "text": "Any score under 0.9 is unreliable, so the trend should be treated as absent until a longer record is available."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Strength is one minus the ratio of remainder variance to component-plus-remainder variance. A small but smooth component scores high. Use strength to decide whether a component is real, and standard deviations to decide whether it is big.",
+      "chapter_slug": "MSTL-in-R",
+      "chapter_title": "MSTL: multiple seasonalities",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You refit with mstl(x, lambda = \"auto\"), then add the Trend, both seasonal columns and the Remainder together and compare the total with the Data column. The two do not match. Why?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Data stays in the original units while every other column lives on the Box-Cox scale, so they cannot be added together."
+        },
+        {
+          "key": "b",
+          "text": "A Box-Cox decomposition is multiplicative, so the components multiply back to the data rather than summing to it."
+        },
+        {
+          "key": "c",
+          "text": "Setting lambda drops the shortest seasonal period from the fit, so one component is missing from the sum you formed."
+        },
+        {
+          "key": "d",
+          "text": "The remainder is stored as a proportion when lambda is set, so it has to be multiplied by Data before being added."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The transformation is applied before decomposing, so Trend, the seasonal columns and Remainder are all on the transformed scale while Data is not. Back-transform before you interpret or add anything.",
+      "chapter_slug": "MSTL-in-R",
+      "chapter_title": "MSTL: multiple seasonalities",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "After decomposing a half-hourly series with only the 48-observation daily period declared, the remainder has an autocorrelation of 0.861 at lag 336. Which two conclusions follow?",
+      "options": [
+        {
+          "key": "a",
+          "text": "A weekly cycle is still in the remainder, so the remainder cannot be used as a noise diagnostic here."
+        },
+        {
+          "key": "b",
+          "text": "The trend from this fit is suspect, because the undeclared cycle is split between trend and remainder."
+        },
+        {
+          "key": "c",
+          "text": "The daily component was fitted with too small an s.window, which is what let the structure leak through."
+        },
+        {
+          "key": "d",
+          "text": "The series needs a Box-Cox transform, since leftover autocorrelation is the signature of multiplicative seasonality."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Lag 336 is one week on half-hourly data. A value of 0.861 there means the weekly pattern was never removed, and whatever the remainder did not absorb went into the trend. The fix is to declare 336, not to retune s.window.",
+      "chapter_slug": "MSTL-in-R",
+      "chapter_title": "MSTL: multiple seasonalities",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "This series was generated as a straight line plus independent noise, so it has a real trend but no accumulated shocks. Given these three p-values, what should you do next?",
+      "code": "suppressMessages(library(tseries))\nset.seed(7)\nqz <- 0.05 * (1:200) + rnorm(200)\ndata.frame(adf_p        = adf.test(qz)$p.value,\n           kpss_level_p = kpss.test(qz)$p.value,\n           kpss_trend_p = kpss.test(qz, null = \"Trend\")$p.value)\n#>   adf_p kpss_level_p kpss_trend_p\n#> 1  0.01         0.01          0.1",
+      "options": [
+        {
+          "key": "a",
+          "text": "Leave it undifferenced: ADF rules out a unit root and the trend-null KPSS agrees it is stationary around a line."
+        },
+        {
+          "key": "b",
+          "text": "Difference it once, because the level-null KPSS rejected stationarity with a p-value at the 0.01 table limit."
+        },
+        {
+          "key": "c",
+          "text": "Treat the ADF and level-KPSS clash as a failure of both tests and gather more data before deciding anything."
+        },
+        {
+          "key": "d",
+          "text": "Difference it twice, since two of the three tests came back at 0.01 and one difference clearly was not enough."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "ADF always fits a trend term, so its small p-value says there is no unit root. Level-KPSS only rejects flatness, which is true and uninteresting here. Once KPSS is allowed the same sloped line it stops rejecting, so this series is trend-stationary and needs detrending rather than differencing.",
+      "chapter_slug": "Test-Stationarity-in-R",
+      "chapter_title": "Test stationarity in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You simulate 60 points from an AR(1) with phi = 0.95, which is stationary by construction, and adf.test() returns p = 0.53. What is the right reading of that result?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The test had too little data to tell phi = 0.95 apart from a unit root, so failing to reject means it learned nothing."
+        },
+        {
+          "key": "b",
+          "text": "The test is reporting a unit root, so the simulation must have accumulated its shocks rather than decaying them."
+        },
+        {
+          "key": "c",
+          "text": "A p-value near 0.5 means the test is exactly undecided, so the safe response is to difference and accept d = 1."
+        },
+        {
+          "key": "d",
+          "text": "adf.test() needs a ts object with a declared frequency, and passing a plain vector is what produced the high p-value."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "ADF has low power, worst of all when phi sits just below 1, because over a short window such a series looks like a random walk. Give the same process 600 points and it rejects at 0.01.",
+      "chapter_slug": "Test-Stationarity-in-R",
+      "chapter_title": "Test stationarity in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Both adf.test() and kpss.test() hand your differenced monthly series a clean stationary verdict, but its second half swings more than twice as hard as its first half. What has happened?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Neither test looks at variance, so a growing wobble passes both; the usual fix is to take logs before differencing."
+        },
+        {
+          "key": "b",
+          "text": "The two tests actually disagree here, and the KPSS verdict should win because its null hypothesis is stationarity."
+        },
+        {
+          "key": "c",
+          "text": "The difference was taken at the wrong lag, and a seasonal difference instead would have stabilised the swings."
+        },
+        {
+          "key": "d",
+          "text": "A growing wobble after differencing is expected and does not break any part of the stationarity definition."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Constant variance is the second rule of stationarity and no unit-root test checks it. Both tests are built around the mean and the level, which is why the plot comes first and the log transform is your decision.",
+      "chapter_slug": "Test-Stationarity-in-R",
+      "chapter_title": "Test stationarity in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You have a monthly series with a strong annual cycle and an upward drift. Why does the recommended workflow run nsdiffs() and the seasonal difference before testing the level with ndiffs()?",
+      "options": [
+        {
+          "key": "a",
+          "text": "A strong annual cycle confuses both ADF and KPSS, so removing it first is what makes the level verdict meaningful."
+        },
+        {
+          "key": "b",
+          "text": "diff(y, lag = 12) costs twelve observations, so doing it first leaves more data available for the ordinary difference."
+        },
+        {
+          "key": "c",
+          "text": "ndiffs() will not run on a ts object whose frequency is greater than 1, so the seasonal cycle has to go first."
+        },
+        {
+          "key": "d",
+          "text": "An ordinary difference would strip the annual cycle out as well, leaving nsdiffs() with nothing left to detect."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Seasonality breaks the constant-mean rule and shows up in the autocovariance too, so both tests are answering a contaminated question until it is removed. Fix what the tests cannot see first, then test the level.",
+      "chapter_slug": "Test-Stationarity-in-R",
+      "chapter_title": "Test stationarity in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "ndiffs() returns 0 for a series, but a colleague differences it once anyway to be safe. Which two things has that cost them?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The standard deviation rises by a factor of about 1.41, so the model now has more variation to explain."
+        },
+        {
+          "key": "b",
+          "text": "Artificial negative autocorrelation appears at lag 1, structure that was not in the original series."
+        },
+        {
+          "key": "c",
+          "text": "One observation is lost from the end of the series, which removes the most recent point in the record."
+        },
+        {
+          "key": "d",
+          "text": "The seasonal component turns multiplicative, so a log transform is now required before any modelling."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Differencing two independent draws each of variance sigma squared gives twice that variance, hence the factor of root two. The lost observation comes off the front, not the end, because the first value has no predecessor.",
+      "chapter_slug": "Test-Stationarity-in-R",
+      "chapter_title": "Test stationarity in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "These are the lag-1 autocorrelations of one series undifferenced, differenced once, and differenced twice. Which value of d should you carry into the model, and on what grounds?",
+      "code": "set.seed(505)\nrw2 <- ts(cumsum(rnorm(300)))\nlag1 <- function(z) round(acf(z, lag.max = 1, plot = FALSE)$acf[2], 3)\ndata.frame(undifferenced = lag1(rw2),\n           diff_once     = lag1(diff(rw2)),\n           diff_twice    = lag1(diff(diff(rw2))))\n#>   undifferenced diff_once diff_twice\n#> 1          0.92    -0.047     -0.507",
+      "options": [
+        {
+          "key": "a",
+          "text": "d = 1: one difference leaves lag 1 near zero, and the -0.507 after a second one is the over-differencing signature."
+        },
+        {
+          "key": "b",
+          "text": "d = 2: the strongly negative -0.507 shows that the second difference finally removed the remaining structure."
+        },
+        {
+          "key": "c",
+          "text": "d = 0: 0.92 is high, but one large bar at lag 1 is what an AR(1) looks like, so no differencing is needed here."
+        },
+        {
+          "key": "d",
+          "text": "Cannot be decided: the lag-1 autocorrelation alone never separates a trending series from a stationary one."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A lag-1 value of 0.92 that decays slowly is the non-stationary signature. After one difference the correlation is inside any reasonable band. The jump to -0.507 is the classic strong-negative tell that the second difference was one too many.",
+      "chapter_slug": "ACF-and-PACF-in-R",
+      "chapter_title": "ACF and PACF in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "The PACF of a 48-observation series shows 0.576 at lag 1, then -0.223 at lag 2 and -0.227 at lag 3. A colleague reads p = 3 from it. What has gone wrong?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The band for 48 points is about 0.283, so lags 2 and 3 sit inside it and the PACF cuts off after lag 1."
+        },
+        {
+          "key": "b",
+          "text": "PACF bars are compared against zero rather than against a band, so the sign change gives the cutoff at lag 1."
+        },
+        {
+          "key": "c",
+          "text": "Negative bars never count towards an AR order, so only the positive bars outside the band should be counted."
+        },
+        {
+          "key": "d",
+          "text": "The ACF rule was applied to the PACF; a cutoff at lag 3 on the PACF gives q = 3 rather than p = 3."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The band is 1.96 divided by the square root of n, so a short series gets a wide band. At 48 observations that is 0.283, and only the first bar clears it. Always read a plot against its own band.",
+      "chapter_slug": "ACF-and-PACF-in-R",
+      "chapter_title": "ACF and PACF in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Both the ACF and the PACF of a stationary series fade gradually and neither one drops inside the band and stays there. What does that pattern tell you to do?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It is the mixed ARMA signature, so fit a small grid of candidate orders and compare them by AICc."
+        },
+        {
+          "key": "b",
+          "text": "It means the series is still non-stationary, so difference it once more and read both plots again."
+        },
+        {
+          "key": "c",
+          "text": "It means p and q are both large, so take the last lag outside the band on each plot as the order."
+        },
+        {
+          "key": "d",
+          "text": "It means the seasonal period was never declared, so rebuild the ts object with the correct frequency."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "When both plots tail off the exact orders are not visible in either one. Fit candidates near ARIMA(1,0,1), let AICc choose, then confirm the winner with a residual check.",
+      "chapter_slug": "ACF-and-PACF-in-R",
+      "chapter_title": "ACF and PACF in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "The ACF of a differenced monthly series is small at most lags but reaches 0.829 at lag 12 and rises again at lag 24. What does that point to?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Yearly seasonality that a seasonal term should absorb, read with the same cutoff rules at lags 12, 24 and 36."
+        },
+        {
+          "key": "b",
+          "text": "An MA(12) process, because the ACF carries the MA order and lag 12 is the last bar outside the band here."
+        },
+        {
+          "key": "c",
+          "text": "An over-differenced series, since correlation reappearing at long lags is what a needless difference produces."
+        },
+        {
+          "key": "d",
+          "text": "A trend the single difference failed to remove, because a leftover trend shows up at the longest lags first."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "One dominant spike at the seasonal period, repeating at its multiples, is the seasonal signature. The reading moves from ARIMA to seasonal ARIMA, applying cutoff versus tail off at the seasonal lags.",
+      "chapter_slug": "ACF-and-PACF-in-R",
+      "chapter_title": "ACF and PACF in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "You read ARIMA(2,0,0) off the PACF, fit it, and checkresiduals() returns a Ljung-Box p-value of 0.65 with every residual bar inside the band. Which two readings are correct?",
+      "options": [
+        {
+          "key": "a",
+          "text": "There is no evidence of autocorrelation left unexplained, so the order is confirmed as a working choice."
+        },
+        {
+          "key": "b",
+          "text": "A high p-value is the good outcome here, because the test's null is that the residuals are white noise."
+        },
+        {
+          "key": "c",
+          "text": "The high p-value proves the residuals are white noise, so no other order could fit this series as well."
+        },
+        {
+          "key": "d",
+          "text": "A p-value that high means the model carries too many terms and should be cut back to ARIMA(1,0,0)."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Ljung-Box asks whether the residual autocorrelations are jointly indistinguishable from zero, so failing to reject is what you want. Failing to reject is still not proof, and it says nothing about whether a smaller model would pass too.",
+      "chapter_slug": "ACF-and-PACF-in-R",
+      "chapter_title": "ACF and PACF in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "This is the feat_stl row for one quarterly tourism series. Reading the three numbers together, what does this series look like?",
+      "code": "suppressMessages({library(tsibble); library(feasts); library(dplyr)})\nsnowy_f <- tourism |>\n  features(Trips, feat_stl) |>\n  filter(Region == \"Snowy Mountains\", Purpose == \"Holiday\")\nround(as.data.frame(snowy_f[, c(\"trend_strength\", \"seasonal_strength_year\",\n                                \"seasonal_peak_year\")]), 3)\n#>   trend_strength seasonal_strength_year seasonal_peak_year\n#> 1          0.595                  0.967                  3",
+      "options": [
+        {
+          "key": "a",
+          "text": "Nearly all of its non-trend variation is a yearly cycle peaking in Q4, with a real but far less dominant drift."
+        },
+        {
+          "key": "b",
+          "text": "Nearly all of its variation is a yearly cycle peaking in Q3, and the trend explains the other 40 percent of it."
+        },
+        {
+          "key": "c",
+          "text": "It climbs steeply across the record, since a trend strength of 0.595 is the slope of a line fitted to the series."
+        },
+        {
+          "key": "d",
+          "text": "It peaks in the third quarter of the record rather than in a calendar quarter, because the column counts years."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The peak and trough columns count from 0, so 3 is Q4. Strength is a share of variance, not a slope: 0.595 says the drift is cleanly visible against the remainder, not that the series rises steeply.",
+      "chapter_slug": "Time-Series-Features-in-R",
+      "chapter_title": "Time series features with feasts",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "The header of your tsibble reads Key: region [12], but the file holds four products in each of twelve regions. Why does that bracketed count matter before you compute anything?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It is the number of series features() will return, so a count below what you expect means series were merged."
+        },
+        {
+          "key": "b",
+          "text": "It is the number of feature columns you will get back, so a low count means some recipes were quietly dropped."
+        },
+        {
+          "key": "c",
+          "text": "It is the number of observations in each series, so 12 means every series is only twelve time points long."
+        },
+        {
+          "key": "d",
+          "text": "It is the number of distinct index values, so it has to match the number of time points present in the file."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The key defines where one series ends and the next begins. Set it too narrowly and unrelated series are pooled, so every feature you compute describes a blend rather than a series.",
+      "chapter_slug": "Time-Series-Features-in-R",
+      "chapter_title": "Time series features with feasts",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "Screening 3,000 series before any modelling, you find 400 of them with spectral_entropy at or very near 1. What is the practical action?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Give them a simple benchmark, because a score at the top of the scale means they look like pure noise."
+        },
+        {
+          "key": "b",
+          "text": "Give them the most flexible model you have, since high entropy means complex structure rather than none."
+        },
+        {
+          "key": "c",
+          "text": "Difference them first, because entropy near 1 is what a non-stationary series returns before it is stabilised."
+        },
+        {
+          "key": "d",
+          "text": "Drop them from the portfolio entirely, because an entropy of 1 means the series holds no usable observations."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Spectral entropy runs from 0 for strong structure to 1 for noise. Knowing which series are unforecastable before modelling is what lets you spend the effort where it can pay off.",
+      "chapter_slug": "Time-Series-Features-in-R",
+      "chapter_title": "Time series features with feasts",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You write feat_range <- function(x) c(rng = max(x) - min(x)), pass it to features(), and it errors immediately. What is missing?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The ... in the signature, which absorbs extras such as the seasonal period that features() passes to every recipe."
+        },
+        {
+          "key": "b",
+          "text": "A call to as.numeric(x), because features() hands a recipe a tsibble column rather than a plain numeric vector."
+        },
+        {
+          "key": "c",
+          "text": "The na.rm = TRUE argument, which features() requires on every function it applies to a series in the table."
+        },
+        {
+          "key": "d",
+          "text": "A second returned value, because features() only accepts recipes that produce more than one output column."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "features() passes extra arguments to every feature function it calls. Without ... to swallow them the call fails on the first series, which is why the ... is required rather than decorative.",
+      "chapter_slug": "Time-Series-Features-in-R",
+      "chapter_title": "Time series features with feasts",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "You have run features(Trips, feature_set(pkgs = \"feasts\")) and hold a table of 304 rows by 51 columns. Which two statements about what you can now do are correct?",
+      "options": [
+        {
+          "key": "a",
+          "text": "You can group and summarise across series, which is impossible while the data is one row per observation."
+        },
+        {
+          "key": "b",
+          "text": "You can push all 48 features straight into a clustering algorithm, since more measurements separate series better."
+        },
+        {
+          "key": "c",
+          "text": "You can rank, filter and plot the series with ordinary dplyr, because the result is a plain table of numbers."
+        },
+        {
+          "key": "d",
+          "text": "You can rebuild each original series from its row, because the fingerprint stores everything the series held."
+        }
+      ],
+      "answer": [
+        "a",
+        "c"
+      ],
+      "why": "One row per series turns a time series problem into a table problem. It does not turn 48 correlated features into 48 independent ones, and a summary is not a reconstruction.",
+      "chapter_slug": "Time-Series-Features-in-R",
+      "chapter_title": "Time series features with feasts",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "The same 144-month airline series was passed to spec.pgram() twice, and detrending is the only meaningful difference between the two calls. What is the 144 in the first row?",
+      "code": "ap1 <- spec.pgram(AirPassengers, detrend = FALSE, taper = 0,   plot = FALSE)\nap2 <- spec.pgram(AirPassengers, detrend = TRUE,  taper = 0.1, plot = FALSE)\ndata.frame(detrend     = c(FALSE, TRUE),\n           peak_months = c(round(12 / ap1$freq[which.max(ap1$spec)], 1),\n                           round(12 / ap2$freq[which.max(ap2$spec)], 1)))\n#>   detrend peak_months\n#> 1   FALSE         144\n#> 2    TRUE          12",
+      "options": [
+        {
+          "key": "a",
+          "text": "An artefact: the record is 144 months long, and the climb looks like the first half of one enormous cycle."
+        },
+        {
+          "key": "b",
+          "text": "A real twelve-year business cycle in air travel, which detrending has wrongly stripped out of the second row."
+        },
+        {
+          "key": "c",
+          "text": "The Nyquist limit for a 144-point series, which is always reported as the peak when tapering is switched off."
+        },
+        {
+          "key": "d",
+          "text": "The count of Fourier frequencies tested, printed in place of a period because no single peak stood out."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A trend piles power at the lowest frequency, which is one cycle stretched across the whole record. Detrending moves the peak to the genuine 12-month travel season, which is why both functions detrend by default.",
+      "chapter_slug": "Spectral-Analysis-in-R",
+      "chapter_title": "Spectral analysis in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You suspect a three-hour cycle in a process and you have readings taken every two hours. What does the Nyquist limit say about your chances of finding it?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The cycle is faster than two samples per repeat, so it cannot be recovered and will surface as a slower one."
+        },
+        {
+          "key": "b",
+          "text": "It is detectable, because the two-hour sampling interval is shorter than the three-hour cycle you are chasing."
+        },
+        {
+          "key": "c",
+          "text": "It is detectable as long as you collect at least two full repeats, so six hours of readings would be enough."
+        },
+        {
+          "key": "d",
+          "text": "Nyquist limits the slowest cycle you can see rather than the fastest, so a three-hour cycle is never at risk."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The shortest detectable period is two observations, which is four hours at this sampling rate. A three-hour cycle folds into a false lower frequency, and no analysis can undo that. You have to sample more often.",
+      "chapter_slug": "Spectral-Analysis-in-R",
+      "chapter_title": "Spectral analysis in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Your periodogram is spiky even around a clear peak, so you plan to collect more data to steady it. Why will that not work?",
+      "options": [
+        {
+          "key": "a",
+          "text": "More points buy more frequencies, each one just as jittery, so the fix is to smooth neighbours with spans."
+        },
+        {
+          "key": "b",
+          "text": "The spikiness comes from the trend, so the fix is to detrend rather than to gather more observations."
+        },
+        {
+          "key": "c",
+          "text": "More data helps only if it is sampled faster, which raises the Nyquist limit and calms the whole chart."
+        },
+        {
+          "key": "d",
+          "text": "The spikiness is an artefact of the logarithmic y-axis, so the raw spec values are already perfectly smooth."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The raw periodogram is a noisy estimator whose noise does not shrink with sample size. Averaging neighbouring frequencies trades a little precision on cycle length for a far steadier estimate.",
+      "chapter_slug": "Spectral-Analysis-in-R",
+      "chapter_title": "Spectral analysis in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "spectrum() is run on a monthly ts object and the tallest peak sits at a frequency of 1, so dividing gives a period of 1. What is that cycle length in months?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Twelve months, because a monthly ts reports frequency in cycles per year, so a period of 1 means one year."
+        },
+        {
+          "key": "b",
+          "text": "One month, because the period is always in units of single observations whatever the ts frequency says."
+        },
+        {
+          "key": "c",
+          "text": "Twelve months only if the series runs longer than twelve observations, otherwise the 1 means one observation."
+        },
+        {
+          "key": "d",
+          "text": "It cannot be answered from the period alone; you also need the bandwidth before converting to calendar units."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A ts object carries its own time unit, so spectrum() reports frequency per unit of that calendar. On monthly data the unit is a year, which is why you multiply the period by frequency(x) to get months.",
+      "chapter_slug": "Spectral-Analysis-in-R",
+      "chapter_title": "Spectral analysis in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "Smoothing the sunspot spectrum with spans = c(5, 5) moves the peak from 11.11 to 10.71 years, raises the bandwidth from 0.0010 to 0.0059 and the degrees of freedom from 1.93 to 10.94. Which two readings are right?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The eleven-year cycle survives the smoothing, which is the reassurance the comparison was run to get."
+        },
+        {
+          "key": "b",
+          "text": "The estimate is steadier but blurred over a wider window, so two close cycles could be merged into one."
+        },
+        {
+          "key": "c",
+          "text": "The peak moved, so the smoothed estimate is biased and the raw periodogram should be reported instead."
+        },
+        {
+          "key": "d",
+          "text": "The rise in degrees of freedom means the smoothed spectrum now inspects more frequencies than the raw one."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Smoothing averages neighbouring frequencies, which is what raises the degrees of freedom and the bandwidth at the same time. A peak that barely moves under that treatment is a peak you can trust.",
+      "chapter_slug": "Spectral-Analysis-in-R",
+      "chapter_title": "Spectral analysis in R",
+      "difficulty": "intermediate"
+    }
+  ]
+}

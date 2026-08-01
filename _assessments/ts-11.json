@@ -1,0 +1,889 @@
+{
+  "assessment_id": "ts-11",
+  "title": "Difficult series",
+  "book": "The Time Series Forecasting Handbook, Part 11",
+  "notes": "Scope is Part 11 only: anomaly detection with tsoutliers and anomalize, changepoint detection with the changepoint package, intermittent demand with Croston, SBA and TSB, count series with INGARCH and tscount, forecasting very short and very long series, and forecasting through structural breaks. All seven output blocks were executed in one session against local R 4.6.0 (changepoint 2.3, forecast, tscount, tsoutliers) and the printed output pasted back verbatim.",
+  "questions": [
+    {
+      "kind": "single",
+      "prompt": "A daily download series has a strong weekly cycle: a typical Wednesday sees about 5,900 downloads and a typical Saturday about 2,450. Nine days in the record show a count of exactly zero because the logging server failed. A z-score on the raw counts flags three ordinary busy weekdays and none of the nine zero days, which score -1.91. What may you conclude?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The zero days are genuine, because a test on the raw values found nothing unusual about any of them."
+        },
+        {
+          "key": "b",
+          "text": "The weekly cycle inflates the standard deviation, which widens the fence until the zero days sit inside it."
+        },
+        {
+          "key": "c",
+          "text": "The threshold of three standard deviations is too strict for count data and should be lowered to two."
+        },
+        {
+          "key": "d",
+          "text": "The zero days need at least two full seasonal cycles of history before a z-score can register them."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "The season spreads the raw counts over a huge range, so the standard deviation it produces is far larger than the day-to-day variation around any single day's expectation. Zero is only 1.91 of those inflated standard deviations below the overall mean.",
+      "chapter_slug": "Anomaly-Detection-in-Time-Series-in-R",
+      "chapter_title": "Time series anomaly detection in R with tsoutliers and anomalize",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You push a 100-year annual series through time_decompose, anomalize and time_recompose. The series contains a permanent drop in level halfway through that every analyst who has looked at it agrees is real. The pipeline returns zero flagged rows, with no error and no warning. What is the right reading of that result?",
+      "options": [
+        {
+          "key": "a",
+          "text": "STL folds a permanent level change into the trend component, so the remainder the test reads is already clean."
+        },
+        {
+          "key": "b",
+          "text": "The IQR fence is built from the raw series quartiles, and the drop moved both quartiles so the effects cancelled."
+        },
+        {
+          "key": "c",
+          "text": "The series is annual, so time_decompose could not find a season and skipped the anomaly test for every row."
+        },
+        {
+          "key": "d",
+          "text": "The default alpha was too strict for a shift of that size, and halving it would bring the drop into view."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A level shift is a change in level, so the decomposition explains it away before the test runs. A detector can only report shapes that survive into the component it inspects, which is why tso(), testing for a step as a named hypothesis, finds it and the pipeline does not.",
+      "chapter_slug": "Anomaly-Detection-in-Time-Series-in-R",
+      "chapter_title": "Time series anomaly detection in R with tsoutliers and anomalize",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "You run anomalize on 425 rows with method \"iqr\", alpha = 0.20 and max_anoms = 0.05, and get 21 flagged days. A colleague reruns the identical call with max_anoms = 0.20 and gets 84. Select the two statements that are correct.",
+      "options": [
+        {
+          "key": "a",
+          "text": "max_anoms is a hard ceiling on the count rather than a test, so 21 was the cap talking and not the data."
+        },
+        {
+          "key": "b",
+          "text": "Under the IQR method alpha scales the fence by a factor of 0.15 / alpha rather than acting as a p-value."
+        },
+        {
+          "key": "c",
+          "text": "The run returning 84 is invalid, because max_anoms may never be set above the true anomaly rate of a series."
+        },
+        {
+          "key": "d",
+          "text": "Raising max_anoms also loosens the fence, which is how the extra 63 days came to clear the threshold."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "The statistical test was identical in both runs, since alpha did not move. max_anoms silently truncated the result to 5 percent of 425 rows, and a flagged count landing exactly on that fraction is the signature of the cap rather than of the data.",
+      "chapter_slug": "Anomaly-Detection-in-Time-Series-in-R",
+      "chapter_title": "Time series anomaly detection in R with tsoutliers and anomalize",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "This is monthly revenue measured in dollars, built with exactly one genuine level shift after month 120. The first result counts the changepoints PELT finds on the raw series and on the same series divided by its standard deviation. What may you conclude?",
+      "code": "library(changepoint)\nset.seed(101)\nrevenue <- c(rnorm(120, 8200, 300), rnorm(120, 9000, 300))\nc(raw    = length(cpts(cpt.mean(revenue, method = \"PELT\"))),\n  scaled = length(cpts(cpt.mean(revenue / sd(revenue), method = \"PELT\"))))\n#>    raw scaled \n#>    235      1 \ncpts(cpt.mean(revenue / sd(revenue), method = \"PELT\"))\n#> [1] 120",
+      "options": [
+        {
+          "key": "a",
+          "text": "cpt.mean assumes the noise has variance one, so on the unscaled series ordinary wobble reads as evidence of change."
+        },
+        {
+          "key": "b",
+          "text": "PELT becomes unreliable on series longer than 200 points, so binary segmentation is the appropriate search here."
+        },
+        {
+          "key": "c",
+          "text": "The raw run found 235 real changepoints, and dividing by the standard deviation smoothed almost all of them away."
+        },
+        {
+          "key": "d",
+          "text": "The scaled run missed 234 changepoints, because dividing by the spread shrank each genuine shift below the penalty."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The default Normal cost function is written for unit-variance noise. Revenue in the thousands is wildly erratic on that scale, so the search buys a segment almost everywhere. Dividing by the standard deviation first recovers the single true break at month 120.",
+      "chapter_slug": "Changepoint-Detection-in-R",
+      "chapter_title": "Changepoint detection in R with the changepoint package and PELT",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You sweep a manual penalty over the values 1, 2, 5, 10, 20, 50, 100 and 200 on two series. Series A returns 135, 57, 8, 3, 3, 3, 3 and 3 changepoints. Series B returns 140, 61, 22, 14, 9, 5, 3 and 1. What may you defensibly report?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Series A supports three changepoints, while series B has no count that survives a range of penalties."
+        },
+        {
+          "key": "b",
+          "text": "Both series support three changepoints, because the sweep passes through three on each of them."
+        },
+        {
+          "key": "c",
+          "text": "Series B needs the sweep extended past 200 before its true changepoint count can be read off."
+        },
+        {
+          "key": "d",
+          "text": "Series A is over-penalised beyond 10, since a working search should keep resolving finer detail."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Genuine changepoints survive an enormous range of prices; spurious ones are cheap and vanish as soon as the price rises. Series A holds at three across a twentyfold span, which is a finding. Series B changes at every step, which is a preference rather than a result.",
+      "chapter_slug": "Changepoint-Detection-in-R",
+      "chapter_title": "Changepoint detection in R with the changepoint package and PELT",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "A machine sensor holds a steady average all year but becomes visibly noisier from about July onward. You standardise the series, run cpt.mean with PELT, and it returns integer(0). What is actually happening?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The function answered the question it was asked, and a change in spread is not a change in the level."
+        },
+        {
+          "key": "b",
+          "text": "Standardising the series removed the change in spread, so cpt.mean was left with nothing to detect."
+        },
+        {
+          "key": "c",
+          "text": "PELT needs at least 50 observations in every segment, and a half-year regime falls below that floor."
+        },
+        {
+          "key": "d",
+          "text": "integer(0) is an error code, and the search failed because the readings are not normally distributed."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "cpt.mean searches for shifts in the level, and the level genuinely never moves here. Picking the wrong cpt function fails silently: you get a tidy answer that looks like a result. cpt.var() or cpt.meanvar() is the function that can see this change.",
+      "chapter_slug": "Changepoint-Detection-in-R",
+      "chapter_title": "Changepoint detection in R with the changepoint package and PELT",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "PELT reports seven changepoints on a 400-point series. Before writing it up you check the lag-1 autocorrelation and find 0.911, and you know from how the data was collected that nothing about the process ever changed. Select the two responses that address the real problem.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Model the dependence first, then run the changepoint search on the residuals of that model instead."
+        },
+        {
+          "key": "b",
+          "text": "Difference the series when the dependence comes from a random walk, and search what is left over."
+        },
+        {
+          "key": "c",
+          "text": "Set minseglen to 50, which removes the dependence and leaves only genuine regime changes behind."
+        },
+        {
+          "key": "d",
+          "text": "Switch from cpt.mean to cpt.var, which fits each segment's spread and so tolerates autocorrelation."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "The cost function assumes independent observations, so long runs created by autocorrelation read as raised levels. minseglen cuts the seven fake changepoints down to two, which is better and still wrong: it guards against slivers rather than treating dependence.",
+      "chapter_slug": "Changepoint-Detection-in-R",
+      "chapter_title": "Changepoint detection in R with the changepoint package and PELT",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "This series was built with four genuine changes, at 45, 60, 105 and 120. PELT ran first, then binary segmentation with a budget of eight changepoints. What may you conclude?",
+      "code": "library(changepoint)\nset.seed(55)\npulse <- c(rnorm(45, 0, 1), rnorm(15, 3, 1), rnorm(45, 0.3, 1),\n           rnorm(15, -3, 1), rnorm(45, 0, 1))\ncpts(cpt.mean(pulse, method = \"PELT\"))\n#> [1]  45  61 105 120\ncpts(cpt.mean(pulse, method = \"BinSeg\", Q = 8))\n#> [1] 105 120",
+      "options": [
+        {
+          "key": "a",
+          "text": "Binary segmentation's first split was locally best and globally destructive, and no budget can take it back."
+        },
+        {
+          "key": "b",
+          "text": "Binary segmentation needs a larger Q, since eight is below the number of segments this series contains."
+        },
+        {
+          "key": "c",
+          "text": "PELT over-fitted by two changepoints, because an exact search always buys more cuts than a greedy one."
+        },
+        {
+          "key": "d",
+          "text": "The two early changes sit too close together for any method to separate at this series length."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Binary segmentation opens with the single best split, then only ever searches inside the pieces that split created. Having cut late, the early spike is diluted by quiet observations on both sides and no longer clears the penalty. Raising or lowering Q cannot repair the first decision.",
+      "chapter_slug": "Changepoint-Detection-in-R",
+      "chapter_title": "Changepoint detection in R with the changepoint package and PELT",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Across 3,000 simulated intermittent series whose true demand rate is 1.5 units a month, Croston's method averages 1.573 and SBA averages 1.494. Your warehouse holds 4,000 slow-moving part numbers. What does that difference actually buy you?",
+      "options": [
+        {
+          "key": "a",
+          "text": "SBA removes a systematic upward bias, so the catalogue stops accumulating chronic excess stock."
+        },
+        {
+          "key": "b",
+          "text": "SBA is more accurate on any individual part, so every single forecast improves by about 5 percent."
+        },
+        {
+          "key": "c",
+          "text": "SBA predicts which month a demand will arrive, which Croston's method deliberately declines to attempt."
+        },
+        {
+          "key": "d",
+          "text": "SBA reacts faster to recent demand, so the catalogue tracks seasonal swings in each part more closely."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The gain is in the average, not in any one series. Croston runs 0.073 high because the average of a ratio is not the ratio of the averages, and the (1 - alpha/2) trim cuts that bias to -0.006. Across a whole catalogue that removed bias is units of stock you never buy.",
+      "chapter_slug": "Croston-Method-in-R",
+      "chapter_title": "Intermittent demand forecasting in R with Croston and friends",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "A part sells in 42 of the last 48 months, and its order sizes swing between 2 and 90 units. You compute the average inter-demand interval and the squared coefficient of variation of the non-zero sizes, and get 1.14 and 1.86. Which reading of the classification is right?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Erratic demand, so SBA is the recommendation even though the gaps between demands are short."
+        },
+        {
+          "key": "b",
+          "text": "Lumpy demand, because the squared coefficient of variation sits far above the 0.49 cutoff."
+        },
+        {
+          "key": "c",
+          "text": "Smooth demand, since the part sells nearly every month and its interval is below the 1.32 cutoff."
+        },
+        {
+          "key": "d",
+          "text": "Intermittent demand, so Croston is the natural fit and the size variation can safely be ignored."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Both cutoffs have to be read together. An interval of 1.14 is below 1.32 so the demand is frequent, while 1.86 is well above 0.49 so the sizes are wild. Frequent with wildly varying size is the erratic quadrant, and the table sends that quadrant to SBA.",
+      "chapter_slug": "Croston-Method-in-R",
+      "chapter_title": "Intermittent demand forecasting in R with Croston and friends",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "A spare part last sold 18 months ago. Fitted on the same history with the same smoothing parameter, Croston forecasts 1.195 units a month and TSB forecasts 0.585. Select the two statements that explain the gap.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Croston only updates when a demand arrives, so its estimate has been frozen since the last sale."
+        },
+        {
+          "key": "b",
+          "text": "TSB smooths a demand probability every period, so eighteen quiet months dragged that probability down."
+        },
+        {
+          "key": "c",
+          "text": "TSB applies the (1 - alpha/2) shrinkage factor, and that correction is what roughly halved its forecast."
+        },
+        {
+          "key": "d",
+          "text": "Croston divides by the smoothed interval, which grows through quiet months and lifts the rate it reports."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "Croston smooths sizes and intervals only on demand months, so a run of zeros changes nothing. TSB updates its probability on every period, including the zeros, which is why it alone reacts when a product goes end of life.",
+      "chapter_slug": "Croston-Method-in-R",
+      "chapter_title": "Intermittent demand forecasting in R with Croston and friends",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "This part has not shipped a single unit in the last twenty months of its 48-month history, yet croston() still returns a rate for the months ahead. What may you conclude about that number?",
+      "code": "library(forecast)\nset.seed(4)\npart <- c(rbinom(30, 1, 0.4) * (rpois(30, 4) + 1), rep(0, 18))\nc(last_sale_month = max(which(part > 0)), months_of_history = length(part))\n#>   last_sale_month months_of_history \n#>                28                48 \nround(croston(part, h = 3)$mean[1], 3)\n#> [1] 1.965",
+      "options": [
+        {
+          "key": "a",
+          "text": "Croston never saw the twenty dead months, because it only updates its estimates on months that had a sale."
+        },
+        {
+          "key": "b",
+          "text": "Croston averaged the dead months into the rate, which is why 1.965 sits well below the typical order size."
+        },
+        {
+          "key": "c",
+          "text": "The h = 3 argument asked for a three-month rate, so 1.965 already spreads the last sale over the quiet stretch."
+        },
+        {
+          "key": "d",
+          "text": "The rate is a level estimate that decays toward zero, and by month 48 it has almost finished decaying."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The forecast is frozen at the value it held when the last sale landed in month 28. That is the blind spot TSB was designed for: it tracks the probability of a demand and updates it every period, so its forecast falls through a dead stretch while Croston's does not.",
+      "chapter_slug": "Croston-Method-in-R",
+      "chapter_title": "Intermittent demand forecasting in R with Croston and friends",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You score an intermittent forecast on a 12-month hold-out with MAPE and get Inf, because eight of the twelve months had no demand. A colleague suggests dropping the zero months and reporting MAPE on the four that remain. Why is that a poor fix?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It grades the method only on months that had demand, which is the timing Croston never claims to predict."
+        },
+        {
+          "key": "b",
+          "text": "MAPE stays undefined on the remaining months too, since a flat rate is not a whole number of units."
+        },
+        {
+          "key": "c",
+          "text": "Dropping zeros lowers the actual total, so the cumulative bias flips sign and reads as over-stock."
+        },
+        {
+          "key": "d",
+          "text": "MAPE needs at least 24 hold-out months to settle, so the window length is the real problem here."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "These methods estimate a demand rate, not which month a sale lands in. Scoring only the months that happened to have demand grades them on the one thing they disclaim, and it throws away two thirds of the evidence. Use root mean squared error and cumulative bias, averaged over many series.",
+      "chapter_slug": "Croston-Method-in-R",
+      "chapter_title": "Intermittent demand forecasting in R with Croston and friends",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You fit an INGARCH(1,1) to a weekly count series and read an estimated beta_1 of 0.62 and an alpha_1 of 0.41. The series itself has hovered around the same level for years. What should you make of those coefficients?",
+      "options": [
+        {
+          "key": "a",
+          "text": "They sum above one, so the fitted model has no long-run level and the estimates need investigating."
+        },
+        {
+          "key": "b",
+          "text": "They sum above one, which is expected for overdispersed counts and is handled by the sigmasq term."
+        },
+        {
+          "key": "c",
+          "text": "A reactivity above 0.5 always dominates the memory term, so their sum is not the quantity to check."
+        },
+        {
+          "key": "d",
+          "text": "The sum only matters for the Poisson version; under the negative binomial any pair below two is stable."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The reactivity and memory terms must add to less than one for the conditional mean to have a stable long-run level. At 1.03 the fitted recursion has no anchor and would drift without bound, which contradicts a series that has sat at one level for years.",
+      "chapter_slug": "Count-Time-Series-in-R",
+      "chapter_title": "Count time series in R with INGARCH and tscount",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "A colleague forecasts six weeks of infection counts from a fitted INGARCH model and reports a 90 percent interval of 6.4 to 24.8 for next week. The counts are small and the series shows occasional outbreaks. What is the first thing to change?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Ask for the bootstrap intervals from global = TRUE, so the limits are whole numbers and may be asymmetric."
+        },
+        {
+          "key": "b",
+          "text": "Round the reported limits to 6 and 25, which is all the normal approximation needs to respect counts."
+        },
+        {
+          "key": "c",
+          "text": "Refit with the Poisson distribution, since the negative binomial is what produced fractional limits."
+        },
+        {
+          "key": "d",
+          "text": "Raise B well above 2000, because too few bootstrap paths is what leaves fractional numbers in the output."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Fractional limits give away the normal approximation, which is symmetric and can slip below zero on small counts. global = TRUE runs a parametric bootstrap that respects the count distribution, so the interval is integer-valued and can stretch further above the point forecast than below.",
+      "chapter_slug": "Count-Time-Series-in-R",
+      "chapter_title": "Count time series in R with INGARCH and tscount",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "The first number is the variance-to-mean ratio of the campy counts. The two models that follow use the same lag structure and differ only in the conditional distribution. What may you conclude?",
+      "code": "library(tscount)\ndata(campy)\nround(var(campy) / mean(campy), 2)\n#> [1] 4.61\npois_fit <- tsglm(campy, model = list(past_obs = 1, past_mean = 1), distr = \"poisson\")\nnbin_fit <- tsglm(campy, model = list(past_obs = 1, past_mean = 1), distr = \"nbinom\")\nround(c(poisson = AIC(pois_fit), nbinom = AIC(nbin_fit)), 1)\n#> poisson  nbinom \n#>   879.5   820.8 ",
+      "options": [
+        {
+          "key": "a",
+          "text": "The extra spread is real, and the single parameter that lets variance exceed the mean earns its place."
+        },
+        {
+          "key": "b",
+          "text": "The negative binomial wins because it adds a seasonal feedback lag that the Poisson model could not use."
+        },
+        {
+          "key": "c",
+          "text": "The Poisson model is preferable, since a gap of 59 AIC points is within ordinary sampling noise."
+        },
+        {
+          "key": "d",
+          "text": "A ratio of 4.61 means the counts are four times too large, so the series needs a log link before fitting."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The Poisson distribution forces the variance to equal the mean, and here the variance is 4.6 times the mean. Adding one overdispersion parameter drops the AIC by nearly 59 points, which is a decisive win. Get the distribution right before you fine-tune the lag structure.",
+      "chapter_slug": "Count-Time-Series-in-R",
+      "chapter_title": "Count time series in R with INGARCH and tscount",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "multi",
+      "prompt": "Your negative binomial INGARCH has the lowest AIC of every candidate you tried, and you are about to publish its prediction intervals. Select the two checks that matter most before you do.",
+      "options": [
+        {
+          "key": "a",
+          "text": "The autocorrelation of the Pearson residuals, which should show no pattern left at any lag you care about."
+        },
+        {
+          "key": "b",
+          "text": "The probability integral transform histogram, which should be roughly flat if the predicted probabilities are honest."
+        },
+        {
+          "key": "c",
+          "text": "The variance-to-mean ratio of the raw counts, which a well fitted model should have brought close to one."
+        },
+        {
+          "key": "d",
+          "text": "The QIC, which has to fall below the AIC of the same model before its intervals can be relied upon."
+        }
+      ],
+      "answer": [
+        "a",
+        "b"
+      ],
+      "why": "A model can fit the training data and still be poorly calibrated, in which case its intervals lie about how sure it is. Residual autocorrelation says whether structure is left over; the PIT histogram says whether events called 20 percent likely happen about 20 percent of the time.",
+      "chapter_slug": "Count-Time-Series-in-R",
+      "chapter_title": "Count time series in R with INGARCH and tscount",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "A support queue records between 0 and 4 tickets a day, and roughly half the days are zero. A teammate proposes a negative binomial INGARCH on the grounds that the data is counts. What is the better read of the situation?",
+      "options": [
+        {
+          "key": "a",
+          "text": "A series that is mostly zeros is intermittent demand, so a Croston-style method may fit it better than INGARCH."
+        },
+        {
+          "key": "b",
+          "text": "INGARCH cannot represent zeros at all, because its conditional mean is built by plain addition of positive terms."
+        },
+        {
+          "key": "c",
+          "text": "The counts are too small for any model to learn from, so the daily average is the only defensible forecast."
+        },
+        {
+          "key": "d",
+          "text": "Overdispersion is impossible when the maximum observed value is 4, so the Poisson version is the required choice."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "INGARCH handles zeros perfectly well, since each count is drawn from a Poisson or negative binomial distribution. The objection is different: when a series is mostly zeros with occasional demand, a method built for that sparsity is usually the better fit.",
+      "chapter_slug": "Count-Time-Series-in-R",
+      "chapter_title": "Count time series in R with INGARCH and tscount",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You have 14 monthly observations of a newly launched product. A reviewer says ARIMA needs at least 30 observations and refuses to accept the model you fitted. What is the accurate reply?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The real requirement is that observations outnumber estimated parameters, and the search picks a model to fit that budget."
+        },
+        {
+          "key": "b",
+          "text": "The 30-observation rule applies to seasonal models only, so a non-seasonal fit on 14 points is exempt from it."
+        },
+        {
+          "key": "c",
+          "text": "Differencing counts toward the parameter budget, so 14 points support one difference and nothing else at all."
+        },
+        {
+          "key": "d",
+          "text": "The reviewer is right, and the only honest output from 14 points is the sample mean with no interval attached."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The 30-observation rule has no basis in theory or practice. The firm constraint is n greater than k, where k counts the estimated coefficients; differencing transforms the data and costs no parameters. In practice you also want comfortably more than the bare minimum.",
+      "chapter_slug": "Forecasting-Short-Time-Series-in-R",
+      "chapter_title": "Forecasting very short and very long time series in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "These are ten monthly signup counts. The automatic search reports its order and forecast first, and the drift benchmark follows. What may you conclude?",
+      "code": "library(forecast)\ntickets <- ts(c(31, 35, 42, 44, 51, 58, 63, 69, 77, 82), start = 1)\narimaorder(auto.arima(tickets))\n#> p d q \n#> 0 1 0 \nround(as.numeric(forecast(auto.arima(tickets), h = 3)$mean), 1)\n#> [1] 87.7 93.3 99.0\nround(as.numeric(rwf(tickets, drift = TRUE, h = 3)$mean), 1)\n#> [1] 87.7 93.3 99.0",
+      "options": [
+        {
+          "key": "a",
+          "text": "There is no structure here beyond a straight drift line, so the benchmark is the honest thing to report."
+        },
+        {
+          "key": "b",
+          "text": "The automatic search found trend structure the benchmark missed, so prefer its intervals for planning."
+        },
+        {
+          "key": "c",
+          "text": "The match is an artefact of rounding, and at more decimal places the two forecasts would separate."
+        },
+        {
+          "key": "d",
+          "text": "Ten points is below the parameter budget, so both forecasts are unsupported and should be discarded."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The chosen orders are 0, 1 and 0, so nothing autoregressive or moving-average was estimated, and the forecasts match the drift benchmark to more decimal places than shown. On short data that agreement is your evidence you can trust the number, not evidence of a more capable model.",
+      "chapter_slug": "Forecasting-Short-Time-Series-in-R",
+      "chapter_title": "Forecasting very short and very long time series in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You have 30 monthly observations with an obvious summer peak, and auto.arima returns a model with no seasonal part at all. You refit with Fourier terms of order K = 1 and seasonal = FALSE, and the forecast now follows the season. What did that trade cost you?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Two estimated parameters rather than about eleven, in exchange for a smooth approximation of the shape."
+        },
+        {
+          "key": "b",
+          "text": "Eleven estimated parameters rather than two, which is exactly why the seasonal search had refused the model."
+        },
+        {
+          "key": "c",
+          "text": "Nothing at all, since Fourier terms enter as an external regressor and are not estimated from the data."
+        },
+        {
+          "key": "d",
+          "text": "One parameter for each month of the cycle, the same budget a full seasonal model would have spent."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A full monthly seasonal model spends roughly m - 1, that is eleven, parameters learning a separate behaviour per month. K Fourier pairs cost 2K, so K = 1 buys the seasonal shape for two. The price is that a small K can only bend so sharply.",
+      "chapter_slug": "Forecasting-Short-Time-Series-in-R",
+      "chapter_title": "Forecasting very short and very long time series in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "On a 480-point series whose dynamics shifted late in its history, a model fitted to the full history scores a test RMSE of 6.57. Recent windows of 48, 72, 120 and 240 observations score 1.15, 2.36, 0.97 and 1.02. What is the defensible conclusion?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Every window beats the full history, but window size is a tuning knob rather than a shorter-is-better rule."
+        },
+        {
+          "key": "b",
+          "text": "The 72-observation window is an anomaly and should be dropped, since the pattern is otherwise monotone."
+        },
+        {
+          "key": "c",
+          "text": "The 120-observation window is the right choice for any long series with a late change in its dynamics."
+        },
+        {
+          "key": "d",
+          "text": "The full history loses only because 480 points overwhelm the automatic search and stop it converging."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The core lesson holds: discarding stale history helps a lot. But the errors are not ordered by window size, and the best result here comes from 120 rather than the shortest window. Test a few sizes against a hold-out instead of assuming smaller is safer.",
+      "chapter_slug": "Forecasting-Short-Time-Series-in-R",
+      "chapter_title": "Forecasting very short and very long time series in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "With 16 observations you cannot spare any for a test set. A colleague asks how you can claim one model will forecast better than another when you have nothing held out to check it against. What do you say?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The AICc stands in for one-step out-of-sample error, rewarding fit while charging for each extra parameter."
+        },
+        {
+          "key": "b",
+          "text": "With no hold-out the claim cannot be made, so both models should be reported without expressing a preference."
+        },
+        {
+          "key": "c",
+          "text": "Training RMSE is unbiased on series this short, so it serves as the comparison in place of a hold-out."
+        },
+        {
+          "key": "d",
+          "text": "A p-value on each estimated coefficient tells you which of the two models will forecast better out of sample."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The AICc is why auto.arima() and ets() pick simple models when data is thin. It is not a substitute for out-of-sample validation when you can afford it, but on a series too short to split it is the score that keeps the choice honest.",
+      "chapter_slug": "Forecasting-Short-Time-Series-in-R",
+      "chapter_title": "Forecasting very short and very long time series in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "A monthly series broke 5 months ago and you need a forecast for the next twelve months that reproduces the seasonal pattern. You have six years of history in total. Which move fits the situation?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Keep the full sample and add a step dummy, since 5 months cannot support a seasonal model on their own."
+        },
+        {
+          "key": "b",
+          "text": "Refit on the 5 post-break months, since data from before a break describes a world that no longer exists."
+        },
+        {
+          "key": "c",
+          "text": "Difference the series once, which turns the step into a spike and removes the need to act on the break."
+        },
+        {
+          "key": "d",
+          "text": "Wait until a full seasonal cycle of post-break data exists before producing any forecast at all."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Refitting buys a clean regime by discarding data, and a seasonal model needs at least a cycle or two to estimate. With five post-break months, a step dummy keeps every observation while still telling the model exactly when the level moved.",
+      "chapter_slug": "Forecasting-Structural-Breaks-in-R",
+      "chapter_title": "Forecasting through structural breaks in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "This series was built to sit at 200 and step up to 260 at observation 61, and the dummy is 1 from observation 61 onward. What do the two coefficients say, and what forecast do they imply for observation 101?",
+      "code": "library(forecast)\nset.seed(88)\ny_break <- ifelse(1:100 < 61, 200, 260) + rnorm(100, 0, 8)\nstep_d  <- as.numeric(1:100 >= 61)\nround(coef(Arima(y_break, order = c(0, 0, 0), xreg = step_d)), 1)\n#> intercept      xreg \n#>     199.4      61.6 ",
+      "options": [
+        {
+          "key": "a",
+          "text": "A pre-break level of 199.4 and a shift of 61.6, so the forecast is 261 with the dummy set to 1 ahead."
+        },
+        {
+          "key": "b",
+          "text": "A pre-break level of 199.4 and a shift of 61.6, so the forecast stays at 199.4 until the dummy is switched on."
+        },
+        {
+          "key": "c",
+          "text": "A whole-sample average of 199.4 and a residual spread of 61.6, so the forecast for the year ahead is 199.4."
+        },
+        {
+          "key": "d",
+          "text": "A post-break level of 199.4 and a shift of 61.6, so the forecast for the months ahead is 137.8 units."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "The intercept is the baseline before the break and the xreg coefficient is the size of the level shift, recovering the planted 60 to within the noise. The future lives in the post-break world, so you set the dummy to 1 and the forecast is 199.4 plus 61.6.",
+      "chapter_slug": "Forecasting-Structural-Breaks-in-R",
+      "chapter_title": "Forecasting through structural breaks in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "An ETS model fitted to the full history of a series with a level shift scores a test RMSE of 7.79, against 6.72 for the same model fitted only to the post-break regime. Its 95 percent prediction interval is 36.2 units wide against 27.7 for the clean fit. What is the practical reading?",
+      "options": [
+        {
+          "key": "a",
+          "text": "ETS re-anchored its level on its own, but the break inflated its noise estimate and therefore its intervals."
+        },
+        {
+          "key": "b",
+          "text": "ETS failed on both counts, so an adaptive model is the wrong family for a series that contains a break."
+        },
+        {
+          "key": "c",
+          "text": "The wider interval is the honest one, because a series that has broken once is likely to break again."
+        },
+        {
+          "key": "d",
+          "text": "The point forecasts differ by 1.07 units, which is what widened the interval by the extra 8.5 units."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Adaptive models keep re-estimating the current level, so the point forecast largely survives a level shift. The hidden cost is that the jump enters the model's estimate of the noise, so the intervals are wider than the current regime warrants.",
+      "chapter_slug": "Forecasting-Structural-Breaks-in-R",
+      "chapter_title": "Forecasting through structural breaks in R",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "A daily series keeps the same average all year, but from September the spread roughly doubles. Your point forecasts for October look reasonable when you check them against what happened. What does this break actually require you to change?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Nothing about the point forecast, but the prediction intervals have to widen to match the new spread."
+        },
+        {
+          "key": "b",
+          "text": "Refit on the post-September regime, which is the standard response to any break the detector confirms."
+        },
+        {
+          "key": "c",
+          "text": "Add a step dummy set to 1 from September, since that is how a change in spread enters the model."
+        },
+        {
+          "key": "d",
+          "text": "Switch to a damped trend, the robust choice whenever a series changes behaviour partway through."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A variance break moves the uncertainty, not the level, so it is the intervals that are wrong rather than the point forecast. A step dummy models a level shift and a damped trend answers a trend break; neither addresses a change in spread.",
+      "chapter_slug": "Forecasting-Structural-Breaks-in-R",
+      "chapter_title": "Forecasting through structural breaks in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You have located a break with cpt.meanvar() and your manager asks how confident you are about the month it happened, since a supplier contract turns on the answer. Which tool addresses that, and what does it add?",
+      "options": [
+        {
+          "key": "a",
+          "text": "breakpoints() in strucchange, whose confint() returns an interval of plausible dates around the estimate."
+        },
+        {
+          "key": "b",
+          "text": "param.est() in changepoint, whose two segment means bracket the range of dates the break could fall in."
+        },
+        {
+          "key": "c",
+          "text": "The OLS-CUSUM test, whose statistic converts directly into a range of plausible break dates for the series."
+        },
+        {
+          "key": "d",
+          "text": "Rerunning cpt.meanvar() with PELT, whose extra splits mark out the edges of the uncertain window."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "changepoint returns a point estimate of the location. strucchange is built on regression, so breakpoints() adds a confidence interval and the tests add a p-value. The two usually agree on where the break is; strucchange supplies the statistical paperwork.",
+      "chapter_slug": "Forecasting-Structural-Breaks-in-R",
+      "chapter_title": "Forecasting through structural breaks in R",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "A 90-point daily series was pushed through tso(). This single row is the whole outliers table. What does it tell you to do with the series?",
+      "code": "library(tsoutliers)\nset.seed(31)\ny_tc <- ts(50 + rnorm(90, 0, 2))\ny_tc[45:90] <- y_tc[45:90] + 14 * 0.7^(0:45)\ntso(y_tc, types = c(\"AO\", \"LS\", \"TC\"))$outliers\n#>   type ind time  coefhat    tstat\n#> 1   TC  45   45 12.65928 9.386778",
+      "options": [
+        {
+          "key": "a",
+          "text": "Record an event at position 45 whose effect decayed back over the following days, and note its half-life."
+        },
+        {
+          "key": "b",
+          "text": "Delete the value at position 45 and impute it, since the effect is a one-off that returns immediately."
+        },
+        {
+          "key": "c",
+          "text": "Treat position 45 as the start of a new regime and refit the model on positions 45 to 90 only."
+        },
+        {
+          "key": "d",
+          "text": "Raise cval above 9.39 to confirm the finding, since a single flagged row is rarely trustworthy on its own."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A temporary change is a jump that fades geometrically rather than a spike or a permanent step. Reporting it as an additive outlier would understate how long the effect lasted; reporting it as a level shift would claim a new normal that never arrived.",
+      "chapter_slug": "Anomaly-Detection-in-Time-Series-in-R",
+      "chapter_title": "Time series anomaly detection in R with tsoutliers and anomalize",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "tso() reports one additive outlier and one level shift on a sales series you are about to forecast. The level shift lines up with the month a competitor left the market. Which repair is right before you fit the forecasting model?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Remove the additive outlier but keep the level shift, since the step is a real and permanent change."
+        },
+        {
+          "key": "b",
+          "text": "Use yadj, which removes both, and hand the adjusted series on as the corrected record of sales."
+        },
+        {
+          "key": "c",
+          "text": "Remove the level shift but keep the additive outlier, since a one-off spike carries genuine demand."
+        },
+        {
+          "key": "d",
+          "text": "Keep both untouched, since any adjustment before fitting biases the model toward the recent regime."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A mistyped number or logging glitch carries no information about the future, so an additive outlier can go. A level shift is real and permanent, and deleting it teaches the model to forecast a world that no longer exists.",
+      "chapter_slug": "Anomaly-Detection-in-Time-Series-in-R",
+      "chapter_title": "Time series anomaly detection in R with tsoutliers and anomalize",
+      "difficulty": "hard"
+    }
+  ]
+}

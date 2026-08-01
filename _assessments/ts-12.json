@@ -1,0 +1,888 @@
+{
+  "assessment_id": "ts-12",
+  "title": "Hierarchical and grouped forecasting",
+  "book": "The Time Series Forecasting Handbook, Part 12",
+  "notes": "Scope is Part 12 only: building hierarchies and grouped structures with aggregate_key(), coherence and the summing matrix, the single-level family (bottom-up, top-down and its three proportion rules, middle-out), and MinT with its five weight matrices. All six output blocks were executed in one session, in file order, against local R 4.6.0 with fable, fabletools, tsibble and dplyr, and the printed output pasted back verbatim.",
+  "questions": [
+    {
+      "kind": "single",
+      "prompt": "You forecast a national series and its eight state series with separate ETS models, four quarters ahead. The national point forecast minus the sum of the eight state point forecasts is 144 in the first quarter, 865 in the second, 1352 in the third and 1461 in the fourth. What is the right reading of that pattern?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The quarterly index is misaligned, so the later quarters are being matched against the wrong rows."
+        },
+        {
+          "key": "b",
+          "text": "The state models lose accuracy faster at long horizons than the national model does."
+        },
+        {
+          "key": "c",
+          "text": "Each model accumulates its own forecast error, so the two sets separate further the further out you look."
+        },
+        {
+          "key": "d",
+          "text": "The national model has drifted out of date, and refitting it on a shorter window would close the gap."
+        }
+      ],
+      "answer": [
+        "c"
+      ],
+      "why": "Nothing in the fitting links the nine models, so their errors build up independently and the disagreement widens with the horizon. It is not evidence that any single model is wrong.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "After aggregate_key(State, Trips = sum(Trips)) the State column prints as <chr*> rather than <chr>. You now want to join the forecast table to a lookup table of state names and pivot it wider, and the aggregate rows misbehave. What explains the asterisk, and what do you do about it?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The column holds missing values on the total rows, so fill them with a literal label first."
+        },
+        {
+          "key": "b",
+          "text": "The column is an agg_vec, so test it with is_aggregated() and convert it with as.character() first."
+        },
+        {
+          "key": "c",
+          "text": "The column is plain text but the key is stale, so rebuild the object with as_tsibble() first."
+        },
+        {
+          "key": "d",
+          "text": "The column has been coerced to a factor, so drop the unused levels with droplevels() first."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "aggregate_key() replaces the key column with a special agg_vec that mostly behaves like text but does not compare against strings. is_aggregated() is the supported test, and as.character() turns it back into ordinary text for joins and pivots.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "You have quarterly trips for two states, each broken down by four trip purposes. Every state and purpose combination exists. You declare the structure two different ways and count the series each one produces.",
+      "code": "library(fable)\nlibrary(tsibble)\nlibrary(dplyr)\ntwo <- tourism |>\n  as_tibble() |>\n  filter(State %in% c(\"Tasmania\", \"ACT\")) |>\n  summarise(Trips = sum(Trips), .by = c(Quarter, State, Purpose)) |>\n  as_tsibble(index = Quarter, key = c(State, Purpose))\nnested  <- aggregate_key(two, State / Purpose, Trips = sum(Trips))\ncrossed <- aggregate_key(two, State * Purpose, Trips = sum(Trips))\ncat(sprintf(\"%-8s %d\\n\", c(\"nested\", \"crossed\"),\n            c(n_keys(nested), n_keys(crossed))), sep = \"\")\n#> nested   11\n#> crossed  15",
+      "options": [
+        {
+          "key": "a",
+          "text": "Crossing adds one total per purpose summed across both states, giving a second route up to the grand total."
+        },
+        {
+          "key": "b",
+          "text": "Crossing restores the four bottom cells that nesting drops when a state is missing a purpose."
+        },
+        {
+          "key": "c",
+          "text": "Crossing keeps a separate grand total for each state as well as the one across both."
+        },
+        {
+          "key": "d",
+          "text": "Crossing splits every bottom cell in two, one copy under each of the parent attributes."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Nesting gives 8 bottom cells, 2 state totals and 1 grand total. Crossing keeps those and adds a total for each of the 4 purposes, because purpose does not sit inside state and the bottom can be summed either way round.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "You score four methods on a holdout, level by level. Across the eight state series, bu and base come out with the same mean RMSE and the same mean MASE to three decimal places. A colleague suspects the reconciliation silently failed. What may you conclude?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Rounding to three decimals hid a small real difference that the unrounded numbers would show."
+        },
+        {
+          "key": "b",
+          "text": "The state series were too short for bottom_up() to estimate weights, so it fell back to the base column."
+        },
+        {
+          "key": "c",
+          "text": "The reconcile() step ran before model(), so the bu column carries the fits without any adjustment."
+        },
+        {
+          "key": "d",
+          "text": "Nothing failed. Bottom-up copies the bottom level through unchanged, so at that level it is the base forecast."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "Bottom-up replaces only the aggregates. It never touches a bottom-level forecast, so its accuracy there is identical to the base forecast's on every metric. The equality is structural, not a bug.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "One bottom-level series in your reconciled hierarchy is a small region that sells a handful of units most weeks, and two of its reconciled forecasts have come out negative. A teammate proposes clipping them at zero before publishing. What is wrong with that, and what would you do instead?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Clipping breaks the coherence you just paid for, so forecast a transformed series on which negatives cannot occur."
+        },
+        {
+          "key": "b",
+          "text": "Negatives mean the summing matrix is wrong, so rebuild the structure with aggregate_key() and reconcile again."
+        },
+        {
+          "key": "c",
+          "text": "Negatives mean that one base model diverged, so refit that single series and run the reconciliation again."
+        },
+        {
+          "key": "d",
+          "text": "Clipping is fine for the means but not the intervals, so clip the point forecast and leave the distribution."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Reconciliation adds and subtracts across series, and nothing in the arithmetic keeps a series above zero. Clipping one number destroys the summing constraint that was the entire point of reconciling.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "Trip purpose and state cut across each other: every combination exists, and neither attribute sits inside the other. Select the two statements that are true of the structure aggregate_key(State * Purpose, Trips = sum(Trips)) builds.",
+      "options": [
+        {
+          "key": "a",
+          "text": "There is more than one route from the bottom cells to the grand total, and every route must land on the same number."
+        },
+        {
+          "key": "b",
+          "text": "It produces the same set of series as aggregate_key(State / Purpose, ...), only in a different row order."
+        },
+        {
+          "key": "c",
+          "text": "It has to be built with the hts package, because aggregate_key() can only express nesting."
+        },
+        {
+          "key": "d",
+          "text": "It produces a total for each state and a total for each purpose, on top of the bottom cells and the grand total."
+        }
+      ],
+      "answer": [
+        "a",
+        "d"
+      ],
+      "why": "Crossing is what makes a structure grouped rather than hierarchical: several paths run from the bottom to the top, and coherence means all of them agree. One aggregate_key() call handles nested, crossed and mixed structures alike.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "A retailer forecasts 400 stores, grouped into 20 regions, grouped into 4 countries, with one worldwide total on top. Every store belongs to exactly one region and every region to exactly one country. What shape is the summing matrix S for that hierarchy?",
+      "options": [
+        {
+          "key": "a",
+          "text": "425 rows by 400 columns: one row per series and one column per bottom-level series."
+        },
+        {
+          "key": "b",
+          "text": "400 rows by 425 columns: one row per store and one column per series in the hierarchy."
+        },
+        {
+          "key": "c",
+          "text": "25 rows by 400 columns: one row per aggregate series and one column per store."
+        },
+        {
+          "key": "d",
+          "text": "425 rows by 425 columns: one row and one column for every series in the hierarchy."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "S is always n by m, where n counts every series (400 + 20 + 4 + 1 = 425) and m counts the bottom ones (400). Each row is a recipe for building that series out of the stores.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "A three-region hierarchy with its total on top, and the four base forecasts in yhat. You build a mapping matrix that gives every region one third of the total forecast and ignores the three region forecasts, then sum the result back up.",
+      "code": "S <- rbind(c(1, 1, 1), diag(3))\nG <- cbind(rep(1/3, 3), matrix(0, 3, 3))\nyhat <- c(2052.3, 700.7, 263.2, 1120.2)\nround(as.vector(S %*% G %*% yhat), 2)\n#> [1] 2052.3  684.1  684.1  684.1",
+      "options": [
+        {
+          "key": "a",
+          "text": "The three region forecasts must have been close to equal already, or the totals would not have matched."
+        },
+        {
+          "key": "b",
+          "text": "The equal split is a legitimate top-down rule, since coherence is the property top-down is built to deliver."
+        },
+        {
+          "key": "c",
+          "text": "The set is coherent but biased, and a better G would remove that bias while keeping it coherent."
+        },
+        {
+          "key": "d",
+          "text": "Coherence comes from the closing S step whatever G is, so it says nothing about whether the numbers are good."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "Every method ends by multiplying bottom-level values through S, so the aggregates are rebuilt from the parts and must agree with them. Splitting a total equally between three regions of wildly different size is obviously wrong and still adds up perfectly.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Your mable holds one fitted ETS column across 4,000 series. You add bottom_up, min_trace(ols) and min_trace(mint_shrink) to a single reconcile() call, and a colleague worries about the extra fitting time. What do you tell them?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Only min_trace() refits, because it needs residuals, so two of the three extra columns are free."
+        },
+        {
+          "key": "b",
+          "text": "Each reconciliation column refits its own series, so the mable takes roughly four times as long to build."
+        },
+        {
+          "key": "c",
+          "text": "The fitting is deferred to forecast(), so the cost arrives later but is still roughly four-fold."
+        },
+        {
+          "key": "d",
+          "text": "Reconciliation refits nothing, so the three extra columns reuse the same fits and cost almost nothing."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "Reconciliation is a linear adjustment applied to forecasts that already exist. That is why trying several methods side by side is cheap, and why keeping an unreconciled base column costs nothing.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "At the far end of a four-quarter horizon, bottom-up puts the national total at 27,166 and OLS reconciliation puts it at 28,464. Both sets are coherent: within each one the eight states add exactly to the total. What may you conclude?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Coherence constrains the numbers inside one set, so two coherent sets can still disagree widely with each other."
+        },
+        {
+          "key": "b",
+          "text": "The base forecasts were incoherent by about 1,300 and each method absorbed the whole of that gap."
+        },
+        {
+          "key": "c",
+          "text": "Coherence only binds at the first horizon, so a difference of this size is expected by the fourth quarter."
+        },
+        {
+          "key": "d",
+          "text": "One of the two contains an arithmetic error, since coherent forecasts of one hierarchy have to agree."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Coherence is a constraint on the relationship between the levels of a single forecast set. It does not pin down the level of the numbers, so two methods can both add up and still be more than a thousand apart.",
+      "chapter_slug": "Hierarchical-Time-Series-in-R",
+      "chapter_title": "Hierarchical and Grouped Time Series in R: Reconciliation",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "In a State/Region hierarchy, Tasmania's own model forecasts 1120.2 while its five region models add to 1076.8, a gap of 43.4. The grand total disagrees with the sum of the two state models by a different amount again. What does that tell you about fixing incoherence?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Only the grand total needs correcting, because the internal gaps cancel out once the tree is summed."
+        },
+        {
+          "key": "b",
+          "text": "Incoherence turns up at every internal node, so the fix has to act on the whole tree rather than the top row."
+        },
+        {
+          "key": "c",
+          "text": "The gaps at different nodes are independent, so each node can be patched without disturbing the others."
+        },
+        {
+          "key": "d",
+          "text": "The regions are the source of the problem, so refitting the five region models will bring the node into line."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "Every node whose children have their own models can disagree with them. A reconciliation method has to satisfy all of those constraints at once, which is why it is a single calculation over the whole hierarchy.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "One quarter ahead on a hierarchy of two states and their ten regions, four sets of forecasts for the grand total.",
+      "code": "library(fable)\nlibrary(tsibble)\nlibrary(dplyr)\nhier <- tourism |>\n  filter(State %in% c(\"Tasmania\", \"Western Australia\")) |>\n  as_tibble() |>\n  summarise(Trips = sum(Trips), .by = c(Quarter, State, Region)) |>\n  as_tsibble(index = Quarter, key = c(State, Region)) |>\n  aggregate_key(State / Region, Trips = sum(Trips))\ntotals <- hier |>\n  model(base = ETS(Trips)) |>\n  reconcile(bu = bottom_up(base),\n            td = top_down(base, method = \"forecast_proportions\"),\n            mo = middle_out(base, split = 1)) |>\n  forecast(h = 1) |>\n  as_tibble() |>\n  filter(is_aggregated(State))\ncat(sprintf(\"%-5s %.1f\\n\", totals$.model, totals$.mean), sep = \"\")\n#> base  3942.6\n#> bu    3816.3\n#> td    3942.6\n#> mo    3854.6",
+      "options": [
+        {
+          "key": "a",
+          "text": "forecast_proportions uses the base total as its denominator, so the match would break under the historical variants."
+        },
+        {
+          "key": "b",
+          "text": "It is structural. Top-down starts from the grand-total forecast and only divides it, so it cannot change it."
+        },
+        {
+          "key": "c",
+          "text": "It is specific to this horizon, and the two numbers will separate once you forecast further ahead."
+        },
+        {
+          "key": "d",
+          "text": "The ten region models happened to sum close enough to the national one that the difference rounded away."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "Every top-down variant preserves the top-level number exactly, on every horizon and whatever the proportions are. That makes it the method to reach for when a total has been committed to, and it also means top-down can never improve the top-level forecast.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "State and trip purpose cut across each other, so you declare the structure with a star rather than a slash. You then try to reconcile it top-down.",
+      "code": "library(fable)\nlibrary(tsibble)\nlibrary(dplyr)\ngts <- tourism |>\n  as_tibble() |>\n  filter(State %in% c(\"Tasmania\", \"ACT\")) |>\n  summarise(Trips = sum(Trips), .by = c(Quarter, State, Purpose)) |>\n  as_tsibble(index = Quarter, key = c(State, Purpose)) |>\n  aggregate_key(State * Purpose, Trips = sum(Trips))\nattempt <- try(\n  gts |> model(base = ETS(Trips)) |> reconcile(td = top_down(base)) |> forecast(h = 1),\n  silent = TRUE\n)\ncat(tail(strsplit(conditionMessage(attr(attempt, \"condition\")), \"\\n\")[[1]], 1), \"\\n\", sep = \"\")\n#> ! Top down reconciliation requires strictly hierarchical structures.",
+      "options": [
+        {
+          "key": "a",
+          "text": "A crossed structure has no bottom level, so there is nothing left for the proportions to be applied to."
+        },
+        {
+          "key": "b",
+          "text": "A crossed structure has more than one path from the bottom to the total, so there is no single set of proportions."
+        },
+        {
+          "key": "c",
+          "text": "The restriction is a fabletools limitation with no basis in the maths, so hts::gts() runs the same method."
+        },
+        {
+          "key": "d",
+          "text": "top_down() needs the proportions to sum to one, and crossing makes them sum to the number of attributes."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "Top-down splits one number down one path. With state and purpose crossed, a bottom cell sits under a state total and under a purpose total, so no single share describes it. middle_out() refuses for the same reason, while bottom_up() and min_trace() both work.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You reconcile top-down using average historical proportions. One region has taken a steadily larger share of the total for the last twenty years, and its reconciled forecast keeps landing well below what its own model says. What is happening, and what fixes it?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The shares are frozen at a twenty-year average, so use forecast_proportions, which reads them off the base forecasts."
+        },
+        {
+          "key": "b",
+          "text": "Early low-volume quarters are dragging the average down, so switch to proportions of historical averages instead."
+        },
+        {
+          "key": "c",
+          "text": "The region's own model is over-forecasting, so the top-down number is the more trustworthy of the two."
+        },
+        {
+          "key": "d",
+          "text": "The proportions need more history per level, so extending the training window will correct the drift."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Both historical variants compute the shares once over the whole record and reuse them at every horizon, so a trending share is always pulled back toward its long-run average. Forecast proportions build the shares from the base forecasts, level by level, and track the shift.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Every base forecast in your hierarchy is unbiased: over many quarters, each comes out too high about as often, and by about as much, as it comes out too low. You reconcile the set top-down. What can you say about the reconciled bottom-level forecasts?",
+      "options": [
+        {
+          "key": "a",
+          "text": "They stay unbiased at the bottom, but the total picks up a bias since it is the series being rebuilt."
+        },
+        {
+          "key": "b",
+          "text": "They stay unbiased, because the proportions sum to one and so can neither create nor destroy anything overall."
+        },
+        {
+          "key": "c",
+          "text": "They are not guaranteed to stay unbiased, because splitting a total by uncertain shares introduces a distortion."
+        },
+        {
+          "key": "d",
+          "text": "They stay unbiased only under forecast_proportions, since the historical variants ignore the base forecasts."
+        }
+      ],
+      "answer": [
+        "c"
+      ],
+      "why": "No choice of proportions removes the distortion, which is why the whole top-down family is biased in general. Bottom-up has no such problem, since summing unbiased forecasts gives an unbiased sum.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "You reconcile a State/Region hierarchy with middle_out(base, split = 1), where level 1 is the State level. Select the two statements that describe what comes out.",
+      "options": [
+        {
+          "key": "a",
+          "text": "The anchored level is named by the level argument, as in middle_out(base, level = 1)."
+        },
+        {
+          "key": "b",
+          "text": "The grand total becomes the sum of the state forecasts, as it would under bottom-up."
+        },
+        {
+          "key": "c",
+          "text": "The state forecasts come through exactly as their own models produced them."
+        },
+        {
+          "key": "d",
+          "text": "The region forecasts are left untouched, in the way bottom-up leaves them."
+        }
+      ],
+      "answer": [
+        "b",
+        "c"
+      ],
+      "why": "Middle-out preserves its anchored level exactly, goes bottom-up above it and splits down below it with forecast proportions, so every region moves. The signature is middle_out(models, split = 1); passing level = fails immediately.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You compute the coefficient of variation for every series and average it within each level: 0.196 at the grand total, 0.248 at the states and 0.323 at the regions. Does that settle which reconciliation method to ship?",
+      "options": [
+        {
+          "key": "a",
+          "text": "No. It says the total is the steadiest series here, which favours the top, but the method still has to win a holdout."
+        },
+        {
+          "key": "b",
+          "text": "Yes. The top level is the least noisy of the three, so top-down is the right method for this hierarchy."
+        },
+        {
+          "key": "c",
+          "text": "No, because the coefficient of variation is scale dependent and cannot be compared across levels at all."
+        },
+        {
+          "key": "d",
+          "text": "Yes, but the other way round: the regions vary most, so they carry the most signal and bottom-up wins."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "Aggregation cancels idiosyncratic noise, so totals are usually the easiest series in a hierarchy to forecast. That is real evidence about where the signal is, but which method forecasts best is decided on a holdout, scored level by level.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "At the region level, middle-out has the lowest mean RMSE of the four methods and the highest mean MASE, while base and bottom-up are identical on both metrics. What is the most likely explanation of the flip?",
+      "options": [
+        {
+          "key": "a",
+          "text": "One region has an extreme error that RMSE squares away to nothing and that MASE ignores entirely."
+        },
+        {
+          "key": "b",
+          "text": "The two metrics disagree because they were averaged over different sets of series at that level."
+        },
+        {
+          "key": "c",
+          "text": "Middle-out helped the large regions and hurt the small ones, and RMSE only registers the first half of that."
+        },
+        {
+          "key": "d",
+          "text": "MASE scores against a seasonal naive benchmark, so it ranks methods in the opposite order to RMSE by design."
+        }
+      ],
+      "answer": [
+        "c"
+      ],
+      "why": "RMSE is in the units of the data, so the big regions dominate a mean of it. MASE rescales each series by how hard it is to forecast, which lets the small regions register. The base and bottom-up tie is the structural preservation identity, and it survives both metrics.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "A colleague averages each method's RMSE across all thirteen series into one figure per method and reports that the four methods are much the same. Where does that go wrong?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The averaging must be weighted by series volume, or the small regions count for as much as the national total."
+        },
+        {
+          "key": "b",
+          "text": "RMSE cannot be averaged at all, so the four figures are not comparable to each other in the first place."
+        },
+        {
+          "key": "c",
+          "text": "Averaging is a fair summary, but the methods only start to differ once the horizon runs past a year."
+        },
+        {
+          "key": "d",
+          "text": "A blended figure hides the trade every method makes, which is always better at one level and worse at another."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "Broken out by level, bottom-up cost 21 percent at the state level while saving 4 percent at the top. That is a trade you can only accept or reject if you know which level your business plans on, and one blended number destroys the information you need.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "On a thirteen-series hierarchy with ten bottom series, you count the all-zero columns of each method's G matrix: bottom_up has three and top_down has twelve. What do those counts measure?",
+      "options": [
+        {
+          "key": "a",
+          "text": "How many series the method has to recompute once the bottom level is fixed."
+        },
+        {
+          "key": "b",
+          "text": "How many summing constraints the method imposes on the reconciled forecast set."
+        },
+        {
+          "key": "c",
+          "text": "How many of the thirteen base forecasts the method throws away completely."
+        },
+        {
+          "key": "d",
+          "text": "How many series the method leaves exactly as their own models produced them."
+        }
+      ],
+      "answer": [
+        "c"
+      ],
+      "why": "A zero column means that base forecast is multiplied by zero and never reaches the answer. Bottom-up zeroes the three aggregates; top-down zeroes everything except the grand total, which is twelve of the thirteen.",
+      "chapter_slug": "Forecast-Reconciliation-in-R",
+      "chapter_title": "Forecast Reconciliation in R: Bottom-Up to Middle-Out",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "output",
+      "prompt": "A hierarchy of four trip purposes with their total on top, reconciled two ways. For each set of forecasts you add the four purposes and subtract the total.",
+      "code": "library(fable)\nlibrary(tsibble)\nlibrary(dplyr)\ntas <- tourism |>\n  filter(State == \"Tasmania\") |>\n  as_tibble() |>\n  summarise(Trips = sum(Trips), .by = c(Quarter, Purpose)) |>\n  as_tsibble(index = Quarter, key = Purpose) |>\n  aggregate_key(Purpose, Trips = sum(Trips))\nfc <- tas |>\n  model(base = ETS(Trips)) |>\n  reconcile(bottom_up = bottom_up(base),\n            mint = min_trace(base, \"mint_shrink\")) |>\n  forecast(h = 1)\ngap <- function(m) {\n  x <- fc |> as_tibble() |> filter(.model == m)\n  sum(x$.mean[!is_aggregated(x$Purpose)]) - sum(x$.mean[is_aggregated(x$Purpose)])\n}\ncat(sprintf(\"%-10s %7.3f\\n\", c(\"base\", \"bottom_up\", \"mint\"),\n            c(gap(\"base\"), gap(\"bottom_up\"), gap(\"mint\"))), sep = \"\")\n#> base       -98.686\n#> bottom_up    0.000\n#> mint         0.000",
+      "options": [
+        {
+          "key": "a",
+          "text": "It is the reconciliation error, so a better method would push it closer to zero than these two managed."
+        },
+        {
+          "key": "b",
+          "text": "It is the amount by which the total's own model is wrong, which reconciliation then goes on to correct."
+        },
+        {
+          "key": "c",
+          "text": "It shows the four purpose models are jointly biased low, which no reconciliation method can repair."
+        },
+        {
+          "key": "d",
+          "text": "It is a fixed quantity produced by the base models, and each method only chooses how to divide it up."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "The gap is set the moment the base models produce their forecasts. Bottom-up puts all of it on the total; MinT spreads it across all five series, giving most of the correction to the series whose past errors were largest. Neither creates information.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "output",
+      "prompt": "In-sample error for the five models in a purpose hierarchy, each model scored against its own series. A colleague reads the RMSE column and concludes the total is the hardest series in the hierarchy to forecast.",
+      "code": "library(fable)\nlibrary(tsibble)\nlibrary(dplyr)\ntas <- tourism |>\n  filter(State == \"Tasmania\") |>\n  as_tibble() |>\n  summarise(Trips = sum(Trips), .by = c(Quarter, Purpose)) |>\n  as_tsibble(index = Quarter, key = Purpose) |>\n  aggregate_key(Purpose, Trips = sum(Trips))\nacc <- tas |> model(base = ETS(Trips)) |> accuracy()\ncat(sprintf(\"%-13s RMSE %5.2f   MAPE %5.2f\\n\", as.character(acc$Purpose),\n            acc$RMSE, acc$MAPE), sep = \"\")\n#> Business      RMSE 23.01   MAPE 17.75\n#> Holiday       RMSE 59.65   MAPE 13.16\n#> Other         RMSE  8.45   MAPE 31.53\n#> Visiting      RMSE 27.11   MAPE 14.46\n#> <aggregated>  RMSE 79.17   MAPE  9.74",
+      "options": [
+        {
+          "key": "a",
+          "text": "Both readings hold, since RMSE and MAPE measure different kinds of error and neither one ranks series."
+        },
+        {
+          "key": "b",
+          "text": "The total is hardest in absolute terms and easiest in relative terms, so the columns cannot be reconciled."
+        },
+        {
+          "key": "c",
+          "text": "The MAPE column misleads, because percentage error is not defined for a series built by summing others."
+        },
+        {
+          "key": "d",
+          "text": "The total is the best forecast series here. RMSE is in trips, so only the scale-free MAPE compares series fairly."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "The total is roughly six times bigger than any purpose, so its errors are larger in trips almost by definition. On MAPE it is the best series in the table at 9.74 percent. That matters because bottom-up discards precisely that model.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "fabletools estimates the base error covariance as W <- crossprod(E) / n rather than as cov(E). The difference is that no column mean is subtracted. Why is that the right choice here?",
+      "options": [
+        {
+          "key": "a",
+          "text": "cov() divides by n minus 1, and the closed form needs a divisor of n for the inverse to exist."
+        },
+        {
+          "key": "b",
+          "text": "The residuals are not centred, and keeping their mean in W is what lets MinT correct the base bias."
+        },
+        {
+          "key": "c",
+          "text": "Subtracting the means would make W singular, because the residual columns would then sum to zero."
+        },
+        {
+          "key": "d",
+          "text": "A well-fitted forecast model should already have residuals centred on zero, so there is no mean worth removing."
+        }
+      ],
+      "answer": [
+        "d"
+      ],
+      "why": "Centring is a step you take when the mean is an unknown nuisance. For forecast residuals a non-zero mean is itself a fault in the model, so the estimator treats zero as known and averages the raw cross-products.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "min_trace() accepts five values for method: ols, wls_struct, wls_var, mint_cov and mint_shrink. What actually differs between them?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The objective, since each one minimises a different summary of the reconciled error covariance matrix."
+        },
+        {
+          "key": "b",
+          "text": "The summing matrix, which each one rebuilds from a different reading of the hierarchy's structure."
+        },
+        {
+          "key": "c",
+          "text": "Only W, the assumed covariance of the base forecast errors. The closed form for G is identical in all five."
+        },
+        {
+          "key": "d",
+          "text": "Whether the base models are refitted first, which is why the more elaborate methods run slower."
+        }
+      ],
+      "answer": [
+        "c"
+      ],
+      "why": "All five run G = (S'W-inverse S)-inverse S'W-inverse. Choosing a method is choosing what you claim to know about your forecast errors: nothing, the shape of the tree, each series' error size, or the whole correlation structure.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "You ask for min_trace(base, \"mint_cov\") on a 41-series hierarchy with 24 quarters of residuals, and it stops with the message that min_trace needs the covariance matrix to be positive definite. What is the fix?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Use mint_shrink, which pulls the estimate toward its own diagonal by enough to make it invertible again."
+        },
+        {
+          "key": "b",
+          "text": "Set sparse = TRUE, which switches to a decomposition that does not require positive definiteness."
+        },
+        {
+          "key": "c",
+          "text": "Ask for a shorter horizon, since the covariance is estimated separately for each step ahead."
+        },
+        {
+          "key": "d",
+          "text": "Drop the aggregate series from the mable, shrinking the matrix to a size that 24 quarters can support."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "A covariance matrix estimated from fewer observations than series is singular, so the closed form has no inverse to take. Shrinking toward the diagonal restores it. wls_struct is the other safe route, since it never touches the residuals at all.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "mint_shrink builds its weight matrix as lambda times the diagonal of the residual covariance plus one minus lambda times the full residual covariance. Select the two true statements about lambda.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Lambda is tuned to minimise reconciled RMSE on a holdout window before forecasting."
+        },
+        {
+          "key": "b",
+          "text": "At lambda equal to 1 the weight matrix is exactly the one wls_var uses."
+        },
+        {
+          "key": "c",
+          "text": "Raising lambda pulls the variances on the diagonal of the matrix toward zero."
+        },
+        {
+          "key": "d",
+          "text": "Lambda is computed from the residuals themselves rather than being set by you."
+        }
+      ],
+      "answer": [
+        "b",
+        "d"
+      ],
+      "why": "mint_shrink is a dial between mint_cov at lambda equal to 0 and wls_var at lambda equal to 1, with the data choosing the setting. Shrinking damps the off-diagonal correlations; the diagonal variances are the target and do not move.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "On a 41-series holdout, mint_shrink has the lowest RMSE at the bottom level, 83.7 against 92.1 for the unreconciled base, and it wins at the state level too. At the national total every method loses to base, and mint_shrink sits at 956.1 against 571.3. Is MinT misbehaving?",
+      "options": [
+        {
+          "key": "a",
+          "text": "No. The trace sums over all 41 series, so it gives up accuracy on the one national series to gain across 32."
+        },
+        {
+          "key": "b",
+          "text": "Yes. A correctly estimated W would never make the top-level forecast worse, so the covariance has failed."
+        },
+        {
+          "key": "c",
+          "text": "Yes. mint_shrink over-shrank on this data, and mint_cov would have protected the national forecast."
+        },
+        {
+          "key": "d",
+          "text": "No, but only because the national series is the one MinT leaves untouched, so its RMSE is the base RMSE."
+        }
+      ],
+      "answer": [
+        "a"
+      ],
+      "why": "MinT optimises the whole hierarchy, not any single level. If the national number is the only one your decisions turn on, reconciliation is the wrong tool and you should forecast that series directly.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "single",
+      "prompt": "Reconciled with method = \"ols\", the smallest series in the hierarchy moves from 25.7 to 45.4, a 77 percent rise, while the largest moves by about 3 percent. What is causing that?",
+      "options": [
+        {
+          "key": "a",
+          "text": "ols corrects only the bottom level, so the whole gap has to be divided among the smallest series."
+        },
+        {
+          "key": "b",
+          "text": "ols treats every series as equally reliable, so the correction it spreads is a similar size on each of them."
+        },
+        {
+          "key": "c",
+          "text": "ols skips the summing matrix step, so small series absorb whatever is left once the large ones are set."
+        },
+        {
+          "key": "d",
+          "text": "ols weights each series by its share of the total, so small series necessarily take the largest adjustments."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "With W set to the identity, ols has no idea that one series is fifty times noisier than another, so it shares the gap out almost evenly. On a series whose entire error variance is small, an even share is an enormous relative change.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "intermediate"
+    },
+    {
+      "kind": "single",
+      "prompt": "Your hierarchy is conversion rates: a site-wide rate, a rate per country, and a rate per country and device. A country rate is not the sum of its device rates, it is a weighted average of them. What does that mean for min_trace()?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It cannot be used, and there is no workaround short of accepting incoherent rate forecasts."
+        },
+        {
+          "key": "b",
+          "text": "It cannot be used as is. Forecast the counts, reconcile those, and compute the rates afterwards."
+        },
+        {
+          "key": "c",
+          "text": "It works, provided you pass the weights into aggregate_key() so that S can carry them."
+        },
+        {
+          "key": "d",
+          "text": "It works, because MinT reconciles distributions and averaging is a linear operation on them."
+        }
+      ],
+      "answer": [
+        "b"
+      ],
+      "why": "S can hold only the zeros and ones that encode add this in, so the whole framework assumes aggregation by summing. Numerators and denominators are summable, which is why converting to counts first is the standard route.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "hard"
+    },
+    {
+      "kind": "multi",
+      "prompt": "Select the two true statements about MinT reconciliation as fable implements it.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Coherence comes from the closing S step and holds for any G, so W affects only accuracy."
+        },
+        {
+          "key": "b",
+          "text": "It estimates a separate W for each forecast horizon, which is why long horizons take longer."
+        },
+        {
+          "key": "c",
+          "text": "It is weighted least squares applied to forecasts you already have, and it refits no models."
+        },
+        {
+          "key": "d",
+          "text": "It requires every base model in the hierarchy to be of the same type, ETS or ARIMA throughout."
+        }
+      ],
+      "answer": [
+        "a",
+        "c"
+      ],
+      "why": "fable estimates W once from one-step residuals and reuses it at every horizon, which is an assumption worth remembering when a long-horizon reconciliation disappoints. Reconciliation only ever sees residuals and point forecasts, so mixed model types are fine.",
+      "chapter_slug": "MinT-Reconciliation-in-R",
+      "chapter_title": "Optimal Forecast Reconciliation in R: MinT with fable",
+      "difficulty": "intermediate"
+    }
+  ]
+}
