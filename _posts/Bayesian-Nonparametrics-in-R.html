@@ -1,0 +1,823 @@
+---
+title: "Bayesian Nonparametrics in R: Dirichlet Process Clustering"
+description: "Learn Dirichlet process clustering in R: how Bayesian nonparametrics lets the data choose the number of clusters, built from scratch and with a package."
+keywords: "Dirichlet process clustering, Bayesian nonparametrics in R, Dirichlet process mixture model, Chinese restaurant process, dirichletprocess package, concentration parameter, clustering without choosing k, stick-breaking process"
+mathjax: true
+webr: true
+curriculum_id: "FR-baye-4"
+post_type: "FR"
+auto_link_terms: "Dirichlet process|Dirichlet process clustering|Bayesian nonparametrics|Dirichlet process mixture|Chinese restaurant process|stick-breaking process|concentration parameter|dirichletprocess package|nonparametric clustering|infinite mixture model|clustering without choosing k"
+auto_link_case_sensitive: false
+fr_parent: "Grid-Approximation-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Dirichlet process <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> is a Bayesian method that groups data into clusters without making you choose the number of clusters in advance. It treats the cluster count as something to learn from the data, so the number of groups can grow as more data arrives.</p>
+
+<p>Most clustering tools ask you a question you often cannot answer: "How many clusters are there?" A Dirichlet process turns that question around and lets the data answer it. In this tutorial you will build the idea up from scratch, run every piece of it right here in your browser, and finish by fitting the same model with a ready-made package. We use base R throughout the hands-on parts, so there is nothing to install to follow along.</p>
+
+<h2>Why does ordinary clustering make you guess the number of clusters?</h2>
+
+<p>Popular clustering methods like k-means need one thing before they can start: the number of clusters, usually written as k. On a real dataset you rarely know k ahead of time. That is often the whole reason you are clustering. To see why guessing hurts, let us make some data where we secretly know the answer, then watch a standard method react to different guesses.</p>
+
+<p>We will create 120 points that fall into three tight groups, centered far apart at -6, 0, and 6. Because we built them, we know the truth is three clusters of 40 points each. Run the block to make the data and confirm its shape.</p>
+
+<div class="webr-container" data-block-title="Make three hidden clusters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Make three hidden clusters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three groups of 40 points, centered far apart
+set.seed(101)
+g1 &lt;- rnorm(40, mean = -6, sd = 0.5)
+g2 &lt;- rnorm(40, mean =  0, sd = 0.5)
+g3 &lt;- rnorm(40, mean =  6, sd = 0.5)
+x  &lt;- c(g1, g2, g3)
+true_group &lt;- rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 40)
+
+length(x)
+#&gt; [1] 120
+table(true_group)
+#&gt; true_group
+#&gt;  A  B  C 
+#&gt; 40 40 40 
+round(head(x, 6), 2)
+#&gt; [1] -6.16 -5.72 -6.34 -5.89 -5.84 -5.41</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output confirms 120 points split evenly into groups A, B, and C, and the first few values sit near -6 as expected. A quick histogram makes the three groups obvious to the eye.</p>
+
+<div class="webr-container" data-block-title="See the three humps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the three humps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(x, breaks = 20, col = &quot;grey&quot;, main = &quot;Three hidden groups&quot;, xlab = &quot;value&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can see three separate humps, so a good clustering method should recover three groups. Now let us hand k-means the wrong number of clusters and see what it does. We ask it for 2 clusters, then for 5.</p>
+
+<div class="webr-container" data-block-title="k-means obeys whatever k you pick">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k-means obeys whatever k you pick</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+km2 &lt;- kmeans(x, centers = 2)
+km5 &lt;- kmeans(x, centers = 5)
+km2$size
+#&gt; [1] 80 40
+km5$size
+#&gt; [1] 20  6 40 40 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With k set to 2, k-means merges two real groups into one blob of 80 points. With k set to 5, it chops the data into five pieces even though only three exist. In both runs it returned exactly as many clusters as we asked for, whether or not that number was right. It never questioned the guess.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>k-means answers the wrong question.</strong> It solves "given this many clusters, where are they?" but it cannot tell you how many clusters the data actually supports. That decision is left entirely to you.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun k-means on the same data, but this time ask for 3 clusters and read off the three sizes. Change the <code>centers</code> value in the starter, then run it. You should get three sizes close to 40, 40, 40.</p>
+<div class="webr-container" data-block-title="Your turn: cluster with k = 3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cluster with k = 3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change centers from 2 to 3, then look at the sizes
+ex_km3 &lt;- kmeans(x, centers = 2, nstart = 25)
+ex_km3$size</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="k-means with k = 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k-means with k = 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_km3 &lt;- kmeans(x, centers = 3, nstart = 25)
+ex_km3$size
+#&gt; [1] 40 40 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With the right k, k-means recovers the three groups perfectly (<code>nstart = 25</code> just runs several random starts and keeps the best). The catch is that you had to know the answer was 3 to get here. A Dirichlet process removes that catch.</p>
+
+</details>
+</section>
+
+<h2>What is a Dirichlet process, in plain words?</h2>
+
+<p>A Dirichlet process is a recipe for splitting points into groups where the number of groups is not fixed ahead of time. Instead of deciding k, you set one dial called the concentration parameter, written $\alpha$, that controls how readily new groups appear. The clusters themselves are an outcome of the process, not an input to it.</p>
+
+<p>The friendliest way to picture it is the Chinese restaurant process. Imagine a restaurant with endless tables. Customers arrive one at a time. Each new customer either joins a table that already has people (and prefers busier tables) or sits at a fresh empty table. The tables become your clusters, and the customers become your data points.</p>
+
+<p>The rule for where a customer sits is simple. A new point joins an existing cluster with probability proportional to how many points are already there, and starts a brand new cluster with probability proportional to $\alpha$.</p>
+
+<p><img src="screenshots/Bayesian-Nonparametrics-in-R-crp-seating.webp" alt="How a new point joins a busy cluster or starts a new one under the Chinese restaurant process." class="img-responsive img-zoomable" loading="lazy" width="870" height="1552" /></p>
+
+<p><em>Figure 1: How a new point joins a busy cluster or starts a new one under the Chinese restaurant process.</em></p>
+
+<p>We can write the seating rule as two probabilities. For the $i$-th customer arriving at a restaurant that already has some occupied tables:</p>
+
+<p>$$P(\text{join cluster } k) = \frac{n_k}{i - 1 + \alpha}, \qquad P(\text{start a new cluster}) = \frac{\alpha}{i - 1 + \alpha}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$n_k$ = the number of points already sitting in cluster $k$</li>
+
+<li>$i - 1$ = how many points have been seated so far (everyone except the arriving point)</li>
+
+<li>$\alpha$ = the concentration parameter, the dial that controls new clusters</li>
+
+</ul>
+
+<p>The denominator is $i - 1 + \alpha$ because the $i$-th customer sees $i - 1$ people already seated, and this matches the <code>i - 1 + alpha</code> you are about to see in the code (there <code>i</code> is the current customer and the argument <code>n</code> is just the total number of customers to seat).</p>
+
+<p>Notice the "rich get richer" effect: a table with more people is more likely to attract the next customer, because $n_k$ is bigger. Let us turn that rule into code. The function below seats <code>n</code> customers one by one and returns the table number each one chose.</p>
+
+<div class="webr-container" data-block-title="Seat customers with the Chinese restaurant process">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seat customers with the Chinese restaurant process</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">crp &lt;- function(n, alpha) {
+  table_of &lt;- integer(n)   # table label chosen by each customer
+  counts   &lt;- numeric(0)   # current headcount at each table
+  for (i in seq_len(n)) {
+    probs  &lt;- c(counts, alpha) / (i - 1 + alpha)   # existing tables, then a new one
+    choice &lt;- sample(seq_along(probs), size = 1, prob = probs)
+    if (choice &gt; length(counts)) counts &lt;- c(counts, 1) else counts[choice] &lt;- counts[choice] + 1
+    table_of[i] &lt;- choice
+  }
+  table_of
+}
+
+set.seed(7)
+seating &lt;- crp(n = 20, alpha = 1)
+seating
+#&gt;  [1] 1 2 2 2 2 3 2 1 2 2 2 2 1 2 2 2 2 2 4 2
+table(seating)
+#&gt; seating
+#&gt;  1  2  3  4 
+#&gt;  3 15  1  1 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twenty customers walked in and, without anyone setting the number, they settled into four tables. One table drew a crowd of 15, one seated 3, and two tables held a single diner each. The line <code>probs &lt;- c(counts, alpha) / (i - 1 + alpha)</code> is the seating rule in action: it lists the odds for every current table (using their headcounts) followed by the odds of opening a new one (using $\alpha$), then <code>sample()</code> picks one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The number of clusters is an output, not an input.</strong> You never told the process to make four tables. It grew that many on its own from the seating rule and the value of $\alpha$. That is what "nonparametric" means here: the model adds clusters as the data calls for them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Seat 30 customers instead of 20 with the same $\alpha$, then count how many tables opened. Change <code>n</code> in the starter and run it. Bigger crowds tend to open a few more tables.</p>
+<div class="webr-container" data-block-title="Your turn: seat 30 customers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: seat 30 customers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change n from 20 to 30, then count the distinct tables
+set.seed(7)
+ex_seat &lt;- crp(n = 20, alpha = 1)
+length(unique(ex_seat))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seat 30 customers solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seat 30 customers solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(30)
+ex_seat &lt;- crp(n = 30, alpha = 1)
+length(unique(ex_seat))
+#&gt; [1] 3
+table(ex_seat)
+#&gt; ex_seat
+#&gt;  1  2  3 
+#&gt;  3  6 21 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Thirty customers filled three tables this time, with one clear favorite holding 21 people. The exact count shifts with the random seed, which is the point: the number of clusters is itself uncertain and depends on the data.</p>
+
+</details>
+</section>
+
+<h2>How does the concentration parameter alpha control the number of clusters?</h2>
+
+<p>The concentration parameter $\alpha$ is the one dial you set, so it pays to build a feel for it. A small $\alpha$ makes the process reluctant to open new tables, so you get a few big clusters. A large $\alpha$ makes it eager, so you get many small ones. Let us measure this directly by simulating the restaurant many times at each setting and averaging how many tables appear.</p>
+
+<p>The helper below runs <code>crp()</code> <code>reps</code> times for a given $\alpha$ and reports the average number of tables for 100 customers.</p>
+
+<div class="webr-container" data-block-title="Count clusters as alpha grows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count clusters as alpha grows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">avg_tables &lt;- function(alpha, n = 100, reps = 200) {
+  ks &lt;- replicate(reps, length(unique(crp(n, alpha))))
+  mean(ks)
+}
+
+set.seed(21)
+alphas &lt;- c(0.5, 1, 2, 5, 10)
+data.frame(alpha = alphas, avg_clusters = sapply(alphas, avg_tables))
+#&gt;   alpha avg_clusters
+#&gt; 1   0.5        3.125
+#&gt; 2   1.0        5.140
+#&gt; 3   2.0        8.525
+#&gt; 4   5.0       16.015
+#&gt; 5  10.0       23.900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pattern is clear and steady. At $\alpha = 0.5$ the same 100 customers form about 3 clusters on average, while at $\alpha = 10$ they spread across nearly 24. Raising $\alpha$ raises the expected number of clusters in a smooth, predictable way. This is the knob you tune when you want the model to be more or less willing to split data into new groups.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Expected clusters grow slowly with data size.</strong> For a Chinese restaurant process, the average number of clusters grows roughly like alpha times the logarithm of n. Doubling your data does not double your clusters, which keeps the model from inventing endless tiny groups.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Push $\alpha$ up to 20 and see how many clusters 100 customers form on average. Change the <code>alpha</code> argument and run it. Expect a number in the mid-30s.</p>
+<div class="webr-container" data-block-title="Your turn: try alpha = 20">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try alpha = 20</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change alpha from 10 to 20
+set.seed(21)
+avg_tables(alpha = 10, n = 100, reps = 200)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="alpha = 20 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">alpha = 20 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+avg_tables(alpha = 20, n = 100, reps = 200)
+#&gt; [1] 36.025</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At $\alpha = 20$ the same 100 points scatter into about 36 clusters on average. A large concentration parameter makes the process split hair-thin, which is usually too many groups to be useful, so $\alpha$ is often kept small or learned from the data.</p>
+
+</details>
+</section>
+
+<h2>How does stick-breaking turn alpha into cluster weights?</h2>
+
+<p>The Chinese restaurant process describes how points get assigned. There is a second, equivalent view that describes the cluster sizes directly, called stick-breaking. It is worth seeing because it makes the role of $\alpha$ visual and is the construction most software uses under the hood.</p>
+
+<p>Picture a stick of length 1 that represents all the probability. You break off a random fraction for the first cluster, then break off a fraction of what remains for the second cluster, and so on. Each break uses a random fraction drawn from a <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Beta distribution</a> that depends on $\alpha$. The pieces are the cluster weights, and they always shrink as you go.</p>
+
+<p>$$\beta_k \sim \text{Beta}(1, \alpha), \qquad \pi_k = \beta_k \prod_{j < k} (1 - \beta_j)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\beta_k$ = the fraction we snap off at step $k$</li>
+
+<li>$\pi_k$ = the final weight (relative size) of cluster $k$</li>
+
+<li>$\prod_{j < k}(1 - \beta_j)$ = the length of stick still left before step $k$</li>
+
+</ul>
+
+<p>If the math looks heavy, skip it: the code below is the whole idea, and its output tells the story. It breaks the stick ten times for $\alpha = 2$ and prints the resulting weights.</p>
+
+<div class="webr-container" data-block-title="Break the stick into cluster weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Break the stick into cluster weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stick_breaking &lt;- function(alpha, k_max = 20) {
+  betas     &lt;- rbeta(k_max, 1, alpha)   # a random fraction for each break
+  weights   &lt;- numeric(k_max)
+  remaining &lt;- 1                        # how much stick is left
+  for (k in seq_len(k_max)) {
+    weights[k] &lt;- betas[k] * remaining
+    remaining  &lt;- remaining * (1 - betas[k])
+  }
+  weights
+}
+
+set.seed(99)
+w &lt;- stick_breaking(alpha = 2, k_max = 10)
+round(w, 3)
+#&gt;  [1] 0.262 0.224 0.101 0.195 0.064 0.104 0.009 0.019 0.018 0.002
+round(sum(w), 3)
+#&gt; [1] 0.999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first few clusters grab the biggest slices (0.262, 0.224, and so on) and later clusters get crumbs. The weights add up to 0.999 rather than exactly 1 because we stopped after ten breaks and a sliver of stick is still unbroken. In a full Dirichlet process you would keep breaking forever, but in practice a handful of clusters soak up almost all the weight.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Break the stick with a much smaller $\alpha$ of 0.5 and watch how lopsided the weights become. Change the <code>alpha</code> argument and run it. The first piece should dominate.</p>
+<div class="webr-container" data-block-title="Your turn: break the stick with alpha = 0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: break the stick with alpha = 0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change alpha from 2 to 0.5
+set.seed(99)
+w_try &lt;- stick_breaking(alpha = 2, k_max = 10)
+round(w_try, 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="alpha = 0.5 stick solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">alpha = 0.5 stick solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+w_small &lt;- stick_breaking(alpha = 0.5, k_max = 10)
+round(w_small, 3)
+#&gt;  [1] 0.799 0.146 0.049 0.002 0.003 0.001 0.000 0.000 0.000 0.000
+round(sum(w_small), 3)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $\alpha = 0.5$ the first cluster takes almost 80 percent of the weight and the rest is nearly nothing. Small $\alpha$ concentrates points into a few dominant clusters, which is exactly what the restaurant simulation showed from the other direction.</p>
+
+</details>
+</section>
+
+<h2>How do you actually cluster data with a Dirichlet process mixture?</h2>
+
+<p>So far we have seen how a Dirichlet process invents clusters, but not how it clusters real numbers. The missing piece is a model for what a cluster looks like. We attach a bell curve (a <a class="auto-link" href="The-Normal-Distribution-Explained-in-R.html" title="The Normal Distribution in R: Where It Comes From">Normal distribution</a>) to each cluster, so a cluster is just a group of points sharing a center. This combination, a Dirichlet process choosing clusters plus a Normal describing each one, is called a Dirichlet process mixture model, and it is the workhorse for clustering when k is unknown.</p>
+
+<p>To fit it, we sweep through the points many times. On each pass we take one point out and re-seat it using the same restaurant rule, except now the odds are weighted by how well the point fits each cluster's bell curve. A point that lands near a cluster's center is likely to join it; a point far from every cluster is more likely to open a new one. Repeating this thousands of times lets the cluster assignments settle down. This procedure is a collapsed <a class="auto-link" href="Gibbs-Sampling-in-R.html" title="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">Gibbs sampler</a>.</p>
+
+<p>We need one ingredient: a score for how well a point fits a cluster. Because we assume a known spread inside clusters and a Normal prior on each cluster's center, the score has a clean closed form. It is the height of a Normal curve, centered on the cluster's updated mean, evaluated at the point.</p>
+
+<p>$$p(x_i \mid \text{cluster } k) = \mathcal{N}\!\left(x_i \;\middle|\; m_k,\; s_k^2 + \sigma^2\right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x_i$ = the point we are scoring</li>
+
+<li>$m_k$ = the cluster's updated center after seeing its current members</li>
+
+<li>$s_k^2$ = how unsure we are about that center</li>
+
+<li>$\sigma^2$ = the assumed spread of points around a center</li>
+
+</ul>
+
+<p>If you would rather not read the formula, the function below is all you need. It returns a fit score for a point against a cluster's current members, and it handles the empty case (a brand new cluster) by falling back to the prior.</p>
+
+<div class="webr-container" data-block-title="Score a point against a cluster">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a point against a cluster</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cluster_predictive &lt;- function(x0, members, sigma2, mu0, tau2) {
+  n_k &lt;- length(members)
+  if (n_k == 0) return(dnorm(x0, mean = mu0, sd = sqrt(tau2 + sigma2)))  # new cluster: use the prior
+  prec_post &lt;- 1 / tau2 + n_k / sigma2
+  var_post  &lt;- 1 / prec_post
+  mean_post &lt;- var_post * (mu0 / tau2 + sum(members) / sigma2)
+  dnorm(x0, mean = mean_post, sd = sqrt(var_post + sigma2))
+}
+
+# A point at 0 fits a small cluster sitting near 0 fairly well
+round(cluster_predictive(0, c(-0.1, 0.2, 0.05), sigma2 = 0.5, mu0 = 0, tau2 = 25), 4)
+#&gt; [1] 0.4881</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The score of 0.4881 is just the height of the fitted Normal curve at the point, and higher means a better fit. With that scorer in hand, the sampler itself is a loop. For each point it removes the point, scores every existing cluster (weighted by cluster size) plus the option of a new cluster (weighted by $\alpha$), then draws an assignment from those odds.</p>
+
+<div class="webr-container" data-block-title="Define the Gibbs sampler">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define the Gibbs sampler</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dp_gibbs &lt;- function(x, alpha, sigma2, mu0, tau2, iters = 200) {
+  n &lt;- length(x)
+  z &lt;- rep(1L, n)              # everyone starts in one cluster
+  k_trace &lt;- integer(iters)   # number of clusters after each sweep
+  for (it in seq_len(iters)) {
+    for (i in seq_len(n)) {
+      z[i] &lt;- NA                                  # take point i out
+      labels &lt;- sort(unique(z[!is.na(z)]))
+      w_exist &lt;- sapply(labels, function(k) {     # odds for each existing cluster
+        members &lt;- x[which(z == k)]
+        length(members) * cluster_predictive(x[i], members, sigma2, mu0, tau2)
+      })
+      w_new &lt;- alpha * cluster_predictive(x[i], numeric(0), sigma2, mu0, tau2)  # odds of a new cluster
+      probs &lt;- c(w_exist, w_new)
+      pick  &lt;- sample(length(probs), 1, prob = probs)
+      if (pick &lt;= length(labels)) z[i] &lt;- labels[pick] else z[i] &lt;- max(labels) + 1L
+    }
+    z &lt;- match(z, sort(unique(z)))                # tidy labels to 1, 2, 3, ...
+    k_trace[it] &lt;- length(unique(z))
+  }
+  list(z = z, k_trace = k_trace)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the payoff. We run the sampler on our original data <code>x</code>, the one we know has three groups, without ever telling it that number. We use a small $\alpha$ of 0.3, assume a modest within-cluster spread, and let it sweep 150 times. Then we look at how many clusters it settled on and compare its groups to the truth.</p>
+
+<div class="webr-container" data-block-title="Cluster the data and count the clusters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cluster the data and count the clusters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+fit &lt;- dp_gibbs(x, alpha = 0.3, sigma2 = 0.5, mu0 = mean(x), tau2 = 25, iters = 150)
+
+# how many clusters in the last 50 sweeps?
+table(tail(fit$k_trace, 50))
+#&gt;  3  4  5 
+#&gt; 39 10  1 
+# inferred groups vs the real ones
+table(true = true_group, inferred = fit$z)
+#&gt;     inferred
+#&gt; true  1  2  3
+#&gt;    A  0 40  0
+#&gt;    B  0  0 40
+#&gt;    C 40  0  0
+# clusters that captured a real share of points
+sum(table(fit$z) &gt;= 3)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model found three clusters on its own, and it recovered the grouping exactly: every A point landed in one cluster, every B in another, every C in a third, with no mixing. The <code>table(tail(...))</code> line shows that across the last 50 sweeps the sampler most often reported 3 clusters (39 out of 50 times), occasionally reporting 4 or 5. We can also color the raw points by their inferred cluster to see the clean split.</p>
+
+<div class="webr-container" data-block-title="Color the points by inferred cluster">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Color the points by inferred cluster</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(x, col = fit$z, pch = 19, main = &quot;Points colored by inferred cluster&quot;, xlab = &quot;index&quot;, ylab = &quot;value&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A Dirichlet process gives you a distribution over the number of clusters, not a single answer.</strong> As the sweep counts showed, the model sometimes proposed 4 or 5 clusters. Those extras are usually tiny, one or two stray points, so a practical habit is to keep the clusters that captured a real share of the data and treat the rest as noise.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Raise $\alpha$ from 0.3 to 5 and rerun the sampler on the same <code>x</code>. Change the <code>alpha</code> argument and run it. A bigger $\alpha$ pushes the model to split the same data into many more clusters.</p>
+<div class="webr-container" data-block-title="Your turn: raise alpha to 5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: raise alpha to 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change alpha from 0.3 to 5
+set.seed(2024)
+fit_try &lt;- dp_gibbs(x, alpha = 0.3, sigma2 = 0.5, mu0 = mean(x), tau2 = 25, iters = 150)
+table(tail(fit_try$k_trace, 50))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="alpha = 5 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">alpha = 5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2025)
+fit_hi &lt;- dp_gibbs(x, alpha = 5, sigma2 = 0.5, mu0 = mean(x), tau2 = 25, iters = 150)
+table(tail(fit_hi$k_trace, 50))
+#&gt;  6  7  8  9 10 11 12 
+#&gt;  6 10  6 15  7  3  3 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $\alpha = 5$ the same three-group data gets carved into roughly 9 clusters, because a large concentration parameter rewards opening new tables. This is the concrete danger of setting $\alpha$ too high, and why it is worth choosing it carefully or learning it from the data.</p>
+
+</details>
+</section>
+
+<h2>How do you run this with a package instead of coding it yourself?</h2>
+
+<p>Coding the sampler by hand is the best way to understand it, but for real work you will reach for a tested package. The <code>dirichletprocess</code> package fits the same Dirichlet process mixture in a few lines and handles the sampling for you. Because it relies on compiled internals, it does not run in the in-page runner, so treat the next block as code to run in your own R or RStudio session.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This block runs in local R, not in the interactive runner above.</strong> Install the package once with <code>install.packages(&quot;dirichletprocess&quot;)</code>, then run the code in RStudio. The output shown below was produced by running it locally on the same kind of data.</div></div>
+
+<p>We rebuild the three-group data, standardize it (the package expects roughly standardized input), and fit a Gaussian Dirichlet process mixture with 1000 sampling steps. Then we ask how many clusters it found and check them against the truth.</p>
+
+<pre><code class="language-r">library(dirichletprocess)
+
+# same three groups as before, then standardized
+set.seed(101)
+xp  &lt;- c(rnorm(40, -6, 0.5), rnorm(40, 0, 0.5), rnorm(40, 6, 0.5))
+grp &lt;- rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 40)
+yp  &lt;- as.numeric(scale(xp))
+
+set.seed(2024)
+dp &lt;- DirichletProcessGaussian(yp)
+dp &lt;- Fit(dp, 1000, progressBar = FALSE)
+
+dp$numberClusters
+#&gt; [1] 3
+table(true = grp, cluster = dp$clusterLabels)
+#&gt;     cluster
+#&gt; true  1  2  3
+#&gt;    A 40  0  0
+#&gt;    B  0  0 40
+#&gt;    C  0 40  0</code></pre>
+
+<p>The package reached the same conclusion our hand-built sampler did: three clusters, one per real group, with a perfect split. The difference is that it took three lines instead of a page of code, and it comes with well-tested samplers and support for more cluster shapes than a single bell curve.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Standardize your data and lean on many samples, not one.</strong> The package assumes roughly standardized input, so call scale() first. And because each sweep is one random draw, judge the number of clusters from many sweeps rather than trusting a single snapshot, exactly as we did with the sweep counts earlier.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These two problems combine the pieces you just built. Each has a runnable starter and a hidden solution with the expected output. Use fresh variable names so you do not overwrite the tutorial's objects.</p>
+
+<h3>Exercise 1: Predict the cluster count from alpha</h3>
+
+<p>Use the <code>avg_tables()</code> helper to estimate how many clusters 50 customers form on average when $\alpha = 3$, over 300 simulated restaurants. Set the seed to 55 first so your answer is reproducible.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the arguments: alpha = 3, n = 50, reps = 300
+set.seed(55)
+# avg_tables(alpha = , n = , reps = )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(55)
+avg_tables(alpha = 3, n = 50, reps = 300)
+#&gt; [1] 9.14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fifty customers at $\alpha = 3$ form about 9 clusters on average. This reuses the same simulation from the alpha section, now as a quick planning tool: pick $\alpha$, and you can predict roughly how many groups to expect before you ever touch real data.</p>
+
+</details>
+
+<h3>Exercise 2: Let the sampler discover two clusters</h3>
+
+<p>Make a new dataset with just two well-separated groups (50 points near -4 and 50 near 4), then run <code>dp_gibbs()</code> on it and check whether the model discovers two clusters. Use <code>sigma2 = 0.5</code>, <code>tau2 = 25</code>, and 120 sweeps. Confirm the result with a <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">cross-tabulation</a> against the true groups.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build two groups, then fit and compare to the truth
+set.seed(303)
+my_x &lt;- c(rnorm(50, -4, 0.5), rnorm(50, 4, 0.5))
+my_truth &lt;- rep(c(&quot;left&quot;, &quot;right&quot;), each = 50)
+# set.seed(11); my_fit &lt;- dp_gibbs(my_x, alpha = 0.3, sigma2 = , mu0 = mean(my_x), tau2 = , iters = )
+# table(tail(my_fit$k_trace, 40))
+# table(true = my_truth, inferred = my_fit$z)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+my_x &lt;- c(rnorm(50, -4, 0.5), rnorm(50, 4, 0.5))
+my_truth &lt;- rep(c(&quot;left&quot;, &quot;right&quot;), each = 50)
+
+set.seed(11)
+my_fit &lt;- dp_gibbs(my_x, alpha = 0.3, sigma2 = 0.5, mu0 = mean(my_x), tau2 = 25, iters = 120)
+table(tail(my_fit$k_trace, 40))
+#&gt;  2  3 
+#&gt; 38  2 
+table(true = my_truth, inferred = my_fit$z)
+#&gt;        inferred
+#&gt; true     1  2
+#&gt;   left   0 50
+#&gt;   right 50  0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Handed two-group data, the same sampler settles on two clusters (38 of the last 40 sweeps) and splits them cleanly: all left points in one cluster, all right points in the other. The exact same code that found three groups earlier found two here, with no change to the number of clusters. That is the whole promise of the method.</p>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Is Dirichlet process clustering just a fancy k-means?</strong> No. k-means fixes the number of clusters up front and only moves centers around. A Dirichlet process treats the number of clusters as unknown and lets it grow with the data, so it answers a question k-means cannot even ask.</p>
+
+<p><strong>Does it always recover the true number of clusters?</strong> It recovers a range, not a single number. The model reports a distribution over how many clusters fit the data, which is more honest than a point estimate. When groups are well separated it concentrates tightly on the right count, as you saw; when they overlap, the range is wider.</p>
+
+<p><strong>What value of alpha should I use?</strong> Start small, around 0.5 to 1, since large values invent too many tiny clusters. Better still, many packages can learn $\alpha$ from the data by placing a prior on it, so you do not have to guess. The simulations here show why the choice matters: $\alpha$ directly sets how eager the model is to split.</p>
+
+<p><strong>Do I need to scale my data first?</strong> For the <code>dirichletprocess</code> package, yes. Its default settings assume roughly standardized input, so call <code>scale()</code> before fitting. Our from-scratch sampler used a wide prior instead, which is another way to stay insensitive to the data's scale.</p>
+
+<p><strong>Why is it called nonparametric if there are still parameters?</strong> "Nonparametric" here means the number of parameters is not fixed in advance. Each new cluster adds its own center, so the model can use more parameters as more data arrives. It is unbounded flexibility, not the absence of parameters.</p>
+
+<h2>Summary</h2>
+
+<p>You now have both the intuition and the working code for clustering when the number of clusters is unknown. The table below recaps the moving parts.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it does</th>
+<th>Where it appeared here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chinese restaurant process</td>
+<td>Seats points into clusters, favoring busy ones</td>
+<td>The <code>crp()</code> simulation</td>
+</tr>
+<tr>
+<td>Concentration parameter alpha</td>
+<td>Sets how eagerly new clusters open</td>
+<td>The alpha-vs-clusters table</td>
+</tr>
+<tr>
+<td>Stick-breaking</td>
+<td>Turns alpha into shrinking cluster weights</td>
+<td>The <code>stick_breaking()</code> weights</td>
+</tr>
+<tr>
+<td>Dirichlet process mixture</td>
+<td>Clusters real numbers with a Normal per group</td>
+<td>The <code>dp_gibbs()</code> sampler</td>
+</tr>
+<tr>
+<td>dirichletprocess package</td>
+<td>Fits the same model in a few tested lines</td>
+<td>The run-locally block</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mind map below ties the pieces together: one problem, three views of the same process, a single tuning dial, then two ways to run it in R.</p>
+
+<p><img src="screenshots/Bayesian-Nonparametrics-in-R-overview-mindmap.webp" alt="The Dirichlet process at a glance: the problem it solves, its three views, its single tuning dial, then two ways to run it in R." class="img-responsive img-zoomable" loading="lazy" width="1568" height="830" /></p>
+
+<p><em>Figure 2: The Dirichlet process at a glance: the problem it solves, its three views, its single tuning dial, then two ways to run it in R.</em></p>
+
+<p>The big idea to carry away: a Dirichlet process replaces the awkward question "how many clusters?" with a single tuning dial and lets the data supply the count. That makes it a natural fit for exploratory work where you genuinely do not know the structure ahead of time.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>dirichletprocess package on CRAN. <a href="https://cran.r-project.org/package=dirichletprocess">Link</a> - the package used in the last section; install page and reference manual.</li>
+
+<li>Ross, G. J. and Markwick, D. (2018). dirichletprocess: An R Package for Fitting Complex Bayesian Nonparametric Models. <a href="https://arxiv.org/abs/1809.02649">Link</a> - the paper behind the package, walking through its models and API.</li>
+
+<li>dirichletprocess package vignette (PDF). <a href="https://cran.r-project.org/web/packages/dirichletprocess/vignettes/dirichletprocess.pdf">Link</a> - worked examples of fitting Dirichlet process mixtures with the package.</li>
+
+<li>Neal, R. M. (2000). Markov Chain Sampling Methods for Dirichlet Process Mixture Models. <a href="https://www.cs.toronto.edu/~radford/ftp/mixmc.pdf">Link</a> - the classic reference for the collapsed Gibbs sampler this post builds by hand.</li>
+
+<li>Rasmussen, C. E. (2000). The Infinite Gaussian Mixture Model. <a href="https://mlg.eng.cam.ac.uk/pub/pdf/Ras00.pdf">Link</a> - the paper that popularized the Dirichlet process Gaussian mixture for clustering.</li>
+
+<li>Teh, Y. W. (2010). Dirichlet Process. Encyclopedia of Machine Learning. <a href="https://www.stats.ox.ac.uk/~teh/research/npbayes/Teh2010a.pdf">Link</a> - a compact, readable definition of the process and its Chinese-restaurant and stick-breaking views.</li>
+
+<li>CRAN Task View: Bayesian Inference. <a href="https://cran.r-project.org/web/views/Bayesian.html">Link</a> - a curated index of R packages for Bayesian work, including nonparametric ones.</li>
+
+<li>Chinese restaurant process (overview). <a href="https://en.wikipedia.org/wiki/Chinese_restaurant_process">Link</a> - a plain-language reference for the seating rule that drives the clustering.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Grid-Approximation-in-R.html">Grid Approximation in R</a>: compute Bayesian posteriors directly on a grid, a gentle first step into Bayesian computation before samplers.</li>
+
+<li><a href="Gaussian-Mixture-Models-in-R.html">Gaussian Mixture Models in R</a>: the fixed-k cousin of this model, where you do choose the number of clusters in advance.</li>
+
+<li><a href="Gibbs-Sampling-in-R.html">Gibbs Sampling in R</a>: a closer look at the sampling engine that powers the clustering sampler you built here.</li>
+
+</ul>
+
+{% endraw %}
