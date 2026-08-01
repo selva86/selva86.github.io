@@ -16,6 +16,7 @@ export function jsonError(status: number, code: string, message: string, extra?:
   return json({ error: { code, message, ...(extra || {}) } }, { status });
 }
 
+export const err400 = (msg = "Malformed request.") => jsonError(400, "bad_request", msg);
 export const err401 = () => jsonError(401, "unauthenticated", "Sign in to continue.");
 export const err402 = (cta = "Upgrade to Pro to unlock this.") =>
   jsonError(402, "payment_required", cta);
