@@ -2,7 +2,7 @@
 """Batch orchestrator for The Publishing Handbook.
 
     /write-handbook-chapter -> handbook_quality_check.py
-                            -> /check-handbook-chapter -> /publish-tut
+                            -> /check-handbook-chapter -> /publish-handbook-chapter
       (writer)                 (deterministic gate)
                                     (fresh-eyes judge)     (mechanical publisher)
 
@@ -243,7 +243,15 @@ def verify_published(slug):
 
 
 def publish(slug, cli, timeout):
-    prompt = bt.compose_prompt('publish-tut', slug)
+    # publish-handbook-chapter, NOT publish-tut. publish-tut re-runs
+    # tutorial_quality_check.py before publishing, which fails a correct handbook
+    # chapter for structural reasons (no FAQ / Summary / References, no
+    # post_plans/ plan file) and advises rewriting it as a tutorial. Four
+    # finished chapters were blocked that way. Quality is already established
+    # here: handbook_quality_check.py and /check-handbook-chapter both ran above,
+    # and only chapters that passed both reach this function. The publisher is
+    # mechanical on purpose.
+    prompt = bt.compose_prompt('publish-handbook-chapter', slug)
     proc = subprocess.Popen(
         [cli, '-p', '--dangerously-skip-permissions',
          '--model', bt.BATCH_MODEL, '--effort', 'medium',
