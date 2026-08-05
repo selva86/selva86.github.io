@@ -13,10 +13,21 @@ This gate enforces the authoring contract in
 
   fixed section template (names + order), the three mandatory outcomes, three
   response-letter blockquotes, two-plus reviewer phrasings, the 1,200-1,800 word
-  band, frontmatter completeness, zero em-dashes, banned phrases, commentary-tic
-  probes (warn only, for a human to judge), and the R execution check: every
-  ```r block runs concatenated in ONE Rscript session and every claimed `#>`
-  line must match what R actually printed.
+  band, frontmatter completeness, zero em-dashes, the prose-family probes
+  (warn only, for a human to judge), and the R execution check: every ```r block
+  runs concatenated in ONE Rscript session and every claimed `#>` line must
+  match what R actually printed.
+
+Two severities, and the split is deliberate:
+
+  FAIL  only for the unambiguous and mechanical: em-dashes, frontmatter
+        problems, missing/misnamed/misordered sections, missing outcomes,
+        missing response blockquotes, word count out of band, a body H1, a
+        WebR mention, and R output that does not match a real run.
+  WARN  for everything prose-stylistic. The prose families below match a
+        rhetorical MOVE, not a literal string, so they are broad by design and
+        false positives are expected. The gate surfaces candidates; a human
+        adjudicates. No prose rule can ever fail a chapter.
 
 Deliberately absent (tutorial rules that must not leak in): FAQ / Summary /
 References sections, a post_plans/ plan file, first-code-block position.
@@ -27,6 +38,7 @@ Usage:
 Exit 0 = publishable. Exit 1 = at least one FAIL (report lists every finding).
 """
 import os, re, sys, glob, argparse, subprocess, tempfile
+from collections import Counter
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -56,31 +68,178 @@ OUTCOMES = ['You are fine', 'It is fixable', 'It is a real problem']
 
 WORDS_MIN, WORDS_MAX = 1200, 1800
 
-# (label, pattern). Patterns are word-anchored on the left so a phrase buried
-# inside a longer word is not a hit. "in conclusion" is anchored to the start of
-# a sentence, because this handbook talks about conclusions constantly and
-# "the main conclusions are unchanged" / "no change in conclusion" are ordinary
-# prose here, while the AI-tell is always the sentence opener.
-BANNED = [
-    ("in conclusion",           r'(?:^\s*>?\s*|[.!?]["\')]?\s+)in conclusion\b'),
-    ("delve",                   r'\bdelve'),
-    ("unlock",                  r'\bunlock'),
-    ("navigate the landscape",  r'\bnavigate the landscape'),
-    ("it is important to note", r'\bit is important to note'),
-    ("it's important to note",  r"\bit's important to note"),
-    ("the ever-evolving",       r'\bthe ever-evolving'),
-    ("in today's",             r"\bin today's"),
-]
-
-# The commentary tic: a sentence that comments on the significance of what was
-# just said instead of continuing to explain it. Some hits are innocent, so
-# these WARN with a line number and a human decides.
-TIC_PROBES = ["That is the", "This is the single", "Note what", "Look at what",
-              "The mistake to avoid", "in one picture", "That single"]
-
 REQUIRED_FM = ['title', 'slug', 'description', 'keywords', 'post_type', 'fr_parent',
                'handbook', 'handbook_part', 'handbook_chapter', 'auto_link_terms',
                'difficulty']
+
+# ------------------------------------------------------------------ prose families
+#
+# Detection is by FAMILY, not by literal. Each family is one rhetorical move,
+# expressed as a list of loose regexes:
+#
+#   * case-insensitive,
+#   * `\s+` between words so a line break never defeats a phrase,
+#   * `\b` boundaries so a phrase buried in a longer word is not a hit,
+#   * optional intervening words where the move tolerates them
+#     ("that is usually the whole answer" is the same tic as "that is the key"),
+#   * typographic and straight apostrophes both accepted.
+#
+# Everything here WARNs. Broad matching means innocent prose will sometimes
+# match, and that is the intended trade: a missed tic ships, a false positive
+# costs one glance.
+
+APO = r"['\u2019]"
+
+# "that is" / "this was" / "which's" / "it is" - the head of most significance
+# announcements, in every contraction and tense the tic actually appears in.
+DEM = r'\b(?:that|this|it|which)(?:' + APO + r's|\s+is|\s+was|\s+really\s+is)'
+
+# Start of a sentence: line start (blockquote marker allowed) or after . ! ?
+SENT = r'(?:^\s*>?\s*|[.!?][\'")]?\s+)'
+
+
+def ph(phrase):
+    """A plain phrase -> a whitespace-tolerant, word-anchored regex.
+
+    Hyphens match a hyphen or a space; apostrophes match either quote glyph."""
+    core = r'\s+'.join(re.escape(w) for w in phrase.split())
+    core = core.replace(r'\-', r'[-\s]').replace("-", r'[-\s]')
+    core = core.replace(r"\'", APO).replace("'", APO)
+    left = r'\b' if phrase[0].isalnum() else ''
+    right = r'\b' if phrase[-1].isalnum() else ''
+    return left + core + right
+
+
+FAMILIES = [
+    # ---------------------------------------------------------- 1
+    ('conclusion signposting', [
+        # Anchored to a sentence opener or the comma form, because a handbook
+        # about defending analyses talks about conclusions constantly: "no
+        # change in conclusion", "enough evidence to conclude that the means
+        # differ" and "the main conclusions are unchanged" are ordinary prose
+        # here. The tic is the signpost, not the noun.
+        SENT + r'in\s+conclusion\b',
+        r'\bin\s+conclusion\s*,',
+        SENT + r'to\s+conclude\b(?!\s+that\b)',
+        r'\bto\s+conclude\s*,',
+        r'\bin\s+(?:brief\s+|short\s+)?summary\b',
+        ph('to summarise'), ph('to summarize'),
+        ph('to sum up'), ph('summing up'),
+        ph('all in all'),
+        ph('in closing'),
+        ph('in the final analysis'),
+        r'\bultimately\b',
+        ph('at the end of the day'),
+        r'\bthe\s+bottom\s+line\b',
+        ph('to wrap up'), ph('to wrap this up'),
+        r'\bin\s+the\s+end\b',
+    ]),
+
+    # ---------------------------------------------------------- 2
+    # The commentary tic, and the highest-value family here: a sentence that
+    # announces the significance of what was just said instead of continuing to
+    # explain it.
+    ('significance announcement', [
+        # "that is the single/real/whole/key <noun>", with up to two hedging
+        # words in front of "the" and the adjective doing the flagging.
+        DEM + r'\s+(?:\w+\s+){0,2}the\s+(?:single|real|whole|entire|key|crucial|'
+              r'central|critical|important|essential|main|core|only|first|second|'
+              r'third|biggest|hardest)\s+\w+',
+        # "that is the point/crux/takeaway", with intervening words either side.
+        DEM + r'\s+(?:\w+\s+){0,2}the\s+(?:\w+\s+){0,2}'
+              r'(?:key|point|crux|heart|essence|takeaway|upshot|moral|lesson)\b',
+        DEM + r'\s+(?:exactly|precisely|just)\s+why\b',
+        DEM + r'\s+what\s+makes\b',
+        DEM + r'\s+why\s+(?:it|this|that)\s+matters\b',
+        ph('therein lies'),
+        r'\bthe\s+(?:important|crucial|key|essential|whole)\s+(?:thing|point|part)\b',
+        r'\bwhat\s+(?:really\s+)?matters\s+(?:here\s+)?is\b',
+        # "that is collinearity in one picture"
+        r'\bin\s+(?:one|a\s+single)\s+(?:picture|sentence|line|number|word|graph|plot|table)\b',
+        r'\bin\s+a\s+nutshell\b',
+        r'\bthat\s+single\s+\w+\b',
+        r'\bthe\s+(?:whole|entire)\s+(?:answer|story|game)\b',
+        r'\bwhich\s+is\s+(?:exactly\s+|precisely\s+)?the\s+(?:whole\s+)?point\b',
+    ]),
+
+    # ---------------------------------------------------------- 3
+    ('stagey aside', [
+        r'\bnote\s+what\b',
+        r'\bnotice\s+(?:what|how|that)\b',
+        r'\blook\s+at\s+(?:what|how)\b',
+        r'\bobserve\s+that\b',
+        r'\bconsider\s+this\b',
+        r'\bhere(?:' + APO + r's|\s+is)\s+the\s+thing\b',
+        r'\bthe\s+thing\s+is\b',
+        r'\bwatch\s+what\s+happens\b',
+        r'\bask\s+yourself\b',
+    ]),
+
+    # ---------------------------------------------------------- 4
+    ('prescriptive formula', [
+        r'\bthe\s+mistake\s+(?:to\s+avoid|here|would\s+be|is)\b',
+        r'\bthe\s+wrong\s+(?:move|answer|response)\b',
+        r'\bthe\s+(?:key\s+)?take[-\s]?away\b',
+        r'\bremember\s+that\b',
+        r'\b(?:keep|bear)\s+(?:this\s+)?in\s+mind\b',
+        r'\bworth\s+(?:noting|remembering|bearing\s+in\s+mind)\b',
+        r'\b(?:it\s+is|it' + APO + r's)\s+important\s+to\s+'
+        r'(?:note|remember|understand|realise|realize)\b',
+        r'\bnote\s+that\b',
+        r'\bthe\s+rule\s+of\s+thumb\s+(?:here\s+)?is\b',
+        r'\balways\s+remember\b',
+    ]),
+
+    # ---------------------------------------------------------- 5
+    # "robust" and "leverage" are load-bearing statistical words in this
+    # handbook ("robust to non-normality", "high-leverage point"), so both are
+    # matched only in their filler constructions. See the header note.
+    ('AI vocabulary', [
+        r'\bdelv(?:e|es|ed|ing)\b',
+        r'\bunlock(?:s|ed|ing)?\b',
+        r'\bnavigat\w*\s+(?:the\s+|this\s+)?(?:complex\s+|ever[-\s]?changing\s+)?'
+        r'(?:landscape|world|waters|maze|terrain)\b',
+        r'\bever[-\s]?(?:evolving|changing|growing)\b',
+        r'\bin\s+today' + APO + r's\b',
+        r'\bin\s+the\s+(?:modern|current)\s+(?:era|landscape|world)\b',
+        r'\bleverag(?:e|es|ed|ing)\s+(?:the|this|these|our|your|their|its|a|an)\b',
+        r'\brobust\s+(?:and\s+\w+\s+)?(?:solution|framework|approach|methodolog|'
+        r'system|platform|tool|toolkit|workflow|pipeline|foundation|process|'
+        r'strategy|insight)\w*\b',
+        r'\bseamless(?:ly)?\b',
+        r'\bharness(?:ing|es)?\s+the\s+power\b',
+        r'\bgame[-\s]?chang(?:er|ing)\b',
+        r'\b(?:deep\s+dive|dive\s+deep(?:er)?|diving\s+deep)\b',
+        r'\bcutting[-\s]edge\b',
+        r'\bpowerful\s+(?:tool|technique|approach|framework)\b',
+        r'\bthe\s+world\s+of\b',
+        r'\bembark\b',
+        r'\btapestry\b',
+    ]),
+]
+
+FAMILY_RX = [(name, [re.compile(p, re.I | re.M) for p in pats])
+             for name, pats in FAMILIES]
+
+# Slogan register: a standalone short paragraph that is a rhetorical beat rather
+# than an explanation. The only family that is not a phrase list.
+#
+# Brevity alone is NOT the test. Tried that first and it flagged every ordinary
+# short sentence ("We noted the departure in the supplement."), which is exactly
+# the noise this family is worth dropping over. So a paragraph must be short,
+# standalone, free of anything concrete (no number, code span, link or markup),
+# AND carry one of the shapes below: a rhythm-of-three triad, an aphoristic
+# reversal, a clipped imperative closer, or so few words that it can only be a
+# beat.
+SLOGAN_MAX_WORDS = 11
+SLOGAN_BEAT_WORDS = 5           # a paragraph this short is a beat, not a point
+SLOGAN_SHAPES = [
+    r'^\w+(?:\s+\w+){0,2},\s+\w+(?:\s+\w+){0,2}\s+and\s+\w+',        # triad
+    r'\b(?:never|not|nothing)\b[^.]{0,45}\b(?:just|only|merely|simply)\b',  # reversal
+    r'\band\s+(?:stop|move\s+on|be\s+done|nothing\s+more)\b',         # clipped closer
+    r'\bthat\s+is\s+(?:all|it)\b',
+]
+SLOGAN_RX = [re.compile(p, re.I) for p in SLOGAN_SHAPES]
 
 findings = []
 def fail(msg): findings.append(('FAIL', msg))
@@ -121,6 +280,26 @@ def strip_code(body):
     return re.sub(r'^```.*?^```[ \t]*$', '', body, flags=re.S | re.M)
 
 
+def _blank(m):
+    """Same span, same length, no content: keeps every offset and line number."""
+    return re.sub(r'[^\n]', ' ', m.group(0))
+
+
+def blank_fences(body):
+    """Body with fenced code blanked out. Frontmatter is already gone."""
+    return re.sub(r'^```.*?^```[ \t]*$', _blank, body, flags=re.S | re.M)
+
+
+def blank_code(body):
+    """Fenced code AND inline `code` spans blanked out.
+
+    Blockquotes are left alone on purpose: a reviewer quote or a response letter
+    is prose the author wrote, so it gets scanned. Hits inside one are reported
+    separately, because reviewer voice legitimately sounds different.
+    """
+    return re.sub(r'`[^`\n]*`', _blank, blank_fences(body))
+
+
 def split_sections(prose):
     """[(heading, section_text)] in document order, from code-stripped prose."""
     parts = re.split(r'^## +(.+?)\s*$', prose, flags=re.M)
@@ -150,6 +329,95 @@ def count_blockquotes(text):
         else:
             inq = False
     return n
+
+
+# ------------------------------------------------------------------ family scan
+
+def _paragraphs(text):
+    """[(first_line_index, [lines])] for each blank-line-separated block."""
+    lines = text.split('\n')
+    out, i = [], 0
+    while i < len(lines):
+        if not lines[i].strip():
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and lines[j].strip():
+            j += 1
+        out.append((i, lines[i:j]))
+        i = j
+    return out
+
+
+def scan_families(body, line_offset):
+    """[(family, file_line, matched_phrase, source_line, in_blockquote)].
+
+    One hit per family per line: several patterns in a family routinely match
+    overlapping spans of the same sentence, and repeating the line teaches the
+    reader nothing."""
+    scan = blank_code(body)
+    src = body.split('\n')
+    seen, hits = set(), []
+    for name, pats in FAMILY_RX:
+        for rx in pats:
+            for m in rx.finditer(scan):
+                idx = scan.count('\n', 0, m.start())
+                if (name, idx) in seen:
+                    continue
+                seen.add((name, idx))
+                line = src[idx] if idx < len(src) else ''
+                hits.append((name, idx + 1 + line_offset, norm(m.group(0)),
+                             norm(line), line.lstrip().startswith('>')))
+    hits += scan_slogans(body, line_offset)
+    hits.sort(key=lambda h: (h[1], h[0]))
+    return hits
+
+
+def scan_slogans(body, line_offset):
+    """Slogan register: a standalone paragraph that is one short sentence with
+    nothing concrete in it and a slogan's shape. Best-effort by construction -
+    slogan is a register, not a string - so it is tuned to stay quiet on
+    ordinary explanatory prose: anything with a number, a code span, a link,
+    markup, or a second sentence is specific enough to be left alone."""
+    hits = []
+    for start, lines in _paragraphs(blank_fences(body)):
+        t = norm(' '.join(l.strip() for l in lines))
+        if not t or t[0] in '#>-*|<!' or re.match(r'^\d+[.)]', t):
+            continue
+        if any(x in t for x in ('`', '](', '<', '|', '=', '#>')):
+            continue
+        if re.search(r'\d', t):
+            continue
+        if len(re.split(r'(?<=[.!?])\s+', t)) != 1:
+            continue
+        if not t.endswith(('.', '!')):          # a question is the template's, not a slogan
+            continue
+        n = len(t.split())
+        if n > SLOGAN_MAX_WORDS or n < 2:
+            continue
+        if n > SLOGAN_BEAT_WORDS and not any(rx.search(t) for rx in SLOGAN_RX):
+            continue
+        line = lines[0].strip()
+        hits.append(('slogan register', start + 1 + line_offset, t[:60],
+                     norm(line), False))
+    return hits
+
+
+def report_families(hits):
+    """One summary line, then one warn per hit so a human can judge each."""
+    if not hits:
+        ok('no prose-family candidates matched')
+        return
+    counts = Counter(h[0] for h in hits)
+    quoted = sum(1 for h in hits if h[4])
+    warn('prose families: %d candidate(s) [%s]%s'
+         % (len(hits),
+            ', '.join('%s %d' % (k, v) for k, v in sorted(counts.items())),
+            ' (%d inside a blockquote, where reviewer/response voice '
+            'legitimately differs)' % quoted if quoted else ''))
+    for name, ln, phrase, line, inq in hits:
+        warn('  %-26s line %-4d "%s"%s\n          %s'
+             % (name, ln, phrase[:60], '  [blockquote]' if inq else '', line[:150]))
 
 
 def find_rscript():
@@ -220,6 +488,8 @@ def main():
         print('FAIL: file not found: %s' % args.post); return 1
     text = open(path, encoding='utf-8').read()
     fm, body = parse_frontmatter(text)
+    # body is a suffix of text, so this counts the frontmatter's lines exactly.
+    fm_lines = text[:len(text) - len(body)].count('\n')
     slug = os.path.splitext(os.path.basename(path))[0]
     prose = strip_code(body)
     sections = split_sections(prose)
@@ -309,24 +579,14 @@ def main():
     if '\u2014' not in text: ok('no em-dashes')
     if '\u2013' in body: warn('en dash present (prefer hyphen or "to")')
 
-    # 8. banned phrases (prose only: an R comment is not the product's voice)
-    hits = [label for label, pat in BANNED
-            if re.search(pat, prose, re.I | re.M)]
-    if hits: fail('banned phrase(s) present: %s' % ', '.join(hits))
-    else: ok('no banned phrases')
-    if re.search(r'\bWebR\b', body): fail('body names WebR (say "interactive code")')
+    # 8. prose families (WARN only; a human judges each hit). Code fences and
+    #    inline code are blanked first, so R never trips a family; blockquotes
+    #    are scanned but flagged, because reviewer voice sounds different.
+    report_families(scan_families(body, fm_lines))
 
-    # 9. commentary-tic probes (WARN: a human judges each hit)
-    tic_hits = []
-    for i, line in enumerate(body.splitlines(), 1):
-        for probe in TIC_PROBES:
-            if probe.lower() in line.lower():
-                tic_hits.append((i, probe, line.strip()))
-    if tic_hits:
-        for ln, probe, line in tic_hits:
-            warn('commentary-tic probe "%s" at line %d: %s' % (probe, ln, line[:120]))
-    else:
-        ok('no commentary-tic probes matched')
+    # 9. WebR is a hard rule, not a style preference: it is never named in
+    #    public-facing copy.
+    if re.search(r'\bWebR\b', body): fail('body names WebR (say "interactive code")')
 
     # 10. mathjax coherence (cheap, catches a rendering bug not a tutorial rule)
     has_math = ('\\(' in body) or ('$$' in body)
