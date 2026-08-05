@@ -10,14 +10,12 @@ curriculum_id: null
 post_type: FR
 fr_parent: Answering-Statistical-Reviewer-Comments.html
 handbook: publishing
-handbook_part: 12
-handbook_chapter: 34
+handbook_part: 9
+handbook_chapter: 35
 auto_link_terms: multicollinearity objection|correlated predictors reviewer|VIF response
 auto_link_case_sensitive: false
 difficulty: Intermediate
 ---
-
-# Reviewer says multicollinearity was not checked
 
 <p class="lead">Multicollinearity inflates standard errors but leaves the coefficients themselves unbiased. So if your predictors are correlated and your results are still significant, you have cleared a higher bar than usual rather than a lower one, and that is usually the whole answer to this objection.</p>
 
@@ -131,7 +129,7 @@ The honest response is to change the claim. Report the joint effect of the corre
 
 > We agree with the reviewer. Total and disposable income are sufficiently collinear in our sample (VIF = 12.4) that the model cannot separate their individual contributions, and we accept that the coefficient for disposable income should not be interpreted in isolation. We have revised the analysis to report the joint effect of the income block and have removed the claim about the independent contribution of disposable income from the Abstract and Discussion. We now state explicitly that separating these effects would require a sample with greater variation in the ratio between them (Limitations, page X).
 
-The third response concedes the point, says exactly what was removed from the paper, and says what kind of data would be needed to answer the original question. Reviewers tend to accept this without argument, because it shows you understood the objection rather than working around it.
+A concession that states plainly what was removed from the paper and what data would answer the original question tends to be accepted without argument, because it shows you understood the objection rather than working around it.
 
 ## Practice
 
@@ -157,6 +155,6 @@ Then look at the coefficients: both are significant at p < 0.001, with t values 
 
 It would be a mistake to drop petal width just because its VIF is 14. It is significant, it is theoretically meaningful, and removing it would change what the remaining coefficients estimate. A high VIF tells you to look more closely, not to delete something.
 
-There is a wider point here about the thresholds you will meet in textbooks. A VIF of 14 attached to a clearly significant coefficient is less worrying than a VIF of 6 attached to a marginal one, because what actually matters is whether the inflation was enough to obscure the effect you care about.
+A VIF of 14 attached to a clearly significant coefficient is less worrying than a VIF of 6 attached to a marginal one, whatever the textbook threshold says, because what actually matters is whether the inflation was enough to obscure the effect you care about.
 
 </details>

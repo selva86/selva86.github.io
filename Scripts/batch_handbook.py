@@ -1,7 +1,17 @@
 #!/usr/bin/env python
 """Batch orchestrator for The Publishing Handbook.
 
-    /write-handbook-chapter  ->  handbook_quality_check.py  ->  /publish-tut
+    /write-handbook-chapter -> handbook_quality_check.py
+                            -> /check-handbook-chapter -> /publish-tut
+      (writer)                 (deterministic gate)
+                                    (fresh-eyes judge)     (mechanical publisher)
+
+The judge phase exists because the gate is deliberately mechanical and carries
+no prose rules: the six regex "phrase families" it used to warn on were removed
+2026-08-06 after they fired on sentences the authoring contract itself endorses.
+A tic and a legitimate summary differ semantically, not lexically, so the call
+needs a reader. `/check-handbook-chapter` is that reader, in a FRESH subprocess
+(never the author's context), with bounded prose-only fix authority.
 
 Handbook chapters are NOT in curriculum-status.json (they carry
 curriculum_id: null), so batch_tutorials_v2.py cannot drive them. This script
@@ -20,6 +30,7 @@ Usage
     python Scripts/batch_handbook.py --part 12 --max 6
     python Scripts/batch_handbook.py --pending --max 6
     python Scripts/batch_handbook.py --regenerate      # retry failed/manual_review
+    python Scripts/batch_handbook.py --chapter 35 --skip-judge   # rerun, gate only
     python Scripts/batch_handbook.py --dry-run
 """
 import os, sys, json, argparse, subprocess, datetime
@@ -36,6 +47,8 @@ STATUS = os.path.join(ROOT, 'handbook-status.json')
 # template from .claude/skills/write-handbook-chapter/SKILL.md and reuses the
 # same R execution check.
 GATE = os.path.join(ROOT, 'Scripts', 'handbook_quality_check.py')
+JUDGE = 'check-handbook-chapter'
+REVIEW_LOG = os.path.join(ROOT, 'Scripts', 'handbook-review.log')
 
 
 # ---------------------------------------------------------------- state
@@ -126,6 +139,52 @@ def run_gate(slug):
     return r.returncode
 
 
+def judge(slug, cli, timeout):
+    """Fresh-eyes prose review. Spawned exactly like the writer (fresh context,
+    same model + settings), at lower effort: judging one 1,500-word chapter is a
+    smaller job than writing it.
+
+    Returns (rc, blocked). `blocked` is the belt-and-braces signal: the skill is
+    told to exit non-zero on NEEDS REWRITE, but `claude -p` does not reliably
+    propagate an agent's intended exit status, so a line appended to
+    Scripts/handbook-review.log naming this slug counts as a block too."""
+    before = os.path.getsize(REVIEW_LOG) if os.path.exists(REVIEW_LOG) else 0
+    prompt = bt.compose_prompt(JUDGE, slug)
+    print('+ [%s] %s %s  (--model %s --effort high)'
+          % (datetime.datetime.now().strftime('%H:%M'), JUDGE, slug, bt.BATCH_MODEL),
+          flush=True)
+    try:
+        proc = subprocess.Popen(
+            [cli, '-p', '--dangerously-skip-permissions',
+             '--model', bt.BATCH_MODEL, '--effort', 'high',
+             '--settings', bt.WRITER_SETTINGS],
+            stdin=subprocess.PIPE, cwd=bt.PROJECT_ROOT, text=True, encoding='utf-8')
+    except FileNotFoundError:
+        print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
+        return 127, False
+    try:
+        proc.communicate(input=prompt, timeout=timeout or None)
+        rc = proc.returncode
+    except subprocess.TimeoutExpired:
+        print('  TIMEOUT: judge for %s produced nothing in %ss - killing worker.'
+              % (slug, timeout), flush=True)
+        bt._kill_tree(proc.pid)
+        try:
+            proc.communicate(timeout=20)
+        except Exception:
+            pass
+        rc = 124
+    blocked = False
+    if os.path.exists(REVIEW_LOG) and os.path.getsize(REVIEW_LOG) > before:
+        with open(REVIEW_LOG, encoding='utf-8', errors='replace') as f:
+            f.seek(before)
+            tail = f.read()
+        if slug in tail:
+            blocked = True
+            print('  judge logged a blocking review:\n    %s' % tail.strip()[:400])
+    return rc, blocked
+
+
 def publish(slug, cli, timeout):
     prompt = bt.compose_prompt('publish-tut', slug)
     proc = subprocess.Popen(
@@ -171,6 +230,10 @@ def main():
     ap.add_argument('--max', type=int, default=0)
     ap.add_argument('--regenerate', action='store_true',
                     help='retry quality_failed / manual_review / failed')
+    ap.add_argument('--skip-judge', action='store_true',
+                    help='skip the /check-handbook-chapter reviewer pass. For '
+                         'reruns of a chapter already judged, or when only the '
+                         'deterministic gate is being retested.')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--claude', default='claude')
     ap.add_argument('--timeout', type=int, default=1800)
@@ -206,10 +269,11 @@ def main():
             n = row['chapter']
             print('\n=== [%d/%d] chapter %s: %s ===' % (i, len(todo), n, row['title']))
 
-            # status 'written' = the markdown is already on disk and good enough
-            # to gate. Re-running the writer would throw it away, so resume at
-            # the gate instead.
-            already = (row.get('status') == 'written' and row.get('slug') and
+            # 'written' = the markdown is already on disk and good enough to
+            # gate; 'reviewing' = it also already passed the gate and the run
+            # died inside the judge. Re-running the writer would throw either
+            # away, so resume at the gate instead.
+            already = (row.get('status') in ('written', 'reviewing') and row.get('slug') and
                        os.path.exists(os.path.join(ROOT, 'posts', row['slug'] + '.md')))
             if already:
                 slug = row['slug']
@@ -246,6 +310,17 @@ def main():
                 set_state(rows, n, status='quality_failed')
                 fail += 1
                 continue
+
+            if not args.skip_judge:
+                set_state(rows, n, status='reviewing')
+                rc, blocked = judge(slug, args.claude, args.timeout)
+                if rc != 0 or blocked:
+                    print('  JUDGE flagged the chapter (rc=%s%s) -> manual_review, '
+                          'not publishing (see Scripts/handbook-review.log)'
+                          % (rc, ', review log' if blocked else ''))
+                    set_state(rows, n, status='manual_review')
+                    fail += 1
+                    continue
 
             if publish(slug, args.claude, args.timeout) != 0:
                 print('  publish failed')
