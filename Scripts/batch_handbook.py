@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Batch orchestrator for The Publishing Handbook.
 
-    /write-handbook-chapter  ->  tutorial_quality_check.py  ->  /publish-tut
+    /write-handbook-chapter  ->  handbook_quality_check.py  ->  /publish-tut
 
 Handbook chapters are NOT in curriculum-status.json (they carry
 curriculum_id: null), so batch_tutorials_v2.py cannot drive them. This script
@@ -30,7 +30,12 @@ import batch_tutorials as bt
 ROOT = bt.ROOT
 WRITER = 'write-handbook-chapter'
 STATUS = os.path.join(ROOT, 'handbook-status.json')
-GATE = os.path.join(ROOT, 'Scripts', 'tutorial_quality_check.py')
+# Handbook chapters use a fixed section template and never carry FAQ / Summary /
+# References or a post_plans/ plan file, so tutorial_quality_check.py fails good
+# chapters for purely structural reasons. handbook_quality_check.py enforces the
+# template from .claude/skills/write-handbook-chapter/SKILL.md and reuses the
+# same R execution check.
+GATE = os.path.join(ROOT, 'Scripts', 'handbook_quality_check.py')
 
 
 # ---------------------------------------------------------------- state
@@ -109,7 +114,11 @@ def find_slug(row):
 
 
 def run_gate(slug):
-    r = subprocess.run([sys.executable, GATE, slug], cwd=ROOT,
+    # The gate resolves its argument with os.path.exists, so it needs the path
+    # to the markdown, not a bare slug. Passing the slug fails "file not found"
+    # even when the chapter was written correctly.
+    target = os.path.join('posts', slug + '.md')
+    r = subprocess.run([sys.executable, GATE, target], cwd=ROOT,
                        text=True, encoding='utf-8', errors='replace',
                        capture_output=True)
     sys.stdout.write(r.stdout or '')
@@ -196,22 +205,32 @@ def main():
         for i, row in enumerate(todo, 1):
             n = row['chapter']
             print('\n=== [%d/%d] chapter %s: %s ===' % (i, len(todo), n, row['title']))
-            set_state(rows, n, status='writing')
 
-            rc = write_chapter(row, args.claude, args.timeout)
-            if rc != 0:
-                print('  write failed (rc=%s)' % rc)
-                set_state(rows, n, status='failed')
-                fail += 1
-                continue
+            # status 'written' = the markdown is already on disk and good enough
+            # to gate. Re-running the writer would throw it away, so resume at
+            # the gate instead.
+            already = (row.get('status') == 'written' and row.get('slug') and
+                       os.path.exists(os.path.join(ROOT, 'posts', row['slug'] + '.md')))
+            if already:
+                slug = row['slug']
+                print('  already written (%s) - skipping the writer, resuming at the gate' % slug)
+            else:
+                set_state(rows, n, status='writing')
 
-            slug = find_slug(row)
-            if not slug:
-                print('  write produced no markdown')
-                set_state(rows, n, status='failed')
-                fail += 1
-                continue
-            set_state(rows, n, slug=slug)
+                rc = write_chapter(row, args.claude, args.timeout)
+                if rc != 0:
+                    print('  write failed (rc=%s)' % rc)
+                    set_state(rows, n, status='failed')
+                    fail += 1
+                    continue
+
+                slug = find_slug(row)
+                if not slug:
+                    print('  write produced no markdown')
+                    set_state(rows, n, status='failed')
+                    fail += 1
+                    continue
+                set_state(rows, n, slug=slug)
 
             bt_changed = 0
             try:
