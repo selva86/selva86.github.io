@@ -181,21 +181,70 @@ statistical method, because that is how the reader experiences the problem.
 61. Triage, the response pattern, and worked examples
     (**already written**: `Answering-Statistical-Reviewer-Comments.md`)
 
-### Part 12 — The thirty objections
+### Part 12 - The thirty objections
 
-Chapters 62 onward. Full detail in `reviewer-2-course-plan.md`, unchanged:
-assumptions (7), design (5), multiplicity (6), reporting (5), model choice (6),
-reproducibility (1).
+Enumerated here rather than cross-referenced, because this file is what
+`build_handbook_tracker.py` parses. The `####` sub-headings below are for
+readability only; the parser ignores them and reads the numbered list.
 
-Kept as six sub-parts so the handbook navigation stays readable.
+`reviewer-2-course-plan.md` remains the place for the seven-part chapter
+template and the per-objection authoring notes.
 
-### Part 13 — Response, revision, and after
+#### Did you check the assumptions?
 
-62. Writing the response letter
-63. Disagreeing with a reviewer, with reasons
-64. The second round, and reviewers who move the goalposts
-65. Sharing code and data so the analysis is checkable
-66. Corrections, and responding to post-publication criticism
+62. Normality was not assessed
+63. Equal variance was not checked
+64. Observations are not independent
+65. Residuals are autocorrelated
+66. Multicollinearity was not examined
+67. Linearity was assumed rather than shown
+68. The proportional hazards assumption was not tested
+
+#### Is the design sound?
+
+69. No power analysis and no sample size justification
+70. Confounding was not addressed
+71. Baseline differences between groups were not adjusted for
+72. Selection bias and non-response were not discussed
+73. The control group is not comparable
+
+#### Did you go fishing?
+
+74. Multiple comparisons were not corrected
+75. Subgroup analyses were not pre-specified
+76. A p-value of 0.049 is treated as a finding
+77. This looks exploratory rather than confirmatory
+78. A continuous variable was dichotomised without justification
+79. Outliers were removed without a stated rule
+
+#### Did you report it properly?
+
+80. p-values are reported without effect sizes
+81. Confidence intervals are missing
+82. A non-significant result is described as a trend
+83. Model fit statistics are not reported
+84. Missing data handling is not described
+
+#### Is the model right?
+
+85. A parametric test was used on ordinal data
+86. A mixed model should have been used
+87. The link function or error distribution is not justified
+88. Zero-inflation was not considered
+89. There are too many predictors for the sample size
+90. An interaction is claimed without testing the interaction term
+
+#### Can anyone check this?
+
+91. Code and data are not available
+
+### Part 13 - Response, revision, and after
+
+92. Writing the response letter
+93. Disagreeing with a reviewer, with reasons
+94. The second round, and reviewers who move the goalposts
+95. Sharing code and data so the analysis is checkable
+96. Corrections, and responding to post-publication criticism
 
 ---
 

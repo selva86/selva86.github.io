@@ -36,12 +36,41 @@ def load_books():
 
 def chapter_exists(href):
     """href is site-absolute, e.g. /Reviewer-Says-X.html"""
-    return os.path.exists(os.path.join(ROOT, href.lstrip('/')))
+    return bool(href) and os.path.exists(os.path.join(ROOT, href.lstrip('/')))
+
+
+def parts_from_tracker(tracker_name):
+    """Build the parts/chapters structure from a <name>-status.json tracker.
+
+    Preferred over listing chapters in curricula.json: the tracker is already
+    written by the batch on every publish, so there is no second file to keep in
+    sync and no way for the index to drift from what actually shipped. With this,
+    curricula.json only carries the book's identity (key, title, tagline, pro).
+    """
+    path = os.path.join(ROOT, tracker_name)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding='utf-8') as f:
+        rows = json.load(f)
+    buckets = {}
+    for r in sorted(rows, key=lambda x: x.get('chapter', 0)):
+        p = r.get('part')
+        buckets.setdefault(p, {'title': r.get('part_title', ''), 'chapters': []})
+        slug = r.get('slug')
+        buckets[p]['chapters'].append({
+            'title': r.get('title', ''),
+            'href': ('/%s.html' % slug) if slug else '',
+        })
+    return [buckets[p] for p in sorted(buckets)]
 
 
 def render_body(book):
     e = html.escape
     parts = book.get('parts', [])
+    if book.get('tracker'):
+        from_tracker = parts_from_tracker(book['tracker'])
+        if from_tracker:
+            parts = from_tracker
     total = sum(len(p.get('chapters', [])) for p in parts)
     built = sum(1 for p in parts for c in p.get('chapters', [])
                 if chapter_exists(c.get('href', '')))
@@ -84,7 +113,7 @@ def render_body(book):
     if built < total:
         out.append('<p class="hb-progress">%d of %d chapters published. '
                    'The rest are being written.</p>' % (built, total))
-    return '\n'.join(out), built, total
+    return '\n'.join(out), built, total, len(parts)
 
 
 CSS = """
@@ -112,12 +141,12 @@ def build_book(book, dry_run=False):
     key = book['key']
     out_rel = 'tutorials/%s.html' % key
     canonical = gs.SITE + '/tutorials/%s.html' % key
-    body, built, total = render_body(book)
+    body, built, total, nparts = render_body(book)
 
     desc = book.get('tagline') or book['title']
     desc = ('%s %s The complete curriculum in R, %d chapters across %d parts. '
             'Free and runnable in your browser.'
-            % (book['title'] + '.', desc, total, len(book.get('parts', []))))
+            % (book['title'] + '.', desc, total, nparts))
     desc = desc[:300]
 
     collection = {
