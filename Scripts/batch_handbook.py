@@ -69,12 +69,45 @@ def save_status(rows):
 
 
 def set_state(rows, num, **kw):
+    """Update ONE chapter's row, preserving concurrent edits to every other row.
+
+    Re-reads the tracker from disk and merges, rather than dumping the in-memory
+    list. The previous behaviour rewrote the whole file from the snapshot loaded
+    at startup, so any edit made to another row while a long batch was running
+    was silently reverted on the next status write. That is data loss with no
+    warning: a chapter flipped to `written` mid-run reverted to `quality_failed`
+    and would have been rewritten from scratch on the next pass.
+
+    `rows` is still updated in place so the caller's view stays consistent.
+    """
+    kw['updated'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+
     for r in rows:
         if r['chapter'] == num:
             r.update(kw)
-            r['updated'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
             break
-    save_status(rows)
+
+    try:
+        with open(STATUS, encoding='utf-8') as f:
+            disk = json.load(f)
+    except Exception as e:
+        # Unreadable tracker: fall back to the in-memory list rather than lose
+        # this run's progress entirely.
+        print('  WARNING: could not re-read tracker (%s); writing from memory' % e)
+        save_status(rows)
+        return
+
+    for r in disk:
+        if r['chapter'] == num:
+            r.update(kw)
+            break
+    else:
+        # Row vanished from disk (tracker reseeded mid-run). Do not resurrect it
+        # from the stale snapshot; the reseed is the newer intent.
+        print('  WARNING: chapter %s not in tracker on disk; state not written' % num)
+        return
+
+    save_status(disk)
 
 
 # ---------------------------------------------------------------- phases
@@ -185,6 +218,30 @@ def judge(slug, cli, timeout):
     return rc, blocked
 
 
+def verify_published(slug):
+    """Confirm the publish actually happened. Returns (ok, reason).
+
+    `claude -p` exits 0 whether or not the skill completed its work, so the
+    return code proves nothing. Trusting it marked seven chapters `published`
+    when only one had been built, which is worse than recording nothing: the
+    tracker looked complete and the work was silently missing.
+
+    Check the artifacts instead, and require the built page to be committed,
+    since an uncommitted page never reaches the site.
+    """
+    frag = os.path.join(ROOT, '_posts', slug + '.html')
+    page = os.path.join(ROOT, slug + '.html')
+    if not os.path.exists(frag):
+        return False, 'no fragment at _posts/%s.html' % slug
+    if not os.path.exists(page):
+        return False, 'no built page at %s.html' % slug
+    r = subprocess.run(['git', 'ls-files', '--error-unmatch', slug + '.html'],
+                       cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        return False, '%s.html exists but is not committed' % slug
+    return True, 'fragment + page + committed'
+
+
 def publish(slug, cli, timeout):
     prompt = bt.compose_prompt('publish-tut', slug)
     proc = subprocess.Popen(
@@ -194,10 +251,16 @@ def publish(slug, cli, timeout):
         stdin=subprocess.PIPE, cwd=bt.PROJECT_ROOT, text=True, encoding='utf-8')
     try:
         proc.communicate(input=prompt, timeout=timeout or None)
-        return proc.returncode
     except subprocess.TimeoutExpired:
         bt._kill_tree(proc.pid)
         return 124
+    # The exit code is advisory. The artifacts are the truth.
+    ok, reason = verify_published(slug)
+    if not ok:
+        print('  PUBLISH UNVERIFIED: %s' % reason)
+        return 1
+    print('  verified: %s' % reason)
+    return 0
 
 
 # ---------------------------------------------------------------- driver
