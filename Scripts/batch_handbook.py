@@ -235,10 +235,13 @@ def verify_published(slug):
         return False, 'no fragment at _posts/%s.html' % slug
     if not os.path.exists(page):
         return False, 'no built page at %s.html' % slug
-    r = subprocess.run(['git', 'ls-files', '--error-unmatch', slug + '.html'],
+    # `git ls-files` reads the INDEX, so a merely staged file passes as committed.
+    # That is the same class of bug as trusting claude -p's exit code: it reports
+    # success for work that has not landed. Ask HEAD instead.
+    r = subprocess.run(['git', 'cat-file', '-e', 'HEAD:' + slug + '.html'],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
-        return False, '%s.html exists but is not committed' % slug
+        return False, '%s.html exists but is not committed to HEAD' % slug
     return True, 'fragment + page + committed'
 
 
