@@ -3,7 +3,7 @@
 
 Handbook chapters are NOT tutorials. They use a fixed section template (seven
 sections for objection chapters, five for decision chapters), never teach the
-method, and are capped at 1,800 words. `Scripts/tutorial_quality_check.py`
+method. There is no word limit. `Scripts/tutorial_quality_check.py`
 enforces FAQ / Summary / References sections, a post_plans/ plan artifact and a
 first-code-block-in-section-1 payoff, all of which are correct for tutorials and
 wrong here, so a good chapter fails that gate for purely structural reasons.
@@ -12,7 +12,7 @@ This gate enforces the MECHANICAL half of the authoring contract in
 `.claude/skills/write-handbook-chapter/SKILL.md`:
 
   fixed section template (names + order), the three mandatory outcomes, three
-  response-letter blockquotes, two-plus reviewer phrasings, the 1,200-1,800 word
+  response-letter blockquotes, two-plus reviewer phrasings, the
   band, frontmatter completeness, zero em-dashes, and the R execution check:
   every ```r block runs concatenated in ONE Rscript session and every claimed
   `#>` line must match what R actually printed.
@@ -70,7 +70,6 @@ DECISION_SECTIONS = [
 
 OUTCOMES = ['You are fine', 'It is fixable', 'It is a real problem']
 
-WORDS_MIN, WORDS_MAX = 1200, 1800
 
 REQUIRED_FM = ['title', 'slug', 'description', 'keywords', 'post_type', 'fr_parent',
                'handbook', 'handbook_part', 'handbook_chapter', 'auto_link_terms',
@@ -288,13 +287,16 @@ def main():
             if n < 2: fail('"What the reviewer wrote" has %d blockquote(s) (need >=2)' % n)
             else: ok('"What the reviewer wrote" has %d reviewer phrasing(s)' % n)
 
-    # 6. length (hard rule in the skill: longer means the method is being taught)
+    # 6. length: REPORTED, NEVER GATED.
+    #
+    # There is deliberately no word limit. Length is not a quality signal, and a
+    # ceiling blocks good work for the wrong reason: a 2,243-word hub page that
+    # was exactly the right length for its job failed this check purely on size.
+    # If a chapter is too long the real defect is that it teaches a method it
+    # should link to, and the judge catches that by reading the prose. A number
+    # cannot tell the difference between thorough and padded.
     wc = len(re.sub(r'```.*?```', '', body, flags=re.S).split())
-    if wc < WORDS_MIN: fail('%d words (must be %d-%d; a section was shortchanged)'
-                            % (wc, WORDS_MIN, WORDS_MAX))
-    elif wc > WORDS_MAX: fail('%d words (must be %d-%d; link the method instead of teaching it)'
-                              % (wc, WORDS_MIN, WORDS_MAX))
-    else: ok('%d words (in the %d-%d band)' % (wc, WORDS_MIN, WORDS_MAX))
+    ok('%d words' % wc)
 
     # 7. em-dashes
     for ch, name in [('\u2014', 'em dash'), ('\ufffd', 'broken replacement character')]:
