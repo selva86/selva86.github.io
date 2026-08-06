@@ -67,10 +67,19 @@ def merge_existing(rows):
         return rows
     for r in rows:
         prev = old.get(r['chapter'])
-        if prev:
-            for k in ('slug', 'status', 'url', 'updated'):
-                if prev.get(k):
-                    r[k] = prev[k]
+        if not prev:
+            continue
+        for k in ('slug', 'status', 'url', 'updated',
+                  'adopted_from', 'dropped_reason'):
+            if prev.get(k):
+                r[k] = prev[k]
+        # An adopted chapter is answered by a page the site already publishes,
+        # and its title is that page's title so the contents entry matches
+        # where it actually goes. The plan still carries the title the chapter
+        # would have had, so without this the rebuild would quietly rename it
+        # back and the link text would stop matching the destination.
+        if prev.get('status') == 'adopted' and prev.get('title'):
+            r['title'] = prev['title']
     return rows
 
 

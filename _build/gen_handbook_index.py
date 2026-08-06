@@ -96,6 +96,12 @@ def parts_from_tracker(tracker_name):
         rows = json.load(f)
     buckets = {}
     for r in sorted(rows, key=lambda x: x.get('chapter', 0)):
+        # A dropped chapter was folded into another one and is not part of the
+        # book. Skipping it here keeps it out of the contents and out of the
+        # "N of M" count, so the index never advertises a chapter that will
+        # never exist.
+        if r.get('status') == 'dropped':
+            continue
         p = r.get('part')
         buckets.setdefault(p, {'title': r.get('part_title', ''), 'chapters': []})
         slug = r.get('slug')
