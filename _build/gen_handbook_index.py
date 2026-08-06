@@ -39,6 +39,48 @@ def chapter_exists(href):
     return bool(href) and os.path.exists(os.path.join(ROOT, href.lstrip('/')))
 
 
+RENAMES = os.path.join(ROOT, 'functions', '_data', 'renamed-pages.json')
+
+
+def load_old_slugs():
+    """Map new slug -> old slug from the rename registry.
+
+    A chapter can be live under its OLD slug while the tracker already carries
+    the new one: chapters are renamed on the branch before the rename lands on
+    master. Without this the index would call a page that is serving fine
+    "Soon". Resolving against the rename map keeps the index honest about what a
+    reader can actually click.
+    """
+    try:
+        with open(RENAMES, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    mapping = data if isinstance(data, dict) else data.get('redirects', {})
+    out = {}
+    for old, new in mapping.items():
+        if isinstance(new, str):
+            out.setdefault(new.strip('/'), old.strip('/'))
+    return out
+
+
+def resolve_href(slug, old_slugs):
+    """Return the href a reader can actually follow, or '' if not live yet.
+
+    Checks the current slug first, then the pre-rename slug. Existence is read
+    off disk, never off a status field, so the index reflects what shipped in
+    this checkout rather than what a tracker claims.
+    """
+    if not slug:
+        return ''
+    if chapter_exists('/%s.html' % slug):
+        return '/%s.html' % slug
+    old = old_slugs.get(slug)
+    if old and chapter_exists('/%s.html' % old):
+        return '/%s.html' % old
+    return ''
+
+
 def parts_from_tracker(tracker_name):
     """Build the parts/chapters structure from a <name>-status.json tracker.
 
@@ -59,9 +101,21 @@ def parts_from_tracker(tracker_name):
         slug = r.get('slug')
         buckets[p]['chapters'].append({
             'title': r.get('title', ''),
+            'slug': slug or '',
             'href': ('/%s.html' % slug) if slug else '',
         })
     return [buckets[p] for p in sorted(buckets)]
+
+
+def live_href(chapter, old_slugs):
+    """The href to link, or '' when the chapter is not readable yet."""
+    href = chapter.get('href', '')
+    if chapter_exists(href):
+        return href
+    slug = chapter.get('slug')
+    if not slug and href.endswith('.html'):
+        slug = href.strip('/')[:-len('.html')]
+    return resolve_href(slug, old_slugs) if slug else ''
 
 
 def render_body(book):
@@ -71,9 +125,12 @@ def render_body(book):
         from_tracker = parts_from_tracker(book['tracker'])
         if from_tracker:
             parts = from_tracker
+    old_slugs = load_old_slugs()
+    for part in parts:
+        for c in part.get('chapters', []):
+            c['_live'] = live_href(c, old_slugs)
     total = sum(len(p.get('chapters', [])) for p in parts)
-    built = sum(1 for p in parts for c in p.get('chapters', [])
-                if chapter_exists(c.get('href', '')))
+    built = sum(1 for p in parts for c in p.get('chapters', []) if c.get('_live'))
 
     out = []
     out.append('<header class="hb-hero">')
@@ -101,11 +158,12 @@ def render_body(book):
                    % (i, e(part.get('title', ''))))
         out.append('    <ol class="hb-chapters">')
         for c in chapters:
-            href, title = c.get('href', ''), c.get('title', '')
-            if href and chapter_exists(href):
+            title, href = c.get('title', ''), c.get('_live', '')
+            if href:
                 out.append('      <li><a href="%s">%s</a></li>' % (e(href), e(title)))
             else:
-                out.append('      <li class="hb-unbuilt"><span>%s</span></li>' % e(title))
+                out.append('      <li class="hb-unbuilt"><span>%s</span>'
+                           '<span class="hb-soon">Soon</span></li>' % e(title))
         out.append('    </ol>')
         out.append('  </section>')
     out.append('</div>')
@@ -131,7 +189,11 @@ CSS = """
   font-weight:600;vertical-align:.12em}
 .hb-chapters{margin:0;padding-left:1.4rem}
 .hb-chapters li{margin:.3rem 0;line-height:1.45}
-.hb-unbuilt span{color:var(--muted,#8a94a2)}
+.hb-unbuilt>span:first-child{color:var(--muted,#8a94a2)}
+.hb-soon{display:inline-block;margin-left:.5rem;padding:0 .4rem;border-radius:999px;
+  border:1px solid var(--rule,#e3e7ec);color:var(--muted,#8a94a2);
+  font-size:.66rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  line-height:1.55;vertical-align:.08em;white-space:nowrap}
 .hb-progress{margin-top:2rem;color:var(--muted,#5a6472);font-size:.95rem}
 @media (max-width:640px){.hb-hero h1{font-size:1.7rem}}
 """.strip()
@@ -182,6 +244,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('key', nargs='?', help='book key from curricula.json')
     ap.add_argument('--all', action='store_true')
+    ap.add_argument('--tracked', action='store_true',
+                    help='only books with a "tracker" field. These derive their '
+                         'chapter list from a status file, so regenerating them is '
+                         'safe and idempotent. The hand-curated indexes (statistics, '
+                         'time-series, ggplot2) carry prose this generator does not '
+                         'reproduce, so they are never rewritten automatically.')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--list', action='store_true')
     args = ap.parse_args()
@@ -193,7 +261,12 @@ def main():
             print('  %-14s %-42s %3d chapters' % (b['key'], b['title'], n))
         return 0
 
-    if args.all:
+    if args.tracked:
+        targets = [b for b in books if b.get('tracker')]
+        if not targets:
+            print('No books declare a tracker; nothing to regenerate.')
+            return 0
+    elif args.all:
         targets = books
     elif args.key:
         targets = [b for b in books if b['key'] == args.key]

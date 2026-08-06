@@ -50,6 +50,13 @@ def main() -> None:
     # so the player rail + catalog stay in sync on every deploy.
     run([sys.executable, "Scripts/build_lessons_tracker.py"])
 
+    # 1c3. Handbook indexes. Runs AFTER build.py so chapter pages exist on disk:
+    # the generator links a chapter only when its page is actually present in this
+    # checkout and renders it "Soon" otherwise. Regenerating on every deploy is
+    # what makes a chapter's link appear the moment it ships, with no second file
+    # to update by hand and no window where the index links a page that 404s.
+    run([sys.executable, "_build/gen_handbook_index.py", "--tracked"])
+
     # 1d. Lesson quality gate (ADVISORY): logs blank-slide / R6 failures but never
     # fails the deploy. The HARD, blocking gate runs at publish time.
     run_advisory([sys.executable, "Scripts/lesson_quality_check.py", "--all"])
