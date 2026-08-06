@@ -146,9 +146,7 @@ def render_body(book):
                        if c.get('_live')), '')
 
     scope = book.get('scope') or (book['key'].replace('-', '') + 'book')
-    # .container is what centres the hand-built book pages at 1170px. Without it
-    # the page renders flush to the viewport edge while the masthead stays inset.
-    out = ['<div class="container">', '<div class="%s">' % e(scope)]
+    out = ['<div class="%s">' % e(scope)]
 
     # ---- hero ----------------------------------------------------------
     art = load_hero_art(book['key'])
@@ -219,7 +217,6 @@ def render_body(book):
     out.append('</aside>')
     out.append('</div>')   # .grid
     out.append('</div>')   # scope
-    out.append('</div>')   # .container
 
     return '\n'.join(out), built, total, len(parts)
 
@@ -229,7 +226,10 @@ def render_body(book):
 # accent colours change per book, which is why this is a template rather than a
 # constant. Keep any edit here in step with those three pages.
 CSS_TEMPLATE = """
-.{s} {{ font-family: Inter, 'IBM Plex Sans', -apple-system, sans-serif; color: #41454d; }}
+/* The scope element is also the page wrapper. Generated section pages do not
+   load Bootstrap, so .container is inert here; the hand-built book pages get
+   their 1170px from it. Centre explicitly instead of depending on that. */
+.{s} {{ max-width: 1170px; margin: 0 auto; padding: 0 15px; font-family: Inter, 'IBM Plex Sans', -apple-system, sans-serif; color: #41454d; }}
 .{s} a {{ text-decoration: none; }}
 .{s} .hero {{ display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; padding: 46px 0 38px; border-bottom: 1px solid #e7e4da; }}
 .{s} .crumb {{ font-size: 13px; color: #6b7280; margin-bottom: 16px; }}
