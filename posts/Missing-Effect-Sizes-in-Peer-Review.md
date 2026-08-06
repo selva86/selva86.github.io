@@ -1,6 +1,6 @@
 ---
-title: "Reviewer says to report effect sizes"
-slug: Reviewer-Says-Report-Effect-Sizes
+title: "Missing Effect Sizes in Peer Review"
+slug: Missing-Effect-Sizes-in-Peer-Review
 description: "A reviewer says to report effect sizes, not just p-values. How to compute an effect size in R, read whether your result is meaningful, and word your reply."
 keywords: "report effect sizes reviewer comment, p-values without effect sizes, effect size peer review, reviewer says report effect sizes, Cohen's d response to reviewer, effect size and confidence interval"
 mathjax: false

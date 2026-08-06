@@ -1,6 +1,6 @@
 ---
-title: "Reviewer says my result is not a trend"
-slug: Reviewer-Says-It-Is-Not-a-Trend
+title: "Trending Toward Significance in Peer Review"
+slug: Trending-Toward-Significance-in-Peer-Review
 description: "A reviewer says your result is not a trend, just a non-significant p-value. How to tell a real trend from a trend toward significance in R and word your reply."
 keywords: "reviewer says it is not a trend, trend toward significance, approaching significance, marginally significant, is p = 0.06 a trend, trend toward significance reviewer comment, test for trend"
 mathjax: false
@@ -83,7 +83,7 @@ The correlation is 0.84 with a p-value below 2.2e-16, so the rise over time is m
 
 ### It is fixable
 
-If you did attach "trend" to a non-significant result, the fix is in the wording. Report the result as what it is, a non-significant difference with its [effect size and confidence interval](/Reviewer-Says-Report-Effect-Sizes.html), and drop the language that implied momentum. You already have the numbers from the test above.
+If you did attach "trend" to a non-significant result, the fix is in the wording. Report the result as what it is, a non-significant difference with its [effect size and confidence interval](/Missing-Effect-Sizes-in-Peer-Review.html), and drop the language that implied momentum. You already have the numbers from the test above.
 
 ```r
 d_mean <- mean(sleep$extra[sleep$group == 2]) - mean(sleep$extra[sleep$group == 1])
