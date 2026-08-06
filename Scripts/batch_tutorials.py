@@ -30,6 +30,8 @@ the argument substituted. Robust on every CLI version; same skills, same content
 """
 import os, sys, json, argparse, subprocess, datetime, time, urllib.request
 
+from verify_state import verify_published   # artifact check, not exit-code trust
+
 # Packages pre-warmed once at batch start with --prewarm-r, so writers and the gate
 # never stall on a mid-post CRAN install. Common tutorial set; anything missing still
 # installs lazily. Kept to CRAN packages that install without a build toolchain.
@@ -327,6 +329,20 @@ def main():
                 state[cid]['status'] = 'publish_failed'
                 save_state(state)
                 print('  publish failed: %s' % slug)
+                continue
+
+            # Phase 3b: prove it. `claude -p` exits 0 whether or not the publisher
+            # finished, so the exit code above is not evidence. Check the fragment,
+            # the built page, and that the page is committed - otherwise the sidecar
+            # says done while the site has nothing. Note that publish-tut writes
+            # curriculum-status.json itself, so a failure here can leave that file
+            # claiming published: `python Scripts/verify_state.py` finds those.
+            ok, why = verify_published(slug)
+            if not ok:
+                state[cid]['status'] = 'publish_failed'
+                state[cid]['last_error'] = 'publish exited 0 but ' + why
+                save_state(state)
+                print('  publish UNVERIFIED: %s (%s) - marked publish_failed' % (slug, why))
                 continue
 
             state[cid]['status'] = 'done'

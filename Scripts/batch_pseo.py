@@ -30,6 +30,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from verify_state import verify_published   # artifact check, not exit-code trust
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -200,15 +202,6 @@ def check_git_clean() -> bool:
     return len(dirty) == 0
 
 
-def file_exists(slug: str) -> tuple[bool, bool, bool]:
-    """Return (md_exists, fragment_exists, page_exists) for a slug."""
-    return (
-        (POSTS_DIR / f"{slug}.md").exists(),
-        (REPO_ROOT / "_posts" / f"{slug}.html").exists(),
-        (REPO_ROOT / f"{slug}.html").exists(),
-    )
-
-
 # --------------------------------------------------------------------------
 # Pipeline steps
 # --------------------------------------------------------------------------
@@ -336,10 +329,14 @@ def run_publish_skill(claude: str, slug: str, dry_run: bool,
 
 def reconcile_publish_false_positive(slug: str) -> bool:
     """If the publish skill exited non-zero, the file is often still live.
-    Returns True if the published page is verifiably present AND the gate
-    passes - treating it as effectively done."""
-    _, _, page_exists = file_exists(slug)
-    if not page_exists:
+    Returns True if the page is verifiably published - fragment, built page,
+    AND committed to HEAD - and the quality gate passes.
+
+    The commit check matters: an uncommitted page never reaches the site, and
+    `git ls-files` would not catch that because it reads the index."""
+    ok, why = verify_published(slug)
+    if not ok:
+        log(f"  Not reconcilable: {why}")
         return False
     ok, _ = run_quality_gate(slug)
     return ok
@@ -545,6 +542,20 @@ def main():
                 entry["status"] = "publish_failed"
                 entry["last_error"] = f"publish skill exit {pc}"
                 write_status(status)
+                continue
+
+            # 4b. Prove the publish happened. `claude -p` exits 0 whether or not
+            # the skill completed its work, so exit 0 above is not evidence. Check
+            # the fragment, the built page, and that the page is committed to HEAD
+            # before writing a url into the tracker - a row with a url is what
+            # every downstream count treats as published.
+            vok, why = verify_published(slug)
+            if not vok:
+                entry["retry_count"] = entry.get("retry_count", 0) + 1
+                entry["status"] = "publish_failed"
+                entry["last_error"] = f"publish exited 0 but {why}"
+                write_status(status)
+                log(f"  UNVERIFIED after exit 0: {why} - marked publish_failed")
                 continue
 
             # 5. DONE

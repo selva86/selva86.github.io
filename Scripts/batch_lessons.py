@@ -21,6 +21,8 @@ lessons-status.json is gitignored (resumable state) and blocked by the middlewar
 """
 import os, sys, json, argparse, subprocess
 
+from verify_state import verify_published   # artifact check, not exit-code trust
+
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 # The skills use "selva86.github.io/..." paths, so a spawned claude must run from
 # the PROJECT ROOT (one level above the repo), like the other batch drivers.
@@ -195,6 +197,17 @@ def main():
                 st[slug]['status'] = 'publish_failed'
                 save_status(st)
                 print('  publish failed: %s' % slug)
+                continue
+
+            # The exit code above proves nothing: `claude -p` exits 0 whether or
+            # not the publisher finished. Check the artifacts before recording
+            # done, or the tracker ends up claiming lessons the site never got.
+            ok, why = verify_published(slug, fragment_dirs=('_lessons', '_posts'))
+            if not ok:
+                st[slug]['status'] = 'publish_failed'
+                st[slug]['last_error'] = 'publish exited 0 but ' + why
+                save_status(st)
+                print('  publish UNVERIFIED: %s (%s) - marked publish_failed' % (slug, why))
                 continue
 
             st[slug]['status'] = 'done'
