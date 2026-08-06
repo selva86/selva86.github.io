@@ -276,7 +276,12 @@ def select(rows, args):
         if args.regenerate:
             if st not in ('quality_failed', 'manual_review', 'failed'):
                 continue
-        elif st == 'published':
+        elif st in ('published', 'adopted', 'dropped'):
+            # 'adopted' is answered by a page the site already publishes, and
+            # 'dropped' was folded into another chapter. Both must be skipped
+            # explicitly: this filter only ever excluded 'published', so an
+            # unknown status was treated as writable and the orchestrator would
+            # have written the very chapters the curriculum trim removed.
             continue
         out.append(r)
     if args.max:
