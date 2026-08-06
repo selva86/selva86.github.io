@@ -22,9 +22,9 @@ difficulty: Intermediate
 
 ## What actually varies across repeated samples?
 
-You measure the IQ of 30 people and get an average of 103. A colleague repeats the same study with 30 different people and gets 98. Neither of you made a mistake, and neither number is the truth. The average moved because the sample moved.
+You measure the IQ of 30 people and get an average of 103, whereas a colleague who repeats the same study on 30 different people gets 98. Neither of you made a mistake. The average moved because the sample moved, and once you accept that, the interesting question is no longer which number is right but how far the number can wander: if 103 and 98 are both ordinary results, what would an alarming one look like?
 
-Three different distributions are hiding in that story, and all three contain the word *sample*. The population distribution is the unseen truth. A sample distribution is the histogram of one sample you actually collected. The sampling distribution is the histogram of a *statistic*, like the mean, computed across many hypothetical repeats of your study. Let's simulate 1,000 sample means from a known population and watch that third one appear.
+Answering that means separating three distributions that are hiding in the story, all of which contain the word *sample*. The population distribution is the unseen truth, and you never get to see it. A sample distribution is the histogram of the one sample you actually collected, so it is the only one of the three you can plot directly from your data. The third is the sampling distribution: the histogram of a *statistic*, like the mean, computed across many hypothetical repeats of your study. That third one is what tells you how far 103 could have wandered, so let's simulate 1,000 sample means from a known population and watch it appear.
 
 ```r title="Simulate 1000 sample means from IQ"
 # Population: normally distributed with mean 100 and sd 15 (think IQ scores)
