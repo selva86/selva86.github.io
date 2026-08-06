@@ -71,6 +71,42 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
   does. Never a bare `library()` + read-data block with nothing to show, and no
   figure above it to push it below the fold. MEASURE (automated): first ```r block
   appears in section 1 and contains `#>` output lines.
+- **T16 The cold open (everything above the SECOND H2).** Assume the reader landed
+  here from a Google result, in the middle of a problem, has never seen this site,
+  and will leave in ten seconds if the page does not start being useful. The lead
+  paragraph and the first H2's opening prose are written for that person.
+  **Write about the subject, never about the article.** A good opening says what the
+  thing IS in plain words, then drops the reader into a concrete situation where it
+  matters - a real scenario with real numbers. It does NOT announce what the guide
+  will do, what it promises, what you will learn, how it is structured, which
+  packages it uses, or how other tutorials get the topic wrong.
+  The test: if a sentence would still read fine with the topic swapped out ("This
+  guide keeps a promise the title makes"), it is furniture, not teaching. Cut it and
+  start on the subject.
+  These three real openings from this site are defects, with the fix beside each:
+  - BAD: "This guide keeps a promise the title makes: you will see where the curve
+    comes from before you learn to work with it." (describes the page)
+    GOOD: "Roll one die and every face is equally likely. Roll ten dice and add them
+    up, and the totals crowd around 35 while 10 and 60 almost never come up."
+  - BAD: "In this tutorial, you will learn three R packages that auto-generate data
+    profiles." (a table of contents in prose)
+    GOOD: "A 40-column export takes an afternoon to eyeball one variable at a time.
+    Three R packages profile every column for you in a single call."
+  - BAD: "Most tutorials jump straight to code, but readers fail this topic for one
+    reason: they confuse three different distributions." (opens on other tutorials
+    and on the reader's incompetence)
+    GOOD: "You measure 30 people and get a mean IQ of 103. A colleague repeats the
+    study with 30 different people and gets 98. Neither of you made a mistake."
+  **A bridging paragraph between the lead and the first H2 is OPTIONAL.** Write one
+  only when you have a concrete scene to set; going straight from the lead into the
+  first H2 is equally good and often better. Never add a bridge just to have one -
+  an empty bridge is exactly where self-referential filler ends up.
+  Applies to the H2 too: the first H2 must be an on-ramp a beginner can enter, not
+  the hardest thing in the post. Never let advanced or derivational material be the
+  first heading a cold reader meets.
+  MEASURE (automated): the region above the second H2 is scanned for
+  article-self-reference phrases. MEASURE (judge): "does the first screen teach the
+  subject, or describe the page?"
 - **T2 From scratch, no leaps.** Every term, symbol, function, and argument is
   explained in words on first use; every concept is either in the entry bar or
   taught inline before it is used. Jargon-before-definition is a defect. MEASURE
@@ -176,7 +212,9 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
 
 - **Lead paragraph**: the first paragraph after the frontmatter directly answers
   the title's question in 2-3 sentences (the featured-snippet target). Write it
-  last, write it plainly.
+  last, write it plainly. It defines the topic; it never refers to itself. The
+  words "this guide", "this post", "this tutorial", "this article" and "this page"
+  do not belong in the lead or anywhere above the second H2 (T16).
 - **H2s as questions** where natural ("What is a ts object?", "When should you use
   xts instead?"). h3 is not used on this site; use `###` only knowing it renders
   as an h4 visual level.

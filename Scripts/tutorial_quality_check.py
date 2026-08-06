@@ -24,6 +24,15 @@ AI_TELLS = ["delve", "seamless", "in today's", "it's important to note", "in con
             "moreover,", "furthermore,", "unlock", "ever-evolving", "the landscape of",
             "dive into", "game-changer", "elevate your"]
 
+# T16 (tutorial-pedagogy.md): everything above the SECOND H2 is the cold open, read
+# by someone who arrived from a Google result and has never seen the site. It must
+# teach the SUBJECT, not describe the page. These phrases all describe the page.
+SELF_REF_OPENING = ["this tutorial", "this guide", "this post", "this article",
+                    "this page", "you will learn", "you'll learn",
+                    "by the end of this", "we will explore", "we'll explore",
+                    "walks you through", "keeps a promise",
+                    "most tutorials", "other tutorials"]
+
 findings = []
 def fail(msg): findings.append(('FAIL', msg))
 def warn(msg): findings.append(('WARN', msg))
@@ -194,6 +203,17 @@ def main():
     hits = sorted({p for p in AI_TELLS if p in low})
     if hits: fail('AI-tell phrases present: %s' % ', '.join(hits))
     else: ok('no AI-tell phrases')
+
+    # 4b. T16 cold open: the region above the second H2 must teach the subject,
+    # not describe the article. See _build/tutorial-pedagogy.md T16.
+    _h2s = [m.start() for m in re.finditer(r'^## ', body, re.M)]
+    opening = body[:_h2s[1]] if len(_h2s) > 1 else body
+    selfref = sorted({p for p in SELF_REF_OPENING if p in opening.lower()})
+    if selfref:
+        fail('T16 self-referential opening (write about the subject, not the '
+             'article) - rephrase: %s' % ', '.join(selfref))
+    else:
+        ok('T16 cold open free of article self-reference')
 
     # 5. mathjax coherence
     has_math = ('\\(' in body) or ('$$' in body)

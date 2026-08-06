@@ -22,7 +22,9 @@ difficulty: Intermediate
 
 ## What actually varies across repeated samples?
 
-Most tutorials jump straight to code, but readers fail this topic for one reason: they confuse three different distributions that all involve the word *sample*. The population distribution is the unseen truth. A sample distribution is the histogram of one sample you collected. The sampling distribution is the histogram of a *statistic*, like the mean, computed across many hypothetical repeats of your study. Let's simulate 1,000 sample means from a known population and watch the third distribution appear.
+You measure the IQ of 30 people and get an average of 103. A colleague repeats the same study with 30 different people and gets 98. Neither of you made a mistake, and neither number is the truth. The average moved because the sample moved.
+
+Three different distributions are hiding in that story, and all three contain the word *sample*. The population distribution is the unseen truth. A sample distribution is the histogram of one sample you actually collected. The sampling distribution is the histogram of a *statistic*, like the mean, computed across many hypothetical repeats of your study. Let's simulate 1,000 sample means from a known population and watch that third one appear.
 
 ```r title="Simulate 1000 sample means from IQ"
 # Population: normally distributed with mean 100 and sd 15 (think IQ scores)
