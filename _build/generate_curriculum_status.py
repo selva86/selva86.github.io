@@ -127,6 +127,34 @@ def generate_fr_id(post_type, sub_path, fr_counter):
     return f"FR-{sub_path}-{fr_counter}"
 
 
+def fr_short_token(sub_path):
+    """Collision-free short token for a generated FR id.
+
+    Ids must be globally unique: a post's frontmatter carries only a scalar
+    curriculum_id, so anything that consumes the tracker can key on the id
+    alone.  Truncating just the LAST sub-path segment to 4 chars collapsed
+    distinct sub-paths onto one token and minted duplicate ids:
+
+        /learn-r/internals/        and /visualization/interactive/     -> inte
+        /statistics/regression/    and /machine-learning/regression-models/ -> regr
+        /statistics/meta-analysis/ and /advanced-r/metaprogramming/    -> meta
+        /learn-r/data-ethics/      and /data-wrangling/databases/      -> data
+
+    Because the per-sub-path counter restarts at 1 in each, both sides produced
+    FR-inte-1, FR-regr-1, ...
+
+    Truncating is what broke it, so this does not truncate: the token is the
+    whole sub_path with separators flattened. sub_path keys are unique, so the
+    token is unique by construction - no future pair of sections can collide
+    the way /visualization/ggplot2-foundations/ and .../ggplot2-handbook/ would
+    under any 4-character scheme.
+    """
+    segs = [s for s in sub_path.strip("/").split("/") if s]
+    if not segs:
+        return "misc"
+    return "-".join(segs)
+
+
 def main():
     with open(CURRICULUM_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -199,8 +227,8 @@ def main():
                     if post["id"] == "—":
                         fr_counters[current_sub_path] += 1
                         # Build a more meaningful ID from sub_path
-                        # e.g. /learn-r/fundamentals/ → FR-fund-1
-                        short = current_sub_path.strip("/").split("/")[-1][:4]
+                        # e.g. /learn-r/fundamentals/ → FR-learn-r-fundamentals-1
+                        short = fr_short_token(current_sub_path)
                         post["id"] = f"FR-{short}-{fr_counters[current_sub_path]}"
 
                     paths[current_path]["sub_paths"][current_sub_path]["posts"].append(post)
@@ -222,6 +250,33 @@ def main():
             count += len(sp_data["posts"])
         path_counts[path_key] = count
         total_posts += count
+
+    # Ids must be globally unique - every consumer (sync_registries,
+    # batch_tutorials, apply_title_rewrites) keys on the id alone. Report any
+    # that are not, and separate the two kinds: the same planned post
+    # cross-listed under two sub-paths (identical seo_title, harmless) from two
+    # DIFFERENT posts sharing an id (a defect in the curriculum markdown -
+    # publishing one will stamp the other).
+    id_rows = {}
+    for path_key, path_data in paths.items():
+        for sp_key, sp_data in path_data["sub_paths"].items():
+            for post in sp_data["posts"]:
+                id_rows.setdefault(post["id"], []).append((sp_key, post["seo_title"]))
+    collisions = {i: r for i, r in id_rows.items()
+                  if len(r) > 1 and len({t for _, t in r}) > 1}
+    crosslisted = {i: r for i, r in id_rows.items()
+                   if len(r) > 1 and i not in collisions}
+    if crosslisted:
+        print(f"\nNote: {len(crosslisted)} id(s) cross-listed under two sub-paths "
+              f"(same post, safe): {', '.join(sorted(crosslisted))}")
+    if collisions:
+        print(f"\nWARNING: {len(collisions)} id(s) shared by DIFFERENT posts. "
+              f"Renumber them in the curriculum markdown - publishing one will "
+              f"mark the other published too:")
+        for cid, rows in sorted(collisions.items()):
+            print(f"  {cid}")
+            for sp_key, title in rows:
+                print(f"      {sp_key}  {title[:70]}")
 
     # Mark published posts
     published_count = 0

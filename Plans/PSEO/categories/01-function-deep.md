@@ -638,7 +638,6 @@ Parent: `caret-in-R.html` (TBD)
 - caret-pickSizeTolerance-in-R
 - caret-upSample-in-R
 - caret-downSample-in-R
-- caret-SBF-in-R
 - caret-anovaScores-in-R
 - caret-gamScores-in-R
 - caret-rocSummary-in-R

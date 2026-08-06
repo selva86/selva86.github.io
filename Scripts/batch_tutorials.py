@@ -82,10 +82,17 @@ def curriculum_entries():
 
 
 def entry_by_id(cid):
-    for _, e in curriculum_entries():
-        if e.get('id') == cid:
-            return e
-    return None
+    matches = [e for _, e in curriculum_entries() if e.get('id') == cid]
+    if not matches:
+        return None
+    # Ids are meant to be globally unique. Where the tracker has duplicates,
+    # first-match-wins silently builds one topic and never the other - say so
+    # rather than letting the wrong tutorial get written under this id.
+    if len(matches) > 1 and len({e.get('seo_title') for e in matches}) > 1:
+        print('  WARNING: id %s matches %d different posts; building the first '
+              '(%s). Renumber it in the curriculum markdown.'
+              % (cid, len(matches), (matches[0].get('seo_title') or '')[:60]))
+    return matches[0]
 
 
 def resolve_targets(args, state):
