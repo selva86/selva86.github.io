@@ -14,6 +14,7 @@ import { getUserById, isSessionRevoked, upsertSession, type User } from "./_lib/
 import { parseDeviceLabel } from "./_lib/devices";
 import { resolveScope, scopeCovers } from "./_lib/entitlement";
 import proLessonsJson from "./_data/pro-lessons.json";
+import renamedPagesJson from "./_data/renamed-pages.json";
 
 // Slug -> roadmap track key of built lesson pages whose access is Pro
 // (generated at build time by Scripts/build_lessons_tracker.py). Requests for
@@ -22,6 +23,14 @@ import proLessonsJson from "./_data/pro-lessons.json";
 // body never reaches a non-entitled client.
 const PRO_LESSONS = proLessonsJson as Record<string, string>;
 const LESSON_PREVIEW_STEPS = 2; // must match PREVIEW_STEPS in www/lesson-mode.js
+
+// Old slug -> new slug for root pages that were renamed after publication, so
+// the indexed URL keeps its link equity instead of 404ing. `_redirects` cannot
+// do this on a `pages_build_output_dir` project (proven ineffective; see the
+// deviations table in CLAUDE.md), and middleware runs ahead of the asset
+// server, so this map is the only reliable 301 mechanism here.
+// Add an entry whenever a published `<slug>.html` is renamed. Never remove one.
+const RENAMED_PAGES = renamedPagesJson as Record<string, string>;
 
 // Resolve the requester's Pro entitlement for a page request. Fail-closed:
 // any error means "not Pro" (they get the stripped page; the client's
@@ -127,6 +136,20 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   const BLOCK_SOURCE_MD = /^\/(?:posts|lessons)\/.+\.md$/i;
   if (BLOCK_DIRS.test(path) || BLOCK_FILES.test(path) || BLOCK_SOURCE_MD.test(path)) {
     return new Response("Not Found", { status: 404 });
+  }
+
+  // --- 301 renamed root pages to their new slug ---
+  // Must run before the .html rewrite below, which would otherwise hand the
+  // old path to the asset server and 404. Both `/Old.html` and the
+  // extensionless `/Old` twin redirect to the canonical `/New.html`.
+  const renameKey = path.endsWith(".html") ? path.slice(1, -".html".length) : path.slice(1);
+  if (renameKey && !renameKey.includes("/") && RENAMED_PAGES[renameKey]) {
+    const to = new URL(context.request.url);
+    to.pathname = "/" + RENAMED_PAGES[renameKey] + ".html";
+    return new Response(null, {
+      status: 301,
+      headers: { Location: to.toString(), "Cache-Control": "public, max-age=86400" },
+    });
   }
 
   // --- Phase 8: preserve .html URLs (serve 200, no 308 redirect to clean) ---

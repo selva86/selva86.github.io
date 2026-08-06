@@ -83,170 +83,110 @@ Write the answer in the handbook and note the lesson.
 
 ## Part C: The full curriculum
 
-Sixty-six chapters in thirteen parts. Ordered by the research lifecycle, not by
-statistical method, because that is how the reader experiences the problem.
+Sixty-five chapters in ten parts, ordered by the research lifecycle. Titles are
+search-optimized: Parts 1-7 and 10 front-load the keyword and carry "in R" where
+R is involved; Part 9 names the objection's subject and carries a consistent
+"in Peer Review" suffix, so the topic word a stressed researcher would actually
+search for sits at the front of the title.
 
-### Part 1 — Before you collect anything
+Chapters marked LINK in the notes have an existing r-statistics.co page that
+already ranks. Those are written as the publishing angle and link out for the
+method, never as a duplicate.
 
-1. Turning a research question into a testable hypothesis
-2. Choosing a study design: RCT, cohort, case-control, cross-sectional
-3. Units of analysis, and the mistakes that follow from getting them wrong
-4. Randomisation and allocation concealment in R
-5. Blinding, and what to do when it is impossible
-6. Writing a statistical analysis plan before you see the data
-7. Pre-registration: what to commit to and what to leave open
+### Part 1 - Before the data
 
-### Part 2 — Sample size and power
+1. Study Design Types: RCT, Cohort, Case-Control
+2. How to Justify Your Sample Size to Reviewers
+3. Simulation-Based Power Analysis in R
+4. How to Write a Statistical Analysis Plan
+5. Pre-Registration: What to Commit To
 
-8. What power actually means, and what it does not
-9. Power for a two-group comparison
-10. Power for regression and correlation
-11. Power for clustered and repeated-measures designs
-12. Simulation-based power when there is no formula
-13. Justifying a sample you could not choose
-14. Why post-hoc power is not an answer
+### Part 2 - Data you can defend
 
-### Part 3 — Preparing data you can defend
+6. Missing Data Types in R: MCAR, MAR, MNAR
+7. How to Report Multiple Imputation in a Paper
+8. Outlier Removal Rules in R
+9. How to Document Your Data Cleaning Steps
 
-15. Documenting what you did to the raw data
-16. Missing data: what kind you have, and why it matters
-17. Multiple imputation in R, end to end
-18. Outliers: rules decided in advance
-19. Transformations, and when they cost more than they help
-20. Data dictionaries and codebooks
+### Part 3 - Choosing and defending the analysis
 
-### Part 4 — Choosing your analysis
+10. Justifying Your Choice of Statistical Test
+11. Sensitivity Analysis in R for Publication
+12. Influential Observations in R: Cook's Distance
 
-21. Matching the test to the design and the data type
-22. Continuous outcomes: t-tests to linear models
-23. Binary outcomes: proportions to logistic regression
-24. Count outcomes: Poisson, negative binomial, zero-inflation
-25. Ordinal outcomes without pretending they are continuous
-26. Time-to-event outcomes: survival basics
-27. Clustered and repeated data: mixed models
-28. When a nonparametric test is the right answer
+### Part 4 - Reporting the numbers
 
-### Part 5 — Checking your analysis
+13. How to Report Statistical Results in a Paper
+14. Which Effect Size to Report, and When
+15. How to Report Confidence Intervals in a Paper
+16. How to Report p-Values in a Paper
 
-29. Reading a residual plot properly
-30. Normality: what actually needs it
-31. Equal variance, and what to do when it fails
-32. Independence: the assumption that cannot be patched
-33. Linearity and functional form
-34. Multicollinearity: diagnosing and deciding
-35. Influence and leverage
-36. Proportional hazards
-37. Sensitivity analyses that reviewers accept
+### Part 5 - Tables and figures for journals
 
-### Part 6 — Reporting the numbers
+17. Table 1 in R with gtsummary and tableone
+18. Regression Tables in R for Publication
+19. Journal Figure Requirements: Size, DPI, Fonts
+20. Colourblind-Safe Plots in R for Journals
+21. Error Bars and Confidence Bands in R
 
-38. What to report for every analysis, and in what order
-39. Effect sizes by design
-40. Confidence intervals, and how to describe them in words
-41. Exact p-values, thresholds, and the language around them
-42. Reporting model fit honestly
-43. Reporting missing data and exclusions
+### Part 6 - Writing it up
 
-### Part 7 — Tables
+22. How to Write a Statistics Methods Section
+23. How to Write a Results Section with Statistics
+24. How to Write Study Limitations
+25. Statistical Terms to Avoid in a Paper
 
-44. Table 1: baseline characteristics that pass review
-45. Regression tables that a reader can follow
-46. Building publication tables in R
+### Part 7 - Reporting guidelines
 
-### Part 8 — Figures
+26. Reporting Guidelines: Which One Applies to You
+27. CONSORT Flow Diagram in R
+28. STROBE Reporting in R for Observational Studies
+29. PRISMA and TRIPOD Reporting in R
 
-47. What makes a figure publishable
-48. Journal specifications: size, resolution, fonts, file formats
-49. Colour, accessibility, and greyscale survival
-50. Multi-panel figures and consistent axes
-51. Figures that show uncertainty
+### Part 8 - Reading a review
 
-### Part 9 — Writing it up
+30. How to Answer Statistical Reviewer Comments in R
 
-52. The methods section a statistician would approve
-53. The results section: numbers in prose
-54. Describing limitations without undermining the paper
-55. Statistical language: words reviewers object to
+### Part 9 - The thirty objections
 
-### Part 10 — Reporting guidelines
+31. Non-Normal Residuals in Peer Review
+32. Unequal Variance in Peer Review
+33. Non-Independent Observations in Peer Review
+34. Autocorrelated Residuals in Peer Review
+35. Multicollinearity in Peer Review
+36. Nonlinear Relationships in Peer Review
+37. Proportional Hazards in Peer Review
+38. Missing Power Analysis in Peer Review
+39. Unadjusted Confounding in Peer Review
+40. Baseline Imbalance in Peer Review
+41. Selection Bias in Peer Review
+42. Non-Comparable Control Groups in Peer Review
+43. Multiple Comparisons in Peer Review
+44. Unplanned Subgroup Analyses in Peer Review
+45. Borderline p-Values in Peer Review
+46. Exploratory vs Confirmatory Analysis in Peer Review
+47. Dichotomising Continuous Variables in Peer Review
+48. Outlier Removal in Peer Review
+49. Missing Effect Sizes in Peer Review
+50. Missing Confidence Intervals in Peer Review
+51. Trending Toward Significance in Peer Review
+52. Model Fit Statistics in Peer Review
+53. Missing Data Reporting in Peer Review
+54. Ordinal Data in Peer Review
+55. Mixed Models in Peer Review
+56. Link Function Choice in Peer Review
+57. Zero-Inflation in Peer Review
+58. Too Many Predictors in Peer Review
+59. Interaction Terms in Peer Review
+60. Code and Data Sharing in Peer Review
 
-56. Which guideline applies to your study
-57. CONSORT for trials, including the flow diagram in R
-58. STROBE for observational studies
-59. PRISMA for systematic reviews
-60. TRIPOD for prediction models
+### Part 10 - Response, revision, and after
 
-### Part 11 — Reading a review
-
-61. Triage, the response pattern, and worked examples
-    (**already written**: `Answering-Statistical-Reviewer-Comments.md`)
-
-### Part 12 - The thirty objections
-
-Enumerated here rather than cross-referenced, because this file is what
-`build_handbook_tracker.py` parses. The `####` sub-headings below are for
-readability only; the parser ignores them and reads the numbered list.
-
-`reviewer-2-course-plan.md` remains the place for the seven-part chapter
-template and the per-objection authoring notes.
-
-#### Did you check the assumptions?
-
-62. Normality was not assessed
-63. Equal variance was not checked
-64. Observations are not independent
-65. Residuals are autocorrelated
-66. Multicollinearity was not examined
-67. Linearity was assumed rather than shown
-68. The proportional hazards assumption was not tested
-
-#### Is the design sound?
-
-69. No power analysis and no sample size justification
-70. Confounding was not addressed
-71. Baseline differences between groups were not adjusted for
-72. Selection bias and non-response were not discussed
-73. The control group is not comparable
-
-#### Did you go fishing?
-
-74. Multiple comparisons were not corrected
-75. Subgroup analyses were not pre-specified
-76. A p-value of 0.049 is treated as a finding
-77. This looks exploratory rather than confirmatory
-78. A continuous variable was dichotomised without justification
-79. Outliers were removed without a stated rule
-
-#### Did you report it properly?
-
-80. p-values are reported without effect sizes
-81. Confidence intervals are missing
-82. A non-significant result is described as a trend
-83. Model fit statistics are not reported
-84. Missing data handling is not described
-
-#### Is the model right?
-
-85. A parametric test was used on ordinal data
-86. A mixed model should have been used
-87. The link function or error distribution is not justified
-88. Zero-inflation was not considered
-89. There are too many predictors for the sample size
-90. An interaction is claimed without testing the interaction term
-
-#### Can anyone check this?
-
-91. Code and data are not available
-
-### Part 13 - Response, revision, and after
-
-92. Writing the response letter
-93. Disagreeing with a reviewer, with reasons
-94. The second round, and reviewers who move the goalposts
-95. Sharing code and data so the analysis is checkable
-96. Corrections, and responding to post-publication criticism
-
----
+61. How to Write a Response to Reviewers Letter
+62. How to Disagree With a Reviewer
+63. Second Round Review: What to Do
+64. How to Share Code and Data With a Paper
+65. Corrections and Retractions: What to Do
 
 ## Part D: Gaps, conflicts and risks
 

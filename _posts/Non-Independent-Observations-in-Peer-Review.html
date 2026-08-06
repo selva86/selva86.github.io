@@ -1,0 +1,230 @@
+---
+title: "Non-Independent Observations in Peer Review"
+description: "A reviewer says your observations are not independent, from clustering or repeated measures. Check the intraclass correlation in R, decide if it matters, reply."
+keywords: "observations are not independent reviewer comment, clustered data peer review, repeated measures reviewer response, reviewer says observations not independent, mixed model response to reviewer"
+mathjax: false
+webr: true
+curriculum_id: "null"
+post_type: "FR"
+auto_link_terms: "non-independence objection|clustered data reviewer|repeated measures reviewer|intraclass correlation response|random intercept response|pseudoreplication"
+auto_link_case_sensitive: false
+fr_parent: "Answering-Statistical-Reviewer-Comments.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Clustered or repeated-measures data break the assumption that every row is a fresh, independent observation. This rarely moves the estimate itself, but it shrinks the amount of independent information in your sample, so the standard errors and <a class="auto-link" href="What-p-Values-Mean.html" title="What p-Values Mean (and What They Never Meant)">p-values</a> from an ordinary model come out too small whenever the effect you care about varies between the clusters rather than within them.</p>
+
+<h2>What the reviewer wrote</h2>
+
+<blockquote><p>The design involves repeated measurements on the same participants, yet the analysis appears to treat every observation as independent. This should be addressed before the results can be interpreted.</p></blockquote>
+
+<blockquote><p>Your 84 data points come from only 12 animals. The <a class="auto-link" href="MCMC-Diagnostics-in-R.html" title="MCMC Diagnostics in R: 4 Tests for Chain Convergence">effective sample size</a> is much smaller than the degrees of freedom in Table 2 imply.</p></blockquote>
+
+<blockquote><p>I also note that patients were recruited across several clinics, and I wondered whether outcomes within a clinic might be more alike than outcomes between clinics, and whether that has any bearing on the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> reported in the Results.</p></blockquote>
+
+<h2>What they actually mean</h2>
+
+<p>Your observations fall into groups, and within a group they resemble each other more than they resemble observations in other groups. Measurements on the same patient, animals from the same litter, or repeated readings on the same plant all share something the model does not know about. When two observations are correlated like this, the second adds less than a full observation's worth of new information, so the real amount of independent data is smaller than the row count says.</p>
+
+<p>The reviewer is not claiming your estimate is biased, and is not asking you to add another covariate. What is in doubt is the precision the model reported: the standard errors, the confidence intervals, and the p-values, all of which were computed as if you had more independent observations than you really do. This is a different problem from <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">autocorrelation</a>, where the dependence follows the time order within a single series; here the dependence comes from the grouping structure of the data, not from time.</p>
+
+<h2>Why they are asking</h2>
+
+<p>An ordinary regression, <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Sample-t-Test-in-R.html" title="t-Test in R: One-Sample, Two-Sample and Paired (With Examples)">t-test</a> or <a class="auto-link" href="https://r-statistics.co/How-to-do-One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: Compare Group Means (With Examples)">ANOVA</a> assumes the observations are independent, and it uses the full row count when it works out how precise the estimates are. When the observations cluster, that row count is an overstatement. The usual way to measure the overstatement is the <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">intraclass correlation</a>, the share of the leftover variation that sits between clusters rather than within them, taken together with the average cluster size. The two combine into the design effect, <code>1 + (m - 1) * ICC</code> for clusters of size <code>m</code>, and dividing the sample size by the design effect gives the effective number of independent observations (Kish, Survey Sampling, 1965).</p>
+
+<p>The consequences depend on where your predictor lives. For a predictor that changes between clusters, such as a treatment given to whole clinics or a diet fed to whole animals, ignoring the <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> makes the standard error too small, the confidence interval too narrow, and the p-value too optimistic, so an effect can look significant when the between-cluster evidence is thin. Analysing grouped data as though it were independent in this way is what Hurlbert (1984) named pseudoreplication. For a predictor that changes within clusters, such as a measurement repeated on the same subject over time, the clustering often does no harm and can even sharpen the estimate. Reporting guidelines expect the issue to be handled on its face: the CONSORT extension for cluster randomised trials asks authors to report the intraclass correlation and how clustering was accounted for (Campbell et al., BMJ 2012), and STROBE item 12 asks you to describe the statistical methods used to account for the design.</p>
+
+<p>The standard fix is a model that contains the grouping, most often a mixed model with a random intercept for the cluster. The mechanics of fitting one are covered in <a href="/Random-Intercepts-and-Slopes-in-R.html">Random Intercepts and Slopes with lme4 in R</a>; this chapter is about deciding whether you have a problem and what to say.</p>
+
+<h2>How to check it</h2>
+
+<p>Two numbers settle it: how strong the within-cluster correlation is, and how much it shrinks your sample. Fit a model with a random intercept for the grouping factor and read the variance it assigns to the cluster against the residual. The chick-growth data, where each chick is weighed repeatedly as it grows, is a clear example.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lme4)
+mm &lt;- lmer(weight ~ Time + Diet + (1 | Chick), data = ChickWeight)
+vc &lt;- as.data.frame(VarCorr(mm))[, c(&quot;grp&quot;, &quot;vcov&quot;)]
+vc$vcov &lt;- round(vc$vcov, 1)
+vc
+#&gt;        grp  vcov
+#&gt; 1    Chick 525.4
+#&gt; 2 Residual 799.4
+icc &lt;- as.numeric(vc$vcov[vc$grp == &quot;Chick&quot;] / sum(vc$vcov))
+round(icc, 3)
+#&gt; [1] 0.397</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 40 percent of the variation left after diet and time is between chicks rather than within them. Now turn that into an effective sample size.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_i  &lt;- table(ChickWeight$Chick)
+deff &lt;- 1 + (mean(n_i) - 1) * icc
+round(c(clusters = length(n_i), mean_size = mean(n_i),
+        design_effect = deff, effective_n = sum(n_i) / deff), 1)
+#&gt;      clusters     mean_size design_effect   effective_n 
+#&gt;          50.0          11.6           5.2         111.4 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 578 rows carry about as much independent information as 111 observations would, because each chick contributes roughly twelve correlated weighings. A standard error computed from the full row count is therefore about <code>sqrt(5.2)</code>, or 2.3 times, too small. There is no universal threshold for the intraclass correlation: a value of 0.01 can matter when clusters are large, and a value of 0.3 can be harmless when the predictor varies within clusters, so read the ICC through the design effect and the design rather than against a fixed cutoff.</p>
+
+<h2>What to do about it</h2>
+
+<h3>You are fine</h3>
+
+<p>The clustering is weak, or the effect you care about is measured within clusters and the correction leaves it standing. The loblolly-pine data has 14 trees each measured at six ages, so age varies within a tree.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive_lob &lt;- lm(height ~ age, data = Loblolly)
+mixed_lob &lt;- lmer(height ~ age + (1 | Seed), data = Loblolly)
+round(summary(naive_lob)$coefficients[&quot;age&quot;, ], 4)
+#&gt;   Estimate Std. Error    t value   Pr(&gt;|t|) 
+#&gt;     2.5905     0.0409    63.2717     0.0000 
+round(summary(mixed_lob)$coefficients[&quot;age&quot;, ], 4)
+#&gt;   Estimate Std. Error    t value 
+#&gt;     2.5905     0.0392    66.1359 
+v_lob &lt;- as.data.frame(VarCorr(mixed_lob))
+round(v_lob$vcov[1] / sum(v_lob$vcov), 3)
+#&gt; [1] 0.089</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intraclass correlation is only 0.09, and the mixed model returns the same slope with a slightly smaller standard error than the naive fit, so accounting for the clustering does nothing to weaken the age effect. If your reported analysis already used a mixed model, cluster-robust standard errors, or a GEE, you are in this case for a different reason: the objection is already met, and the reply is to point the reviewer at the term in the model that handles it. Either way, report the intraclass correlation so the claim rests on a number.</p>
+
+<h3>It is fixable</h3>
+
+<p>The correlation is real and your predictor varies between clusters, so the naive standard errors are too small, but the fix is a one-line change of model and the conclusion survives it. Compare the diet effects in the chick data before and after adding the random intercept.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive_cw &lt;- lm(weight ~ Time + Diet, data = ChickWeight)
+round(summary(naive_cw)$coefficients[, 1:2], 4)
+#&gt;             Estimate Std. Error
+#&gt; (Intercept)  10.9244     3.3607
+#&gt; Time          8.7505     0.2218
+#&gt; Diet2        16.1661     4.0858
+#&gt; Diet3        36.4994     4.0858
+#&gt; Diet4        30.2335     4.1075
+round(summary(mm)$coefficients[, 1:2], 4)
+#&gt;             Estimate Std. Error
+#&gt; (Intercept)  11.2438     5.7887
+#&gt; Time          8.7172     0.1755
+#&gt; Diet2        16.2100     9.4643
+#&gt; Diet3        36.5433     9.4643
+#&gt; Diet4        30.0129     9.4708</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The diet estimates barely move: diet 3 goes from 36.50 to 36.54. Their standard errors roughly double, from 4.09 to 9.46 for diet 3, which is the 2.3-fold correction the design effect predicted. Diet 3 and diet 4 keep t values above 3 and stay clearly significant, so the main finding holds; the diet-2 contrast, whose t value falls from 3.96 to 1.71, no longer clears the usual bar. The remedy is to fit the mixed model, report it as the primary analysis, and adjust any claim that leaned on the weakest contrast. <a href="/Mixed-Model-Inference-in-R.html">Mixed Model Inference in R</a> covers how to get p-values and confidence intervals from the fit, since lme4 does not print them by default.</p>
+
+<h3>It is a real problem</h3>
+
+<p>Sometimes the correction removes the finding: when the whole result rested on treating correlated observations as independent, respecting the clustering can leave you with no significant effect. The carbon-dioxide uptake data compares chilled and control plants, with the treatment applied to whole plants that were each measured at seven concentrations.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive_co2 &lt;- lm(uptake ~ Treatment, data = CO2)
+mixed_co2 &lt;- lmer(uptake ~ Treatment + (1 | Plant), data = CO2)
+round(summary(naive_co2)$coefficients, 4)
+#&gt;                  Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)       30.6429     1.5911 19.2589   0.0000
+#&gt; Treatmentchilled  -6.8595     2.2502 -3.0485   0.0031
+round(summary(mixed_co2)$coefficients, 4)
+#&gt;                  Estimate Std. Error t value
+#&gt; (Intercept)       30.6429     3.0371 10.0895
+#&gt; Treatmentchilled  -6.8595     4.2951 -1.5970</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimated chilling effect is identical in the two models, -6.86, because clustering does not bias the estimate. What changes is the standard error, which widens from 2.25 to 4.30 once the model recognises that the evidence comes from 12 plants and not 84 measurements, and the t value falls from -3.05 to -1.60. The naive p-value of 0.003 came from counting each plant seven times, and there is no clever repair, because the data do not hold enough independent units to support the claim at the strength first reported. The honest path is to report the mixed-model result, state plainly that the between-cluster comparison is weaker than the raw analysis suggested, and revise the conclusion. If the design confounds the treatment with the cluster entirely, so that no model can separate them, that belongs in the limitations.</p>
+
+<h2>How to word your response</h2>
+
+<h3>If you are fine</h3>
+
+<blockquote><p>We thank the reviewer for raising this. Each tree was measured at six ages, and our model already includes a random intercept for tree, so the correlation between repeated measurements is accounted for. The intraclass correlation is small (0.09) and the estimated age effect is unchanged from an ordinary regression, so the repeated-measures structure does not affect our conclusion. The model specification and the intraclass correlation are now stated in the Methods (page X).</p></blockquote>
+
+<h3>If it was fixable</h3>
+
+<blockquote><p>The reviewer is correct that our design has repeated weighings within each chick, and the original model treated them as independent. We have refitted the analysis as a mixed model with a random intercept for chick. The estimated diet effects are almost identical, but their standard errors roughly double, from about 4 to about 9 for the largest effect, once the within-chick correlation is included. The two larger diet effects remain clearly significant, while the smallest contrast is now borderline, and we have softened that particular claim. The revised model appears in Table 2, and the change of method is described in the Methods (page X).</p></blockquote>
+
+<h3>If it is a real problem</h3>
+
+<blockquote><p>We agree with the reviewer. Although we recorded 84 measurements, they come from only 12 plants, and the comparison between chilled and control plants rests on that smaller number of independent units. Refitting with a random intercept for plant leaves the estimated difference unchanged but widens its standard error, and the effect is no longer significant at conventional levels. We have revised the Results to report the mixed-model estimate and its confidence interval, and we no longer describe this comparison as statistically significant on its own (Results, page X; Methods, page X).</p></blockquote>
+
+<h2>Practice</h2>
+
+<p>A reviewer writes: <em>"These 180 reaction-time measurements come from just 18 participants, each measured on ten consecutive days. Treating them as 180 independent observations badly overstates the sample size, and the reported effect of sleep deprivation cannot be trusted as analysed."</em> You run the check:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_naive &lt;- lm(Reaction ~ Days, data = sleepstudy)
+ex_mixed &lt;- lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+ex_vc &lt;- as.data.frame(VarCorr(ex_mixed))
+round(ex_vc$vcov[1] / sum(ex_vc$vcov), 3)
+round(summary(ex_naive)$coefficients[&quot;Days&quot;, ], 4)
+round(summary(ex_mixed)$coefficients[&quot;Days&quot;, ], 4)
+c(subjects = length(unique(sleepstudy$Subject)), rows = nrow(sleepstudy))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Which of the three outcomes applies, and what do you write?</p>
+
+<details><summary>Click to reveal solution</summary>
+
+<p>Everything the reviewer says about the counts is true. There are 18 participants and 180 rows, and the intraclass correlation is 0.589, so more than half the leftover variation is between participants. A design-effect calculation on those numbers looks alarming, and a reader who stops there would concede the point.</p>
+
+<p>The point should not be conceded, because the effect under test is the change in reaction time per day of sleep deprivation, and days vary within each participant, not between them. Refitting with a random intercept for subject leaves the slope unchanged at 10.47 milliseconds per day, and its standard error falls from 1.2382 to 0.8042, so the t value rises from 8.45 to 13.02. Accounting for the clustering makes the effect more precise, not less, which puts this in the first outcome: you are fine, and the reply is to report the mixed model, note that the estimate is unchanged and the standard error smaller, and explain that a within-subject effect is not weakened by between-subject correlation.</p>
+
+<p>It is easy to read a high intraclass correlation as automatic evidence that a result is inflated. Whether that is true depends on where the predictor sits: a predictor that varies between clusters loses precision when the clustering is modelled, while a within-subject predictor like this one does not.</p>
+
+</details>
+
+{% endraw %}
