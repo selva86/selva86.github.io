@@ -1,6 +1,6 @@
 ---
-title: "Reviewer says the variances are not equal"
-slug: Reviewer-Says-Variances-Are-Not-Equal
+title: "Unequal Variance in Peer Review"
+slug: Unequal-Variance-in-Peer-Review
 description: "A reviewer says your groups have unequal variances. How to test homogeneity of variance in R, decide whether it threatens your result, and word your reply."
 keywords: "variances are not equal reviewer comment, homogeneity of variance peer review, unequal variances reviewer response, reviewer says variances not equal, Welch t-test response to reviewer"
 mathjax: false
