@@ -146,7 +146,9 @@ def render_body(book):
                        if c.get('_live')), '')
 
     scope = book.get('scope') or (book['key'].replace('-', '') + 'book')
-    out = ['<div class="%s">' % e(scope)]
+    # .container is what centres the hand-built book pages at 1170px. Without it
+    # the page renders flush to the viewport edge while the masthead stays inset.
+    out = ['<div class="container">', '<div class="%s">' % e(scope)]
 
     # ---- hero ----------------------------------------------------------
     art = load_hero_art(book['key'])
@@ -215,8 +217,9 @@ def render_body(book):
                    % (i, e(part.get('title', '')), done, len(part['chapters'])))
     out.append('  </div>')
     out.append('</aside>')
-    out.append('</div>')
-    out.append('</div>')
+    out.append('</div>')   # .grid
+    out.append('</div>')   # scope
+    out.append('</div>')   # .container
 
     return '\n'.join(out), built, total, len(parts)
 
