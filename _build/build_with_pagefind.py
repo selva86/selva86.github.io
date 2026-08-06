@@ -55,7 +55,9 @@ def main() -> None:
     # checkout and renders it "Soon" otherwise. Regenerating on every deploy is
     # what makes a chapter's link appear the moment it ships, with no second file
     # to update by hand and no window where the index links a page that 404s.
-    run([sys.executable, "_build/gen_handbook_index.py", "--tracked"])
+    # ADVISORY: the committed page is a valid fallback, so a generator failure
+    # should cost a stale index, never the whole site deploy.
+    run_advisory([sys.executable, "_build/gen_handbook_index.py", "--tracked"])
 
     # 1d. Lesson quality gate (ADVISORY): logs blank-slide / R6 failures but never
     # fails the deploy. The HARD, blocking gate runs at publish time.
