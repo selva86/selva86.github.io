@@ -16,7 +16,6 @@ auto_link_case_sensitive: false
 difficulty: Intermediate
 ---
 
-# How to Answer Statistical Reviewer Comments in R
 
 <p class="lead">Peer reviewers raise a small, predictable set of statistical objections. Each one has three possible answers: your analysis is fine and you need to show it, there is a fixable problem, or there is a real problem you must disclose. This page lists the thirty objections that come up most, what each one actually means, how to check it in R, and how to word the response.</p>
 
