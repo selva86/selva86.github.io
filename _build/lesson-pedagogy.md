@@ -31,19 +31,19 @@ Write `post_plans/<slug>_lesson-plan.md` first. No plan, no lesson.
 - **R13 As many steps as it takes (NO cap, NO time box).** There is no step limit and no minute budget. Use as many steps as a learner at the entry bar needs to understand everything in full detail, with nothing rushed, glossed, compressed, or skipped. NEVER shorten, drop, or speed through an explanation to hit a step or word count - thoroughness beats brevity every single time, and expanding for a beginner's sake is never "padding." A lesson still covers ONE coherent TOPIC: split into a multi-lesson course only at a genuine conceptual seam (a separate topic that deserves its own arc), judged by CONCEPTUAL COHERENCE, never by step count. A rich topic taught properly may run long, and that is correct and good; a lesson that is short but leaves a learner behind has failed. Plan the arc (and any topic split) UP FRONT. MEASURE: judge confirms each lesson is one coherent topic AND that no idea was rushed or omitted for length. There is NO step-count penalty; the only length defect is a step that is a wall of text (split THAT step, do not cut content).
 - **R14 Room to breathe (care over speed - the anti-rushing rule).** Give every new idea its own space: introduce it in plain words, show ONE concrete worked example, then a check, before moving to the next idea. Do NOT stack two new ideas into one step, and do NOT race to the next thing. Two specific defects that read as "rushed and careless," both hard failures: (a) **clever-golf code** - a compact idiom a beginner cannot parse (e.g. `r * (tau - (r < 0))`). Prefer explicit, readable R (`ifelse`, named intermediates, one operation per line); if a terse idiom is genuinely necessary, SHOW what it computes on a concrete input before using it. (b) **assert-not-show** - claiming a non-obvious line or formula "does X" without demonstrating it. Instead RUN it on a concrete value so the reader sees the result (e.g. `check_loss(15, 0.9)` -> `13.5`, `check_loss(-15, 0.9)` -> `1.5`), then generalize. MEASURE (judge): at every step, was this explained with a patient teacher's care or rushed? is any code clever-cryptic instead of readable? is any non-obvious claim asserted instead of shown on a concrete value?
 
-- **R15 Prose voice (shared SSOT: `_build/prose-voice.md`).** Two rules, both apply
-  to every word of step prose, quiz stems and try-it framing. **P1 the cargo test:**
+- **R15 Prose voice (shared SSOT: `_build/prose-voice.md`).** Three rules, all apply
+  to every word of step prose, quiz stems and try-it framing. **P1 write about the topic, not the page:**
   cross out any phrase naming the lesson ("this lesson", "you will learn", "by the
   end") and check that a fact about the SUBJECT survives; if only a claim about the
   lesson's promise or method is left, cut the sentence. There is no banned word
-  list. **P2 sentences need each other:** adjacent facts need a connective saying how
+  list. **P2 each sentence follows from the one before:** adjacent facts need a connective saying how
   one bears on the other (`because`, `so`, `which means`, `whereas`, `even though`,
   `once`, `until`), openings must not all be the subject, and length must vary hard
   (longest at least twice the shortest in any 3+ sentence paragraph). The reorder
   test: shuffle a step's sentences, and if it reads just as well, it is a list
   wearing prose punctuation. MEASURE (automated, WARN):
   `python Scripts/prose_flow_check.py lessons/<slug>.md`. MEASURE (judge): the
-  reorder test on the two flattest steps.
+  reorder test on the two flattest steps. **P3 never make up a number:** every number in prose must be sourced, measured, or removed. "Almost always" is honest when you have not counted; "ninety percent of the time" is not. Take the position without manufacturing a statistic to support it.
 
 ## Gate 3 - VERIFY (nothing ships until these pass)
 

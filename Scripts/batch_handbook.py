@@ -68,6 +68,37 @@ def save_status(rows):
     os.replace(tmp, STATUS)
 
 
+def commit_tracker(num, slug):
+    """Commit handbook-status.json after a verified publish.
+
+    The publisher is told not to touch the tracker ("the batch orchestrator owns
+    it") and the orchestrator never committed it, so nobody did. The tracker is
+    tracked by git and rewritten on every publish, which left it permanently
+    dirty: the committed copy said `pending` while the pages were live, the
+    deployed index rebuilt from that stale copy and under-reported the chapter
+    count, and a routine `git checkout -- .` silently reverted eleven rows.
+
+    Committed per chapter rather than once at the end of the run, because this
+    batch is killed externally often enough that an end-of-run commit would lose
+    the whole run's state. One extra small commit per chapter is the cheaper
+    trade. Explicit path only: never -A, never a glob that can reach tools/.
+    """
+    r = subprocess.run(['git', 'status', '--porcelain', '--', STATUS],
+                       cwd=ROOT, capture_output=True, text=True)
+    if not r.stdout.strip():
+        return                      # nothing changed; publisher already covered it
+    subprocess.run(['git', 'add', '--', STATUS], cwd=ROOT)
+    c = subprocess.run(
+        ['git', 'commit', '-m',
+         'Handbook tracker: ch %s published (%s)' % (num, slug)],
+        cwd=ROOT, capture_output=True, text=True)
+    if c.returncode != 0:
+        # A concurrent worker's commit can swallow staged files; the row is still
+        # on disk and the next call retries, so warn rather than fail the batch.
+        print('  WARNING: tracker commit for ch %s failed: %s'
+              % (num, (c.stderr or c.stdout).strip().splitlines()[:1]))
+
+
 def set_state(rows, num, **kw):
     """Update ONE chapter's row, preserving concurrent edits to every other row.
 
@@ -409,6 +440,7 @@ def main():
 
             set_state(rows, n, status='published',
                       url='https://r-statistics.co/%s.html' % slug)
+            commit_tracker(n, slug)
             ok += 1
             print('  PUBLISHED-PUSHED %s' % slug)
 

@@ -3,12 +3,15 @@
 How sentences are written on this site. Applies to **every** content type: tutorials,
 PSEO posts, handbook chapters, interactive lessons, exercise hubs, landing copy.
 Referenced by `tutorial-pedagogy.md` (T16/T17), `lesson-pedagogy.md` (R15),
-`pseo-formatting.md` (section 9), and the writer + reviewer skills. Two rules. Read
-both; they are short on purpose.
+`pseo-formatting.md` (section 9), and the writer + reviewer skills. Three rules.
+Read all three; they are short on purpose.
 
 ---
 
-## P1 - Write about the subject, not about the article
+## P1 - Don't write about the article. Write about the topic.
+
+**In one line: if a sentence only describes the page, delete it. If it tells the
+reader something about the subject, keep it.**
 
 The defect is **not** the words "this guide". Those words are usually fine. The
 defect is a sentence whose whole payload is a claim about the article.
@@ -48,7 +51,10 @@ cargo test; the reviewer pass owns this rule.
 
 ---
 
-## P2 - Sentences have to need each other
+## P2 - Each sentence should follow from the one before it
+
+**In one line: a paragraph is an argument, not a list. If you can shuffle the
+sentences and it still reads fine, you wrote a list and punctuated it as prose.**
 
 A list of true statements is not prose. Human prose is an argument, where each
 sentence needs the one before it. This is the more common defect of the two, and it
@@ -119,6 +125,36 @@ Not a licence for long winding sentences, subordinate-clause pileups, or ornamen
 Plain and literal still wins (T15 / R12). Short sentences are good; a *run* of them
 with nothing joining them is the defect. If a sentence needs two commas and a
 semicolon to survive, split it and connect the halves properly.
+
+---
+
+## P3 - Never make up a number
+
+**In one line: every number you write must come from a source or a measurement.
+If you have neither, say it without the number.**
+
+Applies to every number that appears in prose. `T7` and `R7` already forbid
+fabricated code output, data and citations; this is the softer case they were not
+written for, where a number arrives only to make a sentence sound authoritative.
+
+> "which is where you will use this ninety percent of the time"
+> "most analysts reach for the second option"
+> "this roughly doubles the runtime"
+
+Nobody measured any of those. An invented number is worse than no number, because
+it is the part a reader quotes and the part a reviewer checks.
+
+If you have a source, cite it. If you measured it, show the measurement. If
+neither, make the claim without the quantity: **vague is honest, precise and
+unsourced is not.** "Almost always" is a fair thing to write when you have not
+counted. "Ninety percent of the time" is not.
+
+This binds anywhere a position is being taken. Take the position; do not
+manufacture a statistic to make it sound better founded.
+
+Both real examples above came out of a controlled writing test on 2026-08-07, one
+from a page written under an earlier draft of a voice rule and one from a page
+written under these rules as they stand. The failure is live, not hypothetical.
 
 ---
 
