@@ -30,6 +30,8 @@ the argument substituted. Robust on every CLI version; same skills, same content
 """
 import os, sys, json, argparse, subprocess, datetime, time, urllib.request
 
+from verify_state import verify_published   # artifact check, not exit-code trust
+
 # Packages pre-warmed once at batch start with --prewarm-r, so writers and the gate
 # never stall on a mid-post CRAN install. Common tutorial set; anything missing still
 # installs lazily. Kept to CRAN packages that install without a build toolchain.
@@ -80,10 +82,17 @@ def curriculum_entries():
 
 
 def entry_by_id(cid):
-    for _, e in curriculum_entries():
-        if e.get('id') == cid:
-            return e
-    return None
+    matches = [e for _, e in curriculum_entries() if e.get('id') == cid]
+    if not matches:
+        return None
+    # Ids are meant to be globally unique. Where the tracker has duplicates,
+    # first-match-wins silently builds one topic and never the other - say so
+    # rather than letting the wrong tutorial get written under this id.
+    if len(matches) > 1 and len({e.get('seo_title') for e in matches}) > 1:
+        print('  WARNING: id %s matches %d different posts; building the first '
+              '(%s). Renumber it in the curriculum markdown.'
+              % (cid, len(matches), (matches[0].get('seo_title') or '')[:60]))
+    return matches[0]
 
 
 def resolve_targets(args, state):
@@ -327,6 +336,20 @@ def main():
                 state[cid]['status'] = 'publish_failed'
                 save_state(state)
                 print('  publish failed: %s' % slug)
+                continue
+
+            # Phase 3b: prove it. `claude -p` exits 0 whether or not the publisher
+            # finished, so the exit code above is not evidence. Check the fragment,
+            # the built page, and that the page is committed - otherwise the sidecar
+            # says done while the site has nothing. Note that publish-tut writes
+            # curriculum-status.json itself, so a failure here can leave that file
+            # claiming published: `python Scripts/verify_state.py` finds those.
+            ok, why = verify_published(slug)
+            if not ok:
+                state[cid]['status'] = 'publish_failed'
+                state[cid]['last_error'] = 'publish exited 0 but ' + why
+                save_state(state)
+                print('  publish UNVERIFIED: %s (%s) - marked publish_failed' % (slug, why))
                 continue
 
             state[cid]['status'] = 'done'

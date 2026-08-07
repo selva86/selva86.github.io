@@ -71,6 +71,38 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
   does. Never a bare `library()` + read-data block with nothing to show, and no
   figure above it to push it below the fold. MEASURE (automated): first ```r block
   appears in section 1 and contains `#>` output lines.
+- **T16 The cold open (everything above the SECOND H2).** Assume the reader landed
+  here from a Google result, in the middle of a problem, has never seen this site,
+  and will leave in ten seconds if the page does not start being useful. The lead
+  paragraph and the first H2's opening prose are written for that person. A good
+  opening says what the thing IS in plain words, then drops the reader into a
+  concrete situation where it matters, with real numbers.
+  Apply **P1 (the cargo test) in `_build/prose-voice.md`** to every sentence in this
+  region: cross out any phrase naming the article and see whether a fact about the
+  SUBJECT survives. "This guide covers three ways to fit a model" survives and is
+  fine; "This guide keeps a promise the title makes" does not and is cut. There is
+  no banned word list - "this guide" is innocent in most sentences that contain it.
+  **A bridging paragraph between the lead and the first H2 is OPTIONAL.** Write one
+  only when you have a concrete scene to set; going straight from the lead into the
+  first H2 is equally good and often better. Never add a bridge just to have one -
+  an empty bridge is exactly where self-referential filler ends up.
+  Applies to the H2 too: the first H2 must be an on-ramp a beginner can enter, not
+  the hardest thing in the post. Never let advanced or derivational material be the
+  first heading a cold reader meets.
+  MEASURE (judge, `/verify-tut`): "does the first screen teach the subject, or
+  describe the page?" No automated measure: a script cannot apply the cargo test,
+  and a substring check on "this guide" fires on 459 posts that are fine.
+- **T17 Sentences need each other (flow).** Full rule: **P2 in
+  `_build/prose-voice.md`**. A list of true statements is not prose. Adjacent facts
+  need a connective saying how one bears on the other (`because`, `so`,
+  `which means`, `whereas`, `even though`, `once`, `until`), sentence openings must
+  not all be the subject, and sentence length must vary hard: in any paragraph of
+  three or more sentences the longest should be at least twice the shortest. The
+  reorder test: shuffle a paragraph's sentences, and if it reads just as well, it
+  was a list wearing prose punctuation. MEASURE (automated, WARN):
+  `python Scripts/prose_flow_check.py posts/<slug>.md` - `sub_100w` >= 1.2,
+  `cv` >= 0.48, `max_flat_run` <= 3, and it quotes the offending run.
+  MEASURE (judge): the reorder test on the two flattest paragraphs.
 - **T2 From scratch, no leaps.** Every term, symbol, function, and argument is
   explained in words on first use; every concept is either in the entry bar or
   taught inline before it is used. Jargon-before-definition is a defect. MEASURE
@@ -176,7 +208,8 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
 
 - **Lead paragraph**: the first paragraph after the frontmatter directly answers
   the title's question in 2-3 sentences (the featured-snippet target). Write it
-  last, write it plainly.
+  last, write it plainly. It defines the topic. It may not spend a sentence on the
+  article itself: every sentence must survive the cargo test (T16 / P1).
 - **H2s as questions** where natural ("What is a ts object?", "When should you use
   xts instead?"). h3 is not used on this site; use `###` only knowing it renders
   as an h4 visual level.
@@ -215,8 +248,8 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
 | Layer | Enforces |
 |---|---|
 | PLAN artifact | objectives <-> sections, pedagogy + sequencing, reader questions (before/after), entry bar, concept order, section arc, diagram plan, running example |
-| `tutorial_quality_check.py` (deterministic) | frontmatter completeness + lengths, T1 first-code payoff, T5 counts + self-containment + REAL execution, T6 diagram exists ([C]), T7/T8 banned strings + package fencing, references resolve, plan exists |
-| `/verify-tut` (fresh agent) | T2 no leaps, T3 depth ladder, T4 continuity, T12 grounded + warm, T13 complete-but-no-redundancy (no conclusion proven twice, no padding), T14 care over speed, T15 literal voice (no dramatic metaphor/personification), AI-tells, gap critique |
+| `tutorial_quality_check.py` (deterministic) | frontmatter completeness + lengths, T1 first-code payoff, T5 counts + self-containment + REAL execution, T6 diagram exists ([C]), T7/T8 banned strings + package fencing, references resolve, plan exists, T17 flow metrics (WARN only) |
+| `/verify-tut` (fresh agent) | T2 no leaps, T3 depth ladder, T4 continuity, T12 grounded + warm, T13 complete-but-no-redundancy (no conclusion proven twice, no padding), T14 care over speed, T15 literal voice (no dramatic metaphor/personification), T16 cargo test on the cold open, T17 reorder test on the flattest paragraphs, AI-tells, gap critique |
 | `/publish-tut` | build + registries + tracker update + live verification |
 
 ## Definition-of-done checklist
@@ -233,6 +266,8 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
 - [ ] [C]: at least one rendered diagram at the right concept
 - [ ] No conclusion proven more than once; no padding; every passage earns its place (T13)
 - [ ] Literal voice: no personification or dramatic metaphor for flourish (T15)
+- [ ] Cold open teaches the subject: every sentence above the second H2 passes the cargo test (T16 / P1)
+- [ ] Prose flows: connectives present, sentence length varies, no paragraph survives the reorder test (T17 / P2)
 - [ ] No em dashes, no AI-tell phrases, WebR never named
 - [ ] FAQ (4-6 real questions), Summary, References (5-10, resolving)
 - [ ] Gap critique done and fixes applied (verify-tut)

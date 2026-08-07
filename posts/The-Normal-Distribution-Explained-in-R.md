@@ -16,9 +16,7 @@ sidebar_order: 10
 difficulty: "Beginner"
 ---
 
-<p class="lead">The normal distribution is a symmetric, bell-shaped curve where most values sit close to the average and become rarer the further you move away from it. It turns up everywhere from human heights to test scores because it is what you get when many small random effects add up. In R, four short functions do everything you need with it: <code>dnorm</code>, <code>pnorm</code>, <code>qnorm</code> and <code>rnorm</code>.</p>
-
-This guide keeps a promise the title makes: you will see where the curve comes from before you learn to work with it. We use base R only, so there is nothing to install, and every number you see was produced by the code right above it. Run each block as you read and the curve stops being a formula you memorize and becomes something you built yourself.
+<p class="lead">The normal distribution is a symmetric, bell-shaped curve where most values sit close to the average and become rarer the further you move away from it. It turns up everywhere from human heights to test scores because it is what you get when many small random effects add up. In R, four short functions do everything you need with it: <code>dnorm</code>, <code>pnorm</code>, <code>qnorm</code> and <code>rnorm</code>. All four ship with base R, so there is nothing to install.</p>
 
 ## Where does the normal distribution come from?
 

@@ -297,6 +297,20 @@ def main():
                 print('  publish failed: %s' % slug)
                 continue
 
+            # Phase 3b: prove it (same reasoning as batch_tutorials.py). A zero
+            # exit from `claude -p` is not evidence the publisher finished, so
+            # check the fragment, the built page, and the commit before recording
+            # done. publish-tut writes curriculum-status.json itself, so a failure
+            # here can leave that file claiming published - Scripts/verify_state.py
+            # reconciles it.
+            ok, why = bt.verify_published(slug)
+            if not ok:
+                state[cid]['status'] = 'publish_failed'
+                state[cid]['last_error'] = 'publish exited 0 but ' + why
+                bt.save_state(state)
+                print('  publish UNVERIFIED: %s (%s) - marked publish_failed' % (slug, why))
+                continue
+
             state[cid]['status'] = 'done'
             bt.save_state(state)
             done += 1

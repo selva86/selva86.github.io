@@ -347,10 +347,33 @@ def sync_curriculum(posts, dry_run=False):
         if cid and cid != 'None' and cid != 'null':
             post_by_id[cid] = post
 
+    # Ids are supposed to be globally unique, but the tracker generator has
+    # minted duplicates across sub-paths. A fragment carries only a scalar
+    # curriculum_id, so when two rows describing DIFFERENT posts share an id
+    # there is no way to tell which one a publish belongs to - stamping on the
+    # id alone copied one post's slug/url/date onto both, silently marking
+    # eight never-written tutorials as published. Never guess: skip those rows
+    # and say so. Rows that share an id but have the SAME seo_title are one
+    # planned post cross-listed under two sub-paths, so stamping both is right.
+    rows_by_id = {}
+    for pdata in curriculum.get('paths', {}).values():
+        for spdata in pdata.get('sub_paths', {}).values():
+            for entry in spdata.get('posts', []):
+                rows_by_id.setdefault(entry.get('id', ''), []).append(entry)
+    ambiguous_ids = {
+        eid for eid, rows in rows_by_id.items()
+        if len(rows) > 1 and len({r.get('seo_title') for r in rows}) > 1
+    }
+    skipped_ambiguous = set()
+
     for path, pdata in curriculum.get('paths', {}).items():
         for sp, spdata in pdata.get('sub_paths', {}).items():
             for entry in spdata.get('posts', []):
                 eid = entry.get('id', '')
+                if eid in ambiguous_ids:
+                    if eid in post_by_id:
+                        skipped_ambiguous.add(eid)
+                    continue
                 if eid not in post_by_id:
                     # Entry has no matching _posts/*.html → never published or
                     # not rewritten. modified_date must be null.
@@ -383,6 +406,13 @@ def sync_curriculum(posts, dry_run=False):
 
                 if changed:
                     updated += 1
+
+    if skipped_ambiguous:
+        print('  WARNING: %d curriculum id(s) are shared by different posts, so '
+              'publish status was NOT written for them: %s'
+              % (len(skipped_ambiguous), ', '.join(sorted(skipped_ambiguous))))
+        print('           Renumber them in the curriculum markdown, regenerate '
+              'the tracker, then set those rows by hand.')
 
     if not dry_run and updated > 0:
         with open(CURRICULUM_PATH, 'w', encoding='utf-8') as f:

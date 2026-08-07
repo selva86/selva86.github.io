@@ -33,4 +33,12 @@ export const FLAGS = {
   COMMENTS: "comments",
   LEADERBOARD: "leaderboard",
   SIGNUP_ADMIN_EMAIL: "signup-admin-email",
+  // Customer-facing purchase email (see _lib/fulfilment.ts). OFF until the
+  // 2026-09-08 launch: while off the handler still records to audit_log
+  // exactly what it would have sent.
+  FULFILMENT_EMAIL: "fulfilment-email",
+  // The 7-days-before-renewal reminder sweep. Deliberately a SEPARATE flag so
+  // the purchase email can go live without a job that mails existing
+  // subscribers on its first run.
+  RENEWAL_REMINDER: "renewal-reminder",
 } as const;

@@ -20,6 +20,7 @@ import { json, jsonError } from "../../_lib/errors";
 import { verifyPaddleSignature, isPaddleSourceIp } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
 import { notifyAdminEvent } from "../../_lib/notify";
+import { sendFulfilmentEmail, formatMoney, type FulfilmentPlan } from "../../_lib/fulfilment";
 
 // Valid roadmap track keys for Single Track scoping (matches courses.json
 // roadmap.track values). Anything else in custom_data.track is ignored.
@@ -54,9 +55,20 @@ interface PaddleSubscriptionData {
   // transaction.* fields (same envelope shape, different entity)
   subscription_id?: string | null;
   details?: { totals?: { total?: string; currency_code?: string } } | null;
+  // How the transaction came about. 'subscription_recurring' = a renewal, and
+  // renewals must never re-trigger the customer welcome email.
+  origin?: string;
+  currency_code?: string;
+  billing_period?: { starts_at?: string; ends_at?: string } | null;
   // customer.* fields
   email?: string;
 }
+
+// Transaction origins that represent a purchase worth confirming to the buyer.
+// Excludes 'subscription_recurring' (a renewal: the reminder covers that) and
+// 'subscription_payment_method_change' (a zero-value card update).
+const FULFIL_ORIGINS = new Set(["web", "api", "subscription_charge", "subscription_update"]);
+
 interface PaddleEvent {
   event_id?: string;
   event_type?: string;
@@ -188,6 +200,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const now = Math.floor(Date.now() / 1000);
   const occurredAt = isoToUnix(event.occurred_at) ?? now;
   let processedNote = "ignored";
+  // Customer fulfilment email, filled in by the transaction.completed branch
+  // and dispatched below only when this delivery is not a replay. Kept out of
+  // the try so the send decision survives the routing block's scope.
+  let fulfilment: FulfilmentPlan | null = null;
   try {
     if (eventType.startsWith("subscription.") && subId) {
       const teamsPriceId = (context.env as unknown as { PADDLE_TEAMS_PRICE_ID?: string }).PADDLE_TEAMS_PRICE_ID;
@@ -327,6 +343,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       } else {
         processedNote = "txn_ignored";
       }
+
+      // Customer fulfilment email. Only when a site account was actually
+      // entitled: an unresolved buyer has nothing unlocked yet, so telling
+      // them "your account is open" would be a lie (the owner is alerted on
+      // that path instead). Renewals, card updates and zero-value
+      // transactions are excluded by origin/amount.
+      const totalRaw = data.details?.totals?.total;
+      const totalMinor = totalRaw != null && totalRaw !== "" ? parseInt(String(totalRaw), 10) : 0;
+      const origin = data.origin || "web";
+      if (user && plan && FULFIL_ORIGINS.has(origin) && totalMinor > 0) {
+        fulfilment = {
+          kind: plan === "lifetime" ? "lifetime" : "subscription",
+          refId: data.id,
+          userId: user.id,
+          to: { email: user.email, name: user.display_name },
+          plan,
+          track: normalizeTrack(data.custom_data?.track) || null,
+          money: formatMoney(totalRaw, data.details?.totals?.currency_code || data.currency_code),
+          renewalAt: isoToUnix(data.billing_period?.ends_at),
+          subscriptionId: data.subscription_id || null,
+        };
+      }
     } else if ((eventType === "customer.created" || eventType === "customer.updated") && data.id && data.email) {
       // Customer entity: link paddle_customer_id to the account with that email.
       const user = await getUserByEmail(context.env.DB, data.email).catch(() => null);
@@ -399,6 +437,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         ],
         ...(buyer ? { replyTo: buyer } : {}),
       }));
+    }
+
+    // Customer-facing purchase email, alongside (never instead of) the owner
+    // notification above. Gated by KV flag `fulfilment-email`, default off
+    // until launch; while off it records to audit_log what it would have sent.
+    // Reached only on a non-replay delivery, and idempotent again on the
+    // transaction id inside sendFulfilmentEmail.
+    if (fulfilment) {
+      context.waitUntil(sendFulfilmentEmail(context.env, fulfilment));
     }
   }
 

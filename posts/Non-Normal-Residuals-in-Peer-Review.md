@@ -1,6 +1,6 @@
 ---
-title: "Reviewer says the residuals are not normal"
-slug: Reviewer-Says-Residuals-Are-Not-Normal
+title: "Non-Normal Residuals in Peer Review"
+slug: Non-Normal-Residuals-in-Peer-Review
 description: "A reviewer flagged non-normal residuals in your regression. How to check normality in R, decide whether it threatens your p-values, and word your reply."
 keywords: "residuals not normal reviewer comment, normality assumption peer review, shapiro test response to reviewer, reviewer says residuals not normal, non-normal residuals regression"
 mathjax: false

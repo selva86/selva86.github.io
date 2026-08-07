@@ -195,6 +195,43 @@ def main():
     if hits: fail('AI-tell phrases present: %s' % ', '.join(hits))
     else: ok('no AI-tell phrases')
 
+    # 4b. T17 prose flow (_build/prose-voice.md P2). WARN only, and deliberately so:
+    # these are corpus-relative style metrics, not correctness. They point a human at
+    # the flattest passage; the reorder test in /verify-tut decides whether it is
+    # actually wrong. Never block a publish on them.
+    #
+    # T16 (the cold open / cargo test) has NO check here on purpose. It used to be a
+    # substring FAIL on "this guide", "this post", "you will learn" and friends. That
+    # was wrong: 1008 such sentences exist across 459 published posts and almost all
+    # are innocent ("This guide covers arrows, shaded highlights, and labels"), while
+    # the real defect ("This guide keeps a promise the title makes") contains the same
+    # substrings. The discriminator is whether a fact about the SUBJECT survives once
+    # the article-naming phrase is crossed out, and no regex can evaluate that.
+    # T16 is enforced by /verify-tut (judgment layer). See _build/prose-voice.md P1.
+    try:
+        sys.path.insert(0, os.path.join(ROOT, 'Scripts'))
+        from prose_flow_check import analyse as _flow
+        fl = _flow(text)
+    except Exception:
+        fl = None
+    if not fl:
+        warn('T17 flow: too little prose to measure')
+    else:
+        bad = []
+        if fl['sub_100w'] < 1.2:
+            bad.append('sub_100w %.2f < 1.2 (few subordinating connectives)' % fl['sub_100w'])
+        if fl['cv'] < 0.48:
+            bad.append('cv %.2f < 0.48 (sentence length too uniform)' % fl['cv'])
+        if fl['max_flat_run'] > 3:
+            bad.append('%d adjacent short subject-opening connective-free sentences'
+                       % fl['max_flat_run'])
+        if bad:
+            warn('T17 flow (prose-voice.md P2, advisory): %s' % '; '.join(bad))
+            if fl['worst_run']:
+                warn('T17 flattest passage: "%s"' % fl['worst_run'][:220])
+        else:
+            ok('T17 flow: connectives, varied length, no long flat run')
+
     # 5. mathjax coherence
     has_math = ('\\(' in body) or ('$$' in body)
     fm_math = fm.get('mathjax', 'false').lower() == 'true'

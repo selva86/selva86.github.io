@@ -29,6 +29,7 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, err500 } from "../../_lib/errors";
 import { ensureIntentTable } from "../signal";
 import { sweepAbandonedCheckouts } from "../../_lib/cartrecovery";
+import { sweepRenewalReminders } from "../../_lib/fulfilment";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const IST_OFFSET = 19800; // +5:30 in seconds
@@ -665,6 +666,10 @@ export const onRequestGet: PagesFunction<Env & CfEnv & GscEnv, string, RequestDa
 
   const now = Math.floor(Date.now() / 1000);
   try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
+  // Same no-cron piggyback as cart recovery: Pages Functions have no scheduled
+  // trigger, so the 7-days-before-renewal reminder rides an endpoint the owner
+  // already opens. KV-throttled to one real run per 6h and flag-gated.
+  try { context.waitUntil(sweepRenewalReminders(context.env)); } catch (_) {}
   try {
     const [d1, cf, lb, gsc, intent] = await Promise.all([
       d1Stats(context.env.DB, now, range),

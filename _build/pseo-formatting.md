@@ -17,6 +17,7 @@ This is the canonical formatting bar for every PSEO post. Both `/write-pseo-v2` 
 - Format: `**Action verb or key claim.** Supporting prose.`
 - Example: `**select() is a column subsetter.** You pass a data frame and a list of columns...`
 - Skim-readers should grasp the post by reading only bolded leads + headings.
+- **The bolded opener is the ONLY sentence in the paragraph shaped this way.** The supporting prose that follows is connected prose, not more short declaratives: it must obey P2 in `_build/prose-voice.md`. A paragraph of five bold-opener-shaped sentences in a row is the single most common defect in this corpus.
 
 ## 3. Callouts (mandatory: 2 to 4 per post; counts authored callouts only)
 
@@ -181,8 +182,10 @@ For PSEO posts, build.py automatically injects a green "Run live, no install nee
 ## 9. Punctuation and prose
 
 - No em-dashes (U+2014). md2html.py strips them as backstop, but write without them. Use commas, hyphens, parens, semicolons.
-- Sentence ceiling: 30 words. Break longer ones.
-- Paragraph ceiling: 4 sentences. 2 to 3 ideal. One idea per paragraph.
+- **Prose voice: `_build/prose-voice.md` (P1 cargo test, P2 sentences need each other). It governs; the ceilings below are subordinate to it.**
+- Sentence ceiling: 40 words, and it is a ceiling, not a target. A paragraph whose sentences all run 8 to 14 words is a defect even though every sentence clears the ceiling: vary length hard, longest at least twice the shortest (P2).
+- Paragraph ceiling: 4 sentences. 2 to 3 ideal. One idea per paragraph. This is about paragraph LENGTH, not sentence independence: the sentences inside a paragraph must still depend on each other, so a paragraph that survives the reorder test is wrong however short it is.
+- Connect adjacent facts (`because`, `so`, `which means`, `whereas`, `even though`, `once`, `until`). `and` and `but` do not count. Check with `python Scripts/prose_flow_check.py posts/<slug>.md`.
 
 ## 10. Length
 

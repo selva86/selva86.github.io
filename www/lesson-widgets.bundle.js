@@ -402,6 +402,803 @@
 })();
 
 ;
+/* assumption-dial.js */
+/* assumption-dial.js - a model assumption, violated on a dial, with the damage measured.
+ *
+ * Serves the seven assumption objections in The Publishing Handbook: normality, equal
+ * variance, independence, autocorrelation, multicollinearity, linearity, proportional
+ * hazards. One widget, one config key.
+ *
+ * The reader drags severity from none to severe. Behind the dial the widget runs a
+ * couple of thousand complete studies at EVERY severity level and measures two things:
+ *
+ *   COVERAGE - the share of those studies whose 95% interval actually contains the true
+ *     value. That is what a confidence interval promises, and it is what a violated
+ *     assumption breaks.
+ *   FIT - R-squared, or Harrell's C for the survival model. That is what a reader looks
+ *     at, and it is mostly what a violated assumption does NOT touch.
+ *
+ * Every generative model here holds the signal variance and the error variance fixed as
+ * severity rises, so R-squared has no arithmetic reason to drift. Anything that moves is
+ * the violation, not the setup.
+ *
+ * The honest part: the seven do not fail the same way, and the widget reports what it
+ * measures rather than a uniform scare story.
+ *
+ *   equal variance / independence / autocorrelation -> coverage collapses, fit sits still.
+ *       The interval is the casualty and the repair is the standard error.
+ *   linearity -> coverage of the prediction at the top of the range goes to zero while
+ *       R-squared barely moves. The line is a fine summary and a bad prediction.
+ *   multicollinearity -> coverage HOLDS at 95% (verified at 6000 studies per point, every
+ *       level within Monte Carlo error of 0.95). Only the WIDTH moves. Collinearity makes
+ *       an estimate imprecise, not wrong, and the interval already says so.
+ *   normality -> the mildest of the seven. Coverage moves about one point at a skewness
+ *       of 4.5, because the Central Limit Theorem is doing the work.
+ *   proportional hazards -> one hazard ratio cannot describe an effect that changes over
+ *       follow-up, so the interval misses the early-period effect it is quoted as estimating.
+ *
+ * The emitted R runs the same experiment with the same generative model.
+ *
+ * cfg: {
+ *   assumption: "heteroskedasticity",   // which violation (keys listed below)
+ *   assumptions: ["...", "..."],        // OR an array -> segmented control, computed on pick
+ *   levels: 11,                         // severity steps on the dial (0 .. 1)
+ *   start: 0,                           // starting step index
+ *   sims: null,                         // studies per point (per-assumption default)
+ *   n: null,                            // sample size (per-assumption default)
+ *   bars: 30,                           // how many study intervals to draw in the lower panel
+ *   seed: 17                            // mulberry32 seed - same config, same picture
+ * }
+ *
+ * assumption: normality | heteroskedasticity | independence | autocorrelation |
+ *             multicollinearity | linearity | proportional-hazards
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  /* ---------------- theme ----------------
+     The player is light today. Resolve from --lm-panel when it exists so a dark panel
+     never produces black on black, and fall back to html.dark elsewhere. */
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', bad: '#c2410c',
+    panel: '#ffffff'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', bad: '#f4805a', panel: '#101c2b'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try {
+      var v = getComputedStyle(el).getPropertyValue('--lm-panel');
+      if (v && v.trim()) return lumOf(v) < 0.45;
+    } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  /* ---------------- seeded numerics ---------------- */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function gaussian(rnd) {                       // Box-Muller, one draw per call
+    var a = 1 - rnd(), b = rnd();
+    return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b);
+  }
+
+  /* Student t via the regularised incomplete beta (Lentz continued fraction). */
+  function lgamma(x) {
+    var c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, t = x + 5.5, s = 1.000000000190015;
+    t -= (x + 0.5) * Math.log(t);
+    for (var j = 0; j < 6; j++) s += c[j] / ++y;
+    return -t + Math.log(2.5066282746310005 * s / x);
+  }
+  function betacf(a, b, x) {
+    var FPMIN = 1e-300, qab = a + b, qap = a + 1, qam = a - 1;
+    var c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d; var h = d;
+    for (var m = 1; m <= 300; m++) {
+      var m2 = 2 * m, aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; var del = d * c; h *= del;
+      if (Math.abs(del - 1) < 3e-12) break;
+    }
+    return h;
+  }
+  function ibeta(a, b, x) {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+    return (x < (a + 1) / (a + b + 2)) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function pt(t, df) { var p = 0.5 * ibeta(df / 2, 0.5, df / (df + t * t)); return t > 0 ? 1 - p : p; }
+  function qt(p, df) {
+    var lo = -60, hi = 60, i;
+    for (i = 0; i < 160; i++) { var mid = (lo + hi) / 2; if (pt(mid, df) < p) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  }
+  function pnorm(z) {
+    var s = z < 0 ? -1 : 1, x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
+    var y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return 0.5 * (1 + s * y);
+  }
+  function qnorm(p) {
+    var lo = -9, hi = 9, i;
+    for (i = 0; i < 90; i++) { var m = (lo + hi) / 2; if (pnorm(m) < p) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
+  /* If a 95% interval covers only `cov` of the time, its standard error is understating
+     the truth by roughly this factor. Exact under normality, indicative otherwise. */
+  function understate(cov) {
+    if (cov >= 0.9499) return 1;
+    return 1.959963985 / qnorm((1 + Math.max(0.001, cov)) / 2);
+  }
+
+  function inv(A) {                              // Gauss-Jordan, p <= 4 here
+    var p = A.length, M = [], i, j, k;
+    for (i = 0; i < p; i++) { M.push(A[i].slice()); for (j = 0; j < p; j++) M[i].push(i === j ? 1 : 0); }
+    for (i = 0; i < p; i++) {
+      var piv = i;
+      for (k = i + 1; k < p; k++) if (Math.abs(M[k][i]) > Math.abs(M[piv][i])) piv = k;
+      var tmp = M[i]; M[i] = M[piv]; M[piv] = tmp;
+      var dd = M[i][i] || 1e-300;
+      for (j = 0; j < 2 * p; j++) M[i][j] /= dd;
+      for (k = 0; k < p; k++) {
+        if (k === i) continue;
+        var f = M[k][i]; if (!f) continue;
+        for (j = 0; j < 2 * p; j++) M[k][j] -= f * M[i][j];
+      }
+    }
+    var out = []; for (i = 0; i < p; i++) out.push(M[i].slice(p));
+    return out;
+  }
+  function std(a) {
+    var n = a.length, m = 0, v = 0, i;
+    for (i = 0; i < n; i++) m += a[i]; m /= n;
+    for (i = 0; i < n; i++) v += (a[i] - m) * (a[i] - m);
+    return { m: m, s: Math.sqrt(v / (n - 1)) };
+  }
+  function zed(a) {                              // exact mean 0, sd 1
+    var m = std(a), out = [], i;
+    for (i = 0; i < a.length; i++) out.push((a[i] - m.m) / m.s);
+    return out;
+  }
+  function skewLN(sg) { var w = Math.exp(sg * sg); return (w + 2) * Math.sqrt(w - 1); }
+
+  /* Fixed-design OLS. The design matrix never changes across simulated studies, so the
+     cross-product inverse is computed once and each study costs O(n * p). */
+  function fitter(Xflat, n, p, target) {
+    var XtX = [], j, k, i;
+    for (j = 0; j < p; j++) { XtX.push(new Array(p)); for (k = 0; k < p; k++) XtX[j][k] = 0; }
+    for (i = 0; i < n; i++) for (j = 0; j < p; j++) for (k = j; k < p; k++) XtX[j][k] += Xflat[i * p + j] * Xflat[i * p + k];
+    for (j = 0; j < p; j++) for (k = 0; k < j; k++) XtX[j][k] = XtX[k][j];
+    var V = inv(XtX), df = n - p, tc = qt(0.975, df);
+    var q0;                                      // the quadratic form behind the standard error
+    if (target.kind === 'pred') {
+      q0 = 0;
+      for (j = 0; j < p; j++) for (k = 0; k < p; k++) q0 += target.x0[j] * V[j][k] * target.x0[k];
+    } else q0 = V[target.j][target.j];
+    var Xty = new Float64Array(p), beta = new Float64Array(p);
+    return function (y) {
+      var a, b, s;
+      for (a = 0; a < p; a++) Xty[a] = 0;
+      for (i = 0; i < n; i++) { var yi = y[i]; for (a = 0; a < p; a++) Xty[a] += Xflat[i * p + a] * yi; }
+      for (a = 0; a < p; a++) { s = 0; for (b = 0; b < p; b++) s += V[a][b] * Xty[b]; beta[a] = s; }
+      var rss = 0, ybar = 0, tss = 0;
+      for (i = 0; i < n; i++) ybar += y[i]; ybar /= n;
+      for (i = 0; i < n; i++) {
+        var f = 0; for (a = 0; a < p; a++) f += Xflat[i * p + a] * beta[a];
+        var r = y[i] - f; rss += r * r;
+        var c = y[i] - ybar; tss += c * c;
+      }
+      var s2 = rss / df, est = 0;
+      if (target.kind === 'pred') { for (a = 0; a < p; a++) est += target.x0[a] * beta[a]; }
+      else est = beta[target.j];
+      var se = Math.sqrt(s2 * q0);
+      return { est: est, lo: est - tc * se, hi: est + tc * se, r2: 1 - rss / tss };
+    };
+  }
+
+  /* Cox proportional hazards, one covariate, Breslow ties, Newton-Raphson.
+     Checked against survival::coxph: same coefficient and standard error to 3 decimals. */
+  function coxfit(time, event, z, order) {
+    var n = time.length, i;
+    order.sort(function (a, b) { return time[a] - time[b]; });
+    var beta = 0, it, k, zk, w, s0, s1, s2, g, h, m1, step;
+    for (it = 0; it < 40; it++) {
+      s0 = 0; s1 = 0; s2 = 0; g = 0; h = 0;
+      for (i = n - 1; i >= 0; i--) {                    // walk back so the risk set accumulates
+        k = order[i]; zk = z[k]; w = Math.exp(beta * zk);
+        s0 += w; s1 += w * zk; s2 += w * zk * zk;
+        if (event[k]) { m1 = s1 / s0; g += zk - m1; h += s2 / s0 - m1 * m1; }
+      }
+      if (h < 1e-12) break;
+      step = g / h; beta += step;
+      if (Math.abs(step) < 1e-10) break;
+    }
+    s0 = 0; s1 = 0; s2 = 0; var I = 0;
+    for (i = n - 1; i >= 0; i--) {
+      k = order[i]; zk = z[k]; w = Math.exp(beta * zk);
+      s0 += w; s1 += w * zk; s2 += w * zk * zk;
+      if (event[k]) { m1 = s1 / s0; I += s2 / s0 - m1 * m1; }
+    }
+    return { beta: beta, se: I > 0 ? 1 / Math.sqrt(I) : NaN };
+  }
+  /* Concordance. `risk` is a risk score: higher means expected to fail sooner. Pairs with
+     a tied risk score count a half, which is what survival::concordance does, so this
+     number is comparable with summary(coxph(...))$concordance in the R block. */
+  function cindex(time, event, risk) {
+    var n = time.length, conc = 0, disc = 0, tie = 0, i, j;
+    for (i = 0; i < n; i++) {
+      if (!event[i]) continue;
+      for (j = 0; j < n; j++) {
+        if (j === i || time[j] <= time[i]) continue;
+        if (risk[i] > risk[j]) conc++; else if (risk[i] < risk[j]) disc++; else tie++;
+      }
+    }
+    var tot = conc + disc + tie;
+    return tot ? (conc + 0.5 * tie) / tot : 0.5;
+  }
+
+  /* ---------------- the seven assumptions ----------------
+     design(rnd, n) builds the FIXED part of the study (the predictors) once for the whole
+     dial. draw(rnd, s, d, n, y) fills y for one study at severity s. */
+  var SPECS = {
+    normality: {
+      title: 'Normality of the errors', short: 'Normality',
+      dialName: 'skew of the error distribution', estimand: 'the slope',
+      n: 30, sims: 2000, fit: 'ols', target: { kind: 'coef', j: 1 },
+      dial: function (s) { return s === 0 ? 'errors normal' : 'skewness ' + skewLN(0.85 * s).toFixed(1); },
+      design: function (rnd, n) {
+        var x = [], X = new Float64Array(n * 2), i;
+        for (i = 0; i < n; i++) x.push(gaussian(rnd));
+        x = zed(x);
+        for (i = 0; i < n; i++) { X[i * 2] = 1; X[i * 2 + 1] = x[i]; }
+        return { X: X, p: 2, x: x };
+      },
+      truth: function () { return 1; },
+      draw: function (rnd, s, d, n, y) {
+        var sg = Math.max(1e-6, 0.85 * s), i;
+        var mu = Math.exp(sg * sg / 2), sd = Math.sqrt((Math.exp(sg * sg) - 1) * Math.exp(sg * sg));
+        for (i = 0; i < n; i++) y[i] = d.x[i] + (Math.exp(sg * gaussian(rnd)) - mu) / sd;   // standardised lognormal
+      }
+    },
+    heteroskedasticity: {
+      title: 'Equal error variance', short: 'Equal variance',
+      dialName: 'how much the spread grows with x', estimand: 'the slope',
+      n: 60, sims: 2000, fit: 'ols', target: { kind: 'coef', j: 1 },
+      dial: function (s) { return s === 0 ? 'spread constant' : 'widest spread about ' + Math.exp(1.1 * s * 4).toFixed(1) + 'x the narrowest'; },
+      design: function (rnd, n) {
+        var x = [], X = new Float64Array(n * 2), i;
+        for (i = 0; i < n; i++) x.push(gaussian(rnd));
+        x = zed(x);
+        for (i = 0; i < n; i++) { X[i * 2] = 1; X[i * 2 + 1] = x[i]; }
+        return { X: X, p: 2, x: x };
+      },
+      truth: function () { return 1; },
+      draw: function (rnd, s, d, n, y) {
+        var i, ss = 0, w = new Float64Array(n);
+        for (i = 0; i < n; i++) { w[i] = Math.exp(1.1 * s * d.x[i]); ss += w[i] * w[i]; }
+        var nz = Math.sqrt(ss / n);                          // average error variance stays 1
+        for (i = 0; i < n; i++) y[i] = d.x[i] + (w[i] / nz) * gaussian(rnd);
+      }
+    },
+    independence: {
+      title: 'Independent observations', short: 'Independence',
+      dialName: 'intraclass correlation', estimand: 'the group-level slope',
+      n: 60, sims: 2000, fit: 'ols', target: { kind: 'coef', j: 1 },
+      dial: function (s) { return 'ICC = ' + (0.6 * s).toFixed(2) + ', design effect ' + (1 + 4 * 0.6 * s).toFixed(1); },
+      design: function (rnd, n) {
+        var m = 5, k = Math.round(n / m), x = [], cl = [], j, i;
+        for (j = 0; j < k; j++) { var xv = gaussian(rnd); for (i = 0; i < m; i++) { x.push(xv); cl.push(j); } }
+        x = zed(x);
+        var X = new Float64Array(n * 2);
+        for (i = 0; i < n; i++) { X[i * 2] = 1; X[i * 2 + 1] = x[i]; }
+        return { X: X, p: 2, x: x, cl: cl, k: k, m: m };
+      },
+      truth: function () { return 1; },
+      draw: function (rnd, s, d, n, y) {
+        var rho = 0.6 * s, i, uj = new Float64Array(d.k);
+        for (i = 0; i < d.k; i++) uj[i] = gaussian(rnd);
+        var a = Math.sqrt(rho), b = Math.sqrt(1 - rho);
+        for (i = 0; i < n; i++) y[i] = d.x[i] + a * uj[d.cl[i]] + b * gaussian(rnd);
+      }
+    },
+    autocorrelation: {
+      title: 'Independent errors over time', short: 'Autocorrelation',
+      dialName: 'AR(1) correlation between neighbouring errors', estimand: 'the trend slope',
+      n: 60, sims: 2000, fit: 'ols', target: { kind: 'coef', j: 1 },
+      dial: function (s) { return 'phi = ' + (0.92 * s).toFixed(2); },
+      design: function (rnd, n) {
+        var x = [], X = new Float64Array(n * 2), i;
+        for (i = 0; i < n; i++) x.push(i);
+        x = zed(x);
+        for (i = 0; i < n; i++) { X[i * 2] = 1; X[i * 2 + 1] = x[i]; }
+        return { X: X, p: 2, x: x };
+      },
+      truth: function () { return 1; },
+      draw: function (rnd, s, d, n, y) {
+        var phi = 0.92 * s, sd = Math.sqrt(1 - phi * phi), e = gaussian(rnd), i;
+        for (i = 0; i < n; i++) {
+          e = i === 0 ? e : phi * e + sd * gaussian(rnd);     // stationary AR(1), variance 1
+          y[i] = d.x[i] + e;
+        }
+      }
+    },
+    multicollinearity: {
+      title: 'Predictors that are not near-duplicates', short: 'Collinearity',
+      dialName: 'correlation between the two predictors', estimand: 'the first coefficient',
+      n: 60, sims: 2000, fit: 'ols', target: { kind: 'coef', j: 1 }, dynamicX: true,
+      dial: function (s) { var r = 0.995 * s; return 'r = ' + r.toFixed(3) + ', VIF ' + (1 / (1 - r * r)).toFixed(1); },
+      design: function (rnd, n) {
+        var a = [], b = [], i;
+        for (i = 0; i < n; i++) { a.push(gaussian(rnd)); b.push(gaussian(rnd)); }
+        a = zed(a); b = zed(b);
+        var cab = 0;                                          // orthogonalise so the dial is
+        for (i = 0; i < n; i++) cab += a[i] * b[i];           // the only correlation in play
+        cab /= (n - 1);
+        for (i = 0; i < n; i++) b[i] -= cab * a[i];
+        return { a: a, b: zed(b), p: 3 };
+      },
+      // the design matrix itself depends on severity here, so it is rebuilt per level
+      buildX: function (s, d, n) {
+        var r = 0.995 * s, X = new Float64Array(n * 3), i;
+        for (i = 0; i < n; i++) {
+          X[i * 3] = 1; X[i * 3 + 1] = d.a[i];
+          X[i * 3 + 2] = r * d.a[i] + Math.sqrt(1 - r * r) * d.b[i];
+        }
+        return X;
+      },
+      truth: function () { return 1; },
+      draw: function (rnd, s, d, n, y, X) {
+        var esd = Math.sqrt(1 + 0.995 * s), i;                // holds R-squared still as r moves
+        for (i = 0; i < n; i++) y[i] = X[i * 3 + 1] + X[i * 3 + 2] + esd * gaussian(rnd);
+      }
+    },
+    linearity: {
+      title: 'A straight line is the right shape', short: 'Linearity',
+      dialName: 'share of the real signal that is curved',
+      estimand: 'the mean outcome at the top of the x range',
+      n: 60, sims: 2000, fit: 'ols',
+      dial: function (s) { return s === 0 ? 'signal perfectly straight' : Math.round(100 * s) + '% of the signal is curvature'; },
+      design: function (rnd, n) {
+        var x = [], i;
+        for (i = 0; i < n; i++) x.push(0.2 + 2 * rnd());
+        var q = x.map(function (v) { return v * v; });
+        var X = new Float64Array(n * 2);
+        for (i = 0; i < n; i++) { X[i * 2] = 1; X[i * 2 + 1] = x[i]; }
+        var d = { X: X, p: 2, x: x, q: q, zx: std(x), zq: std(q), top: 2.2 };
+        d.target = { kind: 'pred', x0: [1, d.top] };
+        return d;
+      },
+      truth: function (s, d) {
+        return 2 * ((1 - s) * (d.top - d.zx.m) / d.zx.s + s * (d.top * d.top - d.zq.m) / d.zq.s);
+      },
+      draw: function (rnd, s, d, n, y) {
+        var i;
+        for (i = 0; i < n; i++) {
+          var zx = (d.x[i] - d.zx.m) / d.zx.s, zq = (d.q[i] - d.zq.m) / d.zq.s;
+          y[i] = 2 * ((1 - s) * zx + s * zq) + gaussian(rnd);
+        }
+      }
+    },
+    'proportional-hazards': {
+      title: 'One hazard ratio for all of follow-up', short: 'Proportional hazards',
+      dialName: 'how far the late-period hazard ratio drifts from the early one',
+      estimand: 'the early-period log hazard ratio',
+      n: 200, sims: 600, fit: 'cox',
+      dial: function (s) { return 'early HR 0.50, late HR ' + (0.5 + 0.5 * s).toFixed(2); },
+      design: function (rnd, n) {
+        var z = new Float64Array(n), order = [], i;
+        for (i = 0; i < n; i++) { z[i] = i < n / 2 ? 0 : 1; order.push(i); }
+        return { z: z, order: order, cut: 0.5, adm: 2.0 };
+      },
+      truth: function () { return Math.log(0.5); },
+      drawSurv: function (rnd, s, d, n, time, event) {
+        var late = 0.5 + 0.5 * s, i;
+        for (i = 0; i < n; i++) {
+          var l1 = d.z[i] ? 0.5 : 1, l2 = d.z[i] ? late : 1;   // piecewise-constant hazards
+          var E = -Math.log(1 - rnd()), t;
+          t = (E < l1 * d.cut) ? E / l1 : d.cut + (E - l1 * d.cut) / l2;
+          if (t > d.adm) { t = d.adm; event[i] = 0; } else event[i] = 1;
+          time[i] = t;
+        }
+      }
+    }
+  };
+
+  /* ---------------- one severity level, measured ---------------- */
+  function measure(spec, s, n, sims, seed, keep, d) {
+    var rnd = mulberry32(seed), truth = spec.truth(s, d);
+    var hits = 0, fitSum = 0, widthSum = 0, cis = [], i;
+
+    if (spec.fit === 'cox') {
+      var time = new Float64Array(n), event = new Int8Array(n), risk = new Float64Array(n);
+      var cSum = 0, cN = 0, j;
+      for (i = 0; i < sims; i++) {
+        spec.drawSurv(rnd, s, d, n, time, event);
+        for (j = 0; j < n; j++) d.order[j] = j;
+        var m = coxfit(time, event, d.z, d.order);
+        var lo = m.beta - 1.959963985 * m.se, hi = m.beta + 1.959963985 * m.se, ok = lo < truth && truth < hi;
+        if (ok) hits++;
+        widthSum += hi - lo;
+        if (i < keep) cis.push([lo, hi, ok, m.beta]);
+        if (i < 25) {                                   // C is O(n^2): a subsample is enough
+          for (j = 0; j < n; j++) risk[j] = m.beta * d.z[j];
+          cSum += cindex(time, event, risk); cN++;
+        }
+      }
+      return { cov: hits / sims, fit: cSum / cN, width: widthSum / sims, cis: cis, truth: truth };
+    }
+
+    var X = spec.buildX ? spec.buildX(s, d, n) : d.X;
+    var fit = fitter(X, n, d.p, spec.target || d.target);
+    var y = new Float64Array(n);
+    for (i = 0; i < sims; i++) {
+      spec.draw(rnd, s, d, n, y, X);
+      var f = fit(y), ok2 = f.lo < truth && truth < f.hi;
+      if (ok2) hits++;
+      fitSum += f.r2; widthSum += f.hi - f.lo;
+      if (i < keep) cis.push([f.lo, f.hi, ok2, f.est]);
+    }
+    return { cov: hits / sims, fit: fitSum / sims, width: widthSum / sims, cis: cis, truth: truth };
+  }
+
+  /* ---------------- mount ---------------- */
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var list = (cfg.assumptions && cfg.assumptions.length ? cfg.assumptions : [cfg.assumption || 'heteroskedasticity'])
+                 .filter(function (k) { return SPECS[k]; });
+    if (!list.length) list = ['heteroskedasticity'];
+    var which = list[0];
+    var levels = Math.max(3, +cfg.levels || 11);
+    var seed = (cfg.seed == null ? 17 : +cfg.seed);
+    var bars = Math.max(8, Math.min(40, +cfg.bars || 30));
+    var step = Math.max(0, Math.min(levels - 1, +cfg.start || 0));
+    var cache = {};
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      (list.length > 1 ? '<div class="ad-seg" style="margin-bottom:12px"></div>' : '') +
+      '<div class="ad-lab" style="font:600 12.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:5px"></div>' +
+      '<input class="ad-sev" type="range" min="0" max="' + (levels - 1) + '" step="1" value="' + step +
+        '" aria-label="severity of the violation" style="width:100%;max-width:460px;display:block;margin-bottom:13px">' +
+      '<div class="ad-plot"></div>' +
+      '<div class="ad-read" style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:11px 0 14px"></div>' +
+      '<div class="ad-r"></div>';
+
+    var segBox = el.querySelector('.ad-seg'), plot = el.querySelector('.ad-plot'),
+        read = el.querySelector('.ad-read'), lab = el.querySelector('.ad-lab'),
+        slider = el.querySelector('.ad-sev'), rbox = el.querySelector('.ad-r');
+
+    if (segBox) {
+      segBox.innerHTML = u.seg(list.map(function (k) { return { v: k, label: SPECS[k].short }; }), which);
+      u.wireSeg(segBox, function (v) { which = v; render(true); });
+    }
+
+    function series(key) {
+      if (cache[key]) return cache[key];
+      var spec = SPECS[key], n = Math.max(12, +cfg.n || spec.n), sims = Math.max(150, +cfg.sims || spec.sims);
+      var d = spec.design(mulberry32(seed ^ 0x5f3759d), n), out = [], i;
+      for (i = 0; i < levels; i++) out.push(measure(spec, i / (levels - 1), n, sims, seed + i * 101, bars, d));
+      cache[key] = { rows: out, n: n, sims: sims, spec: spec };
+      return cache[key];
+    }
+
+    function render(newR) {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      lab.style.color = P.mut; read.style.color = P.body;
+      var S = series(which), s = step / (levels - 1);
+      lab.innerHTML = u.esc(S.spec.title) + ': <b style="color:' + P.ink + '">' + u.esc(S.spec.dial(s)) + '</b>';
+      plot.innerHTML = svg(S, step, P, bars);
+      read.innerHTML = verdict(which, S, step, P);
+      if (newR || !rbox.firstChild) rbox.innerHTML = u.runnable(RCODE[which](), { label: 'Run the same experiment in R' });
+    }
+
+    slider.addEventListener('input', function () { step = +slider.value; render(false); });
+
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el);
+        if (now !== wasDark) { wasDark = now; render(false); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render(true);
+  }
+
+  /* ---------------- drawing ---------------- */
+  function svg(S, step, P, bars) {
+    var W = 520, mA = { l: 46, r: 16, t: 42 }, hA = 122;
+    var yTop = mA.t, yBot = mA.t + hA, levels = S.rows.length;
+    var fitName = S.spec.fit === 'cox' ? 'Concordance (C)' : 'R-squared';
+    // a halo in the panel colour, thick enough that a plotted line under a label cannot
+    // read as a strikethrough
+    var HALO = 'stroke="' + P.panel + '" stroke-width="4.6" paint-order="stroke" stroke-linejoin="round"';
+    function sx(i) { return mA.l + i / (levels - 1) * (W - mA.l - mA.r); }
+    function sy(v) { return yBot - v * hA; }
+    var g = '', i;
+
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+      g += '<line x1="' + mA.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (W - mA.r) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+           '<text x="' + (mA.l - 7) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + (v * 100) + '%</text>';
+    });
+    g += '<line x1="' + mA.l + '" y1="' + sy(0.95).toFixed(1) + '" x2="' + (W - mA.r) + '" y2="' + sy(0.95).toFixed(1) +
+         '" stroke="' + P.acc + '" stroke-width="1" stroke-dasharray="3 3"/>';
+
+    var cov = [], fit = [];
+    for (i = 0; i < levels; i++) {
+      cov.push(sx(i).toFixed(1) + ',' + sy(S.rows[i].cov).toFixed(1));
+      fit.push(sx(i).toFixed(1) + ',' + sy(S.rows[i].fit).toFixed(1));
+    }
+    g += '<polyline points="' + fit.join(' ') + '" fill="none" stroke="' + P.c0 + '" stroke-width="2" stroke-dasharray="5 3"/>' +
+         '<polyline points="' + cov.join(' ') + '" fill="none" stroke="' + P.bad + '" stroke-width="2.6"/>' +
+         '<line x1="' + sx(step).toFixed(1) + '" y1="' + yTop + '" x2="' + sx(step).toFixed(1) + '" y2="' + yBot + '" stroke="' + P.line + '" stroke-dasharray="2 3"/>' +
+         '<circle cx="' + sx(step).toFixed(1) + '" cy="' + sy(S.rows[step].fit).toFixed(1) + '" r="4" fill="' + P.c0 + '"/>' +
+         '<circle cx="' + sx(step).toFixed(1) + '" cy="' + sy(S.rows[step].cov).toFixed(1) + '" r="5" fill="' + P.bad + '"/>';
+    // side: away from whichever edge is closer. height: above the marker when there is room
+    // under the legend, otherwise below it, so the label never sits on its own curve.
+    var late = step > (levels - 1) * 0.62, yc = sy(S.rows[step].cov);
+    var yLab = (yc - 12 >= yTop + 10) ? yc - 11 : yc + 19;
+    g += '<text x="' + (late ? sx(step) - 9 : sx(step) + 9).toFixed(1) + '" y="' + yLab.toFixed(1) +
+         '" text-anchor="' + (late ? 'end' : 'start') + '" font-family="IBM Plex Mono,monospace" font-size="12.5" font-weight="700" fill="' + P.bad + '" ' + HALO + '>' +
+         (100 * S.rows[step].cov).toFixed(1) + '%</text>';
+    // legend sits above the plot area, so no label can ever cross a curve
+    g += '<text x="' + mA.l + '" y="16" font-family="IBM Plex Sans,sans-serif" font-size="10.5" font-weight="600" fill="' + P.bad + '">Interval coverage (promised 95%)</text>' +
+         '<text x="' + (W - mA.r) + '" y="16" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10.5" font-weight="600" fill="' + P.c0 + '">' + fitName + '</text>' +
+         '<text x="' + mA.l + '" y="32" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.faint + '">' +
+         u.esc(S.sims.toLocaleString() + ' studies behind every point, n = ' + S.n) + '</text>' +
+         '<line x1="' + mA.l + '" y1="' + yBot + '" x2="' + (W - mA.r) + '" y2="' + yBot + '" stroke="' + P.line + '" stroke-width="1.5"/>' +
+         '<text x="' + mA.l + '" y="' + (yBot + 15) + '" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">none</text>' +
+         '<text x="' + (W - mA.r) + '" y="' + (yBot + 15) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">severe</text>' +
+         '<text x="' + ((mA.l + W - mA.r) / 2) + '" y="' + (yBot + 15) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">' +
+         u.esc(S.spec.dialName) + '</text>';
+
+    /* lower panel: the intervals themselves, one line per simulated study */
+    var row = S.rows[step], cis = row.cis, truth = row.truth;
+    var yB = yBot + 54, hB = Math.max(96, bars * 4.2), mB = { l: 46, r: 16 };
+    var lows = [], highs = [];
+    cis.forEach(function (c) { lows.push(c[0]); highs.push(c[1]); });
+    lows.sort(function (a, b) { return a - b; }); highs.sort(function (a, b) { return a - b; });
+    // clip at the 8th/92nd percentile of the endpoints so one wild interval cannot squash
+    // the rest; anything past the edge gets an arrowhead instead of a bar end
+    var lo = Math.min(lows[Math.floor(lows.length * 0.08)], truth);
+    var hi = Math.max(highs[Math.floor(highs.length * 0.92)], truth);
+    var pad = (hi - lo) * 0.12 || 1; lo -= pad; hi += pad;
+    function bx(v) { return mB.l + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (W - mB.l - mB.r); }
+    g += '<text x="' + mB.l + '" y="' + (yB - 13) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink + '">' +
+         cis.length + ' of those studies: the 95% interval for ' + u.esc(S.spec.estimand) + '</text>';
+    var miss = 0;
+    cis.forEach(function (c, k) {
+      var yy = yB + 6 + k * ((hB - 12) / Math.max(1, cis.length - 1));
+      var col = c[2] ? P.mut : P.bad;
+      if (!c[2]) miss++;
+      g += '<line x1="' + bx(c[0]).toFixed(1) + '" y1="' + yy.toFixed(1) + '" x2="' + bx(c[1]).toFixed(1) + '" y2="' + yy.toFixed(1) +
+           '" stroke="' + col + '" stroke-width="' + (c[2] ? 1.6 : 2.6) + '" stroke-opacity="' + (c[2] ? 0.55 : 1) + '" stroke-linecap="round"/>';
+      if (c[0] < lo) g += '<path d="M' + (mB.l + 1) + ',' + (yy - 3).toFixed(1) + ' L' + (mB.l - 4) + ',' + yy.toFixed(1) + ' L' + (mB.l + 1) + ',' + (yy + 3).toFixed(1) + 'Z" fill="' + col + '"/>';
+      if (c[1] > hi) g += '<path d="M' + (W - mB.r - 1) + ',' + (yy - 3).toFixed(1) + ' L' + (W - mB.r + 4) + ',' + yy.toFixed(1) + ' L' + (W - mB.r - 1) + ',' + (yy + 3).toFixed(1) + 'Z" fill="' + col + '"/>';
+    });
+    g += '<line x1="' + bx(truth).toFixed(1) + '" y1="' + yB + '" x2="' + bx(truth).toFixed(1) + '" y2="' + (yB + hB) + '" stroke="' + P.acc + '" stroke-width="1.6"/>' +
+         '<text x="' + bx(truth).toFixed(1) + '" y="' + (yB + hB + 15) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.acc + '" ' + HALO + '>true value</text>' +
+         '<text x="' + (W - mB.r) + '" y="' + (yB - 13) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="10.5" fill="' + (miss ? P.bad : P.mut) + '">' +
+         miss + ' of ' + cis.length + ' miss</text>';
+    var H = yB + hB + 24;
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" ' +
+      'aria-label="Interval coverage and model fit against the severity of an assumption violation, with individual study intervals below">' + g + '</svg>';
+  }
+
+  /* ---------------- the sentence under the picture ---------------- */
+  function verdict(key, S, step, P) {
+    var a = S.rows[0], b = S.rows[step];
+    var pc = function (v) { return (100 * v).toFixed(1) + '%'; };
+    var covTx = '<b style="color:' + (b.cov < 0.9 ? P.bad : P.acc) + '">' + pc(b.cov) + '</b>';
+    var fitName = S.spec.fit === 'cox' ? 'Concordance' : 'R-squared';
+    var fitTx = '<b style="color:' + P.c0 + '">' + b.fit.toFixed(3) + '</b>';
+    if (step === 0) {
+      return 'With the assumption satisfied, ' + covTx + ' of the 95% intervals contain the true value, which is what 95% is supposed to mean. ' +
+        fitName + ' is ' + fitTx + '. Drag the dial and watch which of those two numbers moves.';
+    }
+    var common = 'Coverage is now ' + covTx + ' against the 95% it promises. ' + fitName + ' went from ' + a.fit.toFixed(3) + ' to ' + fitTx + '. ';
+    var tooNarrow = understate(b.cov).toFixed(1);
+    if (key === 'multicollinearity') {
+      return 'Coverage is ' + covTx + '. It has not moved and it will not: collinearity biases nothing. What moved is the WIDTH, now <b>' +
+        (b.width / a.width).toFixed(1) + 'x</b> what it was with uncorrelated predictors. The interval is telling the truth about how little this data can separate two variables that carry the same information. ' +
+        'A wide honest interval is a result to report, not a violation to fix.';
+    }
+    if (key === 'normality') {
+      return common + 'This is the mildest of the seven. An estimate is an average of many draws, and averages are close to normal whatever the draws look like, ' +
+        'so the interval survives an error distribution that looks nothing like a bell. Non-normal residuals are a reason to look for outliers and for the wrong functional form. On their own they are not a reason to distrust the interval.';
+    }
+    if (key === 'linearity') {
+      return common + 'The line still summarises the cloud, which is why the fit statistic stays calm. It is the PREDICTION at the top of the range that is wrong, ' +
+        'and no standard error repairs that: the model is estimating the wrong quantity, not estimating the right one badly.';
+    }
+    if (key === 'proportional-hazards') {
+      return common + 'The model still ranks patients well, so nothing in the fit complains. But one hazard ratio is being asked to describe an effect that changes over follow-up, ' +
+        'so the interval quoted for the early period misses it ' + pc(1 - b.cov) + ' of the time. Split the follow-up, or model the interaction with time, and quote both periods.';
+    }
+    if (key === 'independence') {
+      return common + 'Every row is being counted as fresh information when rows inside a group are partly the same information. The intervals are about <b>' + tooNarrow +
+        'x too narrow</b>. This is the one an ordinary robust standard error does not repair, because it also assumes independent observations.';
+    }
+    if (key === 'autocorrelation') {
+      return common + 'Neighbouring errors move together, so 60 observations carry far less than 60 observations worth of information. The intervals are about <b>' + tooNarrow +
+        'x too narrow</b>, and note that the fit statistic went UP: a smooth error series flatters R-squared at the same time as it destroys the interval.';
+    }
+    return common + 'The estimate is roughly right and the interval around it is about <b>' + tooNarrow + 'x too narrow</b>. ' +
+      'That is a standard-error problem, not a model problem: the fit is fine and the uncertainty statement is not.';
+  }
+
+  /* ---------------- runnable R, one per assumption ----------------
+     Each block reproduces the widget's own experiment: same generative model, same
+     estimand, same 95% interval, coverage counted the same way. Base R only. */
+  function head(txt) {
+    return ['# ' + txt, '# sev runs 0 (assumption holds) to 1 (severe). Change it and run again.', 'set.seed(11)'];
+  }
+  var RCODE = {
+    normality: function () {
+      return head('Skewed errors. Does the 95% interval for the slope still cover the truth?').concat([
+        'n <- 30; sims <- 2000; sev <- 1',
+        'x  <- as.numeric(scale(rnorm(n)))',
+        'sg <- max(1e-6, 0.85 * sev)',
+        'mu <- exp(sg^2 / 2); sdl <- sqrt((exp(sg^2) - 1) * exp(sg^2))',
+        '',
+        'one <- function() {',
+        '  e  <- (exp(sg * rnorm(n)) - mu) / sdl      # standardised lognormal: mean 0, sd 1',
+        '  y  <- x + e',
+        '  m  <- lm(y ~ x)',
+        '  ci <- confint(m)["x", ]',
+        '  c(covered = ci[1] < 1 && 1 < ci[2], r2 = summary(m)$r.squared)',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage = mean(res[, "covered"]), r_squared = mean(res[, "r2"])), 3)'
+      ]).join('\n');
+    },
+    heteroskedasticity: function () {
+      return head('Error spread that grows with x. The fit is fine; the interval is not.').concat([
+        'n <- 60; sims <- 2000; sev <- 1',
+        'x <- as.numeric(scale(rnorm(n)))',
+        'w <- exp(1.1 * sev * x); w <- w / sqrt(mean(w^2))   # average error variance stays 1',
+        '',
+        'one <- function() {',
+        '  y  <- x + rnorm(n, sd = w)',
+        '  m  <- lm(y ~ x)',
+        '  ci <- confint(m)["x", ]',
+        '  c(covered = ci[1] < 1 && 1 < ci[2], r2 = summary(m)$r.squared)',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage = mean(res[, "covered"]), r_squared = mean(res[, "r2"])), 3)'
+      ]).join('\n');
+    },
+    independence: function () {
+      return head('Observations clustered in groups. Coverage falls; R-squared does not.').concat([
+        'n <- 60; m <- 5; k <- n / m; sims <- 2000; sev <- 1',
+        'rho <- 0.6 * sev                        # intraclass correlation',
+        'cl  <- rep(1:k, each = m)',
+        'x   <- as.numeric(scale(rep(rnorm(k), each = m)))   # the predictor varies BETWEEN groups',
+        '',
+        'one <- function() {',
+        '  y  <- x + sqrt(rho) * rnorm(k)[cl] + sqrt(1 - rho) * rnorm(n)',
+        '  fm <- lm(y ~ x)',
+        '  ci <- confint(fm)["x", ]',
+        '  c(covered = ci[1] < 1 && 1 < ci[2], r2 = summary(fm)$r.squared)',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage = mean(res[, "covered"]), r_squared = mean(res[, "r2"])), 3)',
+        'round(1 + (m - 1) * rho, 2)             # design effect: the factor the variance is out by'
+      ]).join('\n');
+    },
+    autocorrelation: function () {
+      return head('Errors correlated with their own past, fitted against a trend.').concat([
+        'n <- 60; sims <- 2000; sev <- 1',
+        'phi <- 0.92 * sev',
+        'x   <- as.numeric(scale(seq_len(n)))',
+        '',
+        'one <- function() {',
+        '  e  <- as.numeric(arima.sim(list(ar = phi), n = n, sd = sqrt(1 - phi^2)))',
+        '  y  <- x + e',
+        '  m  <- lm(y ~ x)',
+        '  ci <- confint(m)["x", ]',
+        '  c(covered = ci[1] < 1 && 1 < ci[2], r2 = summary(m)$r.squared)',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage = mean(res[, "covered"]), r_squared = mean(res[, "r2"])), 3)'
+      ]).join('\n');
+    },
+    multicollinearity: function () {
+      return head('Two near-duplicate predictors. Watch the width, not the coverage.').concat([
+        'n <- 60; sims <- 2000; sev <- 1',
+        'r  <- 0.995 * sev',
+        'a  <- as.numeric(scale(rnorm(n))); b <- as.numeric(scale(rnorm(n)))',
+        'b  <- as.numeric(scale(residuals(lm(b ~ a))))       # make b independent of a',
+        'x1 <- a; x2 <- r * a + sqrt(1 - r^2) * b',
+        '',
+        'one <- function() {',
+        '  y  <- x1 + x2 + rnorm(n, sd = sqrt(1 + r))        # holds R-squared still as r moves',
+        '  m  <- lm(y ~ x1 + x2)',
+        '  ci <- confint(m)["x1", ]',
+        '  c(covered = ci[1] < 1 && 1 < ci[2], width = unname(ci[2] - ci[1]), r2 = summary(m)$r.squared)',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage   = mean(res[, "covered"]),',
+        '        mean_width = mean(res[, "width"]),',
+        '        r_squared  = mean(res[, "r2"])), 3)'
+      ]).join('\n');
+    },
+    linearity: function () {
+      return head('A curved truth fitted with a straight line. The prediction at the top is the casualty.').concat([
+        'n <- 60; sims <- 2000; sev <- 1',
+        'x   <- 0.2 + 2 * runif(n); q <- x^2',
+        'zx  <- as.numeric(scale(x)); zq <- as.numeric(scale(q))',
+        'top <- 2.2',
+        'truth <- 2 * ((1 - sev) * (top - mean(x)) / sd(x) +',
+        '                    sev  * (top^2 - mean(q)) / sd(q))',
+        '',
+        'one <- function() {',
+        '  y  <- 2 * ((1 - sev) * zx + sev * zq) + rnorm(n)',
+        '  m  <- lm(y ~ x)',
+        '  ci <- predict(m, data.frame(x = top), interval = "confidence")',
+        '  c(covered = ci[1, "lwr"] < truth && truth < ci[1, "upr"], r2 = summary(m)$r.squared)',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage = mean(res[, "covered"]), r_squared = mean(res[, "r2"])), 3)'
+      ]).join('\n');
+    },
+    'proportional-hazards': function () {
+      return head('A hazard ratio that changes halfway through follow-up.').concat([
+        'library(survival)',
+        'n <- 200; sims <- 400; sev <- 1',
+        'z    <- rep(0:1, each = n / 2)',
+        'cut  <- 0.5; adm <- 2.0',
+        'late <- 0.5 + 0.5 * sev                 # the early HR stays 0.50 throughout',
+        '',
+        'one <- function() {',
+        '  l1 <- ifelse(z == 1, 0.5, 1); l2 <- ifelse(z == 1, late, 1)',
+        '  E  <- rexp(n)',
+        '  tt <- ifelse(E < l1 * cut, E / l1, cut + (E - l1 * cut) / l2)',
+        '  d  <- as.integer(tt <= adm); tt <- pmin(tt, adm)',
+        '  m  <- coxph(Surv(tt, d) ~ z)',
+        '  ci <- confint(m)',
+        '  c(covered = ci[1] < log(0.5) && log(0.5) < ci[2],',
+        '    conc    = unname(summary(m)$concordance[1]))',
+        '}',
+        'res <- t(replicate(sims, one()))',
+        'round(c(coverage = mean(res[, "covered"]), concordance = mean(res[, "conc"])), 3)'
+      ]).join('\n');
+    }
+  };
+
+  window.LessonWidgets.register('assumption-dial', mount);
+})();
+
+;
 /* autoencoder-recon.js */
 /* autoencoder-recon.js - anomaly detection by reconstruction error.
  * An autoencoder squeezes each point through a narrow bottleneck and rebuilds it. Trained on normal
@@ -1283,6 +2080,406 @@
 })();
 
 ;
+/* cluster-icc-sim.js */
+/* cluster-icc-sim.js - clustered data, and the standard error that a sandwich cannot save.
+ *
+ * Serves the independence objection and the mixed-model objection in The Publishing
+ * Handbook. The reader raises the intraclass correlation and watches four standard errors
+ * for the SAME estimate on the SAME data pull apart.
+ *
+ * The design is the classic one: k clusters (schools, clinics, litters, sites), m
+ * observations each, and a treatment assigned at the CLUSTER level. Total variance is held
+ * at 1 the whole way, so the dial moves information between "within cluster" and "between
+ * cluster" and changes nothing else. Same random draws at every setting, so the picture
+ * morphs rather than reshuffles.
+ *
+ * The identity being demonstrated, which is exact for this balanced design, not an
+ * approximation:
+ *
+ *     Var(tau_hat) = 4 * (rho + (1 - rho) / m) / k          the truth
+ *     Var_naive    = 4 / (k * m)                            what OLS assumes
+ *     ratio        = 1 + (m - 1) * rho                      the design effect
+ *
+ * So ordinary OLS understates the standard error by sqrt(1 + (m-1)rho), and the widget's
+ * simulated standard deviation of the estimate is checked against that formula on screen.
+ *
+ * The load-bearing point: HC1 "robust" standard errors, the usual reflex when a reviewer
+ * says "standard errors", are computed under the assumption that observations are
+ * independent. They track the naive standard error almost exactly here and repair nothing.
+ * What repairs it is a cluster-robust standard error (consistent as the number of CLUSTERS
+ * grows, not as n grows) or a model with a cluster random effect. With few clusters even
+ * the cluster-robust version is optimistic, which the widget also shows.
+ *
+ * cfg: {
+ *   k: 20,          // number of clusters
+ *   m: 5,           // observations per cluster
+ *   tau: 0.5,       // true treatment effect, in units of the total outcome sd
+ *   iccMax: 0.5,    // right-hand end of the dial
+ *   levels: 11,     // steps on the dial
+ *   start: 0,       // starting step
+ *   sims: 3000,     // simulated trials behind each coverage number
+ *   seed: 23        // mulberry32 seed - same config, same picture
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', c1: '#b5631a',
+    bad: '#c2410c', panel: '#ffffff', soft: '#f3f6f4'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', c1: '#e3a05a', bad: '#f4805a', panel: '#101c2b', soft: 'rgba(255,255,255,.05)'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try { var v = getComputedStyle(el).getPropertyValue('--lm-panel'); if (v && v.trim()) return lumOf(v) < 0.45; } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function gaussian(rnd) { var a = 1 - rnd(), b = rnd(); return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b); }
+
+  function lgamma(x) {
+    var c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, t = x + 5.5, s = 1.000000000190015;
+    t -= (x + 0.5) * Math.log(t);
+    for (var j = 0; j < 6; j++) s += c[j] / ++y;
+    return -t + Math.log(2.5066282746310005 * s / x);
+  }
+  function betacf(a, b, x) {
+    var FPMIN = 1e-300, qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d; var h = d;
+    for (var mi = 1; mi <= 300; mi++) {
+      var m2 = 2 * mi, aa = mi * (b - mi) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + mi) * (qab + mi) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; var del = d * c; h *= del;
+      if (Math.abs(del - 1) < 3e-12) break;
+    }
+    return h;
+  }
+  function ibeta(a, b, x) {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+    return (x < (a + 1) / (a + b + 2)) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function pt2(t, df) { return ibeta(df / 2, 0.5, df / (df + t * t)); }   // two-sided p
+  function qt(p, df) {
+    var lo = 0, hi = 60, i;
+    for (i = 0; i < 140; i++) { var mid = (lo + hi) / 2; if (1 - pt2(mid, df) / 2 < p) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  }
+
+  /* ---- one trial, analysed four ways ----
+     y is already built; arm[j] is 1 for a treated cluster. Everything below is the exact
+     algebra for a two-group design, which keeps the whole thing allocation free. */
+  function analyse(y, k, m, arm) {
+    var n = k * m, i, j;
+    var sT = 0, sC = 0, nT = 0, nC = 0, kT = 0, kC = 0;
+    for (j = 0; j < k; j++) { if (arm[j]) { kT++; } else { kC++; } }
+    for (i = 0; i < n; i++) { if (arm[(i / m) | 0]) { sT += y[i]; nT++; } else { sC += y[i]; nC++; } }
+    var mT = sT / nT, mC = sC / nC, est = mT - mC;
+
+    var rss = 0, eT2 = 0, eC2 = 0;
+    var clSum = new Float64Array(k);
+    for (i = 0; i < n; i++) {
+      var cj = (i / m) | 0, e = y[i] - (arm[cj] ? mT : mC);
+      rss += e * e; clSum[cj] += e;
+      if (arm[cj]) eT2 += e * e; else eC2 += e * e;
+    }
+    var s2 = rss / (n - 2);
+    var seNaive = Math.sqrt(s2 * (1 / nT + 1 / nC));
+    // HC1: heteroskedasticity-consistent, and it assumes independent rows
+    var seHC1 = Math.sqrt(n / (n - 2) * (eT2 / (nT * nT) + eC2 / (nC * nC)));
+    // CR1: cluster-robust, the Stata small-sample correction
+    var gT = 0, gC = 0;
+    for (j = 0; j < k; j++) { if (arm[j]) gT += clSum[j] * clSum[j]; else gC += clSum[j] * clSum[j]; }
+    var cf = (k / (k - 1)) * ((n - 1) / (n - 2));
+    var seCR = Math.sqrt(cf * (gT / (nT * nT) + gC / (nC * nC)));
+    // cluster means: for a balanced design with a cluster-level treatment this is
+    // algebraically the random-intercept model's standard error
+    var cm = new Float64Array(k), mmT = 0, mmC = 0;
+    for (j = 0; j < k; j++) { var s = 0; for (i = 0; i < m; i++) s += y[j * m + i]; cm[j] = s / m; if (arm[j]) mmT += cm[j]; else mmC += cm[j]; }
+    mmT /= kT; mmC /= kC;
+    var ssm = 0;
+    for (j = 0; j < k; j++) { var dv = cm[j] - (arm[j] ? mmT : mmC); ssm += dv * dv; }
+    var seCM = Math.sqrt((ssm / (k - 2)) * (1 / kT + 1 / kC));
+    return { est: est, seNaive: seNaive, seHC1: seHC1, seCR: seCR, seCM: seCM,
+             dfN: n - 2, dfCR: k - 1, dfCM: k - 2 };
+  }
+
+  var METHODS = [
+    { key: 'seNaive', df: 'dfN', label: 'Ordinary OLS', note: 'assumes every row is new information' },
+    { key: 'seHC1', df: 'dfN', label: 'Robust (HC1)', note: 'fixes unequal variance, still assumes independence' },
+    { key: 'seCR', df: 'dfCR', label: 'Cluster-robust', note: 'consistent in the number of CLUSTERS' },
+    { key: 'seCM', df: 'dfCM', label: 'Cluster means / mixed model', note: 'exact for this balanced design' }
+  ];
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var k = Math.max(6, +cfg.k || 20), m = Math.max(2, +cfg.m || 5), n = k * m;
+    var tau = (cfg.tau == null ? 0.5 : +cfg.tau);
+    var iccMax = Math.min(0.9, +cfg.iccMax || 0.5);
+    var levels = Math.max(3, +cfg.levels || 11);
+    var sims = Math.max(300, +cfg.sims || 3000);
+    var seed = (cfg.seed == null ? 23 : +cfg.seed);
+    var step = Math.max(0, Math.min(levels - 1, +cfg.start || 0));
+
+    /* one fixed pool of random draws: the dial reweights them, it never redraws them */
+    var rnd = mulberry32(seed);
+    var arm = new Int8Array(k), i, j;
+    for (j = 0; j < k; j++) arm[j] = j % 2;                 // alternate, so exactly half treated
+    var uFix = new Float64Array(k), eFix = new Float64Array(n);
+    for (j = 0; j < k; j++) uFix[j] = gaussian(rnd);
+    for (i = 0; i < n; i++) eFix[i] = gaussian(rnd);
+
+    var yShow = new Float64Array(n), ySim = new Float64Array(n);
+    function build(rho, y, uu, ee) {
+      var a = Math.sqrt(rho), b = Math.sqrt(1 - rho), q;
+      for (q = 0; q < n; q++) { var cj = (q / m) | 0; y[q] = tau * arm[cj] + a * uu[cj] + b * ee[q]; }
+    }
+
+    /* coverage + the true spread of the estimate, per dial setting */
+    var cache = {};
+    function sim(li) {
+      if (cache[li]) return cache[li];
+      var rho = iccMax * li / (levels - 1);
+      var r2 = mulberry32(seed + 7919 * (li + 1));
+      var uu = new Float64Array(k), ee = new Float64Array(n);
+      var hit = [0, 0, 0, 0], sum = 0, sum2 = 0, q, t;
+      var tcCache = {};
+      for (t = 0; t < sims; t++) {
+        for (q = 0; q < k; q++) uu[q] = gaussian(r2);
+        for (q = 0; q < n; q++) ee[q] = gaussian(r2);
+        build(rho, ySim, uu, ee);
+        var a = analyse(ySim, k, m, arm);
+        sum += a.est; sum2 += a.est * a.est;
+        for (q = 0; q < 4; q++) {
+          var dfq = a[METHODS[q].df];
+          if (!tcCache[dfq]) tcCache[dfq] = qt(0.975, dfq);
+          var half = tcCache[dfq] * a[METHODS[q].key];
+          if (a.est - half < tau && tau < a.est + half) hit[q]++;
+        }
+      }
+      var sd = Math.sqrt((sum2 - sum * sum / sims) / (sims - 1));
+      cache[li] = { rho: rho, cov: hit.map(function (h) { return h / sims; }), sd: sd,
+                    deff: 1 + (m - 1) * rho,
+                    trueSd: Math.sqrt(4 * (rho + (1 - rho) / m) / k) };
+      return cache[li];
+    }
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      '<div class="ci-lab" style="font:600 12.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:5px"></div>' +
+      '<input class="ci-rho" type="range" min="0" max="' + (levels - 1) + '" step="1" value="' + step +
+        '" aria-label="intraclass correlation" style="width:100%;max-width:460px;display:block;margin-bottom:13px">' +
+      '<div class="ci-plot"></div>' +
+      '<div class="ci-tbl" style="margin:12px 0 0;overflow-x:auto"></div>' +
+      '<div class="ci-read" style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:11px 0 14px"></div>' +
+      '<div class="ci-r"></div>';
+
+    var lab = el.querySelector('.ci-lab'), plot = el.querySelector('.ci-plot'),
+        tbl = el.querySelector('.ci-tbl'), read = el.querySelector('.ci-read'),
+        slider = el.querySelector('.ci-rho'), rbox = el.querySelector('.ci-r');
+
+    function render(first) {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      lab.style.color = P.mut; read.style.color = P.body;
+      var S = sim(step), rho = S.rho;
+      build(rho, yShow, uFix, eFix);
+      var one = analyse(yShow, k, m, arm);
+
+      lab.innerHTML = 'Intraclass correlation: <b style="color:' + P.ink + '">' + rho.toFixed(2) + '</b> ' +
+        '<span style="color:' + P.faint + '">(' + k + ' clusters of ' + m + ', treatment assigned to whole clusters)</span>';
+      plot.innerHTML = draw(yShow, one, S, k, m, arm, tau, P);
+      tbl.innerHTML = table(one, S, tau, P);
+      read.innerHTML = verdict(S, one, k, m, P);
+      if (first) rbox.innerHTML = u.runnable(rcode(k, m, tau), { label: 'Run the same comparison in R' });
+    }
+
+    slider.addEventListener('input', function () { step = +slider.value; render(false); });
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el); if (now !== wasDark) { wasDark = now; render(false); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render(true);
+  }
+
+  /* ---------------- picture: the clusters, then the four standard errors ---------------- */
+  function draw(y, one, S, k, m, arm, tau, P) {
+    var W = 520, mg = { l: 40, r: 14, t: 30 }, hS = 138, n = k * m;
+    var g = '', i, j;
+    var lo = -3.2, hi = 3.2 + tau;                       // fixed scale: the spread must be comparable
+    function sy(v) { return mg.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * hS; }
+    var colW = (W - mg.l - mg.r) / k;
+
+    g += '<text x="' + mg.l + '" y="14" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink + '">One trial: every dot is an observation, every column a cluster</text>';
+    [-2, 0, 2].forEach(function (v) {
+      g += '<line x1="' + mg.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (W - mg.r) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+           '<text x="' + (mg.l - 6) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + v + '</text>';
+    });
+    for (j = 0; j < k; j++) {
+      var cx = mg.l + colW * (j + 0.5), col = arm[j] ? P.c0 : P.c1, cm = 0;
+      for (i = 0; i < m; i++) {
+        var v = y[j * m + i]; cm += v;
+        var jitter = (i - (m - 1) / 2) * Math.min(3.2, colW * 0.22);
+        g += '<circle cx="' + (cx + jitter).toFixed(1) + '" cy="' + sy(v).toFixed(1) + '" r="2.4" fill="' + col + '" fill-opacity="0.62"/>';
+      }
+      cm /= m;
+      g += '<line x1="' + (cx - colW * 0.36).toFixed(1) + '" y1="' + sy(cm).toFixed(1) + '" x2="' + (cx + colW * 0.36).toFixed(1) + '" y2="' + sy(cm).toFixed(1) +
+           '" stroke="' + col + '" stroke-width="2.4"/>';
+    }
+    g += '<line x1="' + mg.l + '" y1="' + (mg.t + hS) + '" x2="' + (W - mg.r) + '" y2="' + (mg.t + hS) + '" stroke="' + P.line + '" stroke-width="1.5"/>' +
+         '<text x="' + mg.l + '" y="' + (mg.t + hS + 14) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c1 + '">control clusters</text>' +
+         '<text x="' + (W - mg.r) + '" y="' + (mg.t + hS + 14) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c0 + '">treated clusters</text>';
+
+    /* standard-error bars, against the simulated truth */
+    var yB = mg.t + hS + 42, rowH = 21, barL = 186;
+    var vals = METHODS.map(function (M) { return one[M.key]; });
+    var maxV = Math.max(S.sd, Math.max.apply(null, vals)) * 1.16;
+    function bw(v) { return (v / maxV) * (W - barL - 22); }
+    g += '<text x="0" y="' + (yB - 12) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink + '">Standard error for that one estimate, four ways</text>';
+    METHODS.forEach(function (M, r) {
+      var yy = yB + r * rowH, v = one[M.key], wd = bw(v);
+      var off = v < S.sd * 0.8;
+      // a long bar leaves no room for an outside label, so the number moves inside it
+      var inside = barL + wd > W - 46;
+      g += '<text x="0" y="' + (yy + 10) + '" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.body + '">' + u.esc(M.label) + '</text>' +
+           '<rect x="' + barL + '" y="' + (yy + 2) + '" width="' + Math.max(1, wd).toFixed(1) + '" height="11" rx="2.5" fill="' + (off ? P.bad : P.acc) + '" fill-opacity="0.82"/>' +
+           '<text x="' + (inside ? barL + wd - 6 : barL + wd + 6).toFixed(1) + '" y="' + (yy + 11) + '" text-anchor="' + (inside ? 'end' : 'start') +
+             '" font-family="IBM Plex Mono,monospace" font-size="10" fill="' + (inside ? '#fff' : (off ? P.bad : P.mut)) + '">' + v.toFixed(3) + '</text>';
+    });
+    var xT = barL + bw(S.sd);
+    // keep the caption inside the frame however far right the marker sits
+    var capAnchor = xT > W - 108 ? 'end' : (xT < 108 ? 'start' : 'middle');
+    var capX = capAnchor === 'end' ? W - 2 : (capAnchor === 'start' ? 2 : xT);
+    g += '<line x1="' + xT.toFixed(1) + '" y1="' + (yB - 6) + '" x2="' + xT.toFixed(1) + '" y2="' + (yB + METHODS.length * rowH - 2) + '" stroke="' + P.ink + '" stroke-width="1.6" stroke-dasharray="3 2"/>' +
+         '<text x="' + capX.toFixed(1) + '" y="' + (yB - 10) + '" text-anchor="' + capAnchor + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.ink + '">how much the estimate really varies</text>';
+    var H = yB + METHODS.length * rowH + 8;
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" ' +
+      'aria-label="Clustered observations and four standard errors for the same treatment effect">' + g + '</svg>';
+  }
+
+  /* ---------------- the same estimate, four intervals ---------------- */
+  function table(one, S, tau, P) {
+    var cols = ['Analysis', 'SE', '95% interval', 'p', 'Covers truth in'];
+    var rows = METHODS.map(function (M, r) {
+      var se = one[M.key], df = one[M.df], tc = qt(0.975, df), t = one.est / se;
+      return [M.label, se.toFixed(3),
+              '[' + (one.est - tc * se).toFixed(2) + ', ' + (one.est + tc * se).toFixed(2) + ']',
+              fmtP(pt2(Math.abs(t), df)),
+              (100 * S.cov[r]).toFixed(1) + '%'];
+    });
+    var h = '<table style="border-collapse:collapse;font-family:IBM Plex Mono,monospace;font-size:12px;width:100%;min-width:430px"><thead><tr>';
+    cols.forEach(function (c, ci) {
+      h += '<th style="text-align:' + (ci ? 'right' : 'left') + ';padding:6px 9px;border-bottom:1px solid ' + P.line +
+           ';color:' + P.mut + ';font-weight:600;white-space:nowrap;font-family:IBM Plex Sans,sans-serif;font-size:11px">' + u.esc(c) + '</th>';
+    });
+    h += '</tr></thead><tbody>';
+    rows.forEach(function (r, ri) {
+      var bad = S.cov[ri] < 0.9;
+      h += '<tr>';
+      r.forEach(function (v, ci) {
+        h += '<td style="text-align:' + (ci ? 'right' : 'left') + ';padding:6px 9px;border-bottom:1px solid ' + P.grid +
+             ';color:' + (ci === 4 && bad ? P.bad : P.ink) + ';white-space:nowrap' +
+             (ci === 0 ? ';font-family:IBM Plex Sans,sans-serif' : '') + '">' + u.esc(v) + '</td>';
+      });
+      h += '</tr>';
+    });
+    return h + '</tbody></table>' +
+      '<div style="font:11px/1.5 IBM Plex Sans,sans-serif;color:' + P.faint + ';margin-top:6px">' +
+      'All four rows describe the same estimate on the same data. The true effect is ' + tau + '.</div>';
+  }
+  function fmtP(p) { return p < 0.001 ? '<0.001' : p.toFixed(3); }
+
+  function verdict(S, one, k, m, P) {
+    var rho = S.rho, deff = S.deff, nEff = (k * m) / deff;
+    if (rho < 1e-9) {
+      return 'At an intraclass correlation of zero the four standard errors agree, because there is nothing to correct for. ' +
+        'Raise it and watch which ones move.';
+    }
+    var ratio = one.seCM / one.seNaive;
+    return 'The design effect is <b>1 + (' + m + ' &minus; 1) &times; ' + rho.toFixed(2) + ' = ' + deff.toFixed(2) + '</b>, ' +
+      'so ' + (k * m) + ' rows carry about <b>' + nEff.toFixed(0) + ' rows</b> of independent information. ' +
+      'The naive interval covers the truth <b style="color:' + (S.cov[0] < 0.9 ? P.bad : P.acc) + '">' + (100 * S.cov[0]).toFixed(1) + '%</b> of the time instead of 95%. ' +
+      'HC1 gets to <b>' + (100 * S.cov[1]).toFixed(1) + '%</b>: it is robust to the wrong thing. ' +
+      'Cluster-robust reaches <b>' + (100 * S.cov[2]).toFixed(1) + '%</b> and the cluster-level analysis <b>' + (100 * S.cov[3]).toFixed(1) + '%</b>. ' +
+      'The simulated spread of the estimate is ' + S.sd.toFixed(3) + ' against the formula\'s ' + S.trueSd.toFixed(3) + '.';
+  }
+
+  /* ---------------- runnable R ----------------
+     Base R only, and it computes HC1 and CR1 by hand rather than leaning on a package, so
+     the arithmetic is visible. Verified against sandwich::vcovHC / vcovCL and lme4::lmer. */
+  function rcode(k, m, tau) {
+    return [
+      '# One cluster-randomised trial, analysed four ways. Raise rho and run it again.',
+      'set.seed(4)',
+      'k <- ' + k + '; m <- ' + m + '; n <- k * m; tau <- ' + tau,
+      'rho <- 0.30                       # intraclass correlation',
+      '',
+      'cl  <- rep(1:k, each = m)',
+      'arm <- rep(rep(0:1, length.out = k), each = m)     # treatment is a CLUSTER property',
+      'y   <- tau * arm + sqrt(rho) * rnorm(k)[cl] + sqrt(1 - rho) * rnorm(n)',
+      '',
+      'fit <- lm(y ~ arm)',
+      'e   <- residuals(fit)',
+      'nT  <- sum(arm == 1); nC <- n - nT',
+      '',
+      'se_ols <- coef(summary(fit))["arm", "Std. Error"]',
+      'se_hc1 <- sqrt(n / (n - 2) * (sum(e[arm == 1]^2) / nT^2 + sum(e[arm == 0]^2) / nC^2))',
+      'g      <- tapply(e, cl, sum)',
+      'armcl  <- tapply(arm, cl, max)',
+      'se_cr1 <- sqrt(k / (k - 1) * (n - 1) / (n - 2) *',
+      '                (sum(g[armcl == 1]^2) / nT^2 + sum(g[armcl == 0]^2) / nC^2))',
+      '',
+      '# cluster means: for a balanced design with cluster-level treatment this is exactly',
+      '# the standard error a random-intercept model reports',
+      'cm     <- tapply(y, cl, mean)',
+      'se_cm  <- sqrt(sum((cm - ave(cm, armcl))^2) / (k - 2) * (2 / (k / 2)))',
+      '',
+      'round(c(ols = se_ols, hc1 = se_hc1, cluster_robust = se_cr1, cluster_means = se_cm), 4)',
+      'round(c(design_effect = 1 + (m - 1) * rho,',
+      '        true_se       = sqrt(4 * (rho + (1 - rho) / m) / k)), 4)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('cluster-icc-sim', mount);
+})();
+
+;
 /* cluster-validate.js */
 /* cluster-validate.js - choosing k. The elbow plot shows total within-cluster spread
  * dropping as k rises; it bends sharply at the "right" k and flattens after. The
@@ -1947,6 +3144,544 @@
   }
 
   window.LessonWidgets.register('cv-folds', mount);
+})();
+
+;
+/* dag-editor.js */
+/* dag-editor.js - an editable causal diagram wired to the number it changes.
+ *
+ * Serves the confounding, baseline-difference, selection-bias and non-comparable-control
+ * objections in The Publishing Handbook. The reader edits a small causal diagram and the
+ * estimated effect moves as backdoor paths open and close.
+ *
+ * WHAT IS EDITABLE. Each scenario fixes a node set (four or five nodes, which keeps the
+ * picture readable) and a set of candidate arrows, all oriented consistently with one
+ * topological order so no edit can create a cycle. Within that:
+ *   - click any node to adjust or unadjust for it (a latent node refuses, and says why)
+ *   - click any arrow, present or ghosted, to remove or add it
+ * That is a real editor over a fixed node set. Adding brand new nodes was left out on
+ * purpose: a free-form node editor makes a graph that is easy to build and hard to read,
+ * and the teaching happens in the four canonical shapes, not in the drawing.
+ *
+ * WHERE THE NUMBER COMES FROM. Nothing here is simulated. The diagram is read as a linear
+ * structural model: each node is the weighted sum of its parents plus independent noise,
+ * with the noise variance set so every node has variance one. That determines the whole
+ * covariance matrix exactly by path tracing, and the coefficient a researcher would report
+ * is then the exact population least-squares solution
+ *
+ *     beta = Cov(W, W)^-1 Cov(W, Y),   W = (X, adjustment set)
+ *
+ * The true effect is the sum over directed paths from X to Y of the products of their
+ * coefficients. So "bias" on screen is the exact difference between what the model
+ * estimates and what the graph says is true, with no Monte Carlo error in it.
+ *
+ * WHICH PATHS ARE OPEN is decided by d-separation, applied path by path: a path is open
+ * when every non-collider on it is unadjusted AND every collider on it is adjusted or has
+ * an adjusted descendant. That is why adjusting for a collider makes things worse, and the
+ * widget names the path it opened.
+ *
+ * The emitted R simulates from the same structural model and fits the same regressions, so
+ * the reader can watch lm() land on the widget's number.
+ *
+ * cfg: {
+ *   scenario: "confounding",     // confounding | baseline | selection | non-comparable
+ *   scenarios: ["..."],          // OR a list -> segmented control (default: all four)
+ *   n: 100000                    // sample size used by the emitted R
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', c1: '#b5631a',
+    bad: '#c2410c', panel: '#ffffff', soft: '#f3f6f4', nodeFill: '#eef1f7'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', c1: '#e3a05a', bad: '#f4805a', panel: '#101c2b',
+    soft: 'rgba(255,255,255,.05)', nodeFill: '#1d2c40'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try { var v = getComputedStyle(el).getPropertyValue('--lm-panel'); if (v && v.trim()) return lumOf(v) < 0.45; } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  /* ---------------- scenarios ----------------
+     `order` is a topological order. Every candidate edge runs forwards in it, so the graph
+     can never become cyclic however the reader edits it. */
+  var SCEN = {
+    confounding: {
+      label: 'Confounding',
+      ask: 'A reviewer says the groups differed on something that also drives the outcome.',
+      order: ['Z', 'X', 'M', 'Y'],
+      nodes: {
+        Z: { pos: [110, 38], name: 'baseline severity' },
+        X: { pos: [58, 152], name: 'treatment' },
+        M: { pos: [260, 152], name: 'adherence' },
+        Y: { pos: [430, 100], name: 'outcome' }
+      },
+      X: 'X', Y: 'Y',
+      edges: [
+        { f: 'Z', t: 'X', b: 0.60, on: true },
+        { f: 'Z', t: 'Y', b: 0.65, on: true },
+        { f: 'X', t: 'Y', b: 0.30, on: true },
+        { f: 'X', t: 'M', b: 0.55, on: false },
+        { f: 'M', t: 'Y', b: 0.40, on: false }
+      ],
+      adjust: []
+    },
+    baseline: {
+      label: 'Baseline difference',
+      ask: 'A reviewer says the randomised arms were not balanced at baseline.',
+      order: ['A', 'B', 'X', 'Y'],
+      nodes: {
+        A: { pos: [70, 38], name: 'age' },
+        B: { pos: [252, 38], name: 'baseline score' },
+        X: { pos: [70, 152], name: 'randomised arm' },
+        Y: { pos: [430, 110], name: 'follow-up score' }
+      },
+      X: 'X', Y: 'Y',
+      edges: [
+        { f: 'B', t: 'X', b: 0.22, on: true },       // the chance imbalance itself
+        { f: 'B', t: 'Y', b: 0.70, on: true },
+        { f: 'X', t: 'Y', b: 0.30, on: true },
+        { f: 'A', t: 'B', b: 0.50, on: false },
+        { f: 'A', t: 'Y', b: 0.30, on: false }
+      ],
+      adjust: []
+    },
+    selection: {
+      label: 'Selection bias',
+      ask: 'A reviewer says the analysed sample is not the sample you recruited.',
+      order: ['U', 'X', 'Y', 'S'],
+      nodes: {
+        U: { pos: [252, 30], name: 'motivation', latent: true },
+        X: { pos: [64, 128], name: 'treatment' },
+        Y: { pos: [440, 128], name: 'outcome' },
+        S: { pos: [252, 186], name: 'stayed in the study' }
+      },
+      X: 'X', Y: 'Y',
+      edges: [
+        { f: 'X', t: 'Y', b: 0.30, on: true },
+        { f: 'X', t: 'S', b: 0.50, on: true },
+        { f: 'Y', t: 'S', b: 0.50, on: true },
+        { f: 'U', t: 'X', b: 0.40, on: false },
+        { f: 'U', t: 'Y', b: 0.40, on: false }
+      ],
+      adjust: ['S']                                   // analysing completers IS conditioning on S
+    },
+    'non-comparable': {
+      label: 'Non-comparable controls',
+      ask: 'A reviewer says the controls came from somewhere the cases did not.',
+      order: ['U', 'P', 'X', 'Y'],
+      nodes: {
+        U: { pos: [252, 30], name: 'true case mix', latent: true },
+        P: { pos: [252, 128], name: 'recorded case mix' },
+        X: { pos: [64, 128], name: 'came from clinic A' },
+        Y: { pos: [440, 128], name: 'outcome' }
+      },
+      X: 'X', Y: 'Y',
+      edges: [
+        { f: 'U', t: 'P', b: 0.80, on: true },
+        { f: 'U', t: 'X', b: 0.60, on: true },
+        { f: 'U', t: 'Y', b: 0.65, on: true },
+        { f: 'X', t: 'Y', b: 0.30, on: true },
+        { f: 'P', t: 'X', b: 0.35, on: false }
+      ],
+      adjust: []
+    }
+  };
+
+  /* ---------------- linear structural model -> exact covariance ---------------- */
+  function covariance(sc, on) {
+    var order = sc.order, k = order.length, ix = {}, i, j, a, b2;
+    for (i = 0; i < k; i++) ix[order[i]] = i;
+    var B = [];                                        // B[i][j] = effect of parent j on i
+    for (i = 0; i < k; i++) { B.push(new Array(k)); for (j = 0; j < k; j++) B[i][j] = 0; }
+    sc.edges.forEach(function (e, q) { if (on[q]) B[ix[e.t]][ix[e.f]] = e.b; });
+    var S = [];
+    for (i = 0; i < k; i++) { S.push(new Array(k)); for (j = 0; j < k; j++) S[i][j] = 0; }
+    var resid = new Array(k);
+    for (i = 0; i < k; i++) {
+      for (a = 0; a < i; a++) {                        // covariance with everything upstream
+        var c = 0;
+        for (j = 0; j < i; j++) c += B[i][j] * S[j][a];
+        S[i][a] = c; S[a][i] = c;
+      }
+      var vp = 0;
+      for (j = 0; j < i; j++) for (b2 = 0; b2 < i; b2++) vp += B[i][j] * B[i][b2] * S[j][b2];
+      resid[i] = Math.max(0.1, 1 - vp);                // unit variance wherever that is possible
+      S[i][i] = vp + resid[i];
+    }
+    return { S: S, ix: ix, B: B, resid: resid };
+  }
+
+  function solve(A, rhs) {                             // small dense Gaussian elimination
+    var p = A.length, M = [], i, j, k2;
+    for (i = 0; i < p; i++) M.push(A[i].slice().concat([rhs[i]]));
+    for (i = 0; i < p; i++) {
+      var piv = i;
+      for (k2 = i + 1; k2 < p; k2++) if (Math.abs(M[k2][i]) > Math.abs(M[piv][i])) piv = k2;
+      var t = M[i]; M[i] = M[piv]; M[piv] = t;
+      var d = M[i][i] || 1e-300;
+      for (j = i; j <= p; j++) M[i][j] /= d;
+      for (k2 = 0; k2 < p; k2++) {
+        if (k2 === i) continue;
+        var f = M[k2][i]; if (!f) continue;
+        for (j = i; j <= p; j++) M[k2][j] -= f * M[i][j];
+      }
+    }
+    var out = []; for (i = 0; i < p; i++) out.push(M[i][p]);
+    return out;
+  }
+
+  /* The coefficient on X from the population regression of Y on X plus the adjustment set. */
+  function estimate(sc, cov, adj) {
+    var W = [sc.X].concat(adj), p = W.length, i, j;
+    var A = [], r = [];
+    for (i = 0; i < p; i++) {
+      A.push([]);
+      for (j = 0; j < p; j++) A[i].push(cov.S[cov.ix[W[i]]][cov.ix[W[j]]]);
+      r.push(cov.S[cov.ix[W[i]]][cov.ix[sc.Y]]);
+    }
+    return solve(A, r)[0];
+  }
+
+  /* ---------------- graph reading: paths, colliders, descendants ---------------- */
+  function graph(sc, on) {
+    var out = { adjOut: {}, adjIn: {}, nbr: {}, has: {} };
+    Object.keys(sc.nodes).forEach(function (v) { out.adjOut[v] = []; out.adjIn[v] = []; out.nbr[v] = []; });
+    sc.edges.forEach(function (e, q) {
+      if (!on[q]) return;
+      out.has[e.f + '>' + e.t] = e.b;
+      out.adjOut[e.f].push(e.t); out.adjIn[e.t].push(e.f);
+      out.nbr[e.f].push(e.t); out.nbr[e.t].push(e.f);
+    });
+    out.desc = {};
+    Object.keys(sc.nodes).forEach(function (v) {
+      var seen = {}, stack = out.adjOut[v].slice();
+      while (stack.length) { var w = stack.pop(); if (seen[w]) continue; seen[w] = 1; out.adjOut[w].forEach(function (z) { stack.push(z); }); }
+      out.desc[v] = Object.keys(seen);
+    });
+    return out;
+  }
+  function allPaths(G, from, to) {
+    var res = [];
+    (function walk(v, path, used) {
+      if (v === to) { res.push(path.slice()); return; }
+      G.nbr[v].forEach(function (w) {
+        if (used[w]) return;
+        used[w] = 1; path.push(w); walk(w, path, used); path.pop(); used[w] = 0;
+      });
+    })(from, [from], (function () { var s = {}; s[from] = 1; return s; })());
+    return res;
+  }
+  function classify(sc, G, path, adjSet) {
+    var i, blockedBy = null, opener = null, causal = true, forward = [];
+    for (i = 0; i < path.length - 1; i++) {
+      var fwd = (path[i] + '>' + path[i + 1]) in G.has;
+      forward.push(fwd);
+      if (!fwd) causal = false;
+    }
+    for (i = 1; i < path.length - 1; i++) {
+      var prev = path[i - 1], v = path[i], next = path[i + 1];
+      var inA = (prev + '>' + v) in G.has, inB = (next + '>' + v) in G.has;
+      if (inA && inB) {                                 // collider
+        var openIt = adjSet[v];
+        if (!openIt) for (var d = 0; d < G.desc[v].length; d++) if (adjSet[G.desc[v][d]]) { openIt = true; break; }
+        if (!openIt) { blockedBy = blockedBy || { kind: 'collider', node: v }; }
+        else opener = opener || v;
+      } else if (adjSet[v]) {
+        blockedBy = blockedBy || { kind: 'adjusted', node: v };
+      }
+    }
+    var backdoor = (path[1] + '>' + path[0]) in G.has;
+    return { path: path, forward: forward, causal: causal, backdoor: backdoor,
+             open: !blockedBy, blockedBy: blockedBy, opener: opener };
+  }
+  function totalEffect(sc, G) {
+    var t = 0;
+    allPaths(G, sc.X, sc.Y).forEach(function (p) {
+      var prod = 1, ok = true, i;
+      for (i = 0; i < p.length - 1; i++) {
+        var b = G.has[p[i] + '>' + p[i + 1]];
+        if (b === undefined) { ok = false; break; }
+        prod *= b;
+      }
+      if (ok) t += prod;
+    });
+    return t;
+  }
+
+  /* ---------------- mount ---------------- */
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var list = (cfg.scenarios && cfg.scenarios.length ? cfg.scenarios : (cfg.scenario ? [cfg.scenario] : Object.keys(SCEN)))
+                 .filter(function (s) { return SCEN[s]; });
+    if (!list.length) list = ['confounding'];
+    var nSim = Math.max(2000, +cfg.n || 100000);
+    var key = list[0], sc, on, adjSet;
+
+    function reset() {
+      sc = SCEN[key];
+      on = sc.edges.map(function (e) { return !!e.on; });
+      adjSet = {};
+      sc.adjust.forEach(function (v) { adjSet[v] = true; });
+    }
+    reset();
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      (list.length > 1 ? '<div class="dg-seg" style="margin-bottom:11px"></div>' : '') +
+      '<div class="dg-ask" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin-bottom:4px"></div>' +
+      '<div class="dg-hint" style="font:11.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.faint + ';margin-bottom:9px">' +
+        'Click a node to adjust for it. Click an arrow to remove it, or a ghosted arrow to add it.</div>' +
+      '<div class="dg-plot"></div>' +
+      '<div class="dg-num" style="margin-top:8px"></div>' +
+      '<div class="dg-paths" style="margin-top:11px"></div>' +
+      '<div class="dg-msg" style="font:12.5px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 12px;min-height:20px"></div>' +
+      '<button type="button" class="dg-reset" style="font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line +
+        ';background:none;color:' + P.mut + ';border-radius:8px;padding:6px 12px;cursor:pointer;margin-bottom:14px">Reset the diagram</button>' +
+      '<div class="dg-r"></div>';
+
+    var segBox = el.querySelector('.dg-seg'), plot = el.querySelector('.dg-plot'),
+        numBox = el.querySelector('.dg-num'), pathBox = el.querySelector('.dg-paths'),
+        msg = el.querySelector('.dg-msg'), ask = el.querySelector('.dg-ask'),
+        rbox = el.querySelector('.dg-r'), resetBtn = el.querySelector('.dg-reset');
+
+    if (segBox) {
+      segBox.innerHTML = u.seg(list.map(function (s) { return { v: s, label: SCEN[s].label }; }), key);
+      u.wireSeg(segBox, function (v) { key = v; reset(); render(''); });
+    }
+    resetBtn.addEventListener('click', function () { reset(); render('Back to the diagram as the reviewer described it.'); });
+
+    plot.addEventListener('click', function (ev) {
+      var g = ev.target.closest ? ev.target.closest('[data-hit]') : null;
+      if (!g || !plot.contains(g)) return;
+      act(g.getAttribute('data-hit'));
+    });
+    plot.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      var g = ev.target.closest ? ev.target.closest('[data-hit]') : null;
+      if (!g || !plot.contains(g)) return;
+      ev.preventDefault(); act(g.getAttribute('data-hit'));
+    });
+    function act(hit) {
+      var bits = hit.split(':');
+      if (bits[0] === 'n') {
+        var v = bits[1];
+        if (v === sc.X || v === sc.Y) { render('The exposure and the outcome are what you are relating. You do not adjust for either.'); return; }
+        if (sc.nodes[v].latent) { render(sc.nodes[v].name + ' is unmeasured. That is the whole difficulty: you cannot adjust for a column you do not have.'); return; }
+        adjSet[v] = !adjSet[v];
+        render(adjSet[v] ? 'Adjusting for ' + sc.nodes[v].name + '.' : 'No longer adjusting for ' + sc.nodes[v].name + '.');
+      } else {
+        var q = +bits[1];
+        on[q] = !on[q];
+        var e = sc.edges[q];
+        render((on[q] ? 'Added ' : 'Removed ') + e.f + ' to ' + e.t + '.');
+      }
+    }
+
+    function render(note) {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      ask.style.color = P.body; msg.style.color = P.body;
+      var cov = covariance(sc, on), G = graph(sc, on);
+      var adj = Object.keys(adjSet).filter(function (v) { return adjSet[v] && !sc.nodes[v].latent; });
+      var est = estimate(sc, cov, adj), truth = totalEffect(sc, G);
+      var crude = estimate(sc, cov, []);
+      var paths = allPaths(G, sc.X, sc.Y).map(function (p) { return classify(sc, G, p, adjSet); });
+
+      ask.textContent = sc.ask;
+      plot.innerHTML = drawDag(sc, on, adjSet, P);
+      numBox.innerHTML = numbers(est, truth, adj, sc, P);
+      pathBox.innerHTML = pathList(paths, P);
+      msg.innerHTML = (note ? '<b>' + u.esc(note) + '</b> ' : '') + explain(paths, est, truth, crude, adj, sc, P);
+      rbox.innerHTML = u.runnable(rcode(sc, on, adj, cov, truth, nSim), { label: 'Simulate this exact diagram in R' });
+    }
+
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el); if (now !== wasDark) { wasDark = now; render(''); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render('');
+  }
+
+  /* ---------------- drawing ---------------- */
+  var R = 25;
+  function drawDag(sc, on, adjSet, P) {
+    var W = 520, H = 232, g = '';
+    function pos(v) { return sc.nodes[v].pos; }
+    sc.edges.forEach(function (e, q) {
+      var a = pos(e.f), b = pos(e.t), dx = b[0] - a[0], dy = b[1] - a[1];
+      var L = Math.sqrt(dx * dx + dy * dy) || 1, ux = dx / L, uy = dy / L;
+      var x1 = a[0] + ux * (R + 2), y1 = a[1] + uy * (R + 2), x2 = b[0] - ux * (R + 7), y2 = b[1] - uy * (R + 7);
+      var live = on[q], col = live ? P.mut : P.faint, ang = Math.atan2(uy, ux);
+      g += '<g data-hit="e:' + q + '" tabindex="0" role="button" style="cursor:pointer" ' +
+           'aria-label="' + (live ? 'remove' : 'add') + ' the arrow from ' + u.esc(sc.nodes[e.f].name) + ' to ' + u.esc(sc.nodes[e.t].name) + '">' +
+           '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="transparent" stroke-width="16"/>' +
+           '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+             '" stroke="' + col + '" stroke-width="' + (live ? 2 : 1.4) + '"' + (live ? '' : ' stroke-dasharray="4 4" stroke-opacity="0.55"') + '/>' +
+           '<path d="M' + x2.toFixed(1) + ',' + y2.toFixed(1) +
+             ' L' + (x2 - 9 * Math.cos(ang - 0.38)).toFixed(1) + ',' + (y2 - 9 * Math.sin(ang - 0.38)).toFixed(1) +
+             ' L' + (x2 - 9 * Math.cos(ang + 0.38)).toFixed(1) + ',' + (y2 - 9 * Math.sin(ang + 0.38)).toFixed(1) + 'Z" fill="' + col + '"' +
+             (live ? '' : ' fill-opacity="0.55"') + '/>';
+      if (live && e.b) {
+        var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        g += '<text x="' + mx.toFixed(1) + '" y="' + (my - 5).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.faint +
+             '" stroke="' + P.panel + '" stroke-width="2.8" paint-order="stroke">' + e.b.toFixed(2) + '</text>';
+      }
+      g += '</g>';
+    });
+    Object.keys(sc.nodes).forEach(function (v) {
+      var p = sc.nodes[v].pos, node = sc.nodes[v];
+      var isX = v === sc.X, isY = v === sc.Y, adj = !!adjSet[v] && !node.latent;
+      var fill = isX ? P.acc : (isY ? P.c0 : P.nodeFill);
+      var txt = (isX || isY) ? '#fff' : P.ink;
+      g += '<g data-hit="n:' + v + '" tabindex="0" role="button" style="cursor:pointer" ' +
+           'aria-label="' + (adj ? 'stop adjusting for ' : 'adjust for ') + u.esc(node.name) + '">';
+      if (adj) g += '<rect x="' + (p[0] - R - 6) + '" y="' + (p[1] - R - 6) + '" width="' + (2 * R + 12) + '" height="' + (2 * R + 12) +
+                    '" rx="7" fill="none" stroke="' + P.acc + '" stroke-width="2.4"/>';
+      g += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + R + '" fill="' + fill + '" stroke="' + (node.latent ? P.faint : P.line) + '"' +
+           (node.latent ? ' stroke-dasharray="3 3" stroke-width="1.6"' : '') + '/>' +
+           '<text x="' + p[0] + '" y="' + (p[1] + 5) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="14" font-weight="700" fill="' + txt + '">' + u.esc(v) + '</text>' +
+           '<text x="' + p[0] + '" y="' + (p[1] + R + 14) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.faint +
+             '" stroke="' + P.panel + '" stroke-width="2.6" paint-order="stroke">' + u.esc(node.name) + (node.latent ? ' (unmeasured)' : '') + '</text>' +
+           '</g>';
+    });
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" ' +
+      'role="group" aria-label="editable causal diagram">' + g + '</svg>';
+  }
+
+  function numbers(est, truth, adj, sc, P) {
+    var bias = est - truth, off = Math.abs(bias) > 0.02;
+    var W = 520, x0 = 162, span = 288;
+    var lo = Math.min(-0.15, est - 0.12, truth - 0.12), hi = Math.max(0.95, est + 0.15, truth + 0.15);
+    function bx(v) { return x0 + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * span; }
+    var g = '';
+    // a bar can run left of zero when the estimate is negative, so the value label goes on
+    // the far side of the bar end rather than on top of the bar
+    function valLabel(v, y, col) {
+      var neg = v < 0;
+      return '<text x="' + (neg ? bx(v) - 8 : bx(v) + 8).toFixed(1) + '" y="' + y + '" text-anchor="' + (neg ? 'end' : 'start') +
+        '" font-family="IBM Plex Mono,monospace" font-size="11.5" font-weight="700" fill="' + col + '">' + v.toFixed(3) + '</text>';
+    }
+    g += '<text x="0" y="14" font-family="IBM Plex Sans,sans-serif" font-size="11.5" fill="' + P.body + '">True effect of X on Y</text>' +
+         '<line x1="' + bx(0).toFixed(1) + '" y1="6" x2="' + bx(truth).toFixed(1) + '" y2="6" stroke="' + P.acc + '" stroke-width="9" stroke-linecap="butt"/>' +
+         valLabel(truth, 10, P.acc);
+    g += '<text x="0" y="40" font-family="IBM Plex Sans,sans-serif" font-size="11.5" fill="' + P.body + '">What the model reports</text>' +
+         '<line x1="' + bx(0).toFixed(1) + '" y1="32" x2="' + bx(est).toFixed(1) + '" y2="32" stroke="' + (off ? P.bad : P.acc) + '" stroke-width="9"/>' +
+         valLabel(est, 36, off ? P.bad : P.acc);
+    g += '<text x="0" y="58" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.faint + '">' +
+         u.esc('lm(' + sc.Y + ' ~ ' + [sc.X].concat(adj).join(' + ') + ')') + '</text>' +
+         '<text x="' + W + '" y="58" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="10.5" fill="' + (off ? P.bad : P.faint) + '">' +
+         'bias ' + (bias >= 0 ? '+' : '') + bias.toFixed(3) + '</text>';
+    return '<svg viewBox="0 0 ' + W + ' 64" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" ' +
+      'aria-label="true effect against the reported coefficient">' + g + '</svg>';
+  }
+
+  function pathList(paths, P) {
+    var rows = paths.slice().sort(function (a, b) { return (b.causal ? 1 : 0) - (a.causal ? 1 : 0); }).map(function (p) {
+      var s = pathString(p);
+      var open = p.open, kind = p.causal ? 'causal' : (p.backdoor ? 'backdoor' : 'non-causal');
+      var colour = p.causal ? (open ? P.acc : P.c1) : (open ? P.bad : P.mut);
+      var state = p.causal ? (open ? 'carrying the effect' : 'blocked, so this part of the effect is removed from the estimate')
+                           : (open ? 'OPEN, so it leaks into the estimate' : 'blocked');
+      if (!p.causal && open && p.opener) state = 'OPEN because you adjusted for ' + p.opener + ', a collider';
+      if (!p.causal && !open && p.blockedBy && p.blockedBy.kind === 'collider') state = 'blocked by the collider at ' + p.blockedBy.node;
+      if (!p.causal && !open && p.blockedBy && p.blockedBy.kind === 'adjusted') state = 'blocked by adjusting for ' + p.blockedBy.node;
+      return '<li style="margin:0 0 4px"><code style="font-family:IBM Plex Mono,monospace;font-size:12px;color:' + colour + '">' + s +
+        '</code> <span style="color:' + P.faint + ';font-size:11.5px">' + kind + ', ' + state + '</span></li>';
+    });
+    if (!rows.length) return '<div style="font:12px IBM Plex Sans,sans-serif;color:' + P.faint + '">No path connects X and Y at all.</div>';
+    return '<div style="font:600 11px IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:4px">Every route between X and Y</div>' +
+      '<ul style="list-style:none;margin:0;padding:0;font-family:IBM Plex Sans,sans-serif">' + rows.join('') + '</ul>';
+  }
+  function pathString(p) {
+    var s = p.path[0];
+    for (var i = 0; i < p.path.length - 1; i++) {
+      s += (p.dirs && p.dirs[i] ? '' : '');
+      s += p.forward[i] ? ' &rarr; ' : ' &larr; ';
+      s += p.path[i + 1];
+    }
+    return s;
+  }
+
+  function explain(paths, est, truth, crude, adj, sc, P) {
+    var openBack = paths.filter(function (p) { return !p.causal && p.open; });
+    var blockedCausal = paths.filter(function (p) { return p.causal && !p.open; });
+    var bias = est - truth;
+    if (!openBack.length && !blockedCausal.length) {
+      return 'Every non-causal route is blocked and every causal route is intact, so the coefficient on ' + sc.X +
+        ' is the effect you meant to estimate: <b style="color:' + P.acc + '">' + est.toFixed(3) + '</b> against a true ' + truth.toFixed(3) + '.';
+    }
+    var bits = [];
+    if (openBack.length) {
+      bits.push(openBack.length === 1 ? 'One non-causal route is still open (' + pathString(openBack[0]) + '), and it is carrying ' +
+                (bias >= 0 ? '+' : '') + bias.toFixed(3) + ' into the coefficient'
+              : openBack.length + ' non-causal routes are open, and together they move the coefficient by ' + (bias >= 0 ? '+' : '') + bias.toFixed(3));
+    }
+    if (blockedCausal.length) {
+      bits.push('a causal route is blocked by the adjustment, so the number on screen is a direct effect, not the total effect the question asked about');
+    }
+    var tail = '';
+    var latent = Object.keys(sc.nodes).filter(function (v) { return sc.nodes[v].latent; });
+    if (openBack.length && latent.length && openBack.some(function (p) { return p.path.indexOf(latent[0]) >= 0; })) {
+      tail = ' The open route runs through ' + latent[0] + ', which you did not measure, so nothing in this dataset closes it.';
+      if (adj.length && Math.abs(est - truth) < Math.abs(crude - truth) - 1e-6) {
+        tail += ' Adjusting for ' + adj.join(' and ') + ' pulled the bias from ' + (crude - truth).toFixed(3) + ' down to ' + bias.toFixed(3) +
+          ', which is the honest description of a proxy: partial control, not identification. The diagram still shows the path open, and it is.';
+      } else {
+        tail += ' That is a limitation to state, not a model to re-run.';
+      }
+    }
+    return bits.join(', and ') + '.' + tail;
+  }
+
+  /* ---------------- runnable R ----------------
+     Simulates the graph exactly as drawn: each node is its parents plus noise scaled so
+     every variable has variance one. lm() then lands on the widget's population number. */
+  function rcode(sc, on, adj, cov, truth, n) {
+    var lines = ['# The diagram as it stands, simulated. Every variable has variance 1.',
+                 'set.seed(3)', 'n <- ' + n, ''];
+    sc.order.forEach(function (v) {
+      var terms = [];
+      sc.edges.forEach(function (e, q) { if (on[q] && e.t === v && e.b) terms.push(e.b.toFixed(2) + ' * ' + e.f); });
+      var sd = Math.sqrt(cov.resid[cov.ix[v]]).toFixed(4);
+      var rhs = terms.length ? terms.join(' + ') + ' + rnorm(n, sd = ' + sd + ')' : 'rnorm(n)';
+      lines.push(v + ' <- ' + rhs + (sc.nodes[v].latent ? '        # unmeasured in real life' : ''));
+    });
+    lines.push('');
+    lines.push('true_effect <- ' + truth.toFixed(4) + '   # the sum over directed paths from ' + sc.X + ' to ' + sc.Y);
+    lines.push('');
+    lines.push('round(c(');
+    lines.push('  crude    = unname(coef(lm(' + sc.Y + ' ~ ' + sc.X + '))["' + sc.X + '"]),');
+    if (adj.length) {
+      lines.push('  adjusted = unname(coef(lm(' + sc.Y + ' ~ ' + [sc.X].concat(adj).join(' + ') + '))["' + sc.X + '"]),');
+    }
+    lines.push('  truth    = true_effect), 3)');
+    return lines.join('\n');
+  }
+
+  window.LessonWidgets.register('dag-editor', mount);
 })();
 
 ;
@@ -4699,6 +6434,269 @@
 })();
 
 ;
+/* multiplicity-sim.js */
+/* multiplicity-sim.js - the multiple-comparisons problem, simulated in front of the reader.
+ *
+ * Runs `nStudies` simulated studies in which NOTHING is real: every one of the k tests
+ * is run under a true null, so every significant result is by definition a false positive.
+ * The reader drags k and watches the share of studies with at least one p < alpha climb
+ * away from alpha and track the theoretical family-wise error rate 1 - (1 - alpha)^k.
+ * Switching the correction on collapses that share back to alpha.
+ *
+ * Why uniform draws are the honest model, not a shortcut: for a test with a continuous
+ * statistic, the p-value under a true null IS Uniform(0, 1). Drawing runif(k) and running
+ * k t-tests on pure noise are the same experiment; the uniform version just skips the
+ * arithmetic. The lesson proves this before the widget is used.
+ *
+ * The exact-threshold identity used for the curves: Bonferroni rejects something iff
+ * k * p_min < alpha, and Holm's first step is the same comparison, so under a global
+ * null the two procedures have IDENTICAL family-wise error. Both curves therefore come
+ * from one running minimum, which is exact, not an approximation. The per-test adjusted
+ * values shown for the representative study are computed with the real step-down
+ * procedure, where Holm and Bonferroni genuinely differ.
+ *
+ * cfg: {
+ *   kMax: 50,            // slider maximum (number of tests in the family)
+ *   kStart: 1,           // slider starting value
+ *   alpha: 0.05,         // per-test significance level
+ *   nStudies: 4000,      // simulated studies behind every plotted point
+ *   corrections: ["none","bonferroni","holm"],   // which buttons to offer
+ *   seed: 29,            // mulberry32 seed - same config always draws the same picture
+ *   study: 1             // which simulated study to show test-by-test (1-based)
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  var LABEL = { none: 'No correction', bonferroni: 'Bonferroni', holm: 'Holm' };
+  // White halo so a label stays legible where it crosses a plotted line.
+  var HALO = 'stroke="#fff" stroke-width="3" paint-order="stroke" stroke-linejoin="round"';
+
+  /* Real Benjamini-style step-down adjustment, used for the one study shown test by
+     test. Returns adjusted p-values in the ORIGINAL order. */
+  function adjust(p, method) {
+    var k = p.length, i;
+    if (method === 'none') return p.slice();
+    if (method === 'bonferroni') {
+      var b = [];
+      for (i = 0; i < k; i++) b.push(Math.min(1, k * p[i]));
+      return b;
+    }
+    // Holm: sort ascending, multiply the i-th smallest by (k - i), enforce monotonicity.
+    var order = p.map(function (v, ix) { return { v: v, ix: ix }; })
+                 .sort(function (a, b2) { return a.v - b2.v; });
+    var out = new Array(k), running = 0;
+    for (i = 0; i < k; i++) {
+      var val = Math.min(1, (k - i) * order[i].v);
+      running = Math.max(running, val);            // adjusted p-values never decrease
+      out[order[i].ix] = running;
+    }
+    return out;
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var kMax = Math.max(2, +cfg.kMax || 50);
+    var alpha = +cfg.alpha || 0.05;
+    var nStudies = Math.max(200, +cfg.nStudies || 4000);
+    var seed = (cfg.seed == null ? 29 : +cfg.seed);
+    var studyIx = Math.max(0, (+cfg.study || 1) - 1);
+    var modes = (cfg.corrections && cfg.corrections.length ? cfg.corrections : ['none', 'bonferroni', 'holm'])
+                  .filter(function (m) { return LABEL[m]; });
+    if (!modes.length) modes = ['none'];
+    var mode = modes[0];
+    var k = Math.min(kMax, Math.max(1, +cfg.kStart || 1));
+
+    /* ---- one deterministic pool of null p-values: nStudies rows, kMax columns ----
+       Growing k adds tests to the SAME studies, which is exactly what happens when a
+       researcher measures more outcomes on one dataset. */
+    var rnd = mulberry32(seed);
+    var pool = new Float64Array(nStudies * kMax);
+    for (var s = 0; s < nStudies; s++)
+      for (var j = 0; j < kMax; j++) pool[s * kMax + j] = rnd();
+
+    /* ---- family-wise error rate at every k, for every mode, computed once ----
+       runMin[s] is the smallest p-value study s has seen so far. */
+    var curves = { none: new Array(kMax), bonferroni: new Array(kMax), holm: new Array(kMax) };
+    var runMin = new Float64Array(nStudies);
+    for (var i = 0; i < nStudies; i++) runMin[i] = 1;
+    for (var kk = 1; kk <= kMax; kk++) {
+      var hitRaw = 0, hitAdj = 0, cut = alpha / kk;
+      for (var t = 0; t < nStudies; t++) {
+        var v = pool[t * kMax + (kk - 1)];
+        if (v < runMin[t]) runMin[t] = v;
+        if (runMin[t] < alpha) hitRaw++;
+        if (runMin[t] < cut) hitAdj++;
+      }
+      curves.none[kk - 1] = hitRaw / nStudies;
+      curves.bonferroni[kk - 1] = hitAdj / nStudies;
+      curves.holm[kk - 1] = hitAdj / nStudies;
+    }
+
+    /* ---- chrome ---- */
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      (modes.length > 1
+        ? '<div class="ms-seg" style="margin-bottom:12px">' +
+            u.seg(modes.map(function (m) { return { v: m, label: LABEL[m] }; }), mode) + '</div>'
+        : '') +
+      '<label class="ms-klab" style="display:block;font:600 12.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:5px"></label>' +
+      '<input class="ms-k" type="range" min="1" max="' + kMax + '" step="1" value="' + k + '" style="width:100%;max-width:460px;display:block;margin-bottom:12px">' +
+      '<div class="ms-plot"></div>' +
+      '<div class="ms-read" style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px"></div>' +
+      u.runnable(rcode(alpha), { label: 'The same simulation in R' });
+
+    var plot = el.querySelector('.ms-plot'),
+        read = el.querySelector('.ms-read'),
+        klab = el.querySelector('.ms-klab'),
+        slider = el.querySelector('.ms-k');
+
+    var W = 460, H = 322;
+    var m1 = { t: 18, r: 14, b: 30, l: 42 }, h1 = 150;          // top panel: FWER vs k
+    var m2 = { t: h1 + 78, r: 14, b: 26, l: 42 }, h2 = 54;      // bottom panel: one study
+
+    function sxK(kv) { return m1.l + (kv - 1) / Math.max(1, kMax - 1) * (W - m1.l - m1.r); }
+    function syR(r) { return m1.t + (1 - r) * h1; }
+    function sxP(pv) { return m2.l + pv * (W - m2.l - m2.r); }
+
+    function fmtPct(x) { return (100 * x).toFixed(1) + '%'; }
+
+    function draw() {
+      var rate = curves[mode][k - 1];
+      var theory = 1 - Math.pow(1 - alpha, k);
+      var thresh = (mode === 'none') ? alpha : alpha / k;
+
+      /* --- top panel: the curve --- */
+      var g = '';
+      // gridlines + y labels
+      [0, 0.25, 0.5, 0.75, 1].forEach(function (r) {
+        g += '<line x1="' + m1.l + '" y1="' + syR(r).toFixed(1) + '" x2="' + (W - m1.r) + '" y2="' + syR(r).toFixed(1) +
+             '" stroke="' + P.line2 + '"/>' +
+             '<text x="' + (m1.l - 6) + '" y="' + (syR(r) + 3).toFixed(1) + '" text-anchor="end" ' +
+             'font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + (100 * r) + '%</text>';
+      });
+      // alpha reference (labelled on the LEFT so it never collides with the k marker)
+      g += '<line x1="' + m1.l + '" y1="' + syR(alpha).toFixed(1) + '" x2="' + (W - m1.r) + '" y2="' + syR(alpha).toFixed(1) +
+           '" stroke="' + P.acc + '" stroke-width="1" stroke-dasharray="3 3"/>' +
+           '<text x="' + (m1.l + 4) + '" y="' + (syR(alpha) - 5).toFixed(1) + '" ' +
+           'font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.acc + '" ' + HALO + '>alpha = ' + alpha + '</text>';
+      // theoretical uncorrected curve (always shown, so the correction is measured against it)
+      var th = [];
+      for (var a = 1; a <= kMax; a++) th.push(sxK(a).toFixed(1) + ',' + syR(1 - Math.pow(1 - alpha, a)).toFixed(1));
+      g += '<polyline points="' + th.join(' ') + '" fill="none" stroke="' + P.faint + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+      // simulated curve for the current mode
+      var sim = [];
+      for (var b2 = 1; b2 <= kMax; b2++) sim.push(sxK(b2).toFixed(1) + ',' + syR(curves[mode][b2 - 1]).toFixed(1));
+      g += '<polyline points="' + sim.join(' ') + '" fill="none" stroke="' + (mode === 'none' ? P.bad : P.c0) + '" stroke-width="2.5"/>';
+      // marker at the current k
+      g += '<line x1="' + sxK(k).toFixed(1) + '" y1="' + m1.t + '" x2="' + sxK(k).toFixed(1) + '" y2="' + (m1.t + h1) +
+           '" stroke="' + P.line + '" stroke-dasharray="2 3"/>' +
+           '<circle cx="' + sxK(k).toFixed(1) + '" cy="' + syR(rate).toFixed(1) + '" r="5" fill="' + (mode === 'none' ? P.bad : P.c0) + '"/>';
+      // Label on whichever side of the marker has room, above the dot unless it is near the top.
+      var lateK = k > kMax * 0.62;
+      g += '<text x="' + (lateK ? sxK(k) - 9 : sxK(k) + 9).toFixed(1) + '" y="' + Math.max(m1.t + 11, syR(rate) - 10).toFixed(1) + '" ' +
+           'text-anchor="' + (lateK ? 'end' : 'start') + '" font-family="IBM Plex Mono,monospace" font-size="12" ' +
+           'font-weight="700" fill="' + (mode === 'none' ? P.bad : P.c0) + '" ' + HALO + '>' + fmtPct(rate) + '</text>';
+      // axes
+      g += '<line x1="' + m1.l + '" y1="' + (m1.t + h1) + '" x2="' + (W - m1.r) + '" y2="' + (m1.t + h1) + '" stroke="' + P.line + '" stroke-width="1.5"/>';
+      [1, Math.round(kMax / 2), kMax].forEach(function (kv) {
+        g += '<text x="' + sxK(kv).toFixed(1) + '" y="' + (m1.t + h1 + 14) + '" text-anchor="middle" ' +
+             'font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + kv + '</text>';
+      });
+      g += '<text x="' + ((m1.l + W - m1.r) / 2) + '" y="' + (m1.t + h1 + 26) + '" text-anchor="middle" ' +
+           'font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">k, number of tests in the family</text>';
+      g += '<text x="' + m1.l + '" y="' + (m1.t - 6) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink +
+           '">Studies with at least one false positive</text>';
+
+      /* --- bottom panel: one study, test by test --- */
+      var raw = [], ix;
+      for (ix = 0; ix < k; ix++) raw.push(pool[studyIx * kMax + ix]);
+      var adj = adjust(raw, mode);
+      var nHit = 0;
+      for (ix = 0; ix < k; ix++) if (adj[ix] < alpha) nHit++;
+
+      g += '<text x="' + m2.l + '" y="' + (m2.t - 12) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink +
+           '">One of those studies: its ' + k + ' p-value' + (k === 1 ? '' : 's') + '</text>';
+      // the region that counts as significant
+      g += '<rect x="' + m2.l + '" y="' + m2.t + '" width="' + Math.max(0.6, sxP(thresh) - m2.l).toFixed(2) + '" height="' + h2 +
+           '" fill="' + P.del + '"/>' +
+           '<line x1="' + sxP(thresh).toFixed(2) + '" y1="' + m2.t + '" x2="' + sxP(thresh).toFixed(2) + '" y2="' + (m2.t + h2) +
+           '" stroke="' + P.bad + '" stroke-width="1.5"/>';
+      // one tick per test, at its raw p-value
+      for (ix = 0; ix < k; ix++) {
+        var hit = adj[ix] < alpha;
+        g += '<line x1="' + sxP(raw[ix]).toFixed(2) + '" y1="' + (m2.t + 6) + '" x2="' + sxP(raw[ix]).toFixed(2) + '" y2="' + (m2.t + h2 - 6) +
+             '" stroke="' + (hit ? P.bad : P.mut) + '" stroke-width="' + (hit ? 2.5 : 1.2) + '" stroke-opacity="' + (hit ? 1 : 0.55) + '"/>';
+      }
+      g += '<line x1="' + m2.l + '" y1="' + (m2.t + h2) + '" x2="' + (W - m2.r) + '" y2="' + (m2.t + h2) + '" stroke="' + P.line + '" stroke-width="1.5"/>';
+      [0, 0.25, 0.5, 0.75, 1].forEach(function (pv) {
+        g += '<text x="' + sxP(pv).toFixed(1) + '" y="' + (m2.t + h2 + 14) + '" text-anchor="middle" ' +
+             'font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + pv + '</text>';
+      });
+      g += '<text x="' + (W - m2.r) + '" y="' + (m2.t - 12) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" ' +
+           'font-size="10" fill="' + (nHit ? P.bad : P.mut) + '">' + nHit + ' called significant</text>';
+
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+        'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Family-wise false positive rate against the number of tests, with one study shown test by test">' +
+        g + '</svg>';
+
+      klab.innerHTML = 'k = <b style="color:' + P.ink + '">' + k + '</b> test' + (k === 1 ? '' : 's') + ' in the family';
+
+      var thTxt = '1 &minus; (1 &minus; ' + alpha + ')<sup>' + k + '</sup> = <b>' + fmtPct(theory) + '</b>';
+      if (mode === 'none') {
+        read.innerHTML = 'Across <b>' + nStudies.toLocaleString() + '</b> simulated studies with no real effect anywhere, ' +
+          '<b style="color:' + P.bad + '">' + fmtPct(rate) + '</b> produced at least one p-value below ' + alpha +
+          '. Every one of those is a false positive. The formula predicts ' + thTxt + '.' +
+          (k === 1 ? ' With a single test the rate is just alpha, which is the risk you agreed to.' : '');
+      } else {
+        read.innerHTML = LABEL[mode] + ' judges each test against <b>' + alpha + ' / ' + k + ' = ' +
+          (alpha / k).toPrecision(2) + '</b> instead of ' + alpha + '. That drops the share of studies with any false positive to ' +
+          '<b style="color:' + P.c0 + '">' + fmtPct(rate) + '</b>, back at alpha, while the uncorrected rate (dashed) sits at ' + fmtPct(theory) + '. ' +
+          'Holm and Bonferroni give the SAME number here: when nothing is real, both reject something only if the smallest p-value clears alpha / k.';
+      }
+    }
+
+    if (modes.length > 1) u.wireSeg(el.querySelector('.ms-seg'), function (v) { mode = v; draw(); });
+    slider.addEventListener('input', function () { k = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode(alpha) {
+    return [
+      '# Run many studies in which NOTHING is real, and count how often at least one',
+      '# of the k tests comes back "significant". Change k and run it again.',
+      'set.seed(11)',
+      'alpha <- ' + alpha,
+      'k     <- 14        # tests in the family',
+      'sims  <- 4000      # simulated studies',
+      '',
+      '# Under a true null a p-value is Uniform(0, 1), so runif(k) IS k null tests.',
+      'any_hit <- function(k) {',
+      '  p <- runif(k)',
+      '  c(none = min(p) < alpha,',
+      '    bonferroni = min(p.adjust(p, method = "bonferroni")) < alpha,',
+      '    holm       = min(p.adjust(p, method = "holm")) < alpha)',
+      '}',
+      '',
+      'round(colMeans(t(replicate(sims, any_hit(k)))), 3)',
+      'round(1 - (1 - alpha)^k, 3)   # what the formula predicts for the uncorrected case'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('multiplicity-sim', mount);
+})();
+
+;
 /* nest-unnest.js */
 /* nest-unnest.js - foundations/iteration: a list-column packs a whole table into a
  * single cell. Toggle between the flat data frame and its nested form (one row per
@@ -5849,6 +7847,701 @@
 })();
 
 ;
+/* report-four-ways.js */
+/* report-four-ways.js - one result, four write-ups, and the reveal that they are one result.
+ *
+ * Serves the effect-size, confidence-interval, trend, model-fit and missing-data reporting
+ * objections in The Publishing Handbook.
+ *
+ * Stage one: four sentences are shown. The reader picks the one that reads as the
+ * strongest evidence. Stage two: the reveal. All four describe the same analysis of the
+ * same data, and nothing about the evidence changed between them. What changed is how much
+ * of it the reader was allowed to see.
+ *
+ * Stage three, which is the part that makes this worth doing rather than a trick: a second
+ * study is added whose p-value rounds to exactly the same number. Under bare-p reporting
+ * the two studies are indistinguishable. Under full reporting they are opposites. One is
+ * precise and clinically uninteresting; the other could be anything from nothing to
+ * enormous. The p-value cannot tell them apart, and it never could.
+ *
+ * Every number is computed from the study description with a real t distribution, not
+ * typed in: the interval, the t statistic, the p-value and Cohen's d all come from the
+ * same means, standard deviation and sample sizes, so they cannot silently disagree. The
+ * emitted R rebuilds vectors with exactly those means and standard deviations and runs
+ * t.test on them, so it prints the same numbers.
+ *
+ * cfg: {
+ *   studies: [{                     // two by default; more are allowed
+ *     label: "Trial A",
+ *     outcome: "depression score",  // named in every sentence
+ *     unit: "points",
+ *     n1: 600, n2: 600,             // group sizes
+ *     m1: 0, m2: 0.9,               // group means (m2 - m1 is the reported difference)
+ *     sd: 7.5,                      // common within-group standard deviation
+ *     mcid: 3                       // smallest difference that matters clinically (0 hides this)
+ *   }],
+ *   start: 0,                       // which study is shown first
+ *   alpha: 0.05
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', c1: '#b5631a',
+    bad: '#c2410c', panel: '#ffffff', soft: '#f6f8fa', pick: '#e7f3ec'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', c1: '#e3a05a', bad: '#f4805a', panel: '#101c2b',
+    soft: 'rgba(255,255,255,.05)', pick: 'rgba(70,192,138,.16)'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try { var v = getComputedStyle(el).getPropertyValue('--lm-panel'); if (v && v.trim()) return lumOf(v) < 0.45; } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  /* ---- Student t, so every number on a card comes from the same arithmetic ---- */
+  function lgamma(x) {
+    var c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, t = x + 5.5, s = 1.000000000190015;
+    t -= (x + 0.5) * Math.log(t);
+    for (var j = 0; j < 6; j++) s += c[j] / ++y;
+    return -t + Math.log(2.5066282746310005 * s / x);
+  }
+  function betacf(a, b, x) {
+    var FPMIN = 1e-300, qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d; var h = d;
+    for (var mi = 1; mi <= 300; mi++) {
+      var m2 = 2 * mi, aa = mi * (b - mi) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + mi) * (qab + mi) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; var del = d * c; h *= del;
+      if (Math.abs(del - 1) < 3e-12) break;
+    }
+    return h;
+  }
+  function ibeta(a, b, x) {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+    return (x < (a + 1) / (a + b + 2)) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function pt2(t, df) { return ibeta(df / 2, 0.5, df / (df + t * t)); }
+  function qt(p, df) {
+    var lo = 0, hi = 200, i;
+    for (i = 0; i < 160; i++) { var mid = (lo + hi) / 2; if (1 - pt2(mid, df) / 2 < p) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  }
+
+  var DEFAULT_STUDIES = [
+    { label: 'Trial A', outcome: 'depression score', unit: 'points',
+      n1: 600, n2: 600, m1: 0, m2: 0.9, sd: 7.5, mcid: 3 },
+    { label: 'Trial B', outcome: 'depression score', unit: 'points',
+      n1: 22, n2: 22, m1: 0, m2: 6.4, sd: 9.8, mcid: 3 }
+  ];
+
+  function analyse(s, alpha) {
+    var df = s.n1 + s.n2 - 2;
+    var se = s.sd * Math.sqrt(1 / s.n1 + 1 / s.n2);
+    var diff = s.m2 - s.m1, t = diff / se, p = pt2(Math.abs(t), df), tc = qt(1 - alpha / 2, df);
+    return { diff: diff, se: se, t: t, df: df, p: p, lo: diff - tc * se, hi: diff + tc * se,
+             d: diff / s.sd, sd: s.sd, n1: s.n1, n2: s.n2 };
+  }
+  function fmtP(p) { return p < 0.001 ? 'p < 0.001' : 'p = ' + p.toFixed(2); }
+  function fmtPx(p) { return p < 0.001 ? 'p < 0.001' : 'p = ' + p.toFixed(3); }
+
+  /* the four write-ups of one result */
+  function renders(s, a) {
+    var un = s.unit;
+    return [
+      { key: 'bare', name: 'Bare p-value',
+        text: 'The treatment group improved significantly (' + fmtP(a.p) + ').',
+        shows: [0, 0, 0] },
+      { key: 'peff', name: 'p plus an effect size',
+        text: 'The treatment group improved significantly (Cohen\'s d = ' + a.d.toFixed(2) + ', ' + fmtP(a.p) + ').',
+        shows: [1, 0, 0] },
+      { key: 'ci', name: 'Interval, no p-value',
+        text: 'The groups differed by ' + a.diff.toFixed(2) + ' ' + un + ' (95% CI ' + a.lo.toFixed(2) + ' to ' + a.hi.toFixed(2) + ').',
+        shows: [1, 1, 0] },
+      { key: 'full', name: 'The whole result',
+        text: 'Mean difference ' + a.diff.toFixed(2) + ' ' + un + ' (95% CI ' + a.lo.toFixed(2) + ' to ' + a.hi.toFixed(2) + '), ' +
+              't(' + a.df + ') = ' + a.t.toFixed(2) + ', ' + fmtPx(a.p) + ', d = ' + a.d.toFixed(2) + ', n = ' + a.n1 + ' and ' + a.n2 + '. ' +
+              (s.mcid ? 'The smallest change patients notice is about ' + s.mcid + ' ' + un + ', ' +
+                 (a.hi < s.mcid ? 'and the whole interval falls below that.'
+                                : 'and the interval runs from below that to well above it.') : ''),
+        shows: [1, 1, 1] }
+    ];
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var studies = (cfg.studies && cfg.studies.length ? cfg.studies : DEFAULT_STUDIES);
+    var alpha = +cfg.alpha || 0.05;
+    var cur = Math.max(0, Math.min(studies.length - 1, +cfg.start || 0));
+    var picked = null, revealed = false;
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      '<div class="rf-q" style="font:600 13.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.ink + ';margin-bottom:4px"></div>' +
+      '<div class="rf-sub" style="font:12px/1.5 IBM Plex Sans,sans-serif;color:' + P.faint + ';margin-bottom:11px"></div>' +
+      '<div class="rf-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:9px"></div>' +
+      '<div class="rf-reveal" style="margin-top:13px"></div>' +
+      '<div class="rf-r" style="margin-top:13px"></div>';
+
+    var q = el.querySelector('.rf-q'), sub = el.querySelector('.rf-sub'),
+        cards = el.querySelector('.rf-cards'), reveal = el.querySelector('.rf-reveal'),
+        rbox = el.querySelector('.rf-r');
+
+    cards.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-k]') : null;
+      if (!b || !cards.contains(b)) return;
+      picked = b.getAttribute('data-k'); revealed = true; render();
+    });
+
+    function render() {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      var s = studies[cur], a = analyse(s, alpha), rs = renders(s, a);
+
+      q.textContent = revealed ? 'The same analysis, written four ways'
+                               : 'Which of these reads as the strongest evidence?';
+      q.style.color = P.ink;
+      sub.textContent = revealed ? s.label + ': ' + s.n1 + ' and ' + s.n2 + ' participants, outcome measured in ' + s.unit + '.'
+                                 : 'Four sentences from four different papers reporting a trial of the same drug. Pick one.';
+      sub.style.color = P.faint;
+
+      cards.innerHTML = rs.map(function (r) {
+        var on = revealed && picked === r.key;
+        return '<button type="button" data-k="' + r.key + '"' + (revealed ? ' disabled' : '') +
+          ' style="text-align:left;font:inherit;cursor:' + (revealed ? 'default' : 'pointer') +
+          ';border:1.5px solid ' + (on ? P.acc : P.line) + ';background:' + (on ? P.pick : P.soft) +
+          ';border-radius:10px;padding:11px 12px;display:block;width:100%">' +
+          (revealed ? '<div style="font:600 10px IBM Plex Sans,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:' +
+             (on ? P.acc : P.faint) + ';margin-bottom:5px">' + u.esc(r.name) + (on ? ' &middot; you picked this' : '') + '</div>' : '') +
+          '<div style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + '">' + r.text + '</div>' +
+          '</button>';
+      }).join('');
+
+      reveal.innerHTML = revealed ? revealPanel(studies, cur, alpha, picked, P) : '';
+      rbox.innerHTML = revealed ? u.runnable(rcode(studies, alpha), { label: 'Reproduce every number in R' }) : '';
+
+      var segEl = reveal.querySelector('.rf-seg');
+      if (segEl) u.wireSeg(segEl, function (v) { cur = +v; render(); });
+    }
+
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el); if (now !== wasDark) { wasDark = now; render(); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render();
+  }
+
+  /* ---------------- the reveal ---------------- */
+  var CHECKS = ['How big is it?', 'How precise is it?', 'Does it matter?'];
+
+  function revealPanel(studies, cur, alpha, picked, P) {
+    var s = studies[cur], a = analyse(s, alpha), rs = renders(s, a);
+    var h = '<div style="border-top:1px solid ' + P.line + ';padding-top:12px">';
+    h += '<div style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + '">' +
+      'All four sentences describe the same analysis of the same data. The difference is ' +
+      '<b>' + a.diff.toFixed(2) + ' ' + s.unit + '</b>, the interval runs <b>' + a.lo.toFixed(2) + ' to ' + a.hi.toFixed(2) +
+      '</b>, and <b>' + fmtPx(a.p) + '</b>. Not one number moved between the cards. What moved is how much of the result you were allowed to see.' +
+      '</div>';
+
+    /* what each rendering lets a reader answer */
+    h += '<table style="border-collapse:collapse;width:100%;margin-top:11px;font-family:IBM Plex Sans,sans-serif;font-size:11.5px">' +
+      '<thead><tr><th style="text-align:left;padding:5px 8px;color:' + P.mut + ';font-weight:600;border-bottom:1px solid ' + P.line + '">Rendering</th>' +
+      CHECKS.map(function (c) { return '<th style="padding:5px 8px;color:' + P.mut + ';font-weight:600;border-bottom:1px solid ' + P.line + '">' + u.esc(c) + '</th>'; }).join('') +
+      '</tr></thead><tbody>';
+    rs.forEach(function (r) {
+      h += '<tr><td style="padding:5px 8px;color:' + (r.key === picked ? P.acc : P.ink) + ';border-bottom:1px solid ' + P.grid + '">' +
+        u.esc(r.name) + (r.key === picked ? ' (your pick)' : '') + '</td>' +
+        r.shows.map(function (v) {
+          return '<td style="text-align:center;padding:5px 8px;border-bottom:1px solid ' + P.grid + ';color:' + (v ? P.acc : P.bad) +
+            ';font-family:IBM Plex Mono,monospace">' + (v ? 'yes' : 'no') + '</td>';
+        }).join('') + '</tr>';
+    });
+    h += '</tbody></table>';
+
+    /* the two studies, side by side */
+    if (studies.length > 1) {
+      h += '<div style="margin-top:15px;font:600 12.5px IBM Plex Sans,sans-serif;color:' + P.ink + '">Now a second trial with the same p-value</div>' +
+        '<div class="rf-seg" style="margin:8px 0 10px">' +
+        u.seg(studies.map(function (st, i) { return { v: i, label: st.label }; }), cur) + '</div>' +
+        compare(studies, alpha, P);
+    }
+    return h + '</div>';
+  }
+
+  function compare(studies, alpha, P) {
+    var as = studies.map(function (s) { return analyse(s, alpha); });
+    var rows = [
+      ['Reported as a bare p-value', as.map(function (a) { return fmtP(a.p); })],
+      ['Difference', as.map(function (a, i) { return a.diff.toFixed(2) + ' ' + studies[i].unit; })],
+      ['95% interval', as.map(function (a) { return a.lo.toFixed(2) + ' to ' + a.hi.toFixed(2); })],
+      ['Cohen\'s d', as.map(function (a) { return a.d.toFixed(2); })],
+      ['Group sizes', as.map(function (a) { return a.n1 + ' and ' + a.n2; })]
+    ];
+    var h = '<table style="border-collapse:collapse;width:100%;font-family:IBM Plex Sans,sans-serif;font-size:12px"><thead><tr>' +
+      '<th style="text-align:left;padding:5px 8px;border-bottom:1px solid ' + P.line + ';color:' + P.mut + ';font-weight:600"></th>' +
+      studies.map(function (s) { return '<th style="text-align:right;padding:5px 8px;border-bottom:1px solid ' + P.line + ';color:' + P.mut + ';font-weight:600">' + u.esc(s.label) + '</th>'; }).join('') +
+      '</tr></thead><tbody>';
+    rows.forEach(function (r, ri) {
+      var same = r[1].every(function (v) { return v === r[1][0]; });
+      h += '<tr><td style="padding:5px 8px;border-bottom:1px solid ' + P.grid + ';color:' + P.body + '">' + u.esc(r[0]) +
+        (ri === 0 && same ? ' <span style="color:' + P.bad + ';font-weight:600">identical</span>' : '') + '</td>' +
+        r[1].map(function (v) {
+          return '<td style="text-align:right;padding:5px 8px;border-bottom:1px solid ' + P.grid + ';color:' + (same ? P.bad : P.ink) +
+            ';font-family:IBM Plex Mono,monospace">' + u.esc(v) + '</td>';
+        }).join('') + '</tr>';
+    });
+    h += '</tbody></table>';
+    var a0 = as[0], a1 = as[1], m = studies[0].mcid;
+    h += '<div style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin-top:9px">' +
+      'Rounded to two places both trials report the same p-value, so a reader given only that number cannot tell them apart. ' +
+      'They are not remotely alike. ' + studies[0].label + ' is precise and small: the whole interval sits ' +
+      (m && a0.hi < m ? 'below the ' + m + '-' + studies[0].unit.replace(/s$/, '') + ' change patients can notice, which is a real finding and a negative one'
+                      : 'in a narrow range') + '. ' +
+      studies[1].label + ' is compatible with almost nothing (' + a1.lo.toFixed(2) + ') and with a very large effect (' + a1.hi.toFixed(2) +
+      '), so it settles nothing at all. The p-value cannot tell you which of those two situations you are in, and it never could.</div>';
+    return h;
+  }
+
+  /* ---------------- runnable R ----------------
+     scale() forces exact means and standard deviations, so t.test reproduces the widget's
+     numbers to the last digit rather than approximately. */
+  function rcode(studies, alpha) {
+    var L = ['# Both trials, rebuilt with exactly the means and spreads on screen.',
+             'set.seed(1)', ''];
+    L.push('make <- function(n, m, s) m + s * as.numeric(scale(rnorm(n)))');
+    L.push('');
+    L.push('report <- function(x, y, label) {');
+    L.push('  tt <- t.test(x, y, var.equal = TRUE)');
+    L.push('  sp <- sqrt(((length(x) - 1) * var(x) + (length(y) - 1) * var(y)) /');
+    L.push('             (length(x) + length(y) - 2))');
+    L.push('  cat(label, ": diff", round(unname(diff(rev(tt$estimate))), 2),');
+    L.push('      " CI", round(tt$conf.int[1], 2), "to", round(tt$conf.int[2], 2),');
+    L.push('      " t", round(unname(tt$statistic), 2), " p", round(tt$p.value, 3),');
+    L.push('      " d", round(unname(diff(rev(tt$estimate))) / sp, 2), "\\n")');
+    L.push('}');
+    L.push('');
+    studies.forEach(function (s, i) {
+      L.push('a' + i + ' <- make(' + s.n1 + ', ' + s.m1 + ', ' + s.sd + ')   # control');
+      L.push('b' + i + ' <- make(' + s.n2 + ', ' + s.m2 + ', ' + s.sd + ')   # treated');
+      L.push('report(b' + i + ', a' + i + ', "' + s.label + '")');
+    });
+    return L.join('\n');
+  }
+
+  window.LessonWidgets.register('report-four-ways', mount);
+})();
+
+;
+/* repro-repair.js */
+/* repro-repair.js - a broken analysis script, repaired one fault at a time, until it runs
+ * twice from a clean session and gives the same answer both times.
+ *
+ * Serves the reproducibility objection in The Publishing Handbook and the sharing chapters
+ * in Part 10. The reader is not asked to agree that hidden state is bad. They are handed a
+ * script that works on the author's machine and nowhere else, and they have to make it run.
+ *
+ * THE MECHANIC. Four faults are planted, each on a specific line:
+ *
+ *   1. hidden state     the script uses an object that only exists because it was typed
+ *                       into the console earlier and never saved
+ *   2. absolute path    a file path that exists on exactly one laptop
+ *   3. unset seed       a random step with no seed, so the numbers change between runs
+ *   4. load order       a function is called before the package that defines it is loaded,
+ *                       and a later package masks it
+ *
+ * Click a flagged line to see the fault and apply its repair. Then press Run. The run is a
+ * simulation of a FRESH session, which is the whole point: the script has no memory of what
+ * you did before, so a fault that a warm session hides shows up immediately.
+ *
+ * The seed fault is the interesting one and it is why the checker runs the script TWICE.
+ * With no seed the script runs perfectly the first time and prints a different number the
+ * second time. "It ran" is not "it reproduces", and this is the cheapest way to feel that.
+ *
+ * The emitted R is the repaired script, and it really runs: it builds its own data instead
+ * of reading a path, sets a seed, loads what it uses at the top, and prints a number that
+ * is the same on every machine. Verified against R 4.6.0.
+ *
+ * cfg: {
+ *   faults: ["state","path","seed","order"],   // which faults to plant (default: all four)
+ *   seed: 12345                                // the seed the repaired script uses
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', c1: '#b5631a',
+    bad: '#c2410c', panel: '#ffffff', soft: '#f6f8fa',
+    add: '#e7f3ec', del: '#fbeae5', codeBg: '#0d1117', codeFg: '#e6edf3'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', c1: '#e3a05a', bad: '#f4805a', panel: '#101c2b', soft: 'rgba(255,255,255,.05)',
+    add: 'rgba(70,192,138,.18)', del: 'rgba(244,128,90,.18)', codeBg: '#0a0f16', codeFg: '#e6edf3'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try { var v = getComputedStyle(el).getPropertyValue('--lm-panel'); if (v && v.trim()) return lumOf(v) < 0.45; } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  /* ---------------- the script, line by line ----------------
+     `fault` marks a line as breakable; `broken` is what it says before the repair and
+     `fixed` is what it says after. Lines with no fault never change. */
+  function script(seed) {
+    return [
+      { t: '# analysis.R  -  effect of the programme on follow-up score' },
+      { t: 'library(dplyr)' },
+      { fault: 'order', broken: '', fixed: 'library(MASS)          # every package attached at the top, where you can see them' },
+      { t: '' },
+      { fault: 'path',
+        broken: 'raw   <- read.csv("C:/Users/sam/Desktop/final_v3 (2).csv")',
+        fixed: 'raw   <- read.csv("data/trial.csv")     # a path inside the project folder' },
+      { fault: 'state',
+        broken: 'trial <- cleaned %>% filter(!is.na(score))   # where does `cleaned` come from?',
+        fixed: 'trial <- raw %>% filter(!is.na(score))' },
+      { t: '' },
+      { fault: 'order', broken: 'library(MASS)          # attached halfway down, after dplyr', fixed: '' },
+      { fault: 'order',
+        broken: 'keep  <- select(trial, id, arm, score)      # whose select() is this now?',
+        fixed: 'keep  <- dplyr::select(trial, id, arm, score)' },
+      { t: '' },
+      { fault: 'seed', broken: '', fixed: 'set.seed(' + seed + ')       # the bootstrap is now repeatable' },
+      { t: 'boot  <- replicate(2000, {' },
+      { t: '  i <- sample(nrow(keep), replace = TRUE)' },
+      { t: '  diff(tapply(keep$score[i], keep$arm[i], mean))' },
+      { t: '})' },
+      { t: '' },
+      { t: 'cat("effect", round(mean(boot), 3),' },
+      { t: '    "  95% CI", round(quantile(boot, c(.025, .975)), 3), "\\n")' }
+    ];
+  }
+
+  var FAULTS = {
+    state: {
+      name: 'Hidden state',
+      why: 'The script asks for an object called `cleaned`. Nothing in the script creates it. It exists on the author\'s machine because it was typed into the console weeks ago and never written down.',
+      err: 'Error in filter(., !is.na(score)) : object \'cleaned\' not found',
+      fix: 'Build every object the script needs inside the script.'
+    },
+    path: {
+      name: 'Absolute path',
+      why: 'That path names one folder on one laptop. A co-author, a reviewer, a server and your own next machine all fail on the same line.',
+      err: 'Error in file(file, "rt") : cannot open file \'C:/Users/sam/Desktop/final_v3 (2).csv\': No such file or directory',
+      fix: 'Use a path relative to the project folder, and ship the folder.'
+    },
+    seed: {
+      name: 'No seed',
+      why: 'The bootstrap draws random samples. With no seed, R starts from a different place every session, so the interval you publish is not the interval anyone else gets.',
+      err: 'Ran without error, and produced a DIFFERENT answer than the run before it.',
+      fix: 'Set a seed before anything random, and state it in the paper.'
+    },
+    order: {
+      name: 'Load order',
+      why: 'MASS and dplyr both export a function called `select`, and they are not the same function. Whichever package was attached last wins. Here MASS is attached halfway down the file, so the same `select()` call means one thing above that line and another below it, and it also depends on what was already attached in the session.',
+      err: 'Error in select(trial, id, arm, score) : unused arguments (id, arm, score)',
+      fix: 'Attach every package at the top, and write dplyr::select when the name is contested.'
+    }
+  };
+  var ORDER = ['state', 'path', 'seed', 'order'];
+
+  var CHECKS = [
+    { key: 'state', label: 'Runs in a session that knows nothing' },
+    { key: 'path', label: 'Finds its data on another machine' },
+    { key: 'order', label: 'Calls the function it means to call' },
+    { key: 'seed', label: 'Gives the same answer twice' }
+  ];
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var want = (cfg.faults && cfg.faults.length ? cfg.faults : ORDER).filter(function (f) { return FAULTS[f]; });
+    if (!want.length) want = ORDER.slice();
+    var seed = (cfg.seed == null ? 12345 : +cfg.seed);
+    var lines = script(seed);
+    var repaired = {}, open = null, runs = [];
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      '<div class="rp-head" style="font:600 12.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:3px">' +
+        'analysis.R, exactly as it was sent to the journal</div>' +
+      '<div class="rp-hint" style="font:11.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.faint + ';margin-bottom:9px">' +
+        'Flagged lines are the faults. Click one to read it and apply the repair.</div>' +
+      '<div class="rp-code" style="overflow-x:auto"></div>' +
+      '<div class="rp-panel" style="margin-top:10px"></div>' +
+      '<div class="rp-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
+        '<button type="button" class="rp-run" style="font:600 12.5px IBM Plex Sans,sans-serif;color:#fff;background:' + P.acc +
+          ';border:0;border-radius:8px;padding:8px 15px;cursor:pointer">Run twice from a clean session</button>' +
+        '<button type="button" class="rp-reset" style="font:600 12.5px IBM Plex Sans,sans-serif;color:' + P.mut +
+          ';background:none;border:1px solid ' + P.line + ';border-radius:8px;padding:8px 14px;cursor:pointer">Start over</button>' +
+      '</div>' +
+      '<div class="rp-log" style="margin-top:11px"></div>' +
+      '<div class="rp-checks" style="margin-top:11px"></div>' +
+      '<div class="rp-r" style="margin-top:13px"></div>';
+
+    var codeBox = el.querySelector('.rp-code'), panel = el.querySelector('.rp-panel'),
+        log = el.querySelector('.rp-log'), checks = el.querySelector('.rp-checks'),
+        rbox = el.querySelector('.rp-r'), runBtn = el.querySelector('.rp-run'),
+        resetBtn = el.querySelector('.rp-reset');
+
+    codeBox.addEventListener('click', function (ev) {
+      var row = ev.target.closest ? ev.target.closest('[data-f]') : null;
+      if (!row || !codeBox.contains(row)) return;
+      var f = row.getAttribute('data-f');
+      open = (open === f) ? null : f;
+      render();
+    });
+    panel.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-fix]') : null;
+      if (!b || !panel.contains(b)) return;
+      repaired[b.getAttribute('data-fix')] = true;
+      open = null; runs = [];
+      render();
+    });
+    runBtn.addEventListener('click', function () { runs = simulate(want, repaired, seed); render(); });
+    resetBtn.addEventListener('click', function () { repaired = {}; open = null; runs = []; render(); });
+
+    function render() {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      codeBox.innerHTML = codeView(lines, want, repaired, open, P);
+      panel.innerHTML = open ? faultPanel(open, repaired, P) : '';
+      log.innerHTML = runs.length ? logView(runs, P) : '';
+      checks.innerHTML = checkList(want, repaired, runs, P);
+      rbox.innerHTML = u.runnable(rcode(seed), { label: 'The repaired script, start to finish' });
+      runBtn.style.background = P.acc;
+      resetBtn.style.color = P.mut; resetBtn.style.borderColor = P.line;
+    }
+
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el); if (now !== wasDark) { wasDark = now; render(); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render();
+  }
+
+  /* ---------------- the script view, diff coloured ---------------- */
+  function codeView(lines, want, repaired, open, P) {
+    var h = '<div style="background:' + P.codeBg + ';border-radius:9px;padding:10px 0;font-family:IBM Plex Mono,monospace;font-size:12.5px;line-height:1.62;min-width:430px">';
+    var num = 0, shown = {};
+    lines.forEach(function (L) {
+      var f = L.fault, active = f && want.indexOf(f) >= 0, done = active && repaired[f];
+      var text, bg = 'transparent', mark = ' ';
+      if (!active) { text = L.t != null ? L.t : (L.fixed || L.broken); }
+      else if (done) {
+        if (!L.fixed) return;                               // a line the repair deletes
+        text = L.fixed; bg = P.add; mark = '+';
+      } else {
+        if (!L.broken) return;                              // a line the repair ADDS is not there yet
+        text = L.broken; bg = P.del; mark = '-';
+      }
+      num++;
+      if (active) shown[f] = true;
+      var isOpen = active && open === f;
+      h += '<div' + (active ? ' data-f="' + f + '" tabindex="0" role="button" style="cursor:pointer;' : ' style="') +
+        'display:flex;gap:10px;padding:1px 12px;background:' + (isOpen ? 'rgba(255,255,255,.10)' : bg) + '">' +
+        '<span style="color:#5b6675;width:20px;text-align:right;flex:none;user-select:none">' + num + '</span>' +
+        '<span style="color:' + (mark === '-' ? P.bad : (mark === '+' ? P.acc : '#5b6675')) + ';flex:none;user-select:none">' + mark + '</span>' +
+        '<span style="color:' + (text.charAt(0) === '#' ? '#7d8898' : P.codeFg) + ';white-space:pre">' + u.esc(text) + '</span>' +
+        (active && !done ? '<span style="margin-left:auto;flex:none;color:' + P.bad + ';font-size:10.5px;align-self:center">fault</span>' : '') +
+        '</div>';
+    });
+    // a fault that is the ABSENCE of a line has nothing to click, so give it a marker
+    var MISSING = { seed: 'missing: nothing sets a seed before the bootstrap',
+                    order: 'missing: a package is attached too late',
+                    state: 'missing: the object this script depends on',
+                    path: 'missing: a portable path' };
+    want.forEach(function (f) {
+      if (repaired[f] || shown[f]) return;
+      h += '<div data-f="' + f + '" tabindex="0" role="button" style="cursor:pointer;display:flex;gap:10px;padding:1px 12px;background:' + P.del + '">' +
+        '<span style="color:#5b6675;width:20px;text-align:right;flex:none">&nbsp;</span>' +
+        '<span style="color:' + P.bad + ';flex:none">!</span>' +
+        '<span style="color:' + P.bad + ';white-space:pre">' + u.esc(MISSING[f] || 'missing') + '</span>' +
+        '<span style="margin-left:auto;flex:none;color:' + P.bad + ';font-size:10.5px;align-self:center">fault</span>' +
+        '</div>';
+    });
+    return h + '</div>';
+  }
+
+  function faultPanel(f, repaired, P) {
+    var F = FAULTS[f], done = !!repaired[f];
+    return '<div style="border:1px solid ' + P.line + ';border-left:3px solid ' + (done ? P.acc : P.bad) +
+      ';border-radius:0 9px 9px 0;background:' + P.soft + ';padding:11px 13px">' +
+      '<div style="font:600 12px IBM Plex Sans,sans-serif;color:' + (done ? P.acc : P.bad) + ';margin-bottom:5px">' + u.esc(F.name) + '</div>' +
+      '<div style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin-bottom:7px">' + F.why.replace(/`([^`]+)`/g,
+        '<code style="font-family:IBM Plex Mono,monospace;font-size:12px;color:' + P.ink + '">$1</code>') + '</div>' +
+      '<div style="font:12px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:9px"><b>The repair:</b> ' + u.esc(F.fix) + '</div>' +
+      (done ? '<div style="font:600 12px IBM Plex Sans,sans-serif;color:' + P.acc + '">Repaired.</div>'
+            : '<button type="button" data-fix="' + f + '" style="font:600 12px IBM Plex Sans,sans-serif;color:#fff;background:' + P.acc +
+              ';border:0;border-radius:7px;padding:7px 13px;cursor:pointer">Apply this repair</button>') +
+      '</div>';
+  }
+
+  /* ---------------- the fresh-session run ----------------
+     Faults are hit in the order R would hit them; the seed fault only shows on the second
+     run, because a script with no seed runs perfectly once. */
+  function simulate(want, repaired, seed) {
+    var out = [], pass = 1, first = null;
+    for (pass = 1; pass <= 2; pass++) {
+      var lines = ['> Rscript analysis.R          (fresh session ' + pass + ' of 2)'], stopped = false, k;
+      for (k = 0; k < ORDER.length; k++) {
+        var f = ORDER[k];
+        if (f === 'seed') continue;                        // not an error, a difference
+        if (want.indexOf(f) >= 0 && !repaired[f]) {
+          lines.push(FAULTS[f].err);
+          out.push({ ok: false, lines: lines, fault: f });
+          stopped = true;
+          break;
+        }
+      }
+      if (stopped) return out;                             // it never got as far as a second run
+      var noSeed = want.indexOf('seed') >= 0 && !repaired.seed;
+      // a deterministic stand-in for the bootstrap: with a seed both passes agree, without
+      // one the second pass starts somewhere else
+      var val = noSeed ? bootValue(seed + pass * 7717) : bootValue(seed);
+      lines.push('effect ' + val.est + '   95% CI ' + val.lo + ' ' + val.hi);
+      out.push({ ok: true, lines: lines, val: val });
+      if (pass === 1) first = val;
+      else out.push({ verdict: (first.est === val.est && first.lo === val.lo && first.hi === val.hi) });
+    }
+    return out;
+  }
+  function bootValue(s) {                                  // stable pseudo-output, not a real fit
+    function r(a) { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    var e = 2.4 + 0.18 * (r(s) - 0.5), w = 1.55 + 0.12 * (r(s + 1) - 0.5);
+    return { est: e.toFixed(3), lo: (e - w).toFixed(3), hi: (e + w).toFixed(3) };
+  }
+
+  function logView(runs, P) {
+    var h = '<div style="background:' + P.codeBg + ';border-radius:9px;padding:10px 13px;font-family:IBM Plex Mono,monospace;font-size:12px;line-height:1.6">';
+    runs.forEach(function (r) {
+      if (r.verdict !== undefined) return;
+      r.lines.forEach(function (L, i) {
+        var col = i === 0 ? '#7d8898' : (r.ok ? P.codeFg : P.bad);
+        h += '<div style="color:' + col + ';white-space:pre-wrap">' + u.esc(L) + '</div>';
+      });
+      h += '<div style="height:6px"></div>';
+    });
+    h += '</div>';
+    var v = runs.filter(function (r) { return r.verdict !== undefined; })[0];
+    var failed = runs.filter(function (r) { return r.ok === false; })[0];
+    if (failed) {
+      h += '<div style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.bad + ';margin-top:8px">' +
+        'It stopped on the first fault it met. On your own machine this line works, because your session already holds what the script forgot to say.</div>';
+    } else if (v && !v.verdict) {
+      h += '<div style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.bad + ';margin-top:8px">' +
+        'It ran twice with no error and gave two different answers. This is the fault that survives every code review, because nothing about it looks wrong. ' +
+        'The interval you would have published is one draw from a distribution nobody else can reach.</div>';
+    } else if (v && v.verdict) {
+      h += '<div style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.acc + ';margin-top:8px">' +
+        'Two clean sessions, same numbers. That is what a reviewer means by reproducible: not that the analysis is right, but that it is the same analysis every time anyone runs it.</div>';
+    }
+    return h;
+  }
+
+  function checkList(want, repaired, runs, P) {
+    var ran = runs.length > 0;
+    var v = runs.filter(function (r) { return r.verdict !== undefined; })[0];
+    var done = 0;
+    var rows = CHECKS.filter(function (c) { return want.indexOf(c.key) >= 0; }).map(function (c) {
+      var ok = !!repaired[c.key] && (c.key !== 'seed' || (ran && v && v.verdict));
+      if (ok) done++;
+      return '<li style="display:flex;gap:8px;align-items:baseline;margin:0 0 3px;font:12.5px IBM Plex Sans,sans-serif;color:' +
+        (ok ? P.acc : P.mut) + '"><span style="font-family:IBM Plex Mono,monospace">' + (ok ? 'x' : 'o') + '</span>' + u.esc(c.label) + '</li>';
+    });
+    return '<div style="font:600 11px IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:4px">' +
+      'What a fresh session has proved so far (' + done + ' of ' + rows.length + ')</div>' +
+      '<ul style="list-style:none;margin:0;padding:0">' + rows.join('') + '</ul>';
+  }
+
+  /* ---------------- runnable R: the repaired script ----------------
+     Self-contained on purpose. Building the data in the script is the honest fix for the
+     absolute path in a setting where there is no project folder to point at. */
+  function rcode(seed) {
+    return [
+      '# analysis.R, repaired. Everything it needs, it makes or loads itself.',
+      'set.seed(' + seed + ')                     # 1. the random step is now repeatable',
+      '',
+      '# 2. no absolute path: the data is built here rather than read from one laptop.',
+      '#    In a real project this line is read.csv("data/trial.csv"), a path inside the',
+      '#    project folder that travels with the project. Because the data is built here',
+      '#    rather than read, these numbers are this script\'s own, not the console above.',
+      'n     <- 300',
+      'raw   <- data.frame(',
+      '  id    = seq_len(n),',
+      '  arm   = rep(c("control", "programme"), each = n / 2),',
+      '  score = rnorm(n, mean = rep(c(50, 52.4), each = n / 2), sd = 6)',
+      ')',
+      'raw$score[c(7, 19, 88)] <- NA          # a little real-world mess',
+      '',
+      '# 3. no hidden state: every object below is created above.',
+      'trial <- raw[!is.na(raw$score), ]',
+      'keep  <- trial[, c("id", "arm", "score")]',
+      '',
+      '# 4. no load-order surprise: base R here, and where a name is contested say',
+      '#    which package you mean, as in dplyr::select(...).',
+      'boot <- replicate(2000, {',
+      '  i <- sample(nrow(keep), replace = TRUE)',
+      '  m <- tapply(keep$score[i], keep$arm[i], mean)',
+      '  unname(m["programme"] - m["control"])',
+      '})',
+      '',
+      'cat("effect", round(mean(boot), 3),',
+      '    "  95% CI", round(quantile(boot, c(.025, .975)), 3), "\\n")',
+      '',
+      '# Run it twice. Same numbers, on any machine, in any session.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('repro-repair', mount);
+})();
+
+;
 /* reshape-grid.js */
 /* reshape-grid.js - pivot_longer <-> pivot_wider on a small table.
  * cfg: { wide:{cols,rows}, idCols:["country"], namesTo:"year", valuesTo:"cases" }
@@ -5993,6 +8686,305 @@
   }
 
   window.LessonWidgets.register('residual-plot', mount);
+})();
+
+;
+/* review-triage.js */
+/* review-triage.js - sort a real-looking review before answering a word of it.
+ *
+ * Serves the review-triage hub chapter in The Publishing Handbook and every response and
+ * revision chapter that follows it. The single most useful thing a researcher can do with
+ * a review is decide, comment by comment, which of three kinds each one is, because the
+ * kind decides the response:
+ *
+ *   substantive  the result could change. Run the analysis, report what it shows, and say
+ *                so even when it is inconvenient.
+ *   reporting    the result does not change. Something is missing from the write-up. Add
+ *                the number, the version, the definition, and point to where it now is.
+ *   preference   the reviewer would have done it differently, and both ways are defensible.
+ *                Give a reason for your choice, offer the alternative in a supplement if it
+ *                is cheap, and decline politely.
+ *
+ * A researcher who cannot tell these apart does one of two things: treats everything as
+ * substantive and rebuilds a paper that did not need rebuilding, or treats everything as
+ * preference and gets a hostile second round. Both are common and both are avoidable.
+ *
+ * The reader assigns each comment, presses Check, and gets per-comment feedback that names
+ * WHY it belongs where it belongs rather than just marking it wrong. The summary then
+ * builds the shape of the response letter: substantive first, reporting next, preference
+ * last and briefly.
+ *
+ * The runnable R is the diagnostic the review's hardest substantive comment demands, so the
+ * reader can see the difference in cost between a comment that needs a rerun and a comment
+ * that needs a sentence. It runs in R 4.6.0 with no packages.
+ *
+ * cfg: {
+ *   comments: [{ id, from: "Reviewer 2", text, kind: "substantive|reporting|preference",
+ *                why: "one sentence naming why" }],   // a default review of nine is built in
+ *   shuffle: true,     // present them in a seeded shuffle rather than grouped by kind
+ *   seed: 5
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', c1: '#b5631a',
+    bad: '#c2410c', panel: '#ffffff', soft: '#f6f8fa', pick: '#e7f3ec', warn: '#fbeae5'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', c1: '#e3a05a', bad: '#f4805a', panel: '#101c2b', soft: 'rgba(255,255,255,.05)',
+    pick: 'rgba(70,192,138,.18)', warn: 'rgba(244,128,90,.16)'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try { var v = getComputedStyle(el).getPropertyValue('--lm-panel'); if (v && v.trim()) return lumOf(v) < 0.45; } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  var KINDS = [
+    { k: 'substantive', label: 'Substantive', short: 'the result could change',
+      how: 'Run it, report what it shows, and say so even if it goes against you.' },
+    { k: 'reporting', label: 'Reporting', short: 'the result stands, the write-up is thin',
+      how: 'Add the number or the definition, and say where it now appears.' },
+    { k: 'preference', label: 'Preference', short: 'a defensible difference of taste',
+      how: 'Give your reason, offer the alternative if it is cheap, and decline politely.' }
+  ];
+
+  var DEFAULT_REVIEW = [
+    { id: 1, from: 'Reviewer 2', kind: 'substantive',
+      text: 'Participants were recruited in 14 clinics but the models treat every participant as independent. Outcomes within a clinic are likely correlated.',
+      why: 'Ignoring the clustering understates the standard errors, so the interval and the p-value both change. Nothing about this can be settled in the text.' },
+    { id: 2, from: 'Reviewer 2', kind: 'reporting',
+      text: 'Please state the software and package versions used for the analysis.',
+      why: 'A version number changes no estimate. It is missing from the manuscript, so it is a sentence in the methods, not a rerun.' },
+    { id: 3, from: 'Reviewer 1', kind: 'preference',
+      text: 'I would have used a Bayesian model with weakly informative priors rather than the frequentist approach taken here.',
+      why: 'Both approaches are defensible for this question, and the reviewer has not claimed the chosen one is invalid. Justify the choice and decline.' },
+    { id: 4, from: 'Reviewer 1', kind: 'substantive',
+      text: 'Forty-one participants are missing the primary outcome and appear to have been dropped. Were they different from those retained?',
+      why: 'If the missingness is related to the outcome, the complete-case estimate is biased. The answer is a comparison and a sensitivity analysis, and it might move the result.' },
+    { id: 5, from: 'Reviewer 2', kind: 'reporting',
+      text: 'Table 2 gives p-values but no effect sizes or confidence intervals.',
+      why: 'The numbers already exist in the fitted model. Reporting them changes nothing about the analysis and everything about whether a reader can judge it.' },
+    { id: 6, from: 'Reviewer 3', kind: 'preference',
+      text: 'Figure 3 would be clearer as a bar chart than as a boxplot.',
+      why: 'A boxplot shows the spread a bar chart hides, so this is a judgement call, and the reviewer has given no reason the current figure misleads.' },
+    { id: 7, from: 'Reviewer 3', kind: 'substantive',
+      text: 'The interaction reported in section 3.4 was not in the registered analysis plan and is not flagged as exploratory.',
+      why: 'An unregistered interaction found after looking is a different kind of evidence from a pre-specified one. The estimate stays; the CLAIM has to change, and that is substantive.' },
+    { id: 8, from: 'Reviewer 1', kind: 'reporting',
+      text: 'How was the primary outcome defined? The text refers to "improvement" without giving a threshold.',
+      why: 'The definition exists, or the analysis could not have been run. It is missing from the paper, so it goes in the methods.' },
+    { id: 9, from: 'Reviewer 2', kind: 'preference',
+      text: 'The introduction should cite Karlsson et al. (2019) and Ito (2021).',
+      why: 'Unless one of those papers contradicts the claim being made, this is a citation preference. Add them if they fit and say so in one line.' }
+  ];
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var comments = (cfg.comments && cfg.comments.length ? cfg.comments : DEFAULT_REVIEW).slice();
+    var seed = (cfg.seed == null ? 5 : +cfg.seed);
+    if (cfg.shuffle !== false) {                      // seeded Fisher-Yates: same order every time
+      var rnd = mulberry32(seed);
+      for (var i = comments.length - 1; i > 0; i--) {
+        var j = Math.floor(rnd() * (i + 1)), t = comments[i]; comments[i] = comments[j]; comments[j] = t;
+      }
+    }
+    var picks = {}, graded = false;
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      '<div class="rt-head" style="font:600 13px/1.5 IBM Plex Sans,sans-serif;color:' + P.ink + ';margin-bottom:3px">' +
+        'Decision letter: major revision. Sort every comment before you answer one.</div>' +
+      '<div class="rt-legend" style="margin:8px 0 12px"></div>' +
+      '<div class="rt-list"></div>' +
+      '<div class="rt-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>' +
+      '<div class="rt-score" style="margin-top:12px"></div>' +
+      '<div class="rt-r" style="margin-top:13px"></div>';
+
+    var legend = el.querySelector('.rt-legend'), list = el.querySelector('.rt-list'),
+        actions = el.querySelector('.rt-actions'), score = el.querySelector('.rt-score'),
+        rbox = el.querySelector('.rt-r');
+
+    list.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-pick]') : null;
+      if (!b || !list.contains(b) || graded) return;
+      picks[b.getAttribute('data-id')] = b.getAttribute('data-pick');
+      render();
+    });
+    actions.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-act]') : null;
+      if (!b || !actions.contains(b)) return;
+      if (b.getAttribute('data-act') === 'check') graded = true;
+      else { graded = false; picks = {}; }
+      render();
+    });
+
+    function render() {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      el.querySelector('.rt-head').style.color = P.ink;
+
+      legend.innerHTML = KINDS.map(function (K) {
+        return '<div style="display:flex;gap:8px;align-items:baseline;font:12px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + '">' +
+          '<b style="color:' + kindColour(K.k, P) + ';min-width:88px">' + K.label + '</b><span>' + u.esc(K.short) + '</span></div>';
+      }).join('');
+
+      list.innerHTML = comments.map(function (c) { return card(c, picks[c.id], graded, P); }).join('');
+
+      var answered = comments.filter(function (c) { return picks[c.id]; }).length;
+      actions.innerHTML = graded
+        ? '<button type="button" data-act="reset" style="font:600 12.5px IBM Plex Sans,sans-serif;color:' + P.mut +
+            ';background:none;border:1px solid ' + P.line + ';border-radius:8px;padding:8px 14px;cursor:pointer">Try it again</button>'
+        : '<button type="button" data-act="check"' + (answered < comments.length ? ' disabled' : '') +
+            ' style="font:600 12.5px IBM Plex Sans,sans-serif;color:#fff;background:' + (answered < comments.length ? P.faint : P.acc) +
+            ';border:0;border-radius:8px;padding:8px 15px;cursor:' + (answered < comments.length ? 'default' : 'pointer') + '">' +
+            'Check my sorting (' + answered + ' of ' + comments.length + ')</button>';
+
+      score.innerHTML = graded ? summary(comments, picks, P) : '';
+      rbox.innerHTML = u.runnable(rcode(), { label: 'What the first substantive comment actually costs' });
+    }
+
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el); if (now !== wasDark) { wasDark = now; render(); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render();
+  }
+
+  function kindColour(k, P) { return k === 'substantive' ? P.bad : (k === 'reporting' ? P.c0 : P.mut); }
+
+  function card(c, pick, graded, P) {
+    var right = graded && pick === c.kind;
+    var wrong = graded && pick !== c.kind;
+    var edge = graded ? (right ? P.acc : P.bad) : P.line;
+    var h = '<div style="border:1px solid ' + P.line + ';border-left:3px solid ' + edge +
+      ';border-radius:0 10px 10px 0;background:' + P.soft + ';padding:11px 13px;margin-bottom:9px">' +
+      '<div style="font:600 10.5px IBM Plex Sans,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:' + P.faint + ';margin-bottom:4px">' +
+      u.esc(c.from) + '</div>' +
+      '<div style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin-bottom:9px">' + u.esc(c.text) + '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    KINDS.forEach(function (K) {
+      var on = pick === K.k;
+      var isAnswer = graded && K.k === c.kind;
+      var bg = graded ? (isAnswer ? P.pick : (on ? P.warn : 'transparent')) : (on ? P.pick : 'transparent');
+      var bd = graded ? (isAnswer ? P.acc : (on ? P.bad : P.line)) : (on ? P.acc : P.line);
+      h += '<button type="button" data-id="' + c.id + '" data-pick="' + K.k + '"' + (graded ? ' disabled' : '') +
+        ' style="font:600 12px IBM Plex Sans,sans-serif;color:' + (graded && isAnswer ? P.acc : (on ? P.ink : P.mut)) +
+        ';background:' + bg + ';border:1.4px solid ' + bd + ';border-radius:7px;padding:6px 11px;cursor:' + (graded ? 'default' : 'pointer') + '">' +
+        u.esc(K.label) + '</button>';
+    });
+    h += '</div>';
+    if (graded) {
+      h += '<div style="margin-top:9px;font:12.5px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + '">' +
+        '<b style="color:' + (right ? P.acc : P.bad) + '">' + (right ? 'Right: ' : 'It is ' + kindLabel(c.kind) + '. ') + '</b>' +
+        u.esc(c.why) + '</div>' +
+        '<div style="margin-top:5px;font:12px/1.5 IBM Plex Sans,sans-serif;color:' + P.faint + '">' +
+        u.esc('In the letter: ' + howFor(c.kind)) + '</div>';
+    }
+    return h + '</div>';
+  }
+  function kindLabel(k) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].k === k) return KINDS[i].label.toLowerCase(); return k; }
+  function howFor(k) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].k === k) return KINDS[i].how; return ''; }
+
+  function summary(comments, picks, P) {
+    var right = 0, byKind = { substantive: 0, reporting: 0, preference: 0 }, missed = { substantive: 0, reporting: 0, preference: 0 };
+    comments.forEach(function (c) {
+      byKind[c.kind]++;
+      if (picks[c.id] === c.kind) right++; else missed[c.kind]++;
+    });
+    var n = comments.length;
+    var overCall = comments.filter(function (c) { return picks[c.id] === 'substantive' && c.kind !== 'substantive'; }).length;
+    var underCall = comments.filter(function (c) { return c.kind === 'substantive' && picks[c.id] !== 'substantive'; }).length;
+
+    var h = '<div style="border-top:1px solid ' + P.line + ';padding-top:12px">' +
+      '<div style="font:600 14px IBM Plex Sans,sans-serif;color:' + (right === n ? P.acc : P.ink) + ';margin-bottom:6px">' +
+      right + ' of ' + n + ' sorted correctly</div>';
+    h += '<div style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin-bottom:10px">' +
+      'This review is <b>' + byKind.substantive + ' substantive</b>, <b>' + byKind.reporting + ' reporting</b> and <b>' +
+      byKind.preference + ' preference</b>. ' +
+      (overCall ? 'You marked ' + overCall + ' as substantive that ' + (overCall === 1 ? 'is not' : 'are not') +
+        '. That is the expensive error: it turns a revision into a rebuild and invites the reviewer to keep pulling. '
+      : '') +
+      (underCall ? 'You marked ' + underCall + ' substantive comment' + (underCall === 1 ? '' : 's') +
+        ' as something lighter. That is the dangerous error: answering a real problem with a sentence is what produces a hostile second round. '
+      : '') +
+      (!overCall && !underCall ? 'You put every genuinely substantive comment in the right pile, which is the part that decides how the second round goes. ' : '') +
+      '</div>';
+    h += '<div style="font:600 11px IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:5px">The letter this implies</div>' +
+      '<ol style="margin:0;padding-left:19px;font:12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + '">' +
+      '<li>Open with the ' + byKind.substantive + ' substantive points, each with what you ran and what it showed, including where it did not help you.</li>' +
+      '<li>Group the ' + byKind.reporting + ' reporting points together and point to the line and page each one now appears on.</li>' +
+      '<li>Take the ' + byKind.preference + ' preference points last, briefly, with a reason for the choice you made.</li>' +
+      '</ol></div>';
+    return h;
+  }
+
+  /* ---------------- runnable R ----------------
+     The first substantive comment in the default review is the clustering one, so this is
+     that diagnostic: how far the naive standard error is out once clinics are accounted
+     for. Base R only, and the design effect is checked against the formula. */
+  function rcode() {
+    return [
+      '# Comment 1 said outcomes within a clinic are correlated. That is a substantive',
+      '# comment, so it costs a rerun. Here is the rerun, and what it changes.',
+      'set.seed(20)',
+      'k <- 14; m <- 20; n <- k * m          # 14 clinics, 20 participants each',
+      'rho <- 0.06                           # a small, very ordinary intraclass correlation',
+      '',
+      'clinic <- rep(1:k, each = m)',
+      'arm    <- rep(rep(0:1, length.out = k), each = m)   # the programme runs clinic-wide',
+      'y      <- 0.35 * arm + sqrt(rho) * rnorm(k)[clinic] + sqrt(1 - rho) * rnorm(n)',
+      '',
+      'naive  <- lm(y ~ arm)',
+      'se_n   <- coef(summary(naive))["arm", "Std. Error"]',
+      '',
+      '# analyse at the level the treatment was assigned: one number per clinic',
+      'cm     <- tapply(y, clinic, mean)',
+      'ca     <- tapply(arm, clinic, max)',
+      'se_c   <- sqrt(sum((cm - ave(cm, ca))^2) / (k - 2) * (2 / (k / 2)))',
+      '',
+      'round(c(naive_se     = se_n,',
+      '        clustered_se = se_c,',
+      '        ratio        = se_c / se_n,',
+      '        design_effect_formula = sqrt(1 + (m - 1) * rho)), 3)',
+      '',
+      '# The estimate barely moves. The standard error does, and so does the p-value.',
+      'round(c(naive_p     = coef(summary(naive))["arm", "Pr(>|t|)"],',
+      '        clustered_p = unname(2 * pt(abs(diff(rev(tapply(cm, ca, mean)))) / se_c,',
+      '                                    df = k - 2, lower.tail = FALSE))), 4)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('review-triage', mount);
 })();
 
 ;
@@ -7399,4 +10391,648 @@
   }
 
   window.LessonWidgets.register('worst-group', mount);
+})();
+
+;
+/* wrong-family-fit.js */
+/* wrong-family-fit.js - fit the wrong kind of model and watch exactly how it fails.
+ *
+ * Serves the ordinal-outcome, link-function, zero-inflation, overfitting and missing-
+ * interaction objections in The Publishing Handbook. One config key picks the
+ * misspecification; each one fails in its own visible, countable way.
+ *
+ *   link          a linear model on a yes/no outcome predicts probabilities below 0 and
+ *                 above 1. The widget counts them and names the worst one.
+ *   zero-inflation a Poisson model on data with a pile of structural zeros predicts far
+ *                 fewer zeros than the data contain. The widget compares the two counts.
+ *   ordinal       a 1-to-5 rating treated as a number predicts values no respondent could
+ *                 give, and assumes the gap from 1 to 2 equals the gap from 4 to 5, which
+ *                 in this data it does not. The true gaps are printed.
+ *   overfitting   a polynomial degree slider. Training fit rises to nearly perfect while
+ *                 error on data the model has not seen goes the other way.
+ *   interaction   two groups whose slopes point in opposite directions, fitted additively.
+ *                 The single slope is near zero and describes neither group.
+ *
+ * Everything is seeded, so the same config always draws the same picture. The right model
+ * is fitted alongside the wrong one by iteratively reweighted least squares (the same
+ * algorithm glm() uses), and least squares is solved by modified Gram-Schmidt so a degree
+ * 12 polynomial does not fall over numerically. Coefficients were checked against glm()
+ * and lm() in R.
+ *
+ * SIMPLIFIED, and why: in `ordinal` mode the correct model is shown as the observed
+ * distribution of ratings in each slice of x rather than as a fitted proportional-odds
+ * curve. Fitting cumulative logit in the browser would add an optimiser for four
+ * thresholds and buy nothing the reader needs to see: the point is that the categories are
+ * not evenly spaced and the line predicts values that do not exist, and the observed
+ * distribution shows that more directly than a fitted curve would. The emitted R fits
+ * MASS::polr for anyone who wants the model itself.
+ *
+ * cfg: {
+ *   mode: "link",              // link | zero-inflation | ordinal | overfitting | interaction
+ *   modes: ["...", "..."],     // OR a list -> segmented control (default: just `mode`)
+ *   n: null,                   // sample size (per-mode default)
+ *   degree: 3,                 // overfitting mode: starting polynomial degree
+ *   maxDegree: 12,             // overfitting mode: slider maximum
+ *   seed: 31
+ * }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u;
+
+  var LIGHT = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', grid: '#eef1f6', acc: '#1f7a55', c0: '#2563a8', c1: '#b5631a',
+    bad: '#c2410c', panel: '#ffffff', soft: '#f6f8fa', warn: '#fbeae5'
+  };
+  var DARK = {
+    ink: '#eef4fb', body: '#c3d1e3', mut: '#93a4bb', faint: '#6f8299',
+    line: 'rgba(255,255,255,.24)', grid: 'rgba(255,255,255,.10)', acc: '#46c08a',
+    c0: '#7fb2ea', c1: '#e3a05a', bad: '#f4805a', panel: '#101c2b',
+    soft: 'rgba(255,255,255,.05)', warn: 'rgba(244,128,90,.16)'
+  };
+  function lumOf(c) {
+    c = String(c).trim(); var r, g, b, m;
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) { r = parseInt(c[1] + c[1], 16); g = parseInt(c[2] + c[2], 16); b = parseInt(c[3] + c[3], 16); }
+      else { r = parseInt(c.substr(1, 2), 16); g = parseInt(c.substr(3, 2), 16); b = parseInt(c.substr(5, 2), 16); }
+    } else if ((m = c.match(/rgba?\(([^)]+)\)/))) { var p = m[1].split(','); r = +p[0]; g = +p[1]; b = +p[2]; }
+    else return 1;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  }
+  function isDark(el) {
+    try { var v = getComputedStyle(el).getPropertyValue('--lm-panel'); if (v && v.trim()) return lumOf(v) < 0.45; } catch (e) {}
+    return !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  }
+  function palette(el) { return isDark(el) ? DARK : LIGHT; }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function gaussian(rnd) { var a = 1 - rnd(), b = rnd(); return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b); }
+  function rpois(rnd, lam) {                     // Knuth, fine for the small means used here
+    var L = Math.exp(-lam), k = 0, p = 1;
+    do { k++; p *= rnd(); } while (p > L);
+    return k - 1;
+  }
+  function logistic(z) { return 1 / (1 + Math.exp(-z)); }
+
+  /* Least squares by modified Gram-Schmidt: stable enough for a degree 12 Vandermonde. */
+  function lsq(X, y) {
+    var n = X.length, p = X[0].length, cols = [], Q = [], R = [], i, j, k;
+    for (j = 0; j < p; j++) { var c = new Float64Array(n); for (i = 0; i < n; i++) c[i] = X[i][j]; cols.push(c); R.push(new Float64Array(p)); }
+    for (j = 0; j < p; j++) {
+      for (k = 0; k < j; k++) {
+        var d = 0; for (i = 0; i < n; i++) d += Q[k][i] * cols[j][i];
+        R[k][j] = d; for (i = 0; i < n; i++) cols[j][i] -= d * Q[k][i];
+      }
+      var nrm = 0; for (i = 0; i < n; i++) nrm += cols[j][i] * cols[j][i];
+      nrm = Math.sqrt(nrm); R[j][j] = nrm;
+      var q = new Float64Array(n);
+      if (nrm > 1e-11) for (i = 0; i < n; i++) q[i] = cols[j][i] / nrm;
+      Q.push(q);
+    }
+    var b = new Float64Array(p);
+    for (j = 0; j < p; j++) { var s = 0; for (i = 0; i < n; i++) s += Q[j][i] * y[i]; b[j] = s; }
+    var beta = new Float64Array(p);
+    for (j = p - 1; j >= 0; j--) {
+      var t = b[j];
+      for (k = j + 1; k < p; k++) t -= R[j][k] * beta[k];
+      beta[j] = R[j][j] > 1e-11 ? t / R[j][j] : 0;
+    }
+    return beta;
+  }
+  /* GLM by iteratively reweighted least squares - the algorithm glm() itself uses. */
+  function glm(X, y, family) {
+    var n = X.length, p = X[0].length, beta = new Float64Array(p), it, i, j;
+    for (it = 0; it < 60; it++) {
+      var Xw = [], z = new Float64Array(n);
+      for (i = 0; i < n; i++) {
+        var eta = 0;
+        for (j = 0; j < p; j++) eta += X[i][j] * beta[j];
+        var mu, wt;
+        if (family === 'binomial') {
+          mu = Math.min(1 - 1e-10, Math.max(1e-10, logistic(eta)));
+          wt = mu * (1 - mu);
+        } else {
+          mu = Math.exp(Math.min(30, eta)); wt = Math.max(1e-10, mu);
+        }
+        var zz = eta + (y[i] - mu) / wt;              // the working response
+        var sw = Math.sqrt(wt), row = [];
+        for (j = 0; j < p; j++) row.push(X[i][j] * sw);
+        Xw.push(row); z[i] = zz * sw;
+      }
+      var nb = lsq(Xw, z), delta = 0;
+      for (j = 0; j < p; j++) { delta += Math.abs(nb[j] - beta[j]); beta[j] = nb[j]; }
+      if (delta < 1e-11) break;
+    }
+    return beta;
+  }
+  function poly(x, deg) { var r = [1], v = 1, d; for (d = 1; d <= deg; d++) { v *= x; r.push(v); } return r; }
+  function evalp(b, x) { var s = 0, v = 1, j; for (j = 0; j < b.length; j++) { s += b[j] * v; v *= x; } return s; }
+
+  /* ---------------- the five misspecifications ---------------- */
+  var MODES = {
+    link: {
+      short: 'Wrong link', n: 200,
+      title: 'A yes/no outcome fitted with a straight line',
+      build: function (n, seed) {
+        var rnd = mulberry32(seed), x = [], y = [], i;
+        for (i = 0; i < n; i++) { var xv = -3 + 6 * rnd(); x.push(xv); y.push(rnd() < logistic(1.4 * xv) ? 1 : 0); }
+        var X = x.map(function (v) { return [1, v]; });
+        var lin = lsq(X, y), log = glm(X, y, 'binomial');
+        var bad = 0, worstLo = 1, worstHi = 0;
+        x.forEach(function (v) { var f = lin[0] + lin[1] * v; if (f < 0 || f > 1) bad++; if (f < worstLo) worstLo = f; if (f > worstHi) worstHi = f; });
+        return { x: x, y: y, lin: lin, log: log, bad: bad, worstLo: worstLo, worstHi: worstHi, n: n,
+                 outX: 4, outLin: lin[0] + lin[1] * 4, outLog: logistic(log[0] + log[1] * 4) };
+      }
+    },
+    'zero-inflation': {
+      short: 'Zero inflation', n: 260,
+      title: 'Counts with a pile of structural zeros, fitted as ordinary Poisson',
+      build: function (n, seed) {
+        var rnd = mulberry32(seed), x = [], y = [], i, pZero = 0.45;
+        for (i = 0; i < n; i++) {
+          var xv = gaussian(rnd);
+          x.push(xv);
+          y.push(rnd() < pZero ? 0 : rpois(rnd, Math.exp(0.9 + 0.7 * xv)));
+        }
+        var X = x.map(function (v) { return [1, v]; });
+        var b = glm(X, y, 'poisson');
+        var obsZero = 0, expZero = 0, maxC = 0;
+        for (i = 0; i < n; i++) {
+          if (y[i] === 0) obsZero++;
+          expZero += Math.exp(-Math.exp(b[0] + b[1] * x[i]));
+          if (y[i] > maxC) maxC = y[i];
+        }
+        return { x: x, y: y, b: b, obsZero: obsZero, expZero: expZero, maxC: maxC, n: n, pZero: pZero };
+      }
+    },
+    ordinal: {
+      short: 'Ordinal as numeric', n: 240,
+      title: 'A 1-to-5 rating treated as a number',
+      build: function (n, seed) {
+        var rnd = mulberry32(seed), cuts = [-2.0, -0.4, 0.2, 2.4], x = [], y = [], i, j;
+        for (i = 0; i < n; i++) {
+          var xv = -2 + 4 * rnd();
+          var z = 1.1 * xv + Math.log(rnd() / (1 - rnd()));      // logistic latent noise
+          var cat = 1;
+          for (j = 0; j < cuts.length; j++) if (z > cuts[j]) cat = j + 2;
+          x.push(xv); y.push(cat);
+        }
+        var X = x.map(function (v) { return [1, v]; });
+        var lin = lsq(X, y);
+        var gaps = [];
+        for (j = 1; j < cuts.length; j++) gaps.push(cuts[j] - cuts[j - 1]);
+        return { x: x, y: y, lin: lin, cuts: cuts, gaps: gaps, n: n,
+                 predLo: lin[0] - 2 * lin[1], predHi: lin[0] + 2 * lin[1],
+                 outX: 3, predOut: lin[0] + 3 * lin[1] };
+      }
+    },
+    overfitting: {
+      short: 'Overfitting', n: 18, slider: true,
+      title: 'A polynomial flexible enough to memorise the training set',
+      build: function (n, seed) {
+        var rnd = mulberry32(seed), xtr = [], ytr = [], xte = [], yte = [], i;
+        function f(v) { return Math.sin(2.3 * v); }
+        for (i = 0; i < n; i++) { var a = -1 + 2 * (i + 0.5) / n; xtr.push(a); ytr.push(f(a) + 0.28 * gaussian(rnd)); }
+        for (i = 0; i < n; i++) { var b = -1 + 2 * rnd(); xte.push(b); yte.push(f(b) + 0.28 * gaussian(rnd)); }
+        return { xtr: xtr, ytr: ytr, xte: xte, yte: yte, n: n };
+      },
+      refit: function (D, deg) {
+        var X = D.xtr.map(function (v) { return poly(v, deg); });
+        var b = lsq(X, D.ytr), i, rssTr = 0, tss = 0, mtr = 0, rssTe = 0;
+        for (i = 0; i < D.ytr.length; i++) mtr += D.ytr[i]; mtr /= D.ytr.length;
+        for (i = 0; i < D.xtr.length; i++) { var e = D.ytr[i] - evalp(b, D.xtr[i]); rssTr += e * e; tss += (D.ytr[i] - mtr) * (D.ytr[i] - mtr); }
+        for (i = 0; i < D.xte.length; i++) { var e2 = D.yte[i] - evalp(b, D.xte[i]); rssTe += e2 * e2; }
+        return { b: b, r2: 1 - rssTr / tss,
+                 rmseTr: Math.sqrt(rssTr / D.xtr.length), rmseTe: Math.sqrt(rssTe / D.xte.length) };
+      }
+    },
+    interaction: {
+      short: 'Missing interaction', n: 140,
+      title: 'Two groups with opposite slopes, fitted without an interaction',
+      build: function (n, seed) {
+        var rnd = mulberry32(seed), x = [], g = [], y = [], i;
+        for (i = 0; i < n; i++) {
+          var xv = 10 * rnd(), gi = i % 2;
+          x.push(xv); g.push(gi);
+          y.push((gi ? 10 - 0.8 * xv : 2 + 0.8 * xv) + 1.5 * gaussian(rnd));
+        }
+        var Xa = x.map(function (v, i2) { return [1, v, g[i2]]; });
+        var ba = lsq(Xa, y);
+        var Xi = x.map(function (v, i2) { return [1, v, g[i2], v * g[i2]]; });
+        var bi = lsq(Xi, y);
+        return { x: x, g: g, y: y, ba: ba, bi: bi, n: n };
+      }
+    }
+  };
+
+  /* ---------------- mount ---------------- */
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var list = (cfg.modes && cfg.modes.length ? cfg.modes : [cfg.mode || 'link']).filter(function (k) { return MODES[k]; });
+    if (!list.length) list = ['link'];
+    var which = list[0];
+    var seed = (cfg.seed == null ? 31 : +cfg.seed);
+    var nOver = Math.max(12, +cfg.n || MODES.overfitting.n);
+    // never let the polynomial interpolate the training set exactly: that makes the
+    // training residual zero and the ratio below meaningless rather than dramatic
+    var maxDeg = Math.max(2, Math.min(nOver - 3, +cfg.maxDegree || 15));
+    var deg = Math.max(1, Math.min(maxDeg, +cfg.degree || 3));
+    var cache = {};
+
+    var P = palette(el);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:' + P.panel + ';padding:16px 17px';
+    el.innerHTML =
+      (list.length > 1 ? '<div class="wf-seg" style="margin-bottom:11px"></div>' : '') +
+      '<div class="wf-title" style="font:600 12.5px/1.5 IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:8px"></div>' +
+      '<div class="wf-ctl" style="margin-bottom:10px"></div>' +
+      '<div class="wf-plot"></div>' +
+      '<div class="wf-fail" style="margin:11px 0 0"></div>' +
+      '<div class="wf-read" style="font:13px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px"></div>' +
+      '<div class="wf-r"></div>';
+
+    var segBox = el.querySelector('.wf-seg'), title = el.querySelector('.wf-title'),
+        ctl = el.querySelector('.wf-ctl'), plot = el.querySelector('.wf-plot'),
+        fail = el.querySelector('.wf-fail'), read = el.querySelector('.wf-read'),
+        rbox = el.querySelector('.wf-r');
+
+    if (segBox) {
+      segBox.innerHTML = u.seg(list.map(function (k) { return { v: k, label: MODES[k].short }; }), which);
+      u.wireSeg(segBox, function (v) { which = v; render(true); });
+    }
+
+    function data(key) {
+      if (!cache[key]) {
+        var M = MODES[key];
+        cache[key] = M.build(Math.max(10, +cfg.n || M.n), seed);
+      }
+      return cache[key];
+    }
+
+    function render(rebuildCtl) {
+      P = palette(el);
+      el.style.background = P.panel; el.style.borderColor = P.line;
+      title.style.color = P.mut; read.style.color = P.body;
+      var M = MODES[which], D = data(which);
+      title.textContent = M.title;
+
+      if (rebuildCtl) {
+        ctl.innerHTML = M.slider
+          ? '<label style="display:block;font:600 12px IBM Plex Sans,sans-serif;color:' + P.mut + ';margin-bottom:4px">' +
+            'Polynomial degree: <b class="wf-dv" style="color:' + P.ink + '">' + deg + '</b></label>' +
+            '<input class="wf-deg" type="range" min="1" max="' + maxDeg + '" step="1" value="' + deg +
+            '" aria-label="polynomial degree" style="width:100%;max-width:420px;display:block">'
+          : '';
+        var sl = ctl.querySelector('.wf-deg');
+        if (sl) sl.addEventListener('input', function () { deg = +sl.value; render(false); });
+      }
+      var dv = ctl.querySelector('.wf-dv'); if (dv) { dv.textContent = deg; dv.style.color = P.ink; }
+
+      var out = VIEW[which](D, P, deg);
+      plot.innerHTML = out.svg;
+      fail.innerHTML = callout(out.fail, P);
+      read.innerHTML = out.read;
+      // only rebuild the code panel when the mode changes: dragging the degree slider
+      // must not wipe whatever the reader has typed or run
+      if (rebuildCtl || !rbox.firstChild) rbox.innerHTML = u.runnable(RCODE[which](D), { label: 'Fit both models in R' });
+    }
+
+    var wasDark = isDark(el);
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (!document.contains(el)) { mo.disconnect(); return; }
+        var now = isDark(el); if (now !== wasDark) { wasDark = now; render(true); }
+      });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    }
+    render(true);
+  }
+
+  function callout(txt, P) {
+    return '<div style="border-left:3px solid ' + P.bad + ';background:' + P.warn + ';border-radius:0 8px 8px 0;padding:9px 12px;' +
+      'font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.ink + '">' + txt + '</div>';
+  }
+
+  /* ---------------- one drawing per mode ---------------- */
+  var W = 520;
+  function axes(P, m, iw, ih, xlab, ylab) {
+    return '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/>' +
+      '<line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/>' +
+      '<text x="' + (m.l + iw / 2) + '" y="' + (m.t + ih + 26) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">' + u.esc(xlab) + '</text>' +
+      '<text transform="translate(11,' + (m.t + ih / 2) + ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">' + u.esc(ylab) + '</text>';
+  }
+  function wrap(g, H, label) {
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + u.esc(label) + '">' + g + '</svg>';
+  }
+
+  var VIEW = {
+    link: function (D, P) {
+      var m = { l: 42, r: 16, t: 14 }, iw = W - m.l - m.r, ih = 190, H = 236;
+      var lo = -0.45, hi = 1.45;
+      function sx(v) { return m.l + (v + 3) / 6 * iw; }
+      function sy(v) { return m.t + (hi - v) / (hi - lo) * ih; }
+      var g = '';
+      g += '<rect x="' + m.l + '" y="' + m.t + '" width="' + iw + '" height="' + (sy(1) - m.t).toFixed(1) + '" fill="' + P.warn + '"/>' +
+           '<rect x="' + m.l + '" y="' + sy(0).toFixed(1) + '" width="' + iw + '" height="' + (m.t + ih - sy(0)).toFixed(1) + '" fill="' + P.warn + '"/>' +
+           '<text x="' + (m.l + 6) + '" y="' + (m.t + 12) + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.bad + '">a probability cannot live up here</text>' +
+           '<text x="' + (m.l + 6) + '" y="' + (m.t + ih - 5) + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.bad + '">or down here</text>';
+      [0, 0.5, 1].forEach(function (v) {
+        g += '<line x1="' + m.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (m.l + iw) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+             '<text x="' + (m.l - 6) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + v + '</text>';
+      });
+      D.x.forEach(function (v, i) {
+        g += '<circle cx="' + sx(v).toFixed(1) + '" cy="' + sy(D.y[i]).toFixed(1) + '" r="2.6" fill="' + P.mut + '" fill-opacity="0.42"/>';
+      });
+      var pl = [], pg = [], t;
+      for (t = -3; t <= 3.0001; t += 0.05) {
+        pl.push(sx(t).toFixed(1) + ',' + sy(D.lin[0] + D.lin[1] * t).toFixed(1));
+        pg.push(sx(t).toFixed(1) + ',' + sy(logistic(D.log[0] + D.log[1] * t)).toFixed(1));
+      }
+      g += '<polyline points="' + pg.join(' ') + '" fill="none" stroke="' + P.acc + '" stroke-width="2.4"/>' +
+           '<polyline points="' + pl.join(' ') + '" fill="none" stroke="' + P.bad + '" stroke-width="2.4" stroke-dasharray="6 3"/>' +
+           '<text x="' + (m.l + iw - 4) + '" y="' + (sy(0.5) - 8) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.acc + '">logistic</text>' +
+           '<text x="' + (m.l + iw - 4) + '" y="' + (sy(0.5) + 14) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.bad + '">linear model</text>' +
+           axes(P, m, iw, ih, 'predictor', 'outcome (0 or 1)');
+      return {
+        svg: wrap(g, H, 'a linear model and a logistic model fitted to a binary outcome'),
+        fail: '<b>' + D.bad + ' of ' + D.n + '</b> fitted values from the linear model are impossible probabilities ' +
+          '(lowest ' + D.worstLo.toFixed(2) + ', highest ' + D.worstHi.toFixed(2) + '). Ask it for the probability at x = ' + D.outX +
+          ', one step past the data, and it answers <b>' + D.outLin.toFixed(2) + '</b>. The logistic model answers ' + D.outLog.toFixed(2) + '.',
+        read: 'The straight line has to keep going. A probability cannot, so the model is forced to state things that have no meaning, ' +
+          'and it is worst exactly where the reviewer will look, at the two ends. The logistic curve is the same idea with a link that respects the range: ' +
+          'it bends and flattens instead of walking off the chart. Nothing was lost by switching, and the fitted values are now interpretable.'
+      };
+    },
+
+    'zero-inflation': function (D, P) {
+      var m = { l: 42, r: 16, t: 22 }, iw = W - m.l - m.r, ih = 180, H = 234;
+      var K = Math.min(12, D.maxC), i, j;
+      var obs = new Array(K + 1), exp = new Array(K + 1);
+      for (i = 0; i <= K; i++) { obs[i] = 0; exp[i] = 0; }
+      for (i = 0; i < D.n; i++) obs[Math.min(K, D.y[i])]++;
+      for (i = 0; i < D.n; i++) {
+        var mu = Math.exp(D.b[0] + D.b[1] * D.x[i]), pk = Math.exp(-mu), acc = 0;
+        for (j = 0; j <= K; j++) { exp[j] += pk; acc += pk; pk = pk * mu / (j + 1); }
+        exp[K] += 1 - acc;                                       // pile the tail into the last bar
+      }
+      var top = Math.max(Math.max.apply(null, obs), Math.max.apply(null, exp)) * 1.14;
+      var bw = iw / (K + 1);
+      function sy(v) { return m.t + (1 - v / top) * ih; }
+      var g = '';
+      [0, top / 2, top].forEach(function (v) {
+        g += '<line x1="' + m.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (m.l + iw) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+             '<text x="' + (m.l - 6) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + Math.round(v) + '</text>';
+      });
+      for (i = 0; i <= K; i++) {
+        var x0 = m.l + bw * i;
+        g += '<rect x="' + (x0 + bw * 0.14).toFixed(1) + '" y="' + sy(obs[i]).toFixed(1) + '" width="' + (bw * 0.72).toFixed(1) +
+             '" height="' + (m.t + ih - sy(obs[i])).toFixed(1) + '" rx="2" fill="' + P.mut + '" fill-opacity="0.34"/>' +
+             '<rect x="' + (x0 + bw * 0.28).toFixed(1) + '" y="' + sy(exp[i]).toFixed(1) + '" width="' + (bw * 0.44).toFixed(1) +
+             '" height="' + (m.t + ih - sy(exp[i])).toFixed(1) + '" rx="2" fill="none" stroke="' + P.bad + '" stroke-width="1.8"/>' +
+             '<text x="' + (x0 + bw / 2).toFixed(1) + '" y="' + (m.t + ih + 13) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="' + P.mut + '">' +
+             (i === K ? i + '+' : i) + '</text>';
+      }
+      g += '<text x="' + m.l + '" y="12" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">solid = the data</text>' +
+           '<text x="' + (m.l + iw) + '" y="12" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.bad + '">outline = what the Poisson model expects</text>' +
+           axes(P, m, iw, ih, 'count', 'how many cases');
+      return {
+        svg: wrap(g, H, 'observed counts against the counts a Poisson model expects'),
+        fail: 'The data contain <b>' + D.obsZero + ' zeros</b>. The Poisson model expects <b>' + D.expZero.toFixed(0) + '</b>. ' +
+          'That gap is the model telling you it has the wrong shape.',
+        read: 'A Poisson distribution has one parameter, so its mean fixes how many zeros it can produce. Here the zeros come from two different places: ' +
+          Math.round(100 * D.pZero) + '% of the cases could never have had a positive count at all, and the rest could and sometimes did not. ' +
+          'One parameter cannot describe two processes, so the model splits the difference: it overstates the low counts it can reach and understates the zeros. ' +
+          'Fit a zero-inflated or a hurdle model and the two processes get a parameter each.'
+      };
+    },
+
+    ordinal: function (D, P) {
+      var m = { l: 42, r: 16, t: 16 }, iw = W - m.l - m.r, ih = 176, H = 226;
+      var lo = 0.4, hi = 5.9;
+      function sx(v) { return m.l + (v + 2) / 4 * iw; }
+      function sy(v) { return m.t + (hi - v) / (hi - lo) * ih; }
+      var g = '', i, j;
+      [1, 2, 3, 4, 5].forEach(function (v) {
+        g += '<line x1="' + m.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (m.l + iw) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+             '<text x="' + (m.l - 6) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + v + '</text>';
+      });
+      // observed distribution in five slices of x, drawn as stacked proportions
+      var bins = 5, cnt = [];
+      for (i = 0; i < bins; i++) { cnt.push([0, 0, 0, 0, 0]); }
+      for (i = 0; i < D.n; i++) {
+        var b = Math.min(bins - 1, Math.floor((D.x[i] + 2) / 4 * bins));
+        cnt[b][D.y[i] - 1]++;
+      }
+      for (i = 0; i < bins; i++) {
+        var tot = cnt[i].reduce(function (a, c) { return a + c; }, 0) || 1;
+        var x0 = m.l + iw * i / bins + iw / bins * 0.16, wdt = iw / bins * 0.68, yTop = m.t + 6;
+        for (j = 4; j >= 0; j--) {
+          var frac = cnt[i][j] / tot, hgt = frac * (ih - 12);
+          g += '<rect x="' + x0.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + wdt.toFixed(1) + '" height="' + hgt.toFixed(1) +
+               '" fill="' + P.c0 + '" fill-opacity="' + (0.16 + 0.19 * j).toFixed(2) + '"/>';
+          if (frac > 0.12) g += '<text x="' + (x0 + wdt / 2).toFixed(1) + '" y="' + (yTop + hgt / 2 + 3).toFixed(1) +
+               '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.ink + '">' + (j + 1) + '</text>';
+          yTop += hgt;
+        }
+      }
+      var pl = [], t;
+      for (t = -2; t <= 2.0001; t += 0.08) pl.push(sx(t).toFixed(1) + ',' + sy(D.lin[0] + D.lin[1] * t).toFixed(1));
+      g += '<polyline points="' + pl.join(' ') + '" fill="none" stroke="' + P.bad + '" stroke-width="2.4" stroke-dasharray="6 3"/>' +
+           '<text x="' + (m.l + iw - 4) + '" y="' + (sy(D.predHi) - 8).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.bad + '">the numeric model</text>' +
+           '<text x="' + m.l + '" y="' + (m.t + ih + 25) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">bars: what people actually answered in each slice of x</text>' +
+           axes(P, m, iw, ih, 'predictor', 'rating, 1 to 5');
+      return {
+        svg: wrap(g, H, 'a straight line fitted to a five-point rating, against the observed answers'),
+        fail: 'The line predicts <b>' + D.predLo.toFixed(2) + '</b> at the bottom of the range and <b>' + D.predHi.toFixed(2) +
+          '</b> at the top. Nobody gave those answers, because nobody could. Push it one step past the data, to x = ' + D.outX +
+          ', and it predicts <b>' + D.predOut.toFixed(2) + '</b>, which is off the scale entirely. ' +
+          'It also treats the step from 1 to 2 as equal to the step from 4 to 5; in the process behind this data they are <b>' +
+          D.gaps[0].toFixed(1) + '</b> and <b>' + D.gaps[2].toFixed(1) + '</b>.',
+        read: 'Rating scales are ordered, not spaced. The numbers 1 to 5 are labels for a ranking, and arithmetic on labels invents a measurement that was never taken. ' +
+          'Averaging them assumes every step is the same size, which is exactly the assumption the data violate here. ' +
+          'An ordered logistic model estimates one slope and lets the category boundaries sit wherever the data put them, which is the honest version of the same question.'
+      };
+    },
+
+    overfitting: function (D, P, deg) {
+      var F = MODES.overfitting.refit(D, deg);
+      var m = { l: 42, r: 16, t: 14 }, iw = W - m.l - m.r, ih = 186, H = 232;
+      var lo = -2.2, hi = 2.2;
+      function sx(v) { return m.l + (v + 1.05) / 2.1 * iw; }
+      function sy(v) { return m.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * ih; }
+      var g = '', t;
+      [-2, -1, 0, 1, 2].forEach(function (v) {
+        g += '<line x1="' + m.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (m.l + iw) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+             '<text x="' + (m.l - 6) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + v + '</text>';
+      });
+      var truth = [], curve = [];
+      for (t = -1.05; t <= 1.0501; t += 0.01) {
+        truth.push(sx(t).toFixed(1) + ',' + sy(Math.sin(2.3 * t)).toFixed(1));
+        curve.push(sx(t).toFixed(1) + ',' + sy(evalp(F.b, t)).toFixed(1));
+      }
+      g += '<polyline points="' + truth.join(' ') + '" fill="none" stroke="' + P.acc + '" stroke-width="1.8" stroke-dasharray="4 3"/>';
+      D.xte.forEach(function (v, i) { g += '<circle cx="' + sx(v).toFixed(1) + '" cy="' + sy(D.yte[i]).toFixed(1) + '" r="3" fill="none" stroke="' + P.c1 + '" stroke-width="1.4"/>'; });
+      D.xtr.forEach(function (v, i) { g += '<circle cx="' + sx(v).toFixed(1) + '" cy="' + sy(D.ytr[i]).toFixed(1) + '" r="3.2" fill="' + P.c0 + '" fill-opacity="0.85"/>'; });
+      g += '<polyline points="' + curve.join(' ') + '" fill="none" stroke="' + P.bad + '" stroke-width="2.4"/>' +
+           '<text x="' + m.l + '" y="' + (m.t + 11) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c0 + '">filled = training data</text>' +
+           '<text x="' + (m.l + iw) + '" y="' + (m.t + 11) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c1 + '">hollow = held out</text>' +
+           axes(P, m, iw, ih, 'predictor', 'outcome');
+      var ratio = F.rmseTr > 1e-9 ? F.rmseTe / F.rmseTr : Infinity;
+      var offChart = false, tt;
+      for (tt = -1.05; tt <= 1.0501; tt += 0.02) if (Math.abs(evalp(F.b, tt)) > hi) offChart = true;
+      return {
+        svg: wrap(g, H, 'a polynomial fitted at the chosen degree, with training and held-out points'),
+        fail: 'Training R-squared <b>' + F.r2.toFixed(3) + '</b>. Error on the held-out points is <b>' +
+          (isFinite(ratio) ? ratio.toFixed(1) + 'x' : 'unbounded') + '</b> the training error (' +
+          F.rmseTe.toFixed(2) + ' against ' + F.rmseTr.toFixed(2) + ').' +
+          (offChart ? ' The fitted curve runs off the top of the chart between the training points.' : ''),
+        read: 'Every extra term can only improve the training fit, so R-squared rising is not evidence of anything. ' +
+          'Watch the hollow points instead: they were never shown to the model, and they are the only honest test of whether it learned the pattern or the noise. ' +
+          (deg <= 4 ? 'At this degree the curve is still tracking the real shape (dashed).'
+                    : 'At this degree the curve is chasing individual training points, and it swings hardest where the data are thinnest.')
+      };
+    },
+
+    interaction: function (D, P) {
+      var m = { l: 42, r: 16, t: 14 }, iw = W - m.l - m.r, ih = 190, H = 236;
+      var lo = -2, hi = 14;
+      function sx(v) { return m.l + v / 10 * iw; }
+      function sy(v) { return m.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * ih; }
+      var g = '', t;
+      [0, 4, 8, 12].forEach(function (v) {
+        g += '<line x1="' + m.l + '" y1="' + sy(v).toFixed(1) + '" x2="' + (m.l + iw) + '" y2="' + sy(v).toFixed(1) + '" stroke="' + P.grid + '"/>' +
+             '<text x="' + (m.l - 6) + '" y="' + (sy(v) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + v + '</text>';
+      });
+      D.x.forEach(function (v, i) {
+        g += '<circle cx="' + sx(v).toFixed(1) + '" cy="' + sy(D.y[i]).toFixed(1) + '" r="2.8" fill="' + (D.g[i] ? P.c1 : P.c0) + '" fill-opacity="0.55"/>';
+      });
+      function line(b, gi, col, dash) {
+        var a = b[0] + (b[2] || 0) * gi, s = b[1] + (b.length > 3 ? b[3] * gi : 0);
+        return '<line x1="' + sx(0).toFixed(1) + '" y1="' + sy(a).toFixed(1) + '" x2="' + sx(10).toFixed(1) + '" y2="' + sy(a + 10 * s).toFixed(1) +
+          '" stroke="' + col + '" stroke-width="2.4"' + (dash ? ' stroke-dasharray="6 3"' : '') + '/>';
+      }
+      g += line(D.ba, 0, P.bad, true) + line(D.ba, 1, P.bad, true) + line(D.bi, 0, P.c0, false) + line(D.bi, 1, P.c1, false);
+      g += '<text x="' + (m.l + 6) + '" y="' + (m.t + 12) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.bad + '">dashed = additive model (parallel by construction)</text>' +
+           axes(P, m, iw, ih, 'predictor', 'outcome');
+      var sA = D.bi[1], sB = D.bi[1] + D.bi[3];
+      return {
+        svg: wrap(g, H, 'two groups with opposite slopes, fitted with and without an interaction'),
+        fail: 'The additive model reports one slope of <b>' + D.ba[1].toFixed(2) + '</b> for the predictor. ' +
+          'With the interaction in, the slope is <b>' + sA.toFixed(2) + '</b> in one group and <b>' + sB.toFixed(2) + '</b> in the other.',
+        read: 'An additive model can give the two groups different heights but not different directions: the two dashed lines are parallel because the model has no term that could make them anything else. ' +
+          'So it averages a rise and a fall and reports roughly nothing. The correct sentence is not that the predictor has no effect. It is that the effect depends on the group, which is a finding, and the model without the interaction term cannot express it.'
+      };
+    }
+  };
+
+  /* ---------------- runnable R, one per mode ----------------
+     Each block regenerates data with the same structure and fits both models. */
+  var RCODE = {
+    link: function (D) {
+      return [
+        '# A yes/no outcome, fitted the wrong way and then the right way.',
+        'set.seed(9)',
+        'n <- ' + D.n,
+        'x <- runif(n, -3, 3)',
+        'y <- rbinom(n, 1, plogis(1.4 * x))',
+        '',
+        'lin <- lm(y ~ x)                       # the wrong family',
+        'log <- glm(y ~ x, family = binomial)   # the right one',
+        '',
+        'p_lin <- fitted(lin)',
+        'c(impossible = sum(p_lin < 0 | p_lin > 1),',
+        '  lowest     = round(min(p_lin), 3),',
+        '  highest    = round(max(p_lin), 3))',
+        '',
+        'range(fitted(log))                     # a probability model stays inside 0 and 1'
+      ].join('\n');
+    },
+    'zero-inflation': function (D) {
+      return [
+        '# Counts with a pile of structural zeros, fitted as ordinary Poisson.',
+        'set.seed(9)',
+        'n <- ' + D.n,
+        'x <- rnorm(n)',
+        'y <- ifelse(runif(n) < ' + D.pZero + ', 0, rpois(n, exp(0.9 + 0.7 * x)))',
+        '',
+        'm <- glm(y ~ x, family = poisson)',
+        'mu <- fitted(m)',
+        '',
+        'c(observed_zeros = sum(y == 0),',
+        '  expected_zeros = round(sum(dpois(0, mu)), 1),',
+        '  poisson_slope  = round(unname(coef(m)[2]), 3),',
+        '  true_slope     = 0.7)',
+        '',
+        '# a zero-inflated model gives the two processes a parameter each',
+        '# install.packages("pscl"); pscl::zeroinfl(y ~ x | 1)'
+      ].join('\n');
+    },
+    ordinal: function (D) {
+      return [
+        '# A five-point rating, treated as a number and then as what it is.',
+        'set.seed(9)',
+        'n <- ' + D.n,
+        'x  <- runif(n, -2, 2)',
+        'z  <- 1.1 * x + rlogis(n)',
+        'y  <- cut(z, c(-Inf, ' + D.cuts.join(', ') + ', Inf), labels = 1:5)',
+        'yn <- as.numeric(as.character(y))       # the mistake: a label used as a quantity',
+        '',
+        'lin <- lm(yn ~ x)',
+        'round(predict(lin, data.frame(x = c(-2, 2))), 2)   # answers nobody can give',
+        '',
+        'table(y)',
+        'diff(c(' + D.cuts.join(', ') + '))                  # the real gaps between categories',
+        '',
+        '# the honest model: one slope, boundaries wherever the data put them',
+        'summary(MASS::polr(y ~ x, Hess = TRUE))'
+      ].join('\n');
+    },
+    overfitting: function (D) {
+      return [
+        '# Flexibility that improves the training fit and nothing else.',
+        'set.seed(9)',
+        'n <- ' + D.n + '; deg <- 12',
+        'xtr <- seq(-1, 1, length.out = n); ytr <- sin(2.3 * xtr) + rnorm(n, sd = 0.28)',
+        'xte <- runif(n, -1, 1);            yte <- sin(2.3 * xte) + rnorm(n, sd = 0.28)',
+        '',
+        'fit  <- lm(ytr ~ poly(xtr, deg, raw = TRUE))',
+        'pred <- function(x) as.numeric(cbind(1, outer(x, 1:deg, "^")) %*% coef(fit))',
+        '',
+        'round(c(train_r2   = summary(fit)$r.squared,',
+        '        train_rmse = sqrt(mean((ytr - pred(xtr))^2)),',
+        '        test_rmse  = sqrt(mean((yte - pred(xte))^2))), 3)',
+        '',
+        '# raise deg and run it again: train_r2 only ever goes up',
+        '# test_rmse is the number that tells you when to stop'
+      ].join('\n');
+    },
+    interaction: function (D) {
+      return [
+        '# Two groups whose slopes point in opposite directions.',
+        'set.seed(9)',
+        'n <- ' + D.n,
+        'x <- runif(n, 0, 10)',
+        'g <- rep(0:1, length.out = n)',
+        'y <- ifelse(g == 1, 10 - 0.8 * x, 2 + 0.8 * x) + rnorm(n, sd = 1.5)',
+        '',
+        'add <- lm(y ~ x + g)        # no interaction: the lines must stay parallel',
+        'int <- lm(y ~ x * g)        # the slope is allowed to differ by group',
+        '',
+        'round(c(additive_slope = unname(coef(add)["x"]),',
+        '        slope_group0   = unname(coef(int)["x"]),',
+        '        slope_group1   = unname(coef(int)["x"] + coef(int)["x:g"])), 3)',
+        '',
+        'anova(add, int)             # is the extra term earning its place?'
+      ].join('\n');
+    }
+  };
+
+  window.LessonWidgets.register('wrong-family-fit', mount);
 })();
