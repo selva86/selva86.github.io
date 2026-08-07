@@ -1,0 +1,188 @@
+---
+title: "Influential Observations in R: Cook's Distance"
+description: "A reviewer flags an influential observation with a high Cook's distance. How to decide in R whether to keep, down-weight, or drop the point, and report it."
+keywords: "influential observations in R, Cook's distance, influential observation, high Cook's distance, influential data points, leave-one-out sensitivity, robust regression, drop influential point"
+mathjax: false
+webr: true
+curriculum_id: "null"
+post_type: "FR"
+auto_link_terms: "influential observations|influential observation|Cook's distance|influential data points|leave-one-out sensitivity|high-influence observation"
+auto_link_case_sensitive: false
+fr_parent: "Answering-Statistical-Reviewer-Comments.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">An influential observation is a single row that pulls your regression noticeably toward itself, and <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a> is the number that measures how far. When a diagnostic or a reviewer flags one, the decision is not whether to delete it but whether it changes anything: you keep it, correct it, down-weight it, or drop it with a stated reason, and either way you show the reader the model with and without it.</p>
+
+<h2>The decision you are making</h2>
+
+<p>By the time this is useful the check has already run. Either you fitted the model and looked at the diagnostics yourself, or a reviewer did, and one or more rows came back with a Cook's distance large enough to notice. The mechanics of getting there, the five <a class="auto-link" href="Checking-Assumptions-in-R.html" title="Checking Model Assumptions in R: One Workflow">diagnostic plots</a> and how leverage and residual size combine into a single influence number, are laid out in <a href="/Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a>, so this chapter starts one step later, when the number is in front of you and the question is what to do with it.</p>
+
+<p>A large Cook's distance is a reason to look, not a reason to delete. An influential point can be a data-entry error, a case drawn from a different population than the one you meant to study, or a completely valid observation that happens to sit in a sparse corner of the predictor space where any single point has room to swing the line. Those three call for three different actions, and the diagnostic cannot tell them apart (Belsley, Kuh & Welsch, 1980). Which of the three you are looking at is something you work out from the data and the record behind it, not from the size of the number.</p>
+
+<p>One move is off the table whatever the point turns out to be. Dropping an influential observation because the result you wanted appears once it is gone is not a data decision, it is a results decision, and it inflates false positives the same way choosing an analysis after seeing the data does (Simmons, Nelson & Simonsohn, 2011). A reviewer who suspects a point was removed to rescue significance will trust nothing else in the paper, so any deletion has to stand on a reason that has nothing to do with what it does to your <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>.</p>
+
+<h2>What the options are</h2>
+
+<p>You have four honest responses to an influential point, and which one is defensible depends entirely on why the point is unusual.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Option</th>
+<th>When it is the right call</th>
+<th>What you show a reviewer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep it</td>
+<td>The conclusion holds with the point in and with it out</td>
+<td>The with-and-without comparison, so they see the estimate barely moves</td>
+</tr>
+<tr>
+<td>Investigate and correct</td>
+<td>The value is a recording or entry error you can verify</td>
+<td>The corrected value and its source, never a silent deletion</td>
+</tr>
+<tr>
+<td>Down-weight it</td>
+<td>Genuine extreme values you will not delete but do not want dominating the fit</td>
+<td>Robust and least-squares estimates side by side (Venables & Ripley, 2002)</td>
+</tr>
+<tr>
+<td>Drop it with a reason</td>
+<td>The case falls outside your study's <a class="auto-link" href="Populations-Samples-and-Bias-in-R.html" title="Populations, Samples and Sampling Bias in R">target population</a> on a criterion fixed in advance</td>
+<td>The criterion, decided before you looked at its effect on the estimate</td>
+</tr>
+</tbody>
+</table>
+
+<p>The first row settles most cases, because keeping the point is the easiest position to defend once the numbers back it. If the model says the same thing with the point in and with it out, the influence is real but immaterial, and a reviewer who can see both fits has nothing left to object to. The hard cases are the ones where the conclusion does depend on the point, and those are not settled by argument but by running the comparison, which is what the next section does.</p>
+
+<h2>How to decide</h2>
+
+<p>The deciding question is not how large Cook's distance is but whether the substantive answer survives leaving the point out. That is one refit and one comparison, and it works the same way whatever flagged the point in the first place. Take a model for fuel economy in <code>mtcars</code>, regressing miles per gallon on weight and horsepower, and find the most influential row.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full &lt;- lm(mpg ~ wt + hp, data = mtcars)
+cd   &lt;- cooks.distance(full)
+top1 &lt;- names(which.max(cd))
+top1
+round(c(cooks_D = max(cd), threshold = 4 / nrow(mtcars)), 3)
+#&gt; [1] &quot;Chrysler Imperial&quot;
+#&gt;   cooks_D threshold 
+#&gt;     0.424     0.125 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Chrysler Imperial has a Cook's distance of 0.424, more than three times the common 4/n rule-of-thumb cutoff of 0.125, so on every threshold a textbook offers this is a point you are told to worry about. Whether the worry is warranted is a question the cutoff cannot answer on its own. Refit without the row and compare the coefficient that carries the story.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">drop1 &lt;- lm(mpg ~ wt + hp, data = mtcars[rownames(mtcars) != top1, ])
+round(rbind(
+  full    = coef(summary(full))[&quot;wt&quot;, c(&quot;Estimate&quot;, &quot;Std. Error&quot;, &quot;Pr(&gt;|t|)&quot;)],
+  dropped = coef(summary(drop1))[&quot;wt&quot;, c(&quot;Estimate&quot;, &quot;Std. Error&quot;, &quot;Pr(&gt;|t|)&quot;)]
+), 4)
+#&gt;         Estimate Std. Error Pr(&gt;|t|)
+#&gt; full     -3.8778     0.6327        0
+#&gt; dropped  -4.4197     0.6162        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Dropping the most influential car moves the weight coefficient from -3.88 to -4.42 and leaves its standard error almost untouched, and both fits stay significant far below the 0.001 level, which is why the p-value column rounds to zero at four decimals. The point is nudging the estimate, but the finding that heavier cars burn more fuel is identical with it in or out. A conclusion this stable is one you keep the point in and report that you checked.</p>
+
+<p>A robust fit gives a second, independent read on the same question. <code>rlm</code> down-weights unusual rows automatically instead of removing them, so if it disagrees with <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a> you know the extreme cases were steering the line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+rob &lt;- rlm(mpg ~ wt + hp, data = mtcars)
+round(rbind(OLS = coef(full), robust = coef(rob)), 3)
+w &lt;- setNames(rob$w, rownames(mtcars))
+round(w[top1], 3)
+#&gt;        (Intercept)     wt     hp
+#&gt; OLS         37.227 -3.878 -0.032
+#&gt; robust      36.584 -3.880 -0.029
+#&gt; Chrysler Imperial 
+#&gt;             0.483 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The robust fit cut Chrysler Imperial's weight to 0.483, roughly half that of an ordinary car, yet the robust coefficients land on top of the least-squares ones, with weight at -3.880 against -3.878. When the estimator that trusts the point least still agrees with the one that trusts it fully, the point is not distorting anything, so keeping it costs you nothing.</p>
+
+<p>Now the same procedure pointing the other way. The Swiss fertility data holds one province, Geneva, that is far more urban and less agricultural than any other, and regressing fertility on the percentage of men in agriculture puts a lot of weight on it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sw      &lt;- lm(Fertility ~ Agriculture, data = swiss)
+sw_top  &lt;- names(which.max(cooks.distance(sw)))
+sw_drop &lt;- lm(Fertility ~ Agriculture, data = swiss[rownames(swiss) != sw_top, ])
+sw_top
+round(rbind(
+  full    = coef(summary(sw))[&quot;Agriculture&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)],
+  dropped = coef(summary(sw_drop))[&quot;Agriculture&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)]
+), 4)
+#&gt; [1] &quot;V. De Geneve&quot;
+#&gt;         Estimate Pr(&gt;|t|)
+#&gt; full      0.1942   0.0149
+#&gt; dropped   0.1334   0.0902</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With Geneva in, the association between agriculture and fertility is positive and significant at p = 0.015; drop it and the coefficient falls by about a third while the p-value climbs to 0.090, past the conventional line. Geneva is a real canton, not a typo, so there is nothing to correct and no honest reason to delete it. The correct reading is that the association is not robust: it rests on one influential point, and a paper reporting the full-sample p = 0.015 as a settled result would be claiming more than the data support. When the leave-one-out refit changes your answer, the answer was never as firm as the first fit made it look, and the honest response is to report both and say which one the reader should lean on.</p>
+
+<h2>What reviewers will ask about this later</h2>
+
+<p>Deciding what to do with an influential point sets up the next round of questions, and each path leads to a specific one. If you kept the point, a reviewer may still ask whether the model shape is right, because a point looks influential partly when the line is bent in a way the model cannot follow, which is the ground covered by <a href="/Non-Normal-Residuals-in-Peer-Review.html">Non-Normal Residuals in Peer Review</a> and <a href="/Nonlinear-Relationships-in-Peer-Review.html">Nonlinear Relationships in Peer Review</a>. If you dropped the point, expect the objection set out in <a href="/Outlier-Removal-in-Peer-Review.html">Outlier Removal in Peer Review</a>, which is this same decision seen from the reviewer's chair and turns on whether your removal criterion was fixed before you saw the effect. If you down-weighted it, the follow-up is why that estimator and what it assumes, answered in <a href="/Robust-Regression-in-R.html">Robust Regression in R</a>.</p>
+
+<p>The request that arrives whichever path you took is for the comparison itself. A reviewer wants the model with and without the point, and presenting it as a planned <a href="/Sensitivity-Analysis-in-R.html">sensitivity analysis</a> rather than as a concession answers the question before it is asked. Where the influence traces to a handful of extreme outcome values rather than one row, the discussion widens into <a href="/Model-Fit-Statistics-in-Peer-Review.html">model fit</a> and whether a different specification would describe the data better than the one you are patching one point at a time.</p>
+
+<h2>How to report it</h2>
+
+<p>An influential observation belongs in the statistical methods paragraph whenever it touched a decision, and reporting guidelines treat the with-and-without check as a sensitivity analysis you are expected to describe rather than an optional extra (STROBE item 12e; von Elm et al., 2007; Lang & Altman, 2015). Three situations cover almost everything, and each has a form that closes the question. First, the point you kept because the model was stable without it.</p>
+
+<blockquote><p>Diagnostic checks flagged one influential observation (Cook's distance 0.42, above the 4/n threshold). Refitting without it changed the weight coefficient from -3.88 to -4.42, with both estimates significant at p < 0.001, so the observation was retained and the model is reported on the full sample. A robust regression down-weighting extreme cases returned materially identical estimates (Methods, page X).</p></blockquote>
+
+<p>Second, the extreme values you chose to down-weight instead of remove, where robust and ordinary estimates agree closely enough that the choice between them does not change the conclusion.</p>
+
+<blockquote><p>Two observations exerted disproportionate influence on the fit. Rather than remove them, we re-estimated the model with robust (M-) regression, which down-weights extreme cases automatically. The robust and least-squares coefficients agreed to within a few percent, so we report the least-squares model and provide the robust fit as a sensitivity check (Methods, page X).</p></blockquote>
+
+<p>Third, the honest case, where a valid point carries the result and there are no grounds to remove it.</p>
+
+<blockquote><p>The association was significant in the full sample (p = 0.015) but not after excluding a single high-influence observation (p = 0.090). Because that observation is a valid case with no basis for removal, we report both analyses and describe the association as sensitive to its inclusion rather than as an established effect (Methods, page X).</p></blockquote>
+
+<p>All three name the point, say what leaving it out did to the estimate, and state the decision that followed from that. Report the comparison even in the first case, where the point was kept, because a reviewer cannot tell a checked-and-stable model from one that was never checked unless the numbers are on the page. Showing both fits, whichever way they came out, is ordinary practice for this kind of check, and it leaves a reviewer holding the same evidence you used to decide.</p>
+
+{% endraw %}
