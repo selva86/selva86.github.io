@@ -3219,7 +3219,7 @@ def patch_tool_pages(sections, asset_hrefs):
         '<input type="search" name="q" placeholder="Search" aria-label="Search r-statistics.co"></form>'
         '<button class="snav-sbtn" data-snav-search type="button" aria-label="Search">'
         '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>'
-        '<a class="snav-btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a>'
+        '<a class="snav-btn" href="/pricing.html">Go Pro <span class="a">&rarr;</span></a>'
         '<span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>'
         '<span class="auth-user"></span>'
         '</div>'
