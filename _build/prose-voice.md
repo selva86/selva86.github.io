@@ -3,22 +3,34 @@
 How sentences are written on this site. Applies to **every** content type: tutorials,
 PSEO posts, handbook chapters, interactive lessons, exercise hubs, landing copy.
 Referenced by `tutorial-pedagogy.md` (T16/T17), `lesson-pedagogy.md` (R15),
-`pseo-formatting.md` (section 9), and the writer + reviewer skills. Three rules.
-Read all three; they are short on purpose.
+`pseo-formatting.md` (section 9), and the writer + reviewer skills.
+
+**P1 and P2 are guidance, not rules.** They describe what good writing here reads
+like, and each comes with a test you can run when a passage feels wrong. Neither
+is a gate to apply sentence by sentence. Applied that way they produce exactly the
+stiff, over-engineered prose they exist to prevent, which is the opposite of the
+point: the writing should read like prose, not like something that passed a check.
+
+**P3 is a hard rule.** It is a prohibition, not a matter of style, and it holds
+every time.
 
 ---
 
-## P1 - Don't write about the article. Write about the topic.
+## P1 - Write about the topic (guidance)
 
-**In one line: if a sentence only describes the page, delete it. If it tells the
-reader something about the subject, keep it.**
+**The writing is about its subject, not about itself.** Naming the page is normal
+and often useful: "the same regression you fitted earlier" locates something real.
+There is nothing to avoid at the word level, and no banned phrases. What goes
+wrong is prose that has drifted into describing its own promise, structure or
+method instead of saying anything about the topic.
 
-The defect is **not** the words "this guide". Those words are usually fine. The
-defect is a sentence whose whole payload is a claim about the article.
+Most sentences never raise the question. Do not audit them one by one. Reach for
+the test below when a passage reads busy but empty, which is when this defect is
+usually what you are feeling.
 
-**The cargo test.** Cross out every phrase that names the article (`this guide`,
-`in this post`, `you will learn`, `by the end`, `the rest of this tutorial`). Read
-what is left.
+**The cargo test, as a diagnostic.** Cross out every phrase that names the article
+(`this guide`, `in this post`, `you will learn`, `by the end`, `the rest of this
+tutorial`). Read what is left.
 
 - A fact about the SUBJECT survives -> keep it. The article-reference was a frame
   around real cargo.
@@ -47,44 +59,47 @@ learning. Prefer the direct form in the opening especially. This is a tightening
 note, not a failure: do not treat every announcement as a defect.
 
 There is no banned word list, and there must not be one. A script cannot apply the
-cargo test; the reviewer pass owns this rule.
+cargo test; the reviewer pass owns this, and owns it as a judgement about whether a
+passage says anything, never as a count of sentences that mention the page.
 
 ---
 
-## P2 - Each sentence should follow from the one before it
+## P2 - A paragraph should go somewhere (guidance)
 
-**In one line: a paragraph is an argument, not a list. If you can shuffle the
-sentences and it still reads fine, you wrote a list and punctuated it as prose.**
+**Good prose reads like someone thinking, not like a set of facts stacked in a
+column.** Ideas arrive because of each other rather than merely after each other.
 
-A list of true statements is not prose. Human prose is an argument, where each
-sentence needs the one before it. This is the more common defect of the two, and it
-is invisible sentence by sentence: every sentence is correct, and the paragraph is
-still dead.
+This is a property of paragraphs, and it comes from knowing what a paragraph is
+for before writing it. **It is not a requirement that every sentence attach to the
+previous one.** Written that way you get connective-stuffed prose that is harder
+to read than the problem it was fixing, and it reads engineered, which is worse
+than reading flat. Plenty of good sentences simply sit next to their neighbour,
+and short unattached sentences are often the best ones on the page.
 
-**The reorder test.** Shuffle the sentences of a paragraph. If it reads just as well
-in the new order, it was a list wearing prose punctuation. Rewrite it so that at
-least one sentence cannot move: make the later sentence depend on the earlier one
-(`because`, `so`, `which means`, `whereas`, `even though`, `once`, `until`,
-`rather than`, `and that is why`), or make it answer a question the earlier one
-raised.
+The defect is a whole paragraph of true statements that could appear in any order,
+which reads dead even though every sentence in it is correct.
 
-Three things to check when the test fails:
+**The reorder test, as a diagnostic.** When a paragraph feels flat, shuffle its
+sentences. If nothing breaks, it was a list wearing prose punctuation. Fix it by
+working out what the paragraph is actually arguing and letting the sentences fall
+out of that, not by threading connectives through what is already there.
 
-1. **Connectives are missing.** Adjacent facts sit side by side with nothing saying
-   how one bears on the other. `and` and `but` do not count: they chain facts
-   without subordinating one to the other. Aim for a subordinating connective every
-   two or three sentences of body prose.
+Three things usually explain a flat paragraph:
+
+1. **Nothing says how one fact bears on the next.** `and` and `but` chain without
+   subordinating. `because`, `so`, `which means`, `whereas`, `even though`, `once`
+   and `until` carry an actual relationship. Use them where one exists; do not
+   manufacture one where it does not.
 2. **Every sentence opens on its subject.** `paste0() is the shortcut. Recycling
    applies. Ties break by the second key.` Front something in some of them: a
    condition, a time, a contrast, a because-clause.
 3. **Every sentence is the same length.** Generated prose clusters around one
    length; human prose varies hard.
 
-**Varied length, concretely.** In any paragraph of three or more sentences, the
-longest should be at least twice the shortest. A paragraph where every sentence
-runs 8 to 14 words is the defect, even when each sentence is true and clear. A
-25-word sentence that carries a because-clause followed by a 5-word one that lands
-the point is the shape to aim for. Do not average toward the middle: a hard short
+**On length.** A paragraph where every sentence runs 8 to 14 words reads flat even
+when each is true and clear. A long sentence carrying a because-clause, followed by
+a short one that lands the point, is a shape worth having. Notice length; do not
+count it. Averaging toward the middle is the thing to avoid, because a hard short
 sentence only works next to a long one.
 
 ### Before / after, from real pages on this site
@@ -119,12 +134,17 @@ depend on the second, and the closing question is what the next paragraph answer
 Two sentences instead of three, and the second one now says WHEN you would want
 `paste0()` rather than only naming it.
 
-### What this rule does NOT mean
+### What this does NOT mean
 
 Not a licence for long winding sentences, subordinate-clause pileups, or ornament.
-Plain and literal still wins (T15 / R12). Short sentences are good; a *run* of them
-with nothing joining them is the defect. If a sentence needs two commas and a
-semicolon to survive, split it and connect the halves properly.
+Plain and literal still wins (T15 / R12). Short sentences are good, and a page full
+of them is fine; a *run* of them with nothing joining them, in a paragraph that
+should have been making a case, is the thing worth noticing. If a sentence needs
+two commas and a semicolon to survive, split it and connect the halves properly.
+
+And it does not mean every paragraph must build to something. Some paragraphs list
+options, state facts, or set up the next one, and that is what they are for. This
+is about prose that should have been thinking and turned out to be inventory.
 
 ---
 
@@ -171,5 +191,12 @@ written under these rules as they stand. The failure is live, not hypothetical.
 | `worst_run` | the offending passage, quoted | - |
 
 `--all` ranks the corpus by CHOP (mean percentile rank of the first three, 0-100,
-higher = choppier). The numbers are a **pointer for a human**, never a verdict: they
-say where to look, and the reorder test says whether it is actually wrong.
+higher = choppier).
+
+**Do not write to these numbers.** They are a pointer for a human and never a
+verdict: they say which page to look at, and reading it decides whether anything
+is actually wrong. A page can sit outside every column above and be perfectly good
+prose, and a page can satisfy all of them and still be dead. Optimising a draft
+until the metrics clear is how you produce writing that passes a check and reads
+like it. The "healthy" column is where most decent pages happen to land, which is
+all it is.
