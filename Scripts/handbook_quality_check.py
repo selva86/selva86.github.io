@@ -50,6 +50,14 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # part template. Everything else is a decision chapter (five part variant).
 OBJECTION_PARTS = {9}
 
+# Part 8 is the hub. Its one chapter orients the reader across every objection
+# instead of answering one, so it is organised by complaint group rather than by
+# the fixed sections, and neither template describes it. Forcing either would
+# gut a page that already works. Hub chapters are still held to the frontmatter,
+# prose and code contracts; only the section template is exempt.
+HUB_PARTS = {8}
+MIN_HUB_SECTIONS = 4
+
 OBJECTION_SECTIONS = [
     'What the reviewer wrote',
     'What they actually mean',
@@ -219,7 +227,14 @@ def main():
     headings = [h for h, _ in sections]
 
     # 1. frontmatter
-    missing = [k for k in REQUIRED_FM if not fm.get(k)]
+    # A hub chapter has no fr_parent: it IS the parent the objection chapters
+    # point at, so requiring one would ask it to be its own child.
+    try:
+        _is_hub = int(str(fm.get('handbook_part', '')).strip()) in HUB_PARTS
+    except ValueError:
+        _is_hub = False
+    required = [k for k in REQUIRED_FM if not (_is_hub and k == 'fr_parent')]
+    missing = [k for k in required if not fm.get(k)]
     fail('frontmatter missing: %s' % ', '.join(missing)) if missing else ok('frontmatter complete')
     if fm.get('slug') and fm['slug'] != slug:
         fail('frontmatter slug "%s" != filename stem "%s"' % (fm['slug'], slug))
@@ -245,14 +260,27 @@ def main():
         part = None
         fail('handbook_part is not a number: %r' % fm.get('handbook_part'))
     objection = part in OBJECTION_PARTS
-    want = OBJECTION_SECTIONS if objection else DECISION_SECTIONS
-    kind = 'objection' if objection else 'decision'
+    hub = part in HUB_PARTS
 
-    if [h.lower() for h in headings] == [w.lower() for w in want]:
-        ok('%s template: all %d sections, correct names, correct order' % (kind, len(want)))
+    kind = 'hub' if hub else ('objection' if objection else 'decision')
+
+    if hub:
+        # No fixed template: the hub is organised by complaint group. Still
+        # require real structure, so "exempt" cannot become "unstructured".
+        if len(headings) >= MIN_HUB_SECTIONS:
+            ok('hub chapter (part %d): %d sections, no fixed template'
+               % (part, len(headings)))
+        else:
+            fail('hub chapter has %d H2 sections; expected at least %d'
+                 % (len(headings), MIN_HUB_SECTIONS))
     else:
-        fail('%s template violated. Expected exactly:\n     %s\n   Got:\n     %s'
-             % (kind, ' | '.join(want), ' | '.join(headings) or '(no H2 sections)'))
+        want = OBJECTION_SECTIONS if objection else DECISION_SECTIONS
+
+        if [h.lower() for h in headings] == [w.lower() for w in want]:
+            ok('%s template: all %d sections, correct names, correct order' % (kind, len(want)))
+        else:
+            fail('%s template violated. Expected exactly:\n     %s\n   Got:\n     %s'
+                 % (kind, ' | '.join(want), ' | '.join(headings) or '(no H2 sections)'))
 
     h1s = re.findall(r'^# .+$', prose, re.M)
     if h1s: fail('body contains an H1 (%d found); the page H1 comes from the title' % len(h1s))

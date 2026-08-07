@@ -8,6 +8,9 @@ webr: true
 date: 2026-08-04
 curriculum_id: null
 post_type: C
+handbook: publishing
+handbook_part: 8
+handbook_chapter: 30
 sidebar_section: Statistics
 sidebar_title: Answering Reviewer Comments
 sidebar_order: 60
