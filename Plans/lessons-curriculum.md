@@ -18,6 +18,23 @@ Format per course:
 ## llm-agents  (track: scientist; curriculum_id 6.6.1; landing LLM-Agents-Course.html; access: free)
 1. LLM-Agents-in-R - ONE complex lesson on what an LLM agent is, from scratch, grounded in R (ellmer). Arc within the lesson: (a) plain LLM vs an agent that can act; (b) tools - giving the model functions to call; (c) the ReAct loop: Thought -> Action -> Observation, repeating until it can Answer (the signature interactive, stepped through a worked trace); (d) when to stop + guard rails (max steps, validation); (e) building one in R with ellmer (register a tool, run the loop); (f) failure modes (hallucinated tool calls, loops, prompt injection) and how to defend. widgets: agent-loop (signature: step the ReAct trace), process-flow (the build recipe). Outcome: the learner can trace an agent's reasoning loop and wire tools + guard rails responsibly. Never name the in-browser R runtime; say "interactive R".
 
+# Publishing Handbook lesson courses (landing `tutorials/publishing.html`)
+
+One lesson per reviewer objection, grouped into courses by the mechanism they share, so a
+course reuses one signature widget across its lessons. The chapter answers the objection the
+reader already received; the lesson shows the mechanism and applies it to a case they did not
+choose. A lesson that could be lifted back into its chapter without loss is not a lesson.
+Full design: `Plans/handbook-lessons-plan.md`.
+
+## handbook-assumptions  (track: scientist; curriculum_id 4.5.2; landing tutorials/publishing.html; access: free)
+1. Assumptions-Lesson-1 - Non-normal residuals: drag skewness up and watch interval coverage barely move, then find the sample size where it does. Why the Central Limit Theorem makes this the mildest of the seven, and what a QQ plot can and cannot tell you. widgets: assumption-dial (signature, assumption="normality"), residual-plot
+2. Assumptions-Lesson-2 - Unequal variance: break equal variance and watch 95% coverage collapse while R-squared sits still. The interval is the casualty; Welch and robust standard errors are the repair. widgets: assumption-dial (assumption="heteroskedasticity"), residual-plot
+3. Assumptions-Lesson-3 - Non-independent observations: raise the intraclass correlation and see nominal 95% intervals fall well below 95%. Four standard errors compared on the same clustered data. widgets: assumption-dial (assumption="independence"), cluster-icc-sim (signature)
+4. Assumptions-Lesson-4 - Autocorrelated residuals: add serial correlation and read how far the standard error understates. Durbin-Watson, and why the fix is the standard error rather than the coefficient. widgets: assumption-dial (assumption="autocorrelation"), residual-plot
+5. Assumptions-Lesson-5 - Multicollinearity: correlate two predictors and watch the interval widen while coverage HOLDS at 95%. Collinearity makes an estimate imprecise, not wrong, and the interval already says so. widgets: assumption-dial (assumption="multicollinearity"), decorrelation
+6. Assumptions-Lesson-6 - Nonlinear relationships: bend the truth away from a line and watch prediction fail at the edges of the range while R-squared barely moves. A line can be a fine summary and a bad prediction. widgets: assumption-dial (assumption="linearity"), spline-smoother
+7. Assumptions-Lesson-7 - Proportional hazards: make the hazard ratio drift over follow-up and see one number fail to describe an effect that changes. Schoenfeld residuals, and what to report instead. widgets: assumption-dial (assumption="proportional-hazards"), km-curve, hazard-ratio
+
 # Data Scientist track - sections 1-5 (roadmap track `ds`, the "core" tier; ~1 lesson per curriculum item)
 
 > Granularity: near 1:1 with the roadmap curriculum (owner). Thin items merged where noted. Section 4 reuses the existing `random-forest` course (it already teaches trees + bagging), so section 3's "Decision trees" item cross-links there rather than duplicating. Access `free` to match the roadmap (DS core 1-12 marked free); confirm before publish.

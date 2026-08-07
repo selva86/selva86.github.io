@@ -157,3 +157,26 @@ Reuse for `ds`: `tree-diagram`+`gini-split` (§3 + §4 decision trees), `decisio
 ## Adding a widget
 
 One IIFE per file in `www/lesson-widgets/`, contract `mount(el, cfg)`, register with `window.LessonWidgets.register('<id>', mount)`, deterministic data, idempotent. `build.py` bundles it. Author into a lesson with `::widget <id> {json-cfg}` (config must not contain single quotes or raw `<` / `>`; use word forms). Full mechanics: `_build/lesson-contract.md`.
+
+## Publishing Handbook widget family (2026-08-07)
+
+For the Publishing Handbook lesson courses. All eight were hand-built and
+numerically verified before this entry: the Cox fitter matches `survival::coxph`
+to eight significant figures, the cluster standard errors match `sandwich::vcovHC`,
+`vcovCL` and `lme4::lmer`, and the DAG's path-tracing solution checks against
+`lm()` on 300k rows. Each renders from `{}` with defaults, is interactive, and
+emits a runnable R block beside its visual ([[feedback_widgets_runnable]]).
+
+They were built during the handbook work and only registered here on 2026-08-07,
+which is why no lesson before that date selects one.
+
+| Widget | What the learner moves (the feel-it) | Serves |
+|---|---|---|
+| `assumption-dial` | severity dial on ONE violated assumption -> interval COVERAGE collapses while model FIT sits still; one cfg key picks the violation | ch 31-37: normality, equal variance, independence, autocorrelation, multicollinearity, linearity, proportional hazards |
+| `cluster-icc-sim` | intraclass correlation slider -> four standard errors (naive, robust, clustered, mixed) diverge | ch 33 independence, ch 55 mixed models |
+| `dag-editor` | edits a causal diagram -> the estimate moves as back doors open and close, colliders included | ch 39-42: confounding, baseline imbalance, selection bias, non-comparable controls |
+| `multiplicity-sim` | number of tests + correction -> false positives accumulate under a true null | ch 43-48: multiple comparisons, subgroups, borderline p, exploratory analysis, dichotomising, outlier removal |
+| `report-four-ways` | switches between four write-ups of ONE result -> the reveal that they are the same result | ch 49-53: effect sizes, intervals, trends, model fit, missing data |
+| `wrong-family-fit` | picks the wrong model family -> watches the specific way it fails | ch 54, 56-59: ordinal outcomes, link function, zero-inflation, too many predictors, interactions |
+| `repro-repair` | repairs a broken script fault by fault until it runs twice from a clean session with the same answer | ch 60 code and data sharing, and Part 10 |
+| `review-triage` | sorts a real-looking review into the three outcomes before answering any of it | ch 30 the hub, and Part 10 response and revision |
