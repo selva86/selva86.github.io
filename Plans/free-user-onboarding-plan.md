@@ -239,16 +239,20 @@ headroom check + DNS (DKIM selector, SPF merge into the one apex record).
 
 ## 8. Build order
 
-1. `signup_context` + `sent_emails` + suppression gate (days)
-2. Bucket-1 event emails behind flags: welcome x3 gates, cert-earned, first-hub,
-   intent #1, cap-hit (days, parallel with 1)
-3. Metering (server enforcement + meter UI) — needs owner unit confirmation
-4. DA pass (entitlement + countdown UI) — arc emails ride the engine
-5. Lifecycle engine -> all scheduled steps (onboarding branches, streaks, conversion
-   arc, pass arc, win-backs)
-5b. Preference center -> nurture daily rep v1 + weekly recap v1 (text)
-6. P1 -> P3 -> P2 -> P4
-7. Later: stats-image artifact (recap v2 + monthly wrapped), one-tap goal picker,
+Reordered 2026-08-10 for the ship-now decision:
+
+1. Schema: `signup_context` + `sent_emails` (days)
+2. Metering: manifest lesson-hub set + `attempt.ts` enforcement + meter UI
+   (chip / index badges / dashboard) — `flag:exercise-meter`
+3. DA pass: entitlement + middleware + countdown UI — `flag:da-pass`
+4. **FLIP both** after preview verification, with the existing-user announcement
+   email. This starts the engine countdown.
+5. Bucket-1 event emails behind flags: welcome x3 gates, cert-earned, first-hub,
+   intent #1, cap-hit
+6. Lifecycle engine — DEADLINE: flip + 21 days (first pass user's day-21 email)
+6b. Preference center -> nurture daily rep v1 + weekly recap v1 (text)
+7. P1 -> P3 -> P2 -> P4
+8. Later: stats-image artifact (recap v2 + monthly wrapped), one-tap goal picker,
    pre-loaded editor links (rep v1.1), send-time v2, mastery-skip (rep v2; needs
    the concept-to-exercise mapping). AMP deferred indefinitely (the deep-link
    fallback captures most of its value).
@@ -273,8 +277,14 @@ sender reputation.
 4. Campaigns — DECIDED (delegated): proceed for broadcasts once the owner runs the
    portal contact-headroom check and adds the DNS (DKIM selector + SPF merge).
 5. Newsletter name — DECIDED (delegated): The Residual.
-6. **OPEN — launch timing.** In plain terms: metering and the pass REMOVE things
-   free users have today. Flip the flags now, and users lose something with no new
-   story attached. Flip them WITH the 2026-09-08 launch, and the limits arrive
-   inside the announcement of Pro/certificates/founding rate, as the shape of the
-   free tier. Recommended: with launch. Owner to confirm.
+6. **Launch timing — DECIDED (owner, 2026-08-10): flip metering and the pass NOW,
+   not launch-coupled.** Build dark behind flags, verify on preview, flip.
+   Consequences built into the build:
+   (a) grandfathering clock for existing accounts = the flag-flip date, announced
+   by an account-category email that tells the whole story: what stays free
+   forever, what the pass is, that the founding rate exists;
+   (b) the flip starts a HARD DEADLINE for the lifecycle engine — the first
+   affected user reaches pass day 21 three weeks later, so the engine (at
+   minimum the pass arc) must be live by flip + 21 days;
+   (c) the on-site copy at the meter and the pass carries the story the launch
+   announcement would have carried.
