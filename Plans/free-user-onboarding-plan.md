@@ -84,25 +84,34 @@ LinkedIn prefill · verify-page-views notification · dormant 14/30 win-backs wi
 one-click resume · dormant 60 breakup (pause + one-click return) · renewal-30 usage
 recap (BUILT as sweep; migrate into engine later).
 
-## 4. Practice metering — DECIDED: meter, unit OWNER-CONFIRM
+## 4. Practice metering — DECIDED (owner, 2026-08-10): hybrid
 
-**Default (recommended): hub-unlock. Free = 2 practice hubs per month.** Start any
-practice hub, finish all of it; the wall appears only on opening a third topic that
-month. Meter chip: "1 of 2 free hubs used this month."
+**Displayed as "25 free exercises a month." Enforced as: count 25/month, started
+hubs fully unlocked, 2-hub floor.** An attempt is ALLOWED if ANY of:
 
-- Rationale: mid-topic walls (exercise 26 of 40) breed resentment; next-topic walls
-  convert, and they land on the multi-topic learner, who is the buyer.
-- Enforcement: in `attempt.ts` — allow if hub is lesson-type, OR user is Pro, OR hub
-  already attempted this calendar month, OR distinct practice hubs this month < 2.
-  One query against `exercise_attempts`; no new table.
-- Alternative (one-line config): count-based 25/month (covers 121/143 hubs) or
-  30/month (131/143). Same exemptions.
-- **Hard exemption, verified:** the 267 lesson hubs never count. Lesson gated checks
-  hit the same attempt endpoint; metering them would break the free tracks and the
-  DA pass. Classification = `_lessons/<hub>.html` exists (build the set into the
-  manifest at build time rather than filesystem checks at request time).
-- Grandfathering: cap applies from feature launch; historical volume never counts.
-- Surfaces: meter chip on hub pages + dashboard; cap-hit email once per month max.
+1. hub is a lesson hub (267 of 410; never counted, never gated)
+2. user is Pro
+3. this hub was already started this calendar month (started = unlocked completely;
+   no mid-hub wall, ever)
+4. monthly practice-hub attempts < 25 (may start new hubs)
+5. distinct practice hubs started this month < 2 (the floor: one 50-exercise hub
+   cannot consume the whole month)
+
+- Anti-seeding guard (invisible to honest users): max 4 hub-STARTS per month
+  (config), closing the 1-attempt-per-hub unlock-banking hole rules 3+4 open.
+- Enforcement in `attempt.ts`; two queries against `exercise_attempts`; no new
+  table. Lesson-hub set baked into the manifest at build time.
+- Grandfathering: applies from feature launch; historical volume never counts.
+- **Display (decided from the placement mocks):** layered composite —
+  (a) hub-header chip, canonical, always visible: "N of 25 free this month",
+  flipping to "This hub is unlocked, finish it all" on started hubs;
+  (b) inline count on the grade feedback ONLY when <=5 remain;
+  (c) exercises-index card badges (Unlocked / Counts toward your 25 / Limit
+  reached) so cost is visible before entering a hub;
+  (d) dashboard module: ring, reset date, unlocked-hub list.
+  Copy rules: always "N of 25", always name the reset date, never a lock icon on
+  a started hub. Mock: claude.ai/code/artifact/f07ced68-f1c6-42a5-80f5-9d860d0fc958
+- Cap-hit email: once per month max.
 
 ## 5. The Data Analyst 30-day pass — DECIDED
 
@@ -129,9 +138,8 @@ month. Meter chip: "1 of 2 free hubs used this month."
 | 30 | final hours |
 | 31 | graceful landing: what stays free, coupon's last hours |
 
-- Coupon: Paddle discount, unique per user, genuinely one-time, genuinely expiring.
-  Form — OWNER: recommended founding-rate lock + 1 bonus month (protects price
-  integrity); alternative 20-25% off.
+- Coupon — DECIDED (owner): **23% off**, Paddle discount, unique per user,
+  genuinely one-time, 72h validity.
 - Guardrail: the pass copy always says what remains free forever. The floor is the
   trust layer.
 
@@ -194,13 +202,17 @@ monthly; wall -> pricing CTR. Pass: %% finishing >=50% of DA in 30 days; day-27
 coupon redemption; pass -> Pro conversion. Guardrails: unsubscribe rate per sequence;
 spam complaints ~0; sender reputation.
 
-## 10. Open decisions (OWNER)
+## 10. Decisions
 
-1. Meter unit: hub-unlock 2/month (recommended) vs count 25-or-30/month.
-2. Coupon form: founding-lock + bonus month (recommended) vs 20-25% off.
-3. Reply-to mailbox (address + who reads it).
-4. Zoho Campaigns headroom + DNS go-ahead (broadcast stream only).
-5. Newsletter name (shortlist in the newsletter plan; The Residual recommended).
-6. Launch sequencing vs 2026-09-08: metering + pass BEFORE launch (one coherent
-   announcement) or after (recommended: with launch, so free-tier changes and the
-   paid offer land as one story, not as a stealth downgrade).
+1. Meter unit — DECIDED: the hybrid in section 4.
+2. Coupon — DECIDED: 23% off, one-time, 72h.
+3. Reply-to — DECIDED (delegated): `selva@r-statistics.co`, read by the owner.
+   Pre-launch check: confirm the mailbox actually receives.
+4. Campaigns — DECIDED (delegated): proceed for broadcasts once the owner runs the
+   portal contact-headroom check and adds the DNS (DKIM selector + SPF merge).
+5. Newsletter name — DECIDED (delegated): The Residual.
+6. **OPEN — launch timing.** In plain terms: metering and the pass REMOVE things
+   free users have today. Flip the flags now, and users lose something with no new
+   story attached. Flip them WITH the 2026-09-08 launch, and the limits arrive
+   inside the announcement of Pro/certificates/founding rate, as the shape of the
+   free tier. Recommended: with launch. Owner to confirm.
