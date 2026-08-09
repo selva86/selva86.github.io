@@ -19,9 +19,20 @@ interface ManifestShape {
   version: number;
   xp_by_difficulty: Record<string, number>;
   hubs: Record<string, Record<string, string>>;
+  lesson_hubs?: string[];
 }
 
 const manifest = manifestJson as ManifestShape;
+
+// Hubs sourced from _lessons/ (baked in by build_exercise_manifest.py). The
+// practice meter must never count these: lesson gated checks post to the same
+// attempt endpoint, and metering them would gate the free tracks and the DA
+// pass (Plans/free-user-onboarding-plan.md s4 rule 1).
+const LESSON_HUBS = new Set<string>(manifest.lesson_hubs ?? []);
+
+export function isLessonHub(hubSlug: string): boolean {
+  return LESSON_HUBS.has(hubSlug);
+}
 
 export const SLUG_MAX = 200;
 export const EXERCISE_ID_MAX = 64;

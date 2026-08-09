@@ -41,4 +41,9 @@ export const FLAGS = {
   // the purchase email can go live without a job that mails existing
   // subscribers on its first run.
   RENEWAL_REMINDER: "renewal-reminder",
+  // Free-tier practice meter ("25 a month"; enforcement in
+  // api/exercise/.../attempt.ts, rules in Plans/free-user-onboarding-plan.md
+  // s4). Flip only together with the meter UI, or users hit a wall with no
+  // meter that ever warned them.
+  EXERCISE_METER: "exercise-meter",
 } as const;

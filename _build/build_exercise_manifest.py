@@ -82,10 +82,17 @@ def build_manifest() -> dict:
         raise SystemExit(f"_posts directory not found at {POSTS_DIR}")
 
     hubs: dict[str, dict[str, str]] = {}
+    # Hubs sourced from _lessons/. The practice meter must NEVER count lesson
+    # attempts (Plans/free-user-onboarding-plan.md s4 rule 1): lesson gated
+    # checks post to the same attempt endpoint as practice hubs, so without
+    # this set the meter would gate the free tracks and the DA pass.
+    lesson_hubs: set[str] = set()
     counts = {"hubs": 0, "exercises": 0, "skipped_dup_ids": 0}
     scan_paths = sorted(POSTS_DIR.glob("*.html"))
     if LESSONS_DIR.is_dir():
-        scan_paths += sorted(LESSONS_DIR.glob("*.html"))
+        lesson_paths = sorted(LESSONS_DIR.glob("*.html"))
+        lesson_hubs = {p.stem for p in lesson_paths}
+        scan_paths += lesson_paths
     for post_path in scan_paths:
         try:
             html = post_path.read_text(encoding="utf-8")
@@ -112,6 +119,8 @@ def build_manifest() -> dict:
         "version": 1,
         "xp_by_difficulty": XP_BY_DIFF,
         "hubs": hubs,
+        # Only slugs that actually carry exercises AND came from _lessons/.
+        "lesson_hubs": sorted(h for h in lesson_hubs if h in hubs),
         "_meta": counts,
     }
 
