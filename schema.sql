@@ -24,8 +24,13 @@ CREATE TABLE IF NOT EXISTS users (
   longest_streak_days      INTEGER DEFAULT 0,
   last_active_date         TEXT,         -- YYYY-MM-DD
   role          TEXT DEFAULT 'user',     -- 'user' | 'admin'
-  deleted_at    INTEGER                  -- GDPR soft-delete
+  deleted_at    INTEGER,                 -- GDPR soft-delete
+  signup_gate   TEXT,                    -- 'exercise' | 'lesson' | 'browsing' | magnet id; set once, never overwritten
+  signup_slug   TEXT                     -- the page/hub/lesson that gated them
 );
+-- Existing-deploy migration for signup context (applied 2026-08-10 to dev+prod):
+--   ALTER TABLE users ADD COLUMN signup_gate TEXT
+--   ALTER TABLE users ADD COLUMN signup_slug TEXT
 CREATE INDEX IF NOT EXISTS idx_users_pro_until ON users(pro_until);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle);
 -- Existing-deploy migration for profiles (applied lazily by functions/_lib/profile.ts):
@@ -329,3 +334,16 @@ CREATE TABLE IF NOT EXISTS traffic_daily (
   top_pages  TEXT,                          -- JSON, filled by nightly backfill
   updated_at INTEGER NOT NULL
 );
+
+-- ===== sent_emails (lifecycle email dedupe; Plans/free-user-onboarding-plan.md s6) =====
+-- One row per (user, email step) ever sent. Every sender checks BEFORE sending
+-- and inserts on success, so no user receives a sequence step twice, whether the
+-- send was event-triggered or scheduled. email_key is the stable step id, e.g.
+-- 'welcome-1', 'pass-day-27', 'intent-wall-1:<slug>'. Never delete rows.
+CREATE TABLE IF NOT EXISTS sent_emails (
+  user_id    TEXT NOT NULL,
+  email_key  TEXT NOT NULL,
+  sent_at    INTEGER NOT NULL,
+  PRIMARY KEY (user_id, email_key)
+);
+CREATE INDEX IF NOT EXISTS idx_sent_emails_user ON sent_emails(user_id);
