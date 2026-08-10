@@ -22,6 +22,7 @@ import {
   isValidHubSlug, isValidExerciseId, hubExists, lookupDifficulty,
   xpForDifficulty, isLessonHub,
 } from "../../../../_lib/exercises";
+import { meterMonth, hubAccess, METER_LIMIT } from "../../../../_lib/meter";
 import { checkDailyBonus } from "../../../../_lib/daily";
 import {
   BADGE_DEFS, awardBadges, type BadgeCtx,
@@ -37,16 +38,6 @@ import proLessonsJson from "../../../../_data/pro-lessons.json";
 const PRO_HUBS = proLessonsJson as Record<string, string>;
 
 const MAX_HINTS = 10;
-
-// ---- practice meter (flag:exercise-meter; Plans/free-user-onboarding-plan.md s4) ----
-// Shown to users as "25 free exercises a month". Enforced as: a started hub is
-// fully unlocked for the month (no mid-hub wall, ever), new hubs open while
-// under the monthly count, a 2-hub floor so one 50-exercise hub cannot consume
-// the whole month, and a max-starts guard so seeding 1 attempt across many hubs
-// cannot bank unlimited unlocks. Lesson hubs never reach this check.
-const METER_LIMIT = 25;       // monthly practice attempts that permit starting new hubs
-const METER_FLOOR_HUBS = 2;   // always startable, regardless of count
-const METER_MAX_STARTS = 4;   // hub-starts per month; invisible to honest use
 
 const SOLVE_BOUNDARIES = new Set([1, 100, 200, 300]);
 const STREAK_BOUNDARIES = new Set([7, 30, 100]);
@@ -86,32 +77,28 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
 
   // Practice meter. FAILS OPEN: a metering error must never block practice, so
   // everything except the deliberate limit response lives inside the catch.
+  // Rules live in _lib/meter.ts, shared with /api/me/meter so the pill can
+  // never disagree with this gate.
+  let meterAfter: { limit: number; used: number; left: number; hub_open: true } | null = null;
   if (!isLessonHub(hubSlug) && !isProActive(u)) {
     let blocked = false;
     let resetDate = "";
     try {
       if ((await context.env.KV.get("flag:exercise-meter")) === "on") {
-        const now = new Date();
-        const monthStartSec = Math.floor(
-          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000,
-        );
-        const rows = await context.env.DB.prepare(
-          "SELECT hub_slug, COUNT(*) AS n FROM exercise_attempts " +
-          "WHERE user_id = ?1 AND submitted_at >= ?2 GROUP BY hub_slug",
-        ).bind(u.id, monthStartSec).all<{ hub_slug: string; n: number }>();
-        const practice = (rows.results ?? []).filter((r) => !isLessonHub(r.hub_slug));
-        const attempts = practice.reduce((s, r) => s + Number(r.n), 0);
-        const started = practice.length;
-        const inStartedHub = practice.some((r) => r.hub_slug === hubSlug);
-        const allowed =
-          inStartedHub ||
-          started < METER_FLOOR_HUBS ||
-          (attempts < METER_LIMIT && started < METER_MAX_STARTS);
-        if (!allowed) {
+        const m = await meterMonth(context.env.DB, u.id);
+        if (!hubAccess(m, hubSlug).open) {
           blocked = true;
-          resetDate = new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-          ).toISOString().slice(0, 10);
+          resetDate = m.resetsIso;
+        } else {
+          // Live pill state for the success response: this attempt is about to
+          // be recorded, so count it now rather than re-querying afterwards.
+          const used = m.attempts + 1;
+          meterAfter = {
+            limit: METER_LIMIT,
+            used,
+            left: Math.max(0, METER_LIMIT - used),
+            hub_open: true,
+          };
         }
       }
     } catch { /* fail open */ }
@@ -200,5 +187,6 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
     ...result,
     ...(nudge ? { nudge } : {}),
     ...(newBadges.length ? { new_badges: newBadges } : {}),
+    ...(meterAfter ? { meter: meterAfter } : {}),
   });
 };

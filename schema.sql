@@ -89,8 +89,13 @@ CREATE TABLE IF NOT EXISTS exercise_attempts (
   passed       INTEGER NOT NULL,
   hints_used   INTEGER DEFAULT 0,
   xp_awarded   INTEGER DEFAULT 0,
-  submitted_at INTEGER NOT NULL
+  submitted_at INTEGER NOT NULL,
+  source       TEXT                     -- NULL = live attempt; 'backfill' = anon-era solve banked at sign-in
 );
+-- Existing-deploy migration for the win-first taster (applied 2026-08-10 to dev+prod):
+--   ALTER TABLE exercise_attempts ADD COLUMN source TEXT
+-- Backfilled attempts are excluded from the practice meter (_lib/meter.ts), so the
+-- anonymous taster is on the house: a fresh account still reads 25 of 25.
 CREATE INDEX IF NOT EXISTS idx_attempts_user ON exercise_attempts(user_id, submitted_at);
 CREATE INDEX IF NOT EXISTS idx_attempts_hub  ON exercise_attempts(hub_slug);
 -- Partial UNIQUE index (Phase 3, 2026-05-28) is THE first-pass dedup guard.

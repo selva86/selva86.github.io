@@ -239,10 +239,17 @@ headroom check + DNS (DKIM selector, SPF merge into the one apex record).
 - **P1 (upgraded 2026-08-10): the WIN-FIRST funnel.** The gate moves to AFTER the
   first win, per the Duolingo lesson-before-signup result. Behavior spec, clickable
   across all three doors: claude.ai/code/artifact/5dfb2631-5327-47a3-bc30-f2211bfebdb1
-  1. Anonymous visitors can attempt ONE exercise and see it grade; sign-in is how
+  1. **BUILT 2026-08-10 on branch `meter-ui` (90806dee4c), ships with the meter.**
+     Anonymous visitors can attempt ONE exercise and see it grade; sign-in is how
      they KEEP it ("+15 XP. Sign in to keep it"). Banked via the existing backfill
      endpoint; capped at one so nobody farms XP. The taster is ON THE HOUSE: the
-     meter still reads 25 of 25 after banking.
+     meter still reads 25 of 25 after banking (backfilled attempts carry
+     source='backfill', excluded by the shared meter query; column live on both
+     DBs). Also wired: signup_gate='exercise' attribution on fresh-account
+     backfill, ?winxp= contextual headline on signin.html, GA4 funnel events,
+     corner-nudge quieting while the contextual card is up. Not flag-gated:
+     the taster gate is live for anonymous visitors as soon as this merges
+     (it needs no meter and sells sign-up, not Pro).
   2. The sign-in screen names the stakes per door, driven by ?next=: the XP
      waiting / "lesson 3 of 35, step 2 saved" / "3 articles in your list". Same
      three auth options + consent checkbox underneath.

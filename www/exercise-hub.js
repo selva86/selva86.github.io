@@ -196,8 +196,15 @@
         body: JSON.stringify({ passed: true, hints_used: hints }),
         keepalive: true
       })
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        // Meter limit: the server said no. Re-sync so the wall renders; the
+        // local grade already showed, which is fine - the XP simply cannot be
+        // banked past the limit.
+        if (r.status === 402) { meterFetch(); return null; }
+        return r.ok ? r.json() : null;
+      })
       .then(function (result) {
+        if (result && result.meter) meterApply(result.meter, card);
         if (result && typeof result.total_xp === 'number') {
           // Avatar dropdown listens for this and refreshes its XP / streak
           // pills without an extra round-trip to /api/me/stats.
@@ -333,8 +340,280 @@
     authToken = newToken;
     authedUserId = newUserId;
     if (!newToken || !newUserId) return; // anon path: nothing more to do
-    backfillIfNeeded(newUserId).then(hydrateSolvedFromServer);
+    backfillIfNeeded(newUserId).then(hydrateSolvedFromServer).then(meterFetch);
   }
+  /* ---------------------------------------------------------------
+     Anonymous taster gate (win-first funnel, P1 item 1).
+     The first graded exercise is on the house: it grades normally and the
+     win card underneath is how the visitor learns that signing in KEEPS
+     the XP. Every later exercise is sign-in gated; retrying the taster
+     stays free (same exercise). The cap is one per browser, across hubs,
+     so hub-hopping cannot farm XP. Server side, backfilled attempts carry
+     source='backfill' and are excluded from the practice meter, so a
+     fresh account still reads a full allowance. Signed-in users never
+     reach any of this. Plain Run is never gated - only grading is.
+     Spec: Plans/free-user-onboarding-plan.md s7 P1.
+     --------------------------------------------------------------- */
+  var TASTER_KEY = 'rsc-anon-taster-v1';
+  var WIN_DISMISS_KEY = 'rsc-win-dismissed';
+  var anonCardEl = null;
+
+  function anonTaster() {
+    try { return JSON.parse(localStorage.getItem(TASTER_KEY)); }
+    catch (e) { return null; }
+  }
+  function anonTasterSave(rec) {
+    try { localStorage.setItem(TASTER_KEY, JSON.stringify(rec)); } catch (e) {}
+  }
+  function gaEvent(name, params) {
+    try { if (window.gtag) window.gtag('event', name, params || {}); } catch (e) {}
+  }
+
+  /* Called from the Check / Mark-as-done handlers. Returns true when the
+     click must not proceed (the gate card was shown instead). Claims the
+     taster on the first allowed anonymous attempt. */
+  function anonGateCheck(card) {
+    if (authToken) return false;
+    var hub = hubSlugFromPath();
+    if (!hub) return false;
+    var t = anonTaster();
+    if (!t) {
+      anonTasterSave({ hub: hub, id: card.id, xp: 0 });
+      return false;
+    }
+    if (t.hub === hub && t.id === card.id) return false; // retries stay free
+    anonCardShow(card, 'gate', t);
+    return true;
+  }
+
+  /* Fresh anonymous solve - bank the XP on the taster record, then show the
+     win card ("+15 XP. Sign in to keep it."). */
+  function anonWinShow(card) {
+    var t = anonTaster();
+    if (t && t.id === card.id && !t.xp) { t.xp = card.xp; anonTasterSave(t); }
+    try { if (sessionStorage.getItem(WIN_DISMISS_KEY)) return; } catch (e) {}
+    anonCardShow(card, 'win', t);
+  }
+
+  function anonSigninHref(xp) {
+    return '/signin.html?next=' + encodeURIComponent(location.pathname) +
+      (xp ? '&winxp=' + xp : '');
+  }
+
+  function anonCardShow(card, variant, taster) {
+    var xp = variant === 'win' ? card.xp : ((taster && taster.xp) || 0);
+    if (anonCardEl && anonCardEl.parentNode) anonCardEl.remove();
+    var el = document.createElement('div');
+    el.className = 'xh-win' + (variant === 'gate' ? ' is-gate' : '');
+    el.setAttribute('role', 'status');
+    var title, bodyText;
+    if (variant === 'win') {
+      title = '+' + xp + ' XP earned';
+      bodyText = 'Right now it lives only in this browser. A free account ' +
+        'keeps your XP, streak, and solved exercises on any device.';
+    } else {
+      title = 'Your first graded exercise was on the house';
+      bodyText = xp
+        ? 'That +' + xp + ' XP is saved in this browser only. Create a free ' +
+          'account to keep it and to grade more exercises.'
+        : 'Create a free account to keep grading exercises and earn XP for ' +
+          'every solve.';
+    }
+    el.innerHTML =
+      '<div class="xh-win-title">' + title + '</div>' +
+      '<p class="xh-win-body">' + bodyText + '</p>' +
+      '<div class="xh-win-actions">' +
+      '<a class="xh-win-cta" href="' + anonSigninHref(xp) + '">Create a free account</a>' +
+      (variant === 'win'
+        ? '<button type="button" class="xh-win-later">Not now</button>'
+        : '<a class="xh-win-later" href="' + anonSigninHref(xp) + '">I already have an account</a>') +
+      '</div>';
+    // Win: outside the section, so the solved-card auto-collapse cannot hide
+    // it. Gate: inline at the click point (nothing collapses on a gated click).
+    if (variant === 'win') card.section.after(el);
+    else card.verdict.after(el);
+    anonCardEl = el;
+    var later = el.querySelector('button.xh-win-later');
+    if (later) {
+      later.addEventListener('click', function () {
+        try { sessionStorage.setItem(WIN_DISMISS_KEY, '1'); } catch (e) {}
+        el.remove();
+        if (anonCardEl === el) anonCardEl = null;
+        gaEvent('win_card_dismiss', {});
+      });
+    }
+    el.querySelector('.xh-win-cta').addEventListener('click', function () {
+      gaEvent(variant === 'win' ? 'win_card_cta' : 'gate_card_cta', { xp: xp });
+    });
+    // One signup surface per day: while this contextual card is the active
+    // ask, quiet the generic corner nudge by writing its own dismiss key
+    // (signin-nudge.js reads it at load). One-way coupling by intent.
+    try {
+      localStorage.setItem('rs-signin-nudge-dismissed',
+        String(Date.now() + 864e5));
+    } catch (e) {}
+    if (variant === 'gate') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    gaEvent(variant === 'win' ? 'win_card_shown' : 'gate_card_shown',
+      { xp: xp, hub: hubSlugFromPath() || '' });
+  }
+
+  /* ---------------------------------------------------------------
+     Practice meter (flag:exercise-meter). Displays the server-side
+     allowance: an always-visible pill in the progress-map head, a
+     one-time explainer, and the wall when this hub cannot be attempted.
+     Renders only for signed-in FREE users while the flag is on:
+     /api/me/meter returns metered:false otherwise and nothing here
+     leaves a trace. Anonymous visitors are untouched by design.
+     Spec: Plans/free-user-onboarding-plan.md s4 + the approved simulator.
+     --------------------------------------------------------------- */
+  var meterState = null;
+  var meterPillEl = null, meterWallEl = null, meterIntroEl = null;
+  var METER_INTRO_KEY = 'rsc-meter-intro-v1';
+
+  function meterWalled() {
+    return !!(meterState && meterState.metered && meterState.hub_open === false);
+  }
+
+  function meterFetch() {
+    if (!authToken) return;
+    var hub = hubSlugFromPath();
+    if (!hub) return;
+    fetch('/api/me/meter?hub=' + encodeURIComponent(hub), {
+      headers: { 'Authorization': 'Bearer ' + authToken, 'Accept': 'application/json' }
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (body) { if (body) { meterState = body; meterRender(); } })
+    .catch(function () { /* display only; never interfere */ });
+  }
+
+  function meterResetLabel() {
+    var iso = meterState && meterState.resets;
+    if (!iso) return 'the 1st';
+    var d = new Date(iso + 'T00:00:00Z');
+    var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return M[d.getUTCMonth()] + ' ' + d.getUTCDate();
+  }
+
+  function meterRender() {
+    var s = meterState;
+    if (!s || !s.metered) {
+      if (meterPillEl) { meterPillEl.remove(); meterPillEl = null; }
+      if (meterWallEl) { meterWallEl.remove(); meterWallEl = null; }
+      document.documentElement.classList.remove('xh-meter-walled');
+      return;
+    }
+    var head = document.querySelector('.xh-map-head');
+    if (head) {
+      if (!meterPillEl) {
+        meterPillEl = document.createElement('span');
+        head.insertBefore(meterPillEl, head.querySelector('.xh-map-count'));
+      }
+      if (s.hub_started) {
+        meterPillEl.className = 'xh-meter is-open';
+        meterPillEl.innerHTML = 'This hub stays open until ' + meterResetLabel();
+      } else {
+        meterPillEl.className = 'xh-meter' + (s.left <= 5 ? ' is-low' : '');
+        var segs = '';
+        for (var i = 0; i < 5; i++) {
+          var fill = Math.max(0, Math.min(5, s.left - i * 5)) / 5;
+          segs += '<span class="xh-meter-seg"><i style="transform:scaleY(' + fill + ')"></i></span>';
+        }
+        meterPillEl.innerHTML =
+          '<span class="xh-meter-segs" aria-hidden="true">' + segs + '</span>' +
+          '<b>' + s.left + '</b>&nbsp;of ' + s.limit + ' left this month' +
+          '<span class="xh-meter-reset">resets ' + meterResetLabel() + '</span>';
+      }
+    }
+    meterIntroRender();
+    meterWallRender();
+  }
+
+  /* One-time "how free practice works" card, above the progress map. */
+  function meterIntroRender() {
+    if (!meterState || !meterState.metered || meterWalled() || meterIntroEl) return;
+    var seen = null;
+    try { seen = localStorage.getItem(METER_INTRO_KEY); } catch (e) { /* private mode */ }
+    if (seen) return;
+    var anchor = mapEl || document.querySelector('section.exercise');
+    if (!anchor || !anchor.parentElement) return;
+    meterIntroEl = document.createElement('div');
+    meterIntroEl.className = 'xh-meter-intro';
+    meterIntroEl.innerHTML =
+      '<div class="xh-meter-intro-body"><b>How free practice works</b>' +
+      '<p>You get 25 graded exercises a month. Any hub you start stays open until ' +
+      'the month ends, so you can always finish what you began.</p></div>' +
+      '<button type="button" class="xh-meter-intro-ok">Got it</button>';
+    meterIntroEl.querySelector('.xh-meter-intro-ok').addEventListener('click', function () {
+      try { localStorage.setItem(METER_INTRO_KEY, '1'); } catch (e) { /* fine */ }
+      meterIntroEl.remove();
+      meterIntroEl = null;
+    });
+    anchor.parentElement.insertBefore(meterIntroEl, anchor);
+  }
+
+  /* The wall: an achievement screen, never an error. Renders above the first
+     exercise when this hub cannot be attempted this month. */
+  function meterWallRender() {
+    var walled = meterWalled();
+    document.documentElement.classList.toggle('xh-meter-walled', walled);
+    if (!walled) {
+      if (meterWallEl) { meterWallEl.remove(); meterWallEl = null; }
+      return;
+    }
+    if (meterWallEl) return;
+    var first = document.querySelector('section.exercise');
+    if (!first || !first.parentElement) return;
+    var s = meterState;
+    var open = s.open_hubs || [];
+    var openLine = open.length
+      ? 'The ' + open.length + ' hub' + (open.length === 1 ? '' : 's') +
+        ' you started this month, until ' + meterResetLabel()
+      : 'Your reading position and streak, everywhere';
+    meterWallEl = document.createElement('div');
+    meterWallEl.className = 'xh-meter-wall';
+    meterWallEl.setAttribute('role', 'status');
+    meterWallEl.innerHTML =
+      '<div class="xh-meter-wall-head">' +
+      '<div class="xh-meter-wall-title">That&#39;s all ' + s.limit + ' for this month</div>' +
+      '<div class="xh-meter-wall-sub">A full month of practice, done.</div></div>' +
+      '<div class="xh-meter-wall-body">' +
+      '<div class="xh-meter-wall-h">Still open right now</div>' +
+      '<ul class="xh-meter-wall-list">' +
+      '<li>' + openLine + '</li>' +
+      '<li>Every lesson and every tutorial, always</li>' +
+      '<li>A fresh ' + s.limit + ' on ' + meterResetLabel() + '</li></ul>' +
+      '<div class="xh-meter-wall-cta">' +
+      '<a class="xh-meter-wall-pro" href="/pricing.html">Go Pro for unlimited practice</a>' +
+      '<a class="xh-meter-wall-free" href="/tutorials/">Keep learning free</a></div>' +
+      '<div class="xh-meter-wall-note">Your streak and XP are safe either way.</div>' +
+      '</div>';
+    first.parentElement.insertBefore(meterWallEl, first);
+  }
+
+  /* Live update from the attempt response; adds the scarce inline note to the
+     just-graded card when 5 or fewer remain. */
+  function meterApply(m, card) {
+    if (!meterState) meterState = { metered: true, resets: '', open_hubs: [] };
+    meterState.metered = true;
+    meterState.limit = m.limit;
+    meterState.left = m.left;
+    meterState.used = m.used;
+    meterState.hub_started = true;
+    meterState.hub_open = true;
+    meterRender();
+    if (m.left <= 5 && card && card.verdict) {
+      var vbody = card.verdict.querySelector('.xh-verdict-body');
+      if (vbody && !vbody.querySelector('.xh-meter-inline')) {
+        vbody.insertAdjacentHTML('beforeend',
+          '<span class="xh-meter-inline"> &middot; ' + m.left + ' of ' + m.limit +
+          ' left this month</span>');
+      }
+    }
+  }
+
   document.addEventListener('auth-hydrated', onAuthHydrated);
 
   /* Bump the site-wide streak for today's visit. */
@@ -1114,6 +1393,7 @@
     if (card.doneBtn) {
       card.doneBtn.addEventListener('click', function () {
         if (card.solved) return;
+        if (anonGateCheck(card)) return;
         markSolved(card);
         card.doneBtn.textContent = '✓ Marked done';
         card.doneBtn.disabled = true;
@@ -1127,6 +1407,11 @@
     // verdict always reflects what is in the editor now, never a stale run.
     if (card.checkBtn) {
       card.checkBtn.addEventListener('click', function () {
+        if (meterWalled()) {
+          if (meterWallEl) meterWallEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        if (anonGateCheck(card)) return;
         card.gradeNext = true;
         setVerdict(card, 'running',
           '<span class="xh-spinner"></span>', 'Checking your answer…');
@@ -1204,6 +1489,7 @@
       STORE.saveProgress(progressState);
       STORE.bumpDaily();      // honest daily micro-goal (item 5)
       reportSolve(card);      // POSTs to /api/exercise/.../attempt when authed
+      if (!authToken) anonWinShow(card);   // win-first: "+N XP. Sign in to keep it."
     }
     card.section.classList.add('is-solved');
     updateProgress(solvedCount(), totalCount);

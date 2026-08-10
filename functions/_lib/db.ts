@@ -771,8 +771,8 @@ export async function backfillAttempts(
     const insRes = await db
       .prepare(
         `INSERT OR IGNORE INTO exercise_attempts
-           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at)
-         VALUES (?, ?, ?, 1, 0, ?, ?)`,
+           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at, source)
+         VALUES (?, ?, ?, 1, 0, ?, ?, 'backfill')`,
       )
       .bind(userId, it.hub, it.exercise_id, it.xp, now)
       .run();
