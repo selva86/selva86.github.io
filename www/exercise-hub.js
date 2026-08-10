@@ -196,8 +196,15 @@
         body: JSON.stringify({ passed: true, hints_used: hints }),
         keepalive: true
       })
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        // Meter limit: the server said no. Re-sync so the wall renders; the
+        // local grade already showed, which is fine - the XP simply cannot be
+        // banked past the limit.
+        if (r.status === 402) { meterFetch(); return null; }
+        return r.ok ? r.json() : null;
+      })
       .then(function (result) {
+        if (result && result.meter) meterApply(result.meter, card);
         if (result && typeof result.total_xp === 'number') {
           // Avatar dropdown listens for this and refreshes its XP / streak
           // pills without an extra round-trip to /api/me/stats.
@@ -333,8 +340,163 @@
     authToken = newToken;
     authedUserId = newUserId;
     if (!newToken || !newUserId) return; // anon path: nothing more to do
-    backfillIfNeeded(newUserId).then(hydrateSolvedFromServer);
+    backfillIfNeeded(newUserId).then(hydrateSolvedFromServer).then(meterFetch);
   }
+  /* ---------------------------------------------------------------
+     Practice meter (flag:exercise-meter). Displays the server-side
+     allowance: an always-visible pill in the progress-map head, a
+     one-time explainer, and the wall when this hub cannot be attempted.
+     Renders only for signed-in FREE users while the flag is on:
+     /api/me/meter returns metered:false otherwise and nothing here
+     leaves a trace. Anonymous visitors are untouched by design.
+     Spec: Plans/free-user-onboarding-plan.md s4 + the approved simulator.
+     --------------------------------------------------------------- */
+  var meterState = null;
+  var meterPillEl = null, meterWallEl = null, meterIntroEl = null;
+  var METER_INTRO_KEY = 'rsc-meter-intro-v1';
+
+  function meterWalled() {
+    return !!(meterState && meterState.metered && meterState.hub_open === false);
+  }
+
+  function meterFetch() {
+    if (!authToken) return;
+    var hub = hubSlugFromPath();
+    if (!hub) return;
+    fetch('/api/me/meter?hub=' + encodeURIComponent(hub), {
+      headers: { 'Authorization': 'Bearer ' + authToken, 'Accept': 'application/json' }
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (body) { if (body) { meterState = body; meterRender(); } })
+    .catch(function () { /* display only; never interfere */ });
+  }
+
+  function meterResetLabel() {
+    var iso = meterState && meterState.resets;
+    if (!iso) return 'the 1st';
+    var d = new Date(iso + 'T00:00:00Z');
+    var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return M[d.getUTCMonth()] + ' ' + d.getUTCDate();
+  }
+
+  function meterRender() {
+    var s = meterState;
+    if (!s || !s.metered) {
+      if (meterPillEl) { meterPillEl.remove(); meterPillEl = null; }
+      if (meterWallEl) { meterWallEl.remove(); meterWallEl = null; }
+      document.documentElement.classList.remove('xh-meter-walled');
+      return;
+    }
+    var head = document.querySelector('.xh-map-head');
+    if (head) {
+      if (!meterPillEl) {
+        meterPillEl = document.createElement('span');
+        head.insertBefore(meterPillEl, head.querySelector('.xh-map-count'));
+      }
+      if (s.hub_started) {
+        meterPillEl.className = 'xh-meter is-open';
+        meterPillEl.innerHTML = 'This hub stays open until ' + meterResetLabel();
+      } else {
+        meterPillEl.className = 'xh-meter' + (s.left <= 5 ? ' is-low' : '');
+        var segs = '';
+        for (var i = 0; i < 5; i++) {
+          var fill = Math.max(0, Math.min(5, s.left - i * 5)) / 5;
+          segs += '<span class="xh-meter-seg"><i style="transform:scaleY(' + fill + ')"></i></span>';
+        }
+        meterPillEl.innerHTML =
+          '<span class="xh-meter-segs" aria-hidden="true">' + segs + '</span>' +
+          '<b>' + s.left + '</b>&nbsp;of ' + s.limit + ' left this month' +
+          '<span class="xh-meter-reset">resets ' + meterResetLabel() + '</span>';
+      }
+    }
+    meterIntroRender();
+    meterWallRender();
+  }
+
+  /* One-time "how free practice works" card, above the progress map. */
+  function meterIntroRender() {
+    if (!meterState || !meterState.metered || meterWalled() || meterIntroEl) return;
+    var seen = null;
+    try { seen = localStorage.getItem(METER_INTRO_KEY); } catch (e) { /* private mode */ }
+    if (seen) return;
+    var anchor = mapEl || document.querySelector('section.exercise');
+    if (!anchor || !anchor.parentElement) return;
+    meterIntroEl = document.createElement('div');
+    meterIntroEl.className = 'xh-meter-intro';
+    meterIntroEl.innerHTML =
+      '<div class="xh-meter-intro-body"><b>How free practice works</b>' +
+      '<p>You get 25 graded exercises a month. Any hub you start stays open until ' +
+      'the month ends, so you can always finish what you began.</p></div>' +
+      '<button type="button" class="xh-meter-intro-ok">Got it</button>';
+    meterIntroEl.querySelector('.xh-meter-intro-ok').addEventListener('click', function () {
+      try { localStorage.setItem(METER_INTRO_KEY, '1'); } catch (e) { /* fine */ }
+      meterIntroEl.remove();
+      meterIntroEl = null;
+    });
+    anchor.parentElement.insertBefore(meterIntroEl, anchor);
+  }
+
+  /* The wall: an achievement screen, never an error. Renders above the first
+     exercise when this hub cannot be attempted this month. */
+  function meterWallRender() {
+    var walled = meterWalled();
+    document.documentElement.classList.toggle('xh-meter-walled', walled);
+    if (!walled) {
+      if (meterWallEl) { meterWallEl.remove(); meterWallEl = null; }
+      return;
+    }
+    if (meterWallEl) return;
+    var first = document.querySelector('section.exercise');
+    if (!first || !first.parentElement) return;
+    var s = meterState;
+    var open = s.open_hubs || [];
+    var openLine = open.length
+      ? 'The ' + open.length + ' hub' + (open.length === 1 ? '' : 's') +
+        ' you started this month, until ' + meterResetLabel()
+      : 'Your reading position and streak, everywhere';
+    meterWallEl = document.createElement('div');
+    meterWallEl.className = 'xh-meter-wall';
+    meterWallEl.setAttribute('role', 'status');
+    meterWallEl.innerHTML =
+      '<div class="xh-meter-wall-head">' +
+      '<div class="xh-meter-wall-title">That&#39;s all ' + s.limit + ' for this month</div>' +
+      '<div class="xh-meter-wall-sub">A full month of practice, done.</div></div>' +
+      '<div class="xh-meter-wall-body">' +
+      '<div class="xh-meter-wall-h">Still open right now</div>' +
+      '<ul class="xh-meter-wall-list">' +
+      '<li>' + openLine + '</li>' +
+      '<li>Every lesson and every tutorial, always</li>' +
+      '<li>A fresh ' + s.limit + ' on ' + meterResetLabel() + '</li></ul>' +
+      '<div class="xh-meter-wall-cta">' +
+      '<a class="xh-meter-wall-pro" href="/pricing.html">Go Pro for unlimited practice</a>' +
+      '<a class="xh-meter-wall-free" href="/tutorials/">Keep learning free</a></div>' +
+      '<div class="xh-meter-wall-note">Your streak and XP are safe either way.</div>' +
+      '</div>';
+    first.parentElement.insertBefore(meterWallEl, first);
+  }
+
+  /* Live update from the attempt response; adds the scarce inline note to the
+     just-graded card when 5 or fewer remain. */
+  function meterApply(m, card) {
+    if (!meterState) meterState = { metered: true, resets: '', open_hubs: [] };
+    meterState.metered = true;
+    meterState.limit = m.limit;
+    meterState.left = m.left;
+    meterState.used = m.used;
+    meterState.hub_started = true;
+    meterState.hub_open = true;
+    meterRender();
+    if (m.left <= 5 && card && card.verdict) {
+      var vbody = card.verdict.querySelector('.xh-verdict-body');
+      if (vbody && !vbody.querySelector('.xh-meter-inline')) {
+        vbody.insertAdjacentHTML('beforeend',
+          '<span class="xh-meter-inline"> &middot; ' + m.left + ' of ' + m.limit +
+          ' left this month</span>');
+      }
+    }
+  }
+
   document.addEventListener('auth-hydrated', onAuthHydrated);
 
   /* Bump the site-wide streak for today's visit. */
@@ -1127,6 +1289,10 @@
     // verdict always reflects what is in the editor now, never a stale run.
     if (card.checkBtn) {
       card.checkBtn.addEventListener('click', function () {
+        if (meterWalled()) {
+          if (meterWallEl) meterWallEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
         card.gradeNext = true;
         setVerdict(card, 'running',
           '<span class="xh-spinner"></span>', 'Checking your answer…');
