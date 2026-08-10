@@ -236,9 +236,27 @@ headroom check + DNS (DKIM selector, SPF merge into the one apex record).
 
 ## 7. Product onboarding (AMBOSS / Boot.dev bar) — phased
 
-- **P1 (week 1): the 90-second first win.** Post-signup: one-screen goal picker
-  (3 options) -> straight into a runnable moment chosen by gate + goal. Target: first
-  XP within 90 seconds. First-session checklist: run code, earn XP, see your path.
+- **P1 (upgraded 2026-08-10): the WIN-FIRST funnel.** The gate moves to AFTER the
+  first win, per the Duolingo lesson-before-signup result. Behavior spec, clickable
+  across all three doors: claude.ai/code/artifact/5dfb2631-5327-47a3-bc30-f2211bfebdb1
+  1. Anonymous visitors can attempt ONE exercise and see it grade; sign-in is how
+     they KEEP it ("+15 XP. Sign in to keep it"). Banked via the existing backfill
+     endpoint; capped at one so nobody farms XP. The taster is ON THE HOUSE: the
+     meter still reads 25 of 25 after banking.
+  2. The sign-in screen names the stakes per door, driven by ?next=: the XP
+     waiting / "lesson 3 of 35, step 2 saved" / "3 articles in your list". Same
+     three auth options + consent checkbox underneath.
+  3. Goal screen CONFIRMS an inference from signup_context ("You're working on
+     statistics - follow the Statistics track?"), one tap; three alternates; a
+     skip that never re-asks.
+  4. First session ends with a plan: XP-banked toast, Day-1 streak lit, full
+     meter pill, and exactly three next steps. The welcome email repeats the same
+     story within minutes (banked win, the 25 allowance, ONE next step;
+     reply-to a real person).
+  Build order within P1: contextual headlines (days) -> goal confirm (days) ->
+  next-three plan (days) -> anonymous banking (the real piece, ~a week).
+  Trade-off accepted: some anonymous winners leave without signing up; they were
+  bouncing at the old gate anyway.
 - **P3 (week 2): visible progression.** Roadmap as the signed-in home; streak flame;
   weekly XP goal; the two meters (hubs left, pass days left). Mostly flipping the
   profile-v3 flags (daily set, freezes, recap, share cards are BUILT, flags off) on a
