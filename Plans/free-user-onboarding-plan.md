@@ -140,15 +140,28 @@ hubs fully unlocked, 2-hub floor.** An attempt is ALLOWED if ANY of:
 - Enforcement in `attempt.ts`; two queries against `exercise_attempts`; no new
   table. Lesson-hub set baked into the manifest at build time.
 - Grandfathering: applies from feature launch; historical volume never counts.
-- **Display (decided from the placement mocks):** layered composite —
-  (a) hub-header chip, canonical, always visible: "N of 25 free this month",
-  flipping to "This hub is unlocked, finish it all" on started hubs;
+- **Display (decided from the placement mocks + simulator, owner-amended
+  2026-08-10):** layered composite —
+  (a) hub-header pill, canonical, ALWAYS visible on practice hubs and STARTING
+  FULL ("25 of 25" with a 5-segment bar on day one — a defined allowance is
+  shown as a grant, never hidden and revealed late); neutral grey while >=6
+  remain, amber at <=5; green "This hub stays open" chip replaces it inside
+  started hubs at any count; the pill stands down at 0 where the wall carries
+  everything;
   (b) inline count on the grade feedback ONLY when <=5 remain;
   (c) exercises-index card badges (Unlocked / Counts toward your 25 / Limit
   reached) so cost is visible before entering a hub;
   (d) dashboard module: ring, reset date, unlocked-hub list.
-  Copy rules: always "N of 25", always name the reset date, never a lock icon on
-  a started hub. Mock: claude.ai/code/artifact/f07ced68-f1c6-42a5-80f5-9d860d0fc958
+  Copy rules: always "N of 25"; the reset date lives in the pill small-text and
+  the wall; never a lock icon on a started hub. One-time explainer card on first
+  hub visit, owner-trimmed to exactly: "You get 25 graded exercises a month. Any
+  hub you start stays open until the month ends, so you can always finish what
+  you began." The zero state is an achievement screen (month stats, what stays
+  open, reset date, then Pro; "your streak and XP are safe either way"), never
+  an error. The exercise-gate welcome email (s2a #1) names the allowance and
+  that the meter starts full. Behavior spec = the simulator:
+  claude.ai/code/artifact/e134099e-60b8-4676-a7b0-0d130271ff55
+  (placements: claude.ai/code/artifact/f07ced68-f1c6-42a5-80f5-9d860d0fc958)
 - Cap-hit email: once per month max.
 
 ## 5. The Data Analyst 30-day pass — DECIDED
