@@ -343,6 +343,123 @@
     backfillIfNeeded(newUserId).then(hydrateSolvedFromServer).then(meterFetch);
   }
   /* ---------------------------------------------------------------
+     Anonymous taster gate (win-first funnel, P1 item 1).
+     The first graded exercise is on the house: it grades normally and the
+     win card underneath is how the visitor learns that signing in KEEPS
+     the XP. Every later exercise is sign-in gated; retrying the taster
+     stays free (same exercise). The cap is one per browser, across hubs,
+     so hub-hopping cannot farm XP. Server side, backfilled attempts carry
+     source='backfill' and are excluded from the practice meter, so a
+     fresh account still reads a full allowance. Signed-in users never
+     reach any of this. Plain Run is never gated - only grading is.
+     Spec: Plans/free-user-onboarding-plan.md s7 P1.
+     --------------------------------------------------------------- */
+  var TASTER_KEY = 'rsc-anon-taster-v1';
+  var WIN_DISMISS_KEY = 'rsc-win-dismissed';
+  var anonCardEl = null;
+
+  function anonTaster() {
+    try { return JSON.parse(localStorage.getItem(TASTER_KEY)); }
+    catch (e) { return null; }
+  }
+  function anonTasterSave(rec) {
+    try { localStorage.setItem(TASTER_KEY, JSON.stringify(rec)); } catch (e) {}
+  }
+  function gaEvent(name, params) {
+    try { if (window.gtag) window.gtag('event', name, params || {}); } catch (e) {}
+  }
+
+  /* Called from the Check / Mark-as-done handlers. Returns true when the
+     click must not proceed (the gate card was shown instead). Claims the
+     taster on the first allowed anonymous attempt. */
+  function anonGateCheck(card) {
+    if (authToken) return false;
+    var hub = hubSlugFromPath();
+    if (!hub) return false;
+    var t = anonTaster();
+    if (!t) {
+      anonTasterSave({ hub: hub, id: card.id, xp: 0 });
+      return false;
+    }
+    if (t.hub === hub && t.id === card.id) return false; // retries stay free
+    anonCardShow(card, 'gate', t);
+    return true;
+  }
+
+  /* Fresh anonymous solve - bank the XP on the taster record, then show the
+     win card ("+15 XP. Sign in to keep it."). */
+  function anonWinShow(card) {
+    var t = anonTaster();
+    if (t && t.id === card.id && !t.xp) { t.xp = card.xp; anonTasterSave(t); }
+    try { if (sessionStorage.getItem(WIN_DISMISS_KEY)) return; } catch (e) {}
+    anonCardShow(card, 'win', t);
+  }
+
+  function anonSigninHref(xp) {
+    return '/signin.html?next=' + encodeURIComponent(location.pathname) +
+      (xp ? '&winxp=' + xp : '');
+  }
+
+  function anonCardShow(card, variant, taster) {
+    var xp = variant === 'win' ? card.xp : ((taster && taster.xp) || 0);
+    if (anonCardEl && anonCardEl.parentNode) anonCardEl.remove();
+    var el = document.createElement('div');
+    el.className = 'xh-win' + (variant === 'gate' ? ' is-gate' : '');
+    el.setAttribute('role', 'status');
+    var title, bodyText;
+    if (variant === 'win') {
+      title = '+' + xp + ' XP earned';
+      bodyText = 'Right now it lives only in this browser. A free account ' +
+        'keeps your XP, streak, and solved exercises on any device.';
+    } else {
+      title = 'Your first graded exercise was on the house';
+      bodyText = xp
+        ? 'That +' + xp + ' XP is saved in this browser only. Create a free ' +
+          'account to keep it and to grade more exercises.'
+        : 'Create a free account to keep grading exercises and earn XP for ' +
+          'every solve.';
+    }
+    el.innerHTML =
+      '<div class="xh-win-title">' + title + '</div>' +
+      '<p class="xh-win-body">' + bodyText + '</p>' +
+      '<div class="xh-win-actions">' +
+      '<a class="xh-win-cta" href="' + anonSigninHref(xp) + '">Create a free account</a>' +
+      (variant === 'win'
+        ? '<button type="button" class="xh-win-later">Not now</button>'
+        : '<a class="xh-win-later" href="' + anonSigninHref(xp) + '">I already have an account</a>') +
+      '</div>';
+    // Win: outside the section, so the solved-card auto-collapse cannot hide
+    // it. Gate: inline at the click point (nothing collapses on a gated click).
+    if (variant === 'win') card.section.after(el);
+    else card.verdict.after(el);
+    anonCardEl = el;
+    var later = el.querySelector('button.xh-win-later');
+    if (later) {
+      later.addEventListener('click', function () {
+        try { sessionStorage.setItem(WIN_DISMISS_KEY, '1'); } catch (e) {}
+        el.remove();
+        if (anonCardEl === el) anonCardEl = null;
+        gaEvent('win_card_dismiss', {});
+      });
+    }
+    el.querySelector('.xh-win-cta').addEventListener('click', function () {
+      gaEvent(variant === 'win' ? 'win_card_cta' : 'gate_card_cta', { xp: xp });
+    });
+    // One signup surface per day: while this contextual card is the active
+    // ask, quiet the generic corner nudge by writing its own dismiss key
+    // (signin-nudge.js reads it at load). One-way coupling by intent.
+    try {
+      localStorage.setItem('rs-signin-nudge-dismissed',
+        String(Date.now() + 864e5));
+    } catch (e) {}
+    if (variant === 'gate') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    gaEvent(variant === 'win' ? 'win_card_shown' : 'gate_card_shown',
+      { xp: xp, hub: hubSlugFromPath() || '' });
+  }
+
+  /* ---------------------------------------------------------------
      Practice meter (flag:exercise-meter). Displays the server-side
      allowance: an always-visible pill in the progress-map head, a
      one-time explainer, and the wall when this hub cannot be attempted.
@@ -1276,6 +1393,7 @@
     if (card.doneBtn) {
       card.doneBtn.addEventListener('click', function () {
         if (card.solved) return;
+        if (anonGateCheck(card)) return;
         markSolved(card);
         card.doneBtn.textContent = '✓ Marked done';
         card.doneBtn.disabled = true;
@@ -1293,6 +1411,7 @@
           if (meterWallEl) meterWallEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
         }
+        if (anonGateCheck(card)) return;
         card.gradeNext = true;
         setVerdict(card, 'running',
           '<span class="xh-spinner"></span>', 'Checking your answer…');
@@ -1370,6 +1489,7 @@
       STORE.saveProgress(progressState);
       STORE.bumpDaily();      // honest daily micro-goal (item 5)
       reportSolve(card);      // POSTs to /api/exercise/.../attempt when authed
+      if (!authToken) anonWinShow(card);   // win-first: "+N XP. Sign in to keep it."
     }
     card.section.classList.add('is-solved');
     updateProgress(solvedCount(), totalCount);

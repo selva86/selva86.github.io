@@ -34,9 +34,14 @@ export async function meterMonth(db: D1Database, userId: string): Promise<MeterM
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
   ).toISOString().slice(0, 10);
 
+  // source IS NOT 'backfill': anon-era solves banked at sign-in are on the
+  // house - a fresh account reads 25 of 25 and the taster hub is not counted
+  // as started. (SQLite IS NOT treats NULL as a plain value, so live attempts,
+  // whose source is NULL, are kept.)
   const rows = await db.prepare(
     "SELECT hub_slug, COUNT(*) AS n FROM exercise_attempts " +
-    "WHERE user_id = ?1 AND submitted_at >= ?2 GROUP BY hub_slug",
+    "WHERE user_id = ?1 AND submitted_at >= ?2 AND source IS NOT 'backfill' " +
+    "GROUP BY hub_slug",
   ).bind(userId, monthStartSec).all<{ hub_slug: string; n: number }>();
 
   const practice = (rows.results ?? []).filter((r) => !isLessonHub(r.hub_slug));

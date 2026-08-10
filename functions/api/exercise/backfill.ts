@@ -85,6 +85,22 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   }
 
   const result = await backfillAttempts(context.env.DB, u.id, valid);
+
+  // Win-first funnel attribution: an account created within the last hour
+  // whose backfill records solves signed up through the exercise gate.
+  // signup_gate is set-once; the guard keeps later backfills from touching it.
+  if (result.recorded > 0) {
+    try {
+      const ageSec = Math.floor(Date.now() / 1000) - (u.created_at || 0);
+      if (ageSec >= 0 && ageSec < 3600) {
+        await context.env.DB.prepare(
+          "UPDATE users SET signup_gate = 'exercise', signup_slug = ?1 " +
+          "WHERE id = ?2 AND signup_gate IS NULL",
+        ).bind(valid[0]?.hub ?? "", u.id).run();
+      }
+    } catch { /* attribution must never fail the backfill */ }
+  }
+
   const stats = await getStats(context.env.DB, u.id);
   return json({
     recorded: result.recorded,
