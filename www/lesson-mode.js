@@ -138,8 +138,23 @@
     var accountGated = (access !== 'pro') && lessonOrder > FREE_PREVIEW_LESSONS;
     var accountLocked = accountGated && !signedIn;
 
+    /* ---- Data Analyst 30-day pass (plan s5) ---- */
+    // Set from /api/me on hydration. An ACTIVE pass on a full (unstripped)
+    // Pro page unlocks it: the edge already resolved the pass into scope and
+    // served the full body, the client just stops second-guessing. Stripped
+    // pages stay walled - the edge ruled them outside the pass. An EXPIRED
+    // pass only changes the gate's copy, never its behavior.
+    var passState = null;
+
     document.addEventListener('auth-hydrated', function (e) {
       var me = e.detail && e.detail.me;
+      passState = (me && me.pass) || null;
+      if (passState && passState.active && locked && !stripped) {
+        locked = false;
+        render();
+      }
+      if (passState && !passState.active) updateGatePassCopy();
+      renderPassChip();
       if (me && me.pro && locked) {
         if (stripped) {
           // The locked steps are not in this response. auth-hydrate has just
@@ -354,6 +369,43 @@
       stage.scrollTop = 0;
     }
 
+    /* Countdown chip in the top bar, day 1 onward (plan: springing it late
+       is a trap; showing it early is the device). Only meaningful on Pro
+       lessons a pass is holding open; replaces the Get-certified link there. */
+    function renderPassChip() {
+      var tr = app.querySelector('.lm-top-right');
+      if (!tr || tr.querySelector('.lm-pass')) return;
+      if (!passState || !passState.active || access !== 'pro') return;
+      var a = document.createElement('a');
+      a.className = 'lm-pass';
+      a.href = '/pricing.html';
+      a.textContent = 'Pass: ' + passState.days_left + ' day' +
+        (passState.days_left === 1 ? '' : 's') + ' left';
+      var cert = tr.querySelector('.lm-cert');
+      if (cert) { tr.insertBefore(a, cert); cert.style.display = 'none'; }
+      else tr.appendChild(a);
+      try { if (typeof gtag === 'function') gtag('event', 'pass_chip_view', { lesson: curSlug, days_left: passState.days_left }); } catch (e) {}
+    }
+
+    /* The gate is built once and cached; if it exists when the expired pass
+       state arrives, rewrite its copy in place. The guardrail: pass copy
+       always says what stays free. */
+    function updateGatePassCopy() {
+      var g = stage.querySelector('.lm-gate');
+      if (!g || body.classList.contains('pro')) return;
+      var h = g.querySelector('h3');
+      if (h && h.textContent !== 'Your 30-day Data Analyst pass has ended') {
+        h.textContent = 'Your 30-day Data Analyst pass has ended';
+      }
+      if (!g.querySelector('.lm-gate-pass-note')) {
+        var n = document.createElement('p');
+        n.className = 'lm-gate-pass-note';
+        n.textContent = 'Everything you finished stays on your profile, and the New to R course stays free.';
+        var pos = g.querySelector('.lm-gate-pos') || h;
+        if (pos && pos.parentNode) pos.parentNode.insertBefore(n, pos.nextSibling);
+      }
+    }
+
     /* ---- Pro gate v2: instant wall over a faded first-content-step teaser.
        The server already strips steps 3+ for non-entitled requests, so the
        teaser exposes only what the old 2-step preview served anyway. ---- */
@@ -402,7 +454,8 @@
         // (eating them and collapsing the spaces between).
         g.innerHTML = '<div class="lm-gate-card tex2jax_ignore">' +
           '<div class="lm-gate-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>' +
-          '<h3>' + (isProUser ? 'This lesson is in a different track' : 'This is a Pro lesson') + '</h3>' +
+          '<h3>' + (isProUser ? 'This lesson is in a different track'
+            : (passState && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'This is a Pro lesson')) + '</h3>' +
           (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
           (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
           '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
@@ -419,6 +472,7 @@
         });
         try { if (typeof gtag === 'function') gtag('event', 'pro_gate_view', { lesson: curSlug, course: courseId || '' }); } catch (e) {}
       } else { g.style.display = ''; }
+      if (passState && !passState.active) updateGatePassCopy();
       fillGateFreeLink();
       segEls.forEach(function (e2) { e2.className = ''; });
       curEl.textContent = 1;

@@ -46,4 +46,8 @@ export const FLAGS = {
   // s4). Flip only together with the meter UI, or users hit a wall with no
   // meter that ever warned them.
   EXERCISE_METER: "exercise-meter",
+  // The Data Analyst 30-day pass (plan s5). Flip together with the DA lesson
+  // regate and set da-pass:launched_at = <unix seconds> in the same session,
+  // or pre-launch accounts never get their window.
+  DA_PASS: "da-pass",
 } as const;
