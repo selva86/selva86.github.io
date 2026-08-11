@@ -166,6 +166,16 @@ hubs fully unlocked, 2-hub floor.** An attempt is ALLOWED if ANY of:
 
 ## 5. The Data Analyst 30-day pass — DECIDED
 
+> **Machinery BUILT 2026-08-11 on branch `da-pass`** (dormant): `_lib/pass.ts`
+> (resolvePass; window = max(created_at, da-pass:launched_at) + 30d),
+> resolveScope returns track `analyst` for an active pass, /api/me carries
+> `pass` for non-Pro users while the flag is on, lesson-mode.js unlocks full
+> pages on active pass + renders the top-bar countdown chip + swaps the gate
+> copy after expiry. Activation needs BOTH KV keys: `flag:da-pass`="on" and
+> `da-pass:launched_at`=<unix>. **The DA lessons are still access:free today;
+> the regate to Pro (lesson 1 floor stays free) ships in the same deploy as
+> the flip.** All email copy for the arc: `Plans/email-copy-book.md`.
+
 - **Scope: DA track only. New-to-R stays permanently free** (beginner funnel + free
   Foundations cert live there).
 - Clock: 30 days from account creation for new signups. Existing accounts: from
