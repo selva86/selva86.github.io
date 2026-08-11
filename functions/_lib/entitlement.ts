@@ -12,6 +12,7 @@
 
 import { isProActive, type User } from "./db";
 import { getEntitlingOrg, type Org } from "./teams";
+import { resolvePass, PASS_TRACK } from "./pass";
 
 export type ProSource = "individual" | "lifetime" | "team" | null;
 
@@ -75,7 +76,16 @@ export async function resolveScope(
   user: User | null,
 ): Promise<string> {
   const ent = await resolvePro(env.DB, user);
-  if (!ent.pro || !user) return "0";
+  if (!ent.pro || !user) {
+    // Not Pro, but an active Data Analyst pass still covers the DA track:
+    // the lesson middleware serves full DA pages and DA quizzes grade,
+    // while every other track stays gated (plan s5). Fail-closed.
+    if (user) {
+      const pass = await resolvePass(env, user).catch(() => null);
+      if (pass?.active) return PASS_TRACK;
+    }
+    return "0";
+  }
   if (ent.source === "team") return "all";
   const t = await env.KV.get(`tracks:${user.id}`).catch(() => null);
   return t || "all";

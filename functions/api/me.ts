@@ -15,6 +15,7 @@ import type { Env, RequestData } from "../_middleware";
 import { json } from "../_lib/errors";
 import { getUserById, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
 import { resolvePro } from "../_lib/entitlement";
+import { resolvePass } from "../_lib/pass";
 import { notifyNewSignup, flushPendingSignup } from "../_lib/notify";
 import { ensureHandle, ensureProfileColumns } from "../_lib/profile";
 import { sweepRecapEmails } from "../_lib/recap";
@@ -130,13 +131,17 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     }
   }
 
-  return await renderMe(context.env.DB, u);
+  return await renderMe(context.env, u);
 };
 
-async function renderMe(db: D1Database, u: User): Promise<Response> {
+async function renderMe(env: { DB: D1Database; KV: KVNamespace }, u: User): Promise<Response> {
   // resolvePro composes individual + team-seat Pro. pro/pro_until keep their
   // existing meaning (auth-hydrate.js reads me.pro unchanged); `team` is new.
-  const ent = await resolvePro(db, u);
+  const ent = await resolvePro(env.DB, u);
+  // The Data Analyst pass rides along for non-Pro users while its flag is
+  // on - included even when expired, so the lesson wall can say the pass
+  // ended rather than pretend it never existed. Absent = feature off.
+  const pass = ent.pro ? null : await resolvePass(env, u).catch(() => null);
   return json({
     user: {
       id: u.id,
@@ -152,5 +157,6 @@ async function renderMe(db: D1Database, u: User): Promise<Response> {
     pro_until: ent.pro_until,
     pro_source: ent.source,
     team: ent.team,
+    ...(pass ? { pass } : {}),
   });
 }
