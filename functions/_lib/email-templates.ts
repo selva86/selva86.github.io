@@ -29,6 +29,11 @@ export interface TemplateData {
   next_lesson_url?: string;    // falls back to the DA roadmap
   reset_date?: string;         // cap-hit
   unsubscribe_url?: string;    // one-click, HMAC-signed
+  // Per-recipient tracking context (brain fills it): the same HMAC signature
+  // as the unsubscribe link. When present, the HTML body gets the open pixel
+  // and every link routes through /api/email/click so opens/clicks attribute
+  // to the exact email_key. Text bodies keep direct links.
+  track?: { uid: string; sig: string; key: string };
 }
 
 const SITE = "https://r-statistics.co";
@@ -61,11 +66,22 @@ function footerHtml(category: EmailCategory, reason: string, d: TemplateData): s
     `<a href="${PREFS_URL}" style="color:#6b7280">Email preferences</a>${unsub}</p>`;
 }
 
-function toHtmlParas(text: string): string {
+function trackUrl(d: TemplateData, url: string): string {
+  if (!d.track) return url;
+  const abs = url.startsWith("http") ? url : SITE + (url.startsWith("/") ? url : "/" + url);
+  return `${SITE}/api/email/click?u=${encodeURIComponent(d.track.uid)}&k=${encodeURIComponent(d.track.key)}&t=${d.track.sig}&to=${encodeURIComponent(abs)}`;
+}
+
+function openPixel(d: TemplateData): string {
+  if (!d.track) return "";
+  return `<img src="${SITE}/api/email/open?u=${encodeURIComponent(d.track.uid)}&k=${encodeURIComponent(d.track.key)}&t=${d.track.sig}" width="1" height="1" alt="" style="display:block;border:0">`;
+}
+
+function toHtmlParas(text: string, d: TemplateData): string {
   // Plain paragraphs; [label -> url] becomes a link line.
   return text.split(/\n\n+/).map((p) => {
     const m = p.match(/^\[(.+?) -> (.+?)\]$/);
-    if (m) return `<p style="margin:0 0 16px"><a href="${m[2]}" style="color:#2056d2;font-weight:600">${m[1]} &rarr;</a></p>`;
+    if (m) return `<p style="margin:0 0 16px"><a href="${trackUrl(d, m[2])}" style="color:#2056d2;font-weight:600">${m[1]} &rarr;</a></p>`;
     return `<p style="margin:0 0 16px">${p.replace(/\n/g, "<br>")}</p>`;
   }).join("");
 }
@@ -78,8 +94,8 @@ function assemble(args: {
   const text = args.body + footerText(args.category, args.reason, args.data);
   const html = emailShell({
     preheader: args.preheader,
-    contentHtml: toHtmlParas(args.body) + footerHtml(args.category, args.reason, args.data),
-    ctaUrl: args.ctaUrl,
+    contentHtml: toHtmlParas(args.body, args.data) + footerHtml(args.category, args.reason, args.data) + openPixel(args.data),
+    ctaUrl: args.ctaUrl ? trackUrl(args.data, args.ctaUrl) : undefined,
     ctaLabel: args.ctaLabel,
   });
   return { subject: args.subject, preheader: args.preheader, text, html, category: args.category, reason: args.reason };

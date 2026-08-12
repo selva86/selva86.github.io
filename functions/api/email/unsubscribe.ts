@@ -37,9 +37,10 @@ async function applyUnsub(
   await env.DB.prepare(
     "UPDATE users SET email_progress = 0, email_nurture = 0, email_offers = 0 WHERE id = ?1",
   ).bind(u).run();
+  const k = (url.searchParams.get("k") || "").slice(0, 60) || null;
   await env.DB.prepare(
-    "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, NULL, NULL, 'unsubscribe', ?2, 'one-click')",
-  ).bind(u, Math.floor(Date.now() / 1000)).run();
+    "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, NULL, ?2, 'unsubscribe', ?3, 'one-click')",
+  ).bind(u, k, Math.floor(Date.now() / 1000)).run();
   return { ok: true, status: 200, message: "Done. You will only get account and billing email from now on." };
 }
 

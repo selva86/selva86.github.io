@@ -67,10 +67,16 @@ async function hmacHex(secret: string, msg: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function unsubUrl(env: BrainEnv, userId: string): Promise<string | undefined> {
+export async function userSig(env: BrainEnv, userId: string): Promise<string | undefined> {
   if (!env.EMAIL_UNSUB_SECRET) return undefined;
-  const t = await hmacHex(env.EMAIL_UNSUB_SECRET, userId);
-  return `${SITE}/api/email/unsubscribe?u=${encodeURIComponent(userId)}&t=${t}`;
+  return hmacHex(env.EMAIL_UNSUB_SECRET, userId);
+}
+
+export async function unsubUrl(env: BrainEnv, userId: string, emailKey = ""): Promise<string | undefined> {
+  const t = await userSig(env, userId);
+  if (!t) return undefined;
+  const k = emailKey ? `&k=${encodeURIComponent(emailKey)}` : "";
+  return `${SITE}/api/email/unsubscribe?u=${encodeURIComponent(userId)}&t=${t}${k}`;
 }
 
 type UserRow = Pick<User, "id" | "email" | "display_name" | "created_at" | "pro_until"> & {
@@ -295,7 +301,9 @@ export async function runBrain(
         "INSERT OR IGNORE INTO sent_emails (user_id, email_key, sent_at) VALUES (?1, ?2, ?3)",
       ).bind(userId, c.key, now).run();
       if ((ins.meta?.changes ?? 0) === 0) continue; // raced by another run
-      c.data.unsubscribe_url = await unsubUrl(env, userId);
+      c.data.unsubscribe_url = await unsubUrl(env, userId, c.key);
+      const sig = await userSig(env, userId);
+      if (sig) c.data.track = { uid: userId, sig, key: c.key };
       const r = renderEmail(c.template, c.data);
       if (!r) {
         decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "error", reason: "no template" });

@@ -34,9 +34,30 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
 
   // ---- per-email performance (events x keys) ------------------------------
   const perEmail = (await DB.prepare(
-    `SELECT email_key, event, COUNT(*) AS n, MAX(at) AS last_at
+    `SELECT email_key, event, COUNT(*) AS n, COUNT(DISTINCT user_id) AS uniq, MAX(at) AS last_at
      FROM email_events WHERE email_key IS NOT NULL GROUP BY email_key, event`,
-  ).all<{ email_key: string; event: string; n: number; last_at: number }>()).results ?? [];
+  ).all<{ email_key: string; event: string; n: number; uniq: number; last_at: number }>()).results ?? [];
+
+  // Per-email performance rollup: sends, unique openers/clickers (the pixel
+  // and the click redirect attribute to the exact key), unsubs, errors, and
+  // dev-mode simulations. Test sends are counted separately and never mix
+  // into the rates.
+  const metricsByKey: Record<string, {
+    sent: number; would: number; test: number; openers: number; clickers: number;
+    unsubs: number; errors: number; last_sent: number;
+  }> = {};
+  for (const r of perEmail) {
+    const k = r.email_key.startsWith("test:") ? r.email_key : r.email_key;
+    if (!metricsByKey[k]) metricsByKey[k] = { sent: 0, would: 0, test: 0, openers: 0, clickers: 0, unsubs: 0, errors: 0, last_sent: 0 };
+    const m = metricsByKey[k];
+    if (r.event === "sent") { m.sent = r.n; m.last_sent = r.last_at; }
+    else if (r.event === "would_send") m.would = r.n;
+    else if (r.event === "test_sent") m.test = r.n;
+    else if (r.event === "open") m.openers = r.uniq;
+    else if (r.event === "click") m.clickers = r.uniq;
+    else if (r.event === "unsubscribe") m.unsubs = r.n;
+    else if (r.event === "error") m.errors = r.n;
+  }
 
   // Engagement events arrive from the webhook without an email_key (ZeptoMail
   // does not echo it), so opens/clicks/bounces are program-level for now.
@@ -130,7 +151,7 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   return json({
     now,
     mode: { engine: flags["email-engine"], live: flags["email-live"], flags },
-    engagement, perEmail,
+    engagement, perEmail, metricsByKey,
     states: { s1_new: s.s1_new, s2_active: s.s2_active, s3_dormant, s4_pro: s.s4_pro, s6_churned: s.s6_churned, total: s.total },
     gates,
     hot: { signals: hotSignals, capUsers, passCohort },
