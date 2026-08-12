@@ -352,3 +352,30 @@ CREATE TABLE IF NOT EXISTS sent_emails (
   PRIMARY KEY (user_id, email_key)
 );
 CREATE INDEX IF NOT EXISTS idx_sent_emails_user ON sent_emails(user_id);
+
+-- ===== email_events (delivery/open/click/bounce + would_send simulation log) =====
+-- Written by the ZeptoMail webhook receiver and by the email brain. `would_send`
+-- rows are the development-mode simulation trail (flag:email-live off): what the
+-- brain WOULD have sent to a non-allowlisted user. Feeds the admin email dashboard.
+CREATE TABLE IF NOT EXISTS email_events (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id   TEXT,
+  email     TEXT,
+  email_key TEXT,
+  event     TEXT NOT NULL,   -- sent | would_send | test_sent | delivered | open | click | bounce | complaint
+  at        INTEGER NOT NULL,
+  meta      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_events_at   ON email_events(at);
+CREATE INDEX IF NOT EXISTS idx_email_events_user ON email_events(user_id, at);
+-- Existing-deploy migration (applied 2026-08-12 to dev+prod): the table above +
+--   ALTER TABLE users ADD COLUMN email_status TEXT;            -- NULL/ok | bounced | complained (suppression)
+--   ALTER TABLE users ADD COLUMN email_progress INTEGER DEFAULT 1;  -- consent: progress category (opt-out)
+--   ALTER TABLE users ADD COLUMN email_nurture INTEGER DEFAULT 0;   -- consent: nurture (strictly opt-in)
+--   ALTER TABLE users ADD COLUMN email_offers INTEGER DEFAULT 0;    -- consent: offers/marketing (opt-in)
+--   ALTER TABLE users ADD COLUMN persona TEXT;        -- student|professional|jobseeker|researcher|explorer
+--   ALTER TABLE users ADD COLUMN job_role TEXT;       -- analyst|ds|mle|ai|pm|other (users.role = user|admin)
+--   ALTER TABLE users ADD COLUMN job_role_other TEXT;
+--   ALTER TABLE users ADD COLUMN level_r TEXT;        -- new|basic|solid
+--   ALTER TABLE users ADD COLUMN level_ml TEXT;       -- none|concepts|hands_on
+--   ALTER TABLE users ADD COLUMN level_ts TEXT;       -- none|some|regular
