@@ -151,11 +151,39 @@
   }
 
   // ===================== load =====================
+  // ---- email preferences (the consent categories the lifecycle emails obey;
+  // backed by /api/me/email-prefs -> users.email_progress/_nurture/_offers) ----
+  var PREF_META=[
+    ['progress','Progress notes','Milestones you hit, the monthly practice recap, and a note if you ever reach the free practice cap.'],
+    ['nurture','Practice reminders','A short daily exercise and a weekly guided tour of the best content for you. Off unless you want them.'],
+    ['offers','Offers','Discounts and deadline reminders when something you have is about to change. Off unless you want them.']
+  ];
+  function renderEmailPrefs(p){
+    var host=el('ac-emailprefs'); if(!host)return;
+    host.innerHTML=PREF_META.map(function(m){
+      return '<label style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line,#e4e7ee);cursor:pointer">'+
+        '<input type="checkbox" data-pref="'+m[0]+'"'+(p[m[0]]?' checked':'')+' style="margin-top:3px;width:16px;height:16px;accent-color:#2056d2;cursor:pointer">'+
+        '<span><b style="font-size:14px">'+m[1]+'</b><br><span class="note" style="margin-top:2px;display:inline-block">'+m[2]+'</span></span></label>';
+    }).join('')+'<div class="note">Account and billing email has no toggle. The unsubscribe link in any email turns all three of these off at once.</div>';
+    host.querySelectorAll('[data-pref]').forEach(function(cb){
+      cb.addEventListener('change',function(){
+        var body={}; body[cb.getAttribute('data-pref')]=cb.checked;
+        cb.disabled=true;
+        api('/api/me/email-prefs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+          .then(function(np){cb.disabled=false;cb.checked=!!np[cb.getAttribute('data-pref')];toast('Email preferences saved');})
+          .catch(function(){cb.disabled=false;cb.checked=!cb.checked;toast('Could not save, try again');});
+      });
+    });
+  }
+
   function load(){
     if(ACCT==='settings'){
       Promise.all([api('/api/me'),api('/api/me/sessions').catch(function(){return {sessions:[]};})]).then(function(r){
         if(!r[0]||!r[0].user)return toSignin(); renderSettings(r[0],r[1]);
       }).catch(fail);
+      api('/api/me/email-prefs').then(renderEmailPrefs).catch(function(){
+        var e=el('ac-emailprefs'); if(e)e.innerHTML='<div class="note">Could not load email preferences. Refresh to retry.</div>';
+      });
     } else if(ACCT==='billing'){
       api('/api/me').then(function(me){ if(!me||!me.user)return toSignin(); renderBilling(me); }).catch(fail);
     } else if(ACCT==='certificates'){
