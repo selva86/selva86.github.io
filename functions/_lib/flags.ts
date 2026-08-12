@@ -50,4 +50,15 @@ export const FLAGS = {
   // regate and set da-pass:launched_at = <unix seconds> in the same session,
   // or pre-launch accounts never get their window.
   DA_PASS: "da-pass",
+  // ---- email engine (Plans/01_email_and_nurture/email-program-v2.md s7) ----
+  // EMAIL_ENGINE: master kill; the brain refuses to run without it.
+  // EMAIL_LIVE: THE go-live switch. Off = development mode: only the test
+  //   allowlist receives real email, everyone else's decisions are logged as
+  //   would_send events. On = sends reach every eligible user.
+  // Per-sender flags gate individual emails; safe to leave on in dev mode.
+  EMAIL_ENGINE: "email-engine",
+  EMAIL_LIVE: "email-live",
+  WELCOME_EMAIL: "welcome-email",
+  LIFECYCLE_ENGINE: "lifecycle-engine",
+  CAP_EMAIL: "cap-email",
 } as const;

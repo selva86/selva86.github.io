@@ -23,7 +23,7 @@ owner edits.
 | I do research (academia, science, medicine) | `researcher` |
 | Just exploring | `explorer` |
 
-**Screen 2 (professional and jobseeker only): "Which role fits best?"** -> `users.role`
+**Screen 2 (professional and jobseeker only): "Which role fits best?"** -> `users.job_role`
 
 | Option | Value | Plans as |
 |---|---|---|
@@ -67,8 +67,8 @@ level_ml=`none`, level_ts=`none`.
 
 ```sql
 ALTER TABLE users ADD COLUMN persona TEXT;      -- student|professional|jobseeker|researcher|explorer
-ALTER TABLE users ADD COLUMN role TEXT;         -- analyst|ds|mle|ai|pm|other
-ALTER TABLE users ADD COLUMN role_other TEXT;   -- free text when role='other'
+ALTER TABLE users ADD COLUMN job_role TEXT;     -- analyst|ds|mle|ai|pm|other (users.role already means user|admin)
+ALTER TABLE users ADD COLUMN job_role_other TEXT; -- free text when job_role='other'
 ALTER TABLE users ADD COLUMN level_r TEXT;      -- new|basic|solid
 ALTER TABLE users ADD COLUMN level_ml TEXT;     -- none|concepts|hands_on
 ALTER TABLE users ADD COLUMN level_ts TEXT;     -- none|some|regular
