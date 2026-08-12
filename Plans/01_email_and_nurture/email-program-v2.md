@@ -9,7 +9,10 @@ extends `free-user-onboarding-plan.md` s3b/s5/s6.
 ## 0. The voice contract (applies to every email, no exceptions)
 
 Authentic, friendly, concise, natural speaking voice. Every email sounds like
-Selva wrote it to one person, because he effectively did.
+one person wrote it to one person. Sender persona since 2026-08-13: Akshay
+<akshay@r-statistics.co> (from, reply-to, signature); emails render as plain
+personal notes, no card chrome or buttons (also the Gmail-Promotions defense).
+Full v2 voice rules: email-copy-book.md.
 
 - The read-aloud test: if a sentence sounds like a company, rewrite it until
   it sounds like a person. "We're excited to announce" fails. "This is live

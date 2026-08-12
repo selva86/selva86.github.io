@@ -8,17 +8,36 @@ fulfilment + renewal + signup-admin (live).
 
 ## Voice and hard rules
 
+Voice pass v2 (2026-08-13, owner: v1 read mechanical). The additions:
+
+- **Sender persona: Akshay <akshay@r-statistics.co>**, from-name "Akshay from
+  r-statistics.co", reply-to akshay@, signatures "Akshay". The mailbox must
+  exist (Zoho Mail alias) before flag:email-live flips, or replies bounce.
+- **Personal-note rendering.** No card chrome, no logo header, no CTA button:
+  plain paragraphs, default font stack, links inline. What a person sends
+  from a mail client. This is also the Gmail-Promotions defense - buttons,
+  benefit bullets, and branded shells are what the tab classifier keys on.
+- **Contractions everywhere** ("you've", "that's", "I'd"). Formal-complete
+  sentences in every slot is the single biggest AI tell.
+- **Dissolve symmetric lists into prose.** Numbered benefit lists read as
+  marketing; two facts can live in two sentences.
+- **One small human aside per email, max** ("Genuinely." / "Most people never
+  get close."). More than one reads as performance.
+- Vary the rhythm: a fragment is allowed. A two-word sentence is allowed.
+
 - Plain speech, short sentences, one idea per email, ONE primary CTA.
-- Every email reads like Selva wrote it to one person. No marketing voice, no
-  "we're excited", no "unlock", no urgency theater beyond real deadlines.
+- Every email reads like one person wrote it to one person. No marketing
+  voice, no "we're excited", no "unlock", no urgency theater beyond real
+  deadlines.
 - **P3 (hard): no invented numbers.** Every number is a `{token}` filled from
   real data, listed in the token registry below. If the data source is empty,
   the sentence carrying the token is dropped, never faked.
 - No em dashes anywhere. Subjects state facts; no clickbait, no "You won't
   believe", no comma-hinged slogans.
-- Sender: `noreply@r-statistics.co` for account/transactional; personal sends
-  use from-name **"Selva from r-statistics.co"**. Reply-to on EVERYTHING:
-  `selva@r-statistics.co` (replies are wanted; they are the support channel).
+- Sender: **"Akshay from r-statistics.co" <akshay@r-statistics.co>** for every
+  lifecycle email; `noreply@r-statistics.co` stays for receipts/fulfilment.
+  Reply-to on EVERYTHING: `akshay@r-statistics.co` (replies are wanted; they
+  are the support channel).
 - Every non-account email ends with a footer whose first line states the
   SPECIFIC reason it sent, then the links:
   `You get this because <reason, e.g. "your Data Analyst pass ends this week">. [Email preferences] · [Unsubscribe]`
@@ -73,80 +92,86 @@ minutes after signup. All three name the pass and its end date (s5 day 0).
 ## 1a. signup_gate = exercise (they signed up to keep a solve)
 
 - **Subject:** `Your first solve is saved`
-- **Preheader:** `The XP is on your profile. Here is what else your account does.`
+- **Preheader:** `The XP is on your profile. A couple of things worth knowing.`
 
 ```
 Hi {first_name},
 
-That solve you just made is on your profile now, with its XP. Your streak
-started today.
+Nice one. That solve you just made is safely on your profile, XP and all,
+and your streak started today.
 
-Two things your free account gives you, so you know what you have:
+Since you're new, two things worth knowing.
 
-1. 25 graded exercises every month. Any practice hub you start stays open
-   until the month ends, so you can always finish what you began.
+You get 25 graded exercises a month on the free plan, and any hub you
+start stays open until the month ends, so you can always finish what you
+began.
 
-2. The full Data Analyst track, free until {pass_end_date}. That is 30 days
-   of interactive lessons, from wrangling data to building reports. It is
-   the fastest way we know to get job-ready in R.
+You've also got the full Data Analyst track free until {pass_end_date}.
+Thirty days of interactive lessons, from wrangling messy data to building
+reports. If you're even half-serious about R, that's the thing I'd point
+you at.
 
-Start here: [Continue practicing -> {hub_url}]
+[Keep practicing where you left off -> {hub_url}]
 
-The New to R course and every tutorial on the site stay free forever, no
-clock on those.
+Everything else, the New to R course and all 1,300+ tutorials, is free
+forever. No clock on those.
 
-If anything is confusing, just reply. I read these.
+Stuck or confused about anything? Just hit reply. I actually read these.
 
-Selva
+Akshay
 ```
 
 ## 1b. signup_gate = lesson (they signed up at a lesson wall)
 
 - **Subject:** `Pick up where you left off`
-- **Preheader:** `{course_title} is open, and the Data Analyst track is free for 30 days.`
+- **Preheader:** `Your lesson is open again, and your place is saved.`
 
 ```
 Hi {first_name},
 
-You stopped at lesson {lesson_order} of {course_title}. It is open now, and
-your place is saved.
+You're in. {course_title} is open again and your place is saved, so you
+can carry on right where the wall stopped you.
 
 [Continue the lesson -> {next_lesson_url}]
 
-Your account also comes with the Data Analyst 30-day pass: the full track,
-free until {pass_end_date}. Lessons you finish stay finished, and your XP
-and streak build as you go.
+One thing worth knowing: your account comes with the full Data Analyst
+track, free until {pass_end_date}. Whatever you finish in those 30 days
+stays finished, along with the XP and streak you build up.
 
-The New to R course and every tutorial stay free forever.
+The New to R course and all the tutorials don't have a clock. Those are
+free, period.
 
-Questions? Reply to this email. I read every one.
+If anything's confusing, just reply and ask. Happy to help.
 
-Selva
+Akshay
 ```
 
 ## 1c. signup_gate = browsing (signed up from the nudge or nav)
 
-- **Subject:** `Your r-statistics.co account, in 30 seconds`
+- **Subject:** `Welcome, and where to start` (retitled 2026-08-13: the listicle subject read promotional)
 - **Preheader:** `What is free, what the 30-day pass covers, and where to start.`
 
 ```
 Hi {first_name},
 
-Welcome. Here is the short version of what you now have:
+Welcome aboard. Quick lay of the land, then I'll get out of your way.
 
-- 25 graded practice exercises a month, with instant feedback in the browser.
-- The Data Analyst track, free until {pass_end_date}. Interactive lessons,
-  quizzes, and a certificate at the end.
-- The New to R course and 1,300+ tutorials, free forever.
+The New to R course and all 1,300+ tutorials are free forever. Practice
+gives you 25 graded exercises a month, with instant feedback right in the
+browser.
 
-If you are new to R, start with New to R. If you already write some R,
-start the Data Analyst track and see how far you get in 30 days.
+And for your first 30 days, the full Data Analyst track is open to you
+free, until {pass_end_date}. Lessons, quizzes, the certificate path, all
+of it.
 
-[Start learning -> /roadmap/data-analyst.html]
+If you're brand new to R, start with New to R. If you already write a bit
+of code, jump straight into the track:
 
-Reply if you get stuck anywhere. I read these.
+[Start the Data Analyst track -> /roadmap/data-analyst.html]
 
-Selva
+Wherever you get stuck, hit reply. A person answers, not a bot.
+
+Akshay
 ```
 
 ---
@@ -177,7 +202,7 @@ around {finish_date_at_pace}.
 
 Everything you finish stays finished, whatever happens after the pass.
 
-Selva
+Akshay
 ```
 
 ## 2b. Day 23: one-week warning
@@ -188,21 +213,18 @@ Selva
 ```
 Hi {first_name},
 
-One week left on your pass. Until {pass_end_date} the full Data Analyst
-track is open to you. After that, the track moves to Pro, and here is
-exactly what changes:
+Quick heads-up: one week left on your Data Analyst pass. Until
+{pass_end_date} the whole track is open to you.
 
-Stays free forever: the New to R course, every tutorial, your XP, your
-streak, and everything you already finished.
+After that it moves to Pro. What stays free: New to R, every tutorial,
+your XP and streak, and everything you've already finished. What doesn't:
+the remaining lessons and quizzes on the track.
 
-Needs Pro after {pass_end_date}: the remaining Data Analyst lessons and
-their quizzes.
+If you've got momentum, this is the week to use it.
 
-If you have momentum, this is the week to use it.
+[Carry on with the track -> {next_lesson_url}]
 
-[Continue the track -> {next_lesson_url}]
-
-Selva
+Akshay
 ```
 
 ## 2c. Day 27: the coupon (72 hours, genuinely one-time)
@@ -227,7 +249,7 @@ and there is no "extended by popular demand" email coming later. One code,
 If Pro is not right for you now, that is fine. The New to R course and all
 tutorials stay free, and your progress is not going anywhere.
 
-Selva
+Akshay
 ```
 
 ## 2d. Day 30: final day
@@ -238,19 +260,18 @@ Selva
 ```
 Hi {first_name},
 
-Today is the last day of your pass. At midnight UTC the Data Analyst track
+Last day of your pass. Tonight at midnight UTC the Data Analyst track
 moves to Pro for your account.
 
-If you are mid-lesson, tonight is the time to finish it.
+If you're mid-lesson, finish it tonight. It stays finished forever.
 
 [Open the track -> {next_lesson_url}]
 
 {coupon_line}
 
-Everything you finished stays on your profile, and your XP and streak keep
-building through the free practice exercises.
+Your XP, streak, and free practice aren't going anywhere either way.
 
-Selva
+Akshay
 ```
 
 `{coupon_line}` = `Your 23% code {coupon_code} still works until {coupon_expiry}.`
@@ -258,28 +279,28 @@ if the coupon is unused and unexpired; otherwise the line is dropped.
 
 ## 2e. Day 31: graceful landing
 
-- **Subject:** `What stays free on r-statistics.co`
+- **Subject:** `Your pass ended, your progress didn't` (retitled 2026-08-13)
 - **Preheader:** `Your pass ended. Here is everything that did not.`
 
 ```
 Hi {first_name},
 
-Your 30-day pass ended yesterday. Before anything else: thank you for
-spending part of your month learning here.
+Your 30-day pass wrapped up yesterday. First, thanks for spending part of
+your month learning here. Genuinely.
 
-What you keep, free, forever:
-
-- Everything you finished. {lessons_done} lessons, {xp} XP, all of it.
-- The New to R course, end to end.
-- 25 graded practice exercises a month.
-- 1,300+ tutorials.
+Nothing you did is lost. Every lesson you finished, all your XP, your
+streak: still on your profile. The New to R course and all the tutorials
+stay free, and you still get 25 graded practice exercises every month.
 
 {coupon_last_call}
 
-If you come back to Pro someday, your progress will be exactly where you
-left it. Reply anytime if I can help with something.
+If Pro ever makes sense for you down the road, you'll pick up exactly
+where you left off. Nothing resets.
 
-Selva
+And if there's something I can help with in the meantime, you know where
+the reply button is.
+
+Akshay
 ```
 
 `{coupon_last_call}` = `One practical note: your 23% code {coupon_code} is
@@ -310,7 +331,7 @@ certificate page fills in everything for you.
 
 Congratulations. This took real work.
 
-Selva
+Akshay
 ```
 
 ## 3b. First hub completed (category: progress, flag: milestone-email)
@@ -331,7 +352,7 @@ Most people who finish that hub do well with this one next:
 
 Your streak is at {streak} days. Tomorrow keeps it alive.
 
-Selva
+Akshay
 ```
 
 ## 3c. Purchase intent #1 (category: offers, flag: intent-emails)
@@ -362,7 +383,7 @@ work".
 If something specific is holding you back, reply and ask me directly.
 I would rather answer a hard question than have you guess.
 
-Selva
+Akshay
 ```
 
 ## 3d. Cap hit (category: progress, flag: cap-email)
@@ -375,21 +396,20 @@ Trigger: the month's 25th counted attempt. Once per month per user.
 ```
 Hi {first_name},
 
-You used all 25 graded exercises this month. That is a full month of
-practice, most people do not get close.
+You just used your 25th graded exercise this month. That's a serious
+month of practice. Most people never get close.
 
-Until {reset_date}:
+Nothing dramatic happens now: every hub you started stays open until
+{reset_date}, lessons and tutorials aren't affected, and your streak and
+XP are safe. A fresh 25 lands on {reset_date}.
 
-- Every hub you started stays open, finish them anytime.
-- Lessons and tutorials are not affected at all.
-- Your streak and XP are safe.
+If waiting sounds annoying, Pro removes the cap entirely:
 
-A fresh 25 lands on {reset_date}. If you do not want to wait, Pro removes
-the cap entirely:
+[Have a look at Pro -> /pricing.html]
 
-[See Pro plans -> /pricing.html]
+Either way, nice work this month.
 
-Selva
+Akshay
 ```
 
 ## 3e. Wall follow-up (category: offers, flag: wall-email, send policy: fast)
@@ -419,7 +439,7 @@ are free, and so is everything you have already done.
 
 Stuck on whether it is worth it? Reply and ask me the hard question.
 
-Selva
+Akshay
 ```
 
 ---
@@ -435,29 +455,28 @@ engine clock for pre-launch accounts.
 ```
 Hi {first_name},
 
-Two changes to how the free tier works, both live today.
+Two changes to the free tier, live today. The short version:
 
-1. Free practice is now 25 graded exercises a month. Any hub you start
-   stays open until the month ends, so you will never be cut off in the
-   middle of a set. Lessons and tutorials are not metered, and nothing
-   you have already earned is affected.
+Free practice now gives you 25 graded exercises a month. Any hub you
+start stays open until the month ends, so you won't get cut off mid-set.
+Lessons and tutorials aren't metered at all, and nothing you've already
+earned changes.
 
-2. The full Data Analyst track is open to you, free, for the next 30 days,
-   until {pass_end_date}. Interactive lessons, quizzes, the certificate
-   path, all of it. After 30 days the track moves to Pro, but whatever you
-   finish stays finished.
+Second, and this one's the good news: the full Data Analyst track is open
+to you, free, for the next 30 days, until {pass_end_date}. Whatever you
+finish stays finished, even after the window closes.
 
-Why the change: grading and hosting cost real money, and this keeps the
-free tier sustainable while keeping New to R and all 1,300+ tutorials free
-forever.
+Why the change? Grading and hosting cost real money, and this keeps the
+free tier sustainable without touching what matters: New to R and all
+1,300+ tutorials stay free forever.
 
-If 30 days is enough to get value from the Data Analyst track, it is yours.
+Thirty days is enough to get real value out of that track. It's yours:
 
-[Start the track -> /roadmap/data-analyst.html]
+[Start the Data Analyst track -> /roadmap/data-analyst.html]
 
-Questions or objections, reply to this email. I answer.
+Questions or objections, just reply. I answer every one.
 
-Selva
+Akshay
 ```
 
 ---
@@ -484,7 +503,7 @@ That is today's rep. One exercise from {hub_name}, right at your level.
 
 Streak: {streak} days.
 
-Selva
+Akshay
 ```
 
 ## 5b. Weekly recap (v1, text only)
@@ -507,7 +526,7 @@ Next up on your track: {next_lesson_title}.
 
 [Continue -> {next_lesson_url}]
 
-Selva
+Akshay
 ```
 
 ## 5c. The guided tour (category: nurture, opt-in, flag: guided-tour)
@@ -543,7 +562,7 @@ a question. That is the whole point of lesson one.
 
 Twenty minutes, and entirely free.
 
-Selva
+Akshay
 ```
 
 ### tour:analyst:1 - Subject: `Import to insight, properly`
@@ -559,7 +578,7 @@ job.
 By the end you will reshape in one pipe what used to take an afternoon
 of spreadsheet surgery.
 
-Selva
+Akshay
 ```
 
 ### tour:ds:1 - Subject: `Cross-validation, done honestly`
@@ -575,7 +594,7 @@ That is why this track starts with evaluation, not algorithms.
 
 Get this right and every model you build afterwards is judged fairly.
 
-Selva
+Akshay
 ```
 
 ### tour:mle:1 - Subject: `The ML system design checklist`
@@ -590,7 +609,7 @@ monitoring, failure modes, in order.
 
 [Read the ML System Design Checklist -> /An-ML-System-Design-Checklist.html]
 
-Selva
+Akshay
 ```
 
 ### tour:ai:1
@@ -610,7 +629,7 @@ skill, not a statistician's secret.
 After this one you will know, before anyone ships a variant, whether the
 test can possibly answer the question.
 
-Selva
+Akshay
 ```
 
 ### tour:researcher:1 - Subject: `Design decides everything`
@@ -624,7 +643,7 @@ and reviewers know the difference even when authors forget.
 
 Chapter one of the handbook, for exactly that reason.
 
-Selva
+Akshay
 ```
 
 ---
@@ -641,6 +660,11 @@ Copy written per issue; the format contract:
   relevant tutorial or lesson, under 400 words. No roundup-of-links filler.
 
 ---
+
+> **Voice pass v2 status:** sections 1-4 above carry the shipped v2 copy
+> (personal note, Akshay, contractions). Sections 5 and 8-10 below are
+> approved v1 content with signatures updated; each gets its full v2
+> loosening when its sender is built, before its flag ever turns on.
 
 # 8. Pro lifecycle (category: account unless noted)
 
@@ -669,7 +693,7 @@ If you want a place to start, this is the next lesson on your track:
 One practical thing: there is a 14-day money-back guarantee, no questions
 asked. If Pro is not what you expected, reply and I will sort the refund.
 
-Selva
+Akshay
 ```
 
 ## 8b. Day-7 Pro activation nudge (category: progress, flag: pro-nudge)
@@ -695,7 +719,7 @@ Twenty minutes today and you will know whether Pro is going to work for
 you. And if it is not, remember the 14-day guarantee: reply, and I refund
 it.
 
-Selva
+Akshay
 ```
 
 ## 8c. Payment failed, day 3 (flag: dunning-note)
@@ -723,7 +747,7 @@ the card works again.
 
 If something looks wrong on our side, reply and I will dig into it.
 
-Selva
+Akshay
 ```
 
 ## 8d. Cancellation confirmed (flag: cancel-confirm)
@@ -750,7 +774,7 @@ helps: what was missing? Reply with a sentence if you have one in you.
 
 Thanks for having been a customer.
 
-Selva
+Akshay
 ```
 
 ## 8e. Pro winback, expiry + 30 days (category: offers, flag: pro-winback)
@@ -775,7 +799,7 @@ Current plans are on the pricing page if the timing is ever right:
 
 Either way, the free side is yours for good. Good luck with the R work.
 
-Selva
+Akshay
 ```
 
 ---
@@ -804,7 +828,7 @@ A good first step is to pick your track:
 Your team admin is {admin_name} ({admin_email}) for seat questions.
 Anything about the content itself, reply here and you get me.
 
-Selva
+Akshay
 ```
 
 ## 9b. Seat adoption note, day 14 (category: progress, flag: team-adoption)
@@ -831,7 +855,7 @@ certificates. Check your inbox for the invite, it takes a minute."
 If seats are sitting unused because something is not landing, reply. I
 would rather fix it than bill you for shelf-ware.
 
-Selva
+Akshay
 ```
 
 ---
@@ -862,7 +886,7 @@ And if R is off your plate for now, that is fine too. This is the last
 nudge: from here we stay quiet apart from the essentials, and everything
 above will be waiting.
 
-Selva
+Akshay
 ```
 
 ## 10b. Browser orientation, day 3 (category: progress, flag: orientation)
@@ -891,7 +915,7 @@ Just want to practice: the exercise hubs, 25 graded a month.
 
 That is the whole email. One of those three doors is probably yours.
 
-Selva
+Akshay
 ```
 
 ---
