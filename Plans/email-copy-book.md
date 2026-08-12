@@ -19,8 +19,11 @@ fulfilment + renewal + signup-admin (live).
 - Sender: `noreply@r-statistics.co` for account/transactional; personal sends
   use from-name **"Selva from r-statistics.co"**. Reply-to on EVERYTHING:
   `selva@r-statistics.co` (replies are wanted; they are the support channel).
-- Every non-account email ends with the one-line footer:
-  `You get this because you have an r-statistics.co account. [Email preferences] · [Unsubscribe]`
+- Every non-account email ends with a footer whose first line states the
+  SPECIFIC reason it sent, then the links:
+  `You get this because <reason, e.g. "your Data Analyst pass ends this week">. [Email preferences] · [Unsubscribe]`
+  Each email's reason string ships with its template; nobody should ever
+  wonder why we wrote to them.
 - Test sends: allowlist only (selva@r-statistics.co, selva86@gmail.com).
 
 ## One-brain gate (s6, enforced by the engine)
@@ -48,7 +51,16 @@ fulfilment + renewal + signup-admin (live).
 | `{left}` | meter: 25 minus this month's counted attempts |
 | `{reset_date}` | first of next month, "Sep 1" |
 | `{next_lesson_title}` / `{next_lesson_url}` | first unfinished lesson in the user's track order |
-| `{course_title}` | the course of the lesson that gated them (signup_slug) |
+| `{course_title}` / `{lesson_order}` | the course of the lesson that gated them (signup_slug) + their position in it |
+| `{next_hub_name}` / `{next_hub_url}` | recommended follow-on hub; from a hand-curated next-hub map, sentence dropped if unmapped |
+| `{exercise_title}` / `{exercise_url}` / `{exercise_prompt_first_line}` / `{est_minutes}` | the daily rep's exercise, from the manifest + hub page |
+| `{week_solves}` / `{week_xp}` | this week's attempts + xp_ledger sums |
+| `{billing_update_url}` | Paddle customer-portal update link from the subscription record |
+| `{grace_end_date}` / `{access_end_date}` | Paddle dunning grace end / scheduled cancellation effective date |
+| `{recent_highlights}` | 1-3 lines of genuinely new content since their expiry, from a maintained changelog; dropped when empty |
+| `{progress_snapshot}` | up to 3 lines from real data (lessons done, solves, XP); zero-lines dropped; all-zero users never get the email |
+| `{org_name}` / `{admin_name}` / `{admin_email}` / `{team_admin_url}` | orgs + org_members rows |
+| `{active_seats}` / `{total_seats}` | org_members activation counts |
 
 ---
 
@@ -480,7 +492,261 @@ Copy written per issue; the format contract:
 
 ---
 
-# 7. Already live (reference, no copy changes here)
+# 8. Pro lifecycle (category: account unless noted)
+
+## 8a. Pro welcome (flag: pro-welcome)
+
+Sent minutes after entitlement activates. Replaces the free welcome when the
+purchase came before any free history.
+
+- **Subject:** `Your Pro plan is live`
+- **Preheader:** `What just opened, and the best place to start.`
+
+```
+Hi {first_name},
+
+Thank you. Genuinely - purchases like yours are what keep this site
+running and the tutorials free.
+
+Everything is open now: every lesson, every quiz, no practice cap, and
+the certificate paths. Your XP and progress carried over exactly as they
+were.
+
+If you want a place to start, this is the next lesson on your track:
+
+[{next_lesson_title} -> {next_lesson_url}]
+
+One practical thing: there is a 14-day money-back guarantee, no questions
+asked. If Pro is not what you expected, reply and I will sort the refund.
+
+Selva
+```
+
+## 8b. Day-7 Pro activation nudge (category: progress, flag: pro-nudge)
+
+Only if no Pro lesson opened since purchase. Once ever.
+
+- **Subject:** `A week in, one suggestion`
+- **Preheader:** `You have not opened a Pro lesson yet. Here is the easiest way in.`
+
+```
+Hi {first_name},
+
+You went Pro a week ago, and unless the data is lying to me, you have not
+opened a Pro lesson yet. Life happens. But I would feel bad taking your
+money for something you never used.
+
+The easiest way in is the next lesson on your track. It picks up exactly
+where your progress ends:
+
+[{next_lesson_title} -> {next_lesson_url}]
+
+Twenty minutes today and you will know whether Pro is going to work for
+you. And if it is not, remember the 14-day guarantee: reply, and I refund
+it.
+
+Selva
+```
+
+## 8c. Payment failed, day 3 (flag: dunning-note)
+
+Paddle's own dunning runs first; this is one plain note from Selva if the
+payment is still failing three days in. Verify Paddle's send schedule before
+enabling, so nobody gets doubles.
+
+- **Subject:** `A payment problem on your Pro plan`
+- **Preheader:** `Almost always an expired card. One-minute fix inside.`
+
+```
+Hi {first_name},
+
+Quick heads-up: your last Pro payment did not go through. This is almost
+always an expired card or a bank being cautious, nothing dramatic.
+
+Here is the fix, takes about a minute:
+
+[Update your payment method -> {billing_update_url}]
+
+Your access is unaffected right now. If the payment keeps failing, Pro
+pauses on {grace_end_date}, and picks up exactly where it left off once
+the card works again.
+
+If something looks wrong on our side, reply and I will dig into it.
+
+Selva
+```
+
+## 8d. Cancellation confirmed (flag: cancel-confirm)
+
+Sent when a cancellation is scheduled. Confirmation first, one honest
+question second, zero retention theater.
+
+- **Subject:** `Your cancellation is confirmed`
+- **Preheader:** `Full access until {access_end_date}. What stays after, inside.`
+
+```
+Hi {first_name},
+
+Done: your Pro plan will not renew. You keep full access until
+{access_end_date}, and after that:
+
+Stays: everything you finished, your XP, streak, certificates, the New
+to R course, all tutorials, and 25 practice exercises a month.
+
+Ends: the Pro lessons and quizzes.
+
+No forms, no retention offers. Just one question, because it genuinely
+helps: what was missing? Reply with a sentence if you have one in you.
+
+Thanks for having been a customer.
+
+Selva
+```
+
+## 8e. Pro winback, expiry + 30 days (category: offers, flag: pro-winback)
+
+Once ever per churn.
+
+- **Subject:** `Your progress is where you left it`
+- **Preheader:** `Nothing reset. Here is what is new since you left.`
+
+```
+Hi {first_name},
+
+It has been a month since your Pro access ended. No pitch here beyond the
+facts: everything you built is still on your profile, and if you come
+back, you continue from exactly where you stopped. Nothing resets.
+
+{recent_highlights}
+
+Current plans are on the pricing page if the timing is ever right:
+
+[See plans -> /pricing.html]
+
+Either way, the free side is yours for good. Good luck with the R work.
+
+Selva
+```
+
+---
+
+# 9. Team (category: account)
+
+## 9a. Seat welcome (flag: team-welcome)
+
+Sent when a member accepts their invite. Replaces the free welcome.
+
+- **Subject:** `Your team seat on r-statistics.co is active`
+- **Preheader:** `What the seat includes and where to start.`
+
+```
+Hi {first_name},
+
+{org_name} set you up with a Pro seat. It is tied to this email address
+and works like any Pro account: every lesson and quiz, unlimited graded
+practice, and the certificate paths. Certificates are earned by you and
+stay yours, even if you change teams.
+
+A good first step is to pick your track:
+
+[Choose a roadmap -> /roadmap/]
+
+Your team admin is {admin_name} ({admin_email}) for seat questions.
+Anything about the content itself, reply here and you get me.
+
+Selva
+```
+
+## 9b. Seat adoption note, day 14 (category: progress, flag: team-adoption)
+
+To the org owner, only when seats sit unactivated. Once per billing cycle.
+
+- **Subject:** `{active_seats} of {total_seats} seats are active`
+- **Preheader:** `A resend button and a one-liner you can forward.`
+
+```
+Hi {first_name},
+
+Two weeks in, a quick usage note: {active_seats} of {total_seats} seats
+on your team have been activated.
+
+Unclaimed invites sometimes just get buried, so here is a resend button:
+
+[Manage your team -> {team_admin_url}]
+
+And if it helps, forward this to the team. It is the one-liner I would
+send: "We have r-statistics.co Pro seats - interactive R lessons with
+certificates. Check your inbox for the invite, it takes a minute."
+
+If seats are sitting unused because something is not landing, reply. I
+would rather fix it than bill you for shelf-ware.
+
+Selva
+```
+
+---
+
+# 10. Winback and orientation
+
+## 10a. Free winback, 21 days dormant (category: progress, flag: free-winback)
+
+Only for accounts with real progress (Persona C ghosts get silence, not
+this). Once per dormancy; a site visit resets the clock.
+
+- **Subject:** `Where you left off`
+- **Preheader:** `A marker of where things stand, and one next step.`
+
+```
+Hi {first_name},
+
+You have not been around for a few weeks. No drama. Just a marker of
+where things stand, in case the timing works again:
+
+{progress_snapshot}
+
+The single next step, when you want it:
+
+[{next_lesson_title} -> {next_lesson_url}]
+
+And if R is off your plate for now, that is fine too. This is the last
+nudge: from here we stay quiet apart from the essentials, and everything
+above will be waiting.
+
+Selva
+```
+
+## 10b. Browser orientation, day 3 (category: progress, flag: orientation)
+
+Only for signup_gate = browsing accounts with zero activity. Once ever.
+
+- **Subject:** `Where to start`
+- **Preheader:** `Three doors. One of them is probably yours.`
+
+```
+Hi {first_name},
+
+You made an account a few days ago and have not picked anything up yet.
+Completely normal, the site is big. Here is the honest map; pick the door
+that sounds like you:
+
+New to R, or rusty: the New to R course. Free forever, starts from zero.
+[Start New to R -> /roadmap/new-to-r.html]
+
+Already write some R for work: the Data Analyst track, free for you until
+{pass_end_date}.
+[Start the track -> /roadmap/data-analyst.html]
+
+Just want to practice: the exercise hubs, 25 graded a month.
+[Pick a hub -> /exercises/]
+
+That is the whole email. One of those three doors is probably yours.
+
+Selva
+```
+
+---
+
+# 11. Already live (reference, no copy changes here)
 
 | Email | Trigger | Where |
 |---|---|---|
@@ -489,7 +755,7 @@ Copy written per issue; the format contract:
 | Signup admin notification | confirmed signup, to owner | notify.ts, live |
 | Magic link | Supabase auth | Supabase SMTP via ZeptoMail |
 
-# 8. Send-order sanity example
+# 12. Send-order sanity example
 
 A day-27 user who also completed a hub and visited pricing yesterday gets ONE
 email: the coupon (pass-deadline outranks intent outranks milestone). The

@@ -41,6 +41,17 @@ Gmail requires it) and `utm_source=email&utm_campaign=<email_key>` on links.
 
 ## 2. The state model
 
+**The core architectural rule: state is derived, never stored.** There is no
+state-machine table, no "current step" pointer, no journey cursor that can
+drift out of sync with reality. Every fact the engine needs already lives in
+D1 (created_at, pro_until, attempts, lesson progress, certificates, consent,
+the sent ledger), and the daily brain recomputes each user's state from those
+facts at evaluation time. The only thing email sending ever writes is the
+ledger row saying it sent. This is what makes the hard cases free: a user who
+buys Pro on day 24 stops being eligible for the day-27 coupon the moment
+their entitlement lands, because tomorrow's derivation puts them in S4 and
+the arc queries simply no longer match. Nothing needed to be "cancelled".
+
 Every account is in exactly one state. The engine evaluates state first,
 then eligibility, then arbitration.
 
@@ -59,7 +70,32 @@ then eligibility, then arbitration.
 State transitions the engine must handle: S1 to S2 at pass end (the arc
 handles the moment), any to S3 by inactivity clock, S3 back to S2 on any
 visit (re-awaken), S2/S3 to S4 on purchase, S4 to S5 on webhook, S5 to S4 on
-recovery, S5/S4 to S6 on expiry.
+recovery, S5/S4 to S6 on expiry. Because state is derived, a "transition" is
+not an event we fire; it is just tomorrow's derivation coming out different.
+
+```mermaid
+stateDiagram-v2
+    S0: S0 Anonymous
+    S1: S1 New free (pass)
+    S2: S2 Established free
+    S3: S3 Dormant free
+    S4: S4 Pro active
+    S5: S5 Pro at risk
+    S6: S6 Churned Pro
+    S0 --> S1: signup (any gate)
+    S1 --> S2: pass ends
+    S2 --> S3: 21 days inactive
+    S3 --> S2: any visit
+    S1 --> S4: purchase
+    S2 --> S4: purchase
+    S3 --> S4: purchase
+    S4 --> S5: payment fails / cancel set
+    S5 --> S4: recovered
+    S5 --> S6: lapsed
+    S4 --> S6: expired
+    S6 --> S2: stays free user
+    S6 --> S4: winback purchase
+```
 
 ## 3. Entry triggers and their welcomes
 
@@ -76,11 +112,7 @@ sign-in, and all name the pass and its end date.
 | Bought before creating history (rare) | purchase | Pro welcome 8a replaces the free welcome entirely |
 | Newsletter-only subscriber | n/a (no account) | Campaigns confirmation only; no lifecycle emails |
 
-Acquisition surfaces feeding these gates today: exercise hubs (win-first
-taster), lesson walls, tutorial nudges, pricing page. Surfaces with NO email
-capture today, listed as proposals, not commitments: the 73 tools ("email me
-this result"), the Publishing Handbook (chapter-updates list), assessments
-(cert follow-up; branch pending). Each would need its own consent language.
+Acquisition surfaces feeding these gates today: exercise hubs (win-first taster), lesson walls, tutorial nudges, pricing page. Surfaces with NO email capture today, listed as proposals, not commitments: the 73 tools ("email me this result"), the Publishing Handbook (chapter-updates list), assessments (cert follow-up; branch pending). Each would need its own consent language.
 
 ## 4. Consent and category law
 
@@ -203,22 +235,128 @@ dormancy, the sin would be nagging.
 The Residual (6) weekly. Every issue carries one quiet line linking site
 features. No lifecycle emails ever; the list is not a funnel to spam.
 
-## 7. The engine (build spec)
+## 7. Architecture: how the graph actually runs
 
-- **Event senders** (inline, `waitUntil`, minutes-fresh): welcome 1a/1b/1c,
-  cert 3a, fulfilment (live), team 9a. Gated by flag + `sent_emails`.
-- **The daily brain** (cron Worker, once daily per timezone band): computes
-  state, collects eligible candidates, applies category consent, applies
-  arbitration, sends at most one, writes the ledger. Idempotent by
-  `(user_id, email_key)`; day-keyed emails use keys like `rep:2026-08-14`.
-- **Data it reads**: users (created_at, pro_until, signup_gate, consent
-  fields), resolvePass, exercise_attempts, lesson progress, certificates,
-  intent_signals, sent_emails, open events.
-- **Opens/bounces**: ZeptoMail webhooks into a small `email_events` table
-  (to add to schema); bounce marks `email_status=bounced` and suppresses.
-- **Flags**: `email-engine` master kill; per-sender flags as in the copy
-  book. Everything defaults off; the flip turns on welcome + arc + cap-hit
-  first, nurture only after the preference center ships.
+The mental model in one paragraph: **ZeptoMail is a pipe, not a brain.** It
+has a send API and event webhooks, and no journey/automation features at all
+(that is Zoho Campaigns territory, which we use only for the broadcast). All
+logic lives in our Cloudflare stack. Correctness comes from three things:
+facts in D1 (what the user did), the ledger (what we sent), and pure
+functions from facts to "what sends today" (this file, §5-6, §7d). No queue,
+no stored journey position, no sync problem.
+
+### 7a. Two send paths, by freshness need
+
+- **Event senders** (inline in existing endpoints, via `waitUntil`, arrive
+  in minutes): welcome 1a/1b/1c after first confirmed sign-in, cert 3a after
+  minting, Pro welcome 8a + fulfilment on the Paddle webhook, seat welcome
+  9a on invite acceptance, cancel confirm 8d on the cancellation webhook.
+  These are all category `account`, so they skip arbitration; each still
+  checks its flag and the ledger before sending.
+- **The daily brain** (a scheduled Worker on a Cron Trigger; Pages Functions
+  cannot cron, so this is the one new deployable): everything else. Runs
+  once a day per send band, derives each user's state, collects candidates,
+  applies consent, applies arbitration, sends at most one, writes the
+  ledger. v1 runs at 13:00 UTC for everyone; per-timezone bands are a later
+  refinement, not a launch requirement.
+
+### 7b. How "react to user actions" works without a queue
+
+Actions do not push emails; they leave facts, and the brain reads facts.
+The 25th attempt is a row in exercise_attempts; tomorrow's run derives "hit
+the cap yesterday" and considers 3d. A pricing visit writes intent_signals
+(already live); tomorrow's run considers 3c. A purchase changes pro_until;
+tomorrow's run silently retires every free-tier candidate. The only emails
+that need to feel instant are the account ones, and those are the inline
+event senders above. This split (instant = inline, everything else = next
+morning) is deliberate: a morning email about yesterday's milestone reads
+as considered; three same-day emails read as surveillance.
+
+### 7c. Exactly-once, sequence, and catch-up
+
+- **Ledger**: `sent_emails (user_id, email_key, sent_at)` PK-deduped.
+  One-shot emails use fixed keys (`welcome`, `pass-21`, `intent-1`);
+  recurring ones use day-keys (`rep:2026-08-14`) or month-keys
+  (`cap:2026-08`).
+- **Sequence** is date math, not a cursor: "send pass-23" means today is
+  pass day >= 23, pass-23 not in ledger, and today is inside its validity
+  window. If the user was ineligible on the exact day, the window decides
+  whether it sends late or never.
+- **Catch-up semantics** (cron missed a day, or the engine launched after
+  the cohort started): each email has a validity window (7d). Deadline
+  emails may send late inside their window; celebration emails expire
+  fast (a late "you finished the hub" is creepy, a late "your pass ends
+  soon" is still useful). The day-27 coupon's 72h validity counts from
+  SEND, never from schedule, so a late send never shortchanges anyone.
+
+### 7d. Validity windows
+
+| Email | Eligible | If the window passes |
+|---|---|---|
+| 1a/1b/1c welcome | first sign-in + 48h | drop (a week-late welcome is noise) |
+| 10b orientation | day 3-5 | drop |
+| 2a pass recap | day 21-22 | drop, 2b carries the arc |
+| 2b one-week warning | day 23-25 | drop, 2c carries it |
+| 2c coupon | day 27-29, expiry = send + 72h | drop, 2d/2e still name the coupon while valid |
+| 2d last day | day 30 only, before ends_at | drop, 2e covers the landing |
+| 2e what stays free | day 31-33 | drop |
+| 3a cert | mint + 24h | send anyway (account) |
+| 3b hub done | completion + 48h | drop |
+| 3c intent | signal + 1 to 3 days | drop until a fresh signal |
+| 3d cap hit | cap + 24h | drop (the in-product wall already told them) |
+| 8b Pro nudge | day 7-10 | drop |
+| 8e Pro winback | expiry + 30-37d | drop |
+| 10a free winback | dormancy day 21-28 | drop until the next dormancy cycle |
+
+### 7e. Journey exit rules (mostly free, from derivation)
+
+- Purchase mid-arc: all pass/offer/free-tier candidates vanish next run.
+- Refund or chargeback: back to free states, but the ledger prevents any
+  arc email from repeating; they rejoin wherever the dates say they are.
+- Pass expired: 2d hard-checks `now < ends_at` besides its window.
+- Bounce: `email_status=bounced` suppresses everything including account
+  sends until the address changes. Complaint (spam report): same, forever.
+- Deleted account: no user row, no candidates. Nothing to clean up.
+
+### 7f. What ZeptoMail specifically gives us and needs from us
+
+- **Send**: existing `_lib/email.ts` (single-send API, token in secret).
+  Add `_lib/email-templates.ts`: render copy-book bodies, fill tokens,
+  drop token-carrying sentences whose data is empty (P3 in code).
+- **Events**: ZeptoMail webhooks (delivery, open, click, bounce) POST to a
+  new `/api/webhooks/zeptomail` receiver, verified by shared secret,
+  writing `email_events (user_id, email_key, event, at)`. This feeds
+  opens-based sunset, bounce suppression, and §8 metrics.
+- **Does NOT give us**: journeys, delays, branching, suppression logic,
+  preference pages. All ours, all in the brain. This is the right trade:
+  the logic stays in one place, in code, versioned, testable.
+
+### 7g. Infra build list (complete)
+
+1. Schema: `email_events` table; `users.email_status` + three consent
+   columns (`email_progress`, `email_nurture`, `email_offers`, default on,
+   on, off); apply to both DBs.
+2. `/api/webhooks/zeptomail` receiver.
+3. `_lib/email-templates.ts` (bodies from the copy book, token filling,
+   drop-if-empty).
+4. Event senders wired into their existing endpoints (welcome x3, cert,
+   8a, 8d, 9a).
+5. The brain: a scheduled Worker (`workers/email-brain/`, own wrangler
+   config, same D1/KV bindings). Daily cron. Modules: derive-state,
+   candidates, consent, arbitration, send, ledger.
+6. Preference center section in /account.html against the consent columns.
+7. Admin dry-run: `GET /api/admin/email-plan?date=` returns who would get
+   what and why (the WHY is the arbitration trace), plus a
+   `?send_test=<email_key>` that sends any email to the allowlist only.
+   This is how every email gets eyeballed in a real inbox before its flag
+   ever turns on.
+
+### 7h. Flags
+
+`email-engine` master kill switch checked by the brain and every event
+sender; per-email flags as named in the copy book. Everything defaults off.
+The flip turns on: welcome x3, cert, cap-hit, the arc. Nurture waits for
+the preference center; Pro/team/winback ship in their build-order slots.
 
 ## 8. Measurement (what tells us it works)
 
@@ -231,22 +369,29 @@ features. No lifecycle emails ever; the list is not a funnel to spam.
 - The one number for the program: monthly free-to-Pro conversions attributed
   to an email click or coupon, against the baseline before the flip.
 
-## 9. Copy debt (bodies to add to email-copy-book.md, in this voice)
+## 9. Copy debt
 
-8a Pro welcome · 8b day-7 Pro nudge · 8c payment note · 8d cancel confirm ·
-8e Pro winback · 9a seat welcome · 9b seat adoption · 10a free winback ·
-10b browser orientation. Nine bodies, all short. Streak-save (7) is
-deliberately NOT committed: it is the highest-nag-risk email in the set;
-decide after the rep's open data exists.
+**Resolved 2026-08-12: all nine bodies written** (copy book sections 8-10:
+Pro lifecycle 8a-8e, team 9a-9b, winback/orientation 10a-10b). Streak-save
+remains deliberately NOT committed: it is the highest-nag-risk email in the
+set; decide after the rep's open data exists. The Residual stays per-issue.
+
+Transparency rule adopted with them: every non-account email's footer opens
+with the specific reason it sent ("You get this because your Data Analyst
+pass ends this week"), then the preferences and unsubscribe links. Nobody
+should ever wonder why we wrote to them.
 
 ## 10. Build order
 
-1. `email_events` table + ZeptoMail webhook receiver (small, unblocks metrics)
-2. Event senders: welcome x3 + cert (flags on at the flip)
-3. The daily brain with ONLY the pass arc + cap-hit (the flip's needs)
-4. Preference center, then nurture rep + recap
-5. Pro lifecycle (8a-8e) + team (9a-9b)
-6. Winbacks (10a-10b), sunset automation
+1. Schema (7g.1) + ZeptoMail webhook receiver (7g.2): small, unblocks metrics
+2. Templates lib (7g.3) + event senders (7g.4): welcome x3 + cert first
+3. The brain Worker (7g.5) with ONLY the pass arc + cap-hit, plus the admin
+   dry-run (7g.7): the flip's needs, eyeballed via allowlist test sends
+4. Preference center (7g.6), then nurture rep + recap
+5. Pro lifecycle senders (8a/8d inline; 8b/8c/8e in the brain) + team 9a/9b
+6. Winbacks 10a/10b, sunset automation
 7. Campaigns provisioning (owner) then The Residual issue 1
 
-Steps 2-3 are the flip dependency; everything after ships incrementally.
+Steps 1-3 are the flip dependency; everything after ships incrementally.
+Every new email follows the same ritual: body in the copy book, template in
+code, allowlist test send, real-inbox eyeball, then its flag turns on.
