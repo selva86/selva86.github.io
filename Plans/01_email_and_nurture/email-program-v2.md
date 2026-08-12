@@ -354,7 +354,7 @@ as considered; three same-day emails read as surveillance.
 
 1. Schema: `email_events` table; `users.email_status` + three consent
    columns (`email_progress`, `email_nurture`, `email_offers`, default on,
-   on, off) + the six profiling columns (persona/role/role_other/level_r/
+   off, off; nurture is strictly opt-in per s4, so its default is OFF) + the six profiling columns (persona/role/role_other/level_r/
    level_ml/level_ts, see `nurture-personalization-plan.md` s3); apply to
    both DBs.
 2. `/api/webhooks/zeptomail` receiver.

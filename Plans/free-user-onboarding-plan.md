@@ -2,7 +2,7 @@
 
 > **STATUS (2026-08-10):** approved direction; build not started. Decisions marked
 > DECIDED are the owner's; boxes marked OWNER are open. Companion docs:
-> `Plans/newsletter-email-program-plan.md` (broadcast stream, consent sync — Phase A
+> `Plans/01_email_and_nurture/newsletter-email-program-plan.md` (broadcast stream, consent sync — Phase A
 > item A is DONE there), `Plans/growth-playbook-2026.md` (the funnel this serves).
 >
 > Facts in this plan were measured on 2026-08-10, not assumed: 410 exercise hubs in
@@ -174,7 +174,7 @@ hubs fully unlocked, 2-hub floor.** An attempt is ALLOWED if ANY of:
 > copy after expiry. Activation needs BOTH KV keys: `flag:da-pass`="on" and
 > `da-pass:launched_at`=<unix>. **The DA lessons are still access:free today;
 > the regate to Pro (lesson 1 floor stays free) ships in the same deploy as
-> the flip.** All email copy for the arc: `Plans/email-copy-book.md`.
+> the flip.** All email copy for the arc: `Plans/01_email_and_nurture/email-copy-book.md`.
 
 - **Scope: DA track only. New-to-R stays permanently free** (beginner funnel + free
   Foundations cert live there).
