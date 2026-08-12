@@ -15,7 +15,7 @@
 export type EmailCategory = "account" | "progress" | "nurture" | "offers";
 
 // The person these emails come from. The mailbox akshay@r-statistics.co must
-// exist (Zoho Mail alias) BEFORE flag:email-live flips, or replies bounce.
+// exist (Cloudflare Email Routing rule) BEFORE flag:email-live flips, or replies bounce.
 export const SENDER = { email: "akshay@r-statistics.co", name: "Akshay from r-statistics.co" };
 export const REPLY_TO = { email: "akshay@r-statistics.co", name: "Akshay" };
 

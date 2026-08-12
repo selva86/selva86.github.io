@@ -12,7 +12,7 @@ Voice pass v2 (2026-08-13, owner: v1 read mechanical). The additions:
 
 - **Sender persona: Akshay <akshay@r-statistics.co>**, from-name "Akshay from
   r-statistics.co", reply-to akshay@, signatures "Akshay". The mailbox must
-  exist (Zoho Mail alias) before flag:email-live flips, or replies bounce.
+  exist (Cloudflare Email Routing rule) before flag:email-live flips, or replies bounce.
 - **Personal-note rendering.** No card chrome, no logo header, no CTA button:
   plain paragraphs, default font stack, links inline. What a person sends
   from a mail client. This is also the Gmail-Promotions defense - buttons,
