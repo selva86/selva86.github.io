@@ -47,6 +47,7 @@ fulfilment + renewal + signup-admin (live).
 | `{coupon_code}` / `{coupon_expiry}` | Paddle discount record (unique, one-time, 72h) |
 | `{hub_name}` / `{hub_url}` | the completed exercise hub |
 | `{track_name}` / `{cert_url}` | certificates row |
+| `{lesson_title}` | the Pro lesson whose wall fired the intent signal (3e) |
 | `{xp}` / `{streak}` | users.total_xp / current_streak_days |
 | `{left}` | meter: 25 minus this month's counted attempts |
 | `{reset_date}` | first of next month, "Sep 1" |
@@ -391,6 +392,36 @@ the cap entirely:
 Selva
 ```
 
+## 3e. Wall follow-up (category: offers, flag: wall-email, send policy: fast)
+
+Trigger: a signed-in free user hits a Pro lesson wall. Sends 30-90 minutes
+after the signal (the hourly run), quiet hours respected. Unlike 3c this
+names the wall, because the user experienced it (cart-abandonment logic).
+Marketing consent required. At most once per 14 days, three lifetime, never
+twice for the same lesson. Retired instantly by purchase (derivation).
+
+- **Subject:** `About that locked lesson`
+- **Preheader:** `The honest picture, so you can decide with full information.`
+
+```
+Hi {first_name},
+
+You ran into the Pro wall on {lesson_title} earlier. Sorry about the
+stop. Here is the honest picture so you can decide with full information.
+
+Pro opens that lesson, the rest of the {track_name} track, every quiz,
+and the certificate path.
+
+[What it costs -> /pricing.html]
+
+If Pro is not on the cards right now, the first lessons of that course
+are free, and so is everything you have already done.
+
+Stuck on whether it is worth it? Reply and ask me the hard question.
+
+Selva
+```
+
 ---
 
 # 4. The flip announcement (category: account, one-time broadcast to all existing users)
@@ -435,9 +466,11 @@ Selva
 
 ## 5a. The daily rep
 
-One exercise a day, picked from the user's current track position. Skipped
-any day the one-brain gate already sent something. Sunset: no opens across
-10 sends drops to the weekly recap only.
+One exercise a day, picked from the user's current track position - and,
+once profiling ships, from the persona track's hub ladder at the user's
+level (see `nurture-personalization-plan.md`). Skipped any day the
+one-brain gate already sent something. Sunset: no opens across 10 sends
+drops to the weekly recap only.
 
 - **Subject:** `Today's rep: {exercise_title}`
 - **Preheader:** `One exercise, about {est_minutes} minutes.`
@@ -473,6 +506,123 @@ Your week on r-statistics.co:
 Next up on your track: {next_lesson_title}.
 
 [Continue -> {next_lesson_url}]
+
+Selva
+```
+
+## 5c. The guided tour (category: nurture, opt-in, flag: guided-tour)
+
+One email a week (Tuesdays), each showcasing ONE piece of the site's best
+content matched to the user's persona track and level. Queues, mapping, and
+per-item subjects/hooks: `nurture-personalization-plan.md` s5. Ledger key
+`tour:<track>:<n>`; queue exhausted = the tour goes quiet, no recycling.
+
+**The template every issue follows:**
+
+1. Open with the hook: one or two sentences that TEACH or provoke, no
+   greeting-fluff. The reader should learn something even if they never
+   click.
+2. One link, framed as what they will be able to do after.
+3. Sign off. Under 90 words total. No "in this week's issue" framing ever.
+4. Footer reason line: "You get this because you turned on the weekly
+   guided tour."
+
+**First issue per track, fully written** (later issues follow the template
+against the queue's subject + hook):
+
+### tour:student:1 - Subject: `Your first ten lines of R`
+
+```
+Most R courses start with two weeks of theory. This one starts with you
+writing working code in the browser, in the first minute, no installs.
+
+Ten lines in, you will have made R do arithmetic, store data, and answer
+a question. That is the whole point of lesson one.
+
+[Start R Foundations: The Basics -> /R-Foundations-Basics-Course.html]
+
+Twenty minutes, and entirely free.
+
+Selva
+```
+
+### tour:analyst:1 - Subject: `Import to insight, properly`
+
+```
+Analyst work does not start with a clean data frame. It starts with a
+messy file someone exported at 5pm. The dplyr course starts in the same
+place: import, tidy, then the five verbs that do ninety percent of the
+job.
+
+[Start Data Wrangling with dplyr -> /Data-Wrangling-dplyr-Course.html]
+
+By the end you will reshape in one pipe what used to take an afternoon
+of spreadsheet surgery.
+
+Selva
+```
+
+### tour:ds:1 - Subject: `Cross-validation, done honestly`
+
+```
+Most model failures are not modeling failures. They are evaluation
+failures: leakage, the wrong split, a metric that flattered the model
+until production disagreed.
+
+That is why this track starts with evaluation, not algorithms.
+
+[Start Model Evaluation and Tuning -> /R-Model-Evaluation-Course.html]
+
+Get this right and every model you build afterwards is judged fairly.
+
+Selva
+```
+
+### tour:mle:1 - Subject: `The ML system design checklist`
+
+```
+"Walk me through how you would productionize this model." The question
+shows up in every MLE interview and every real deployment, and most
+answers wander.
+
+This checklist is the one-pager that stops the wandering: data, serving,
+monitoring, failure modes, in order.
+
+[Read the ML System Design Checklist -> /An-ML-System-Design-Checklist.html]
+
+Selva
+```
+
+### tour:ai:1
+
+Same as tour:mle:1 (the ai queue opens on the systems items; see the plan
+for the divergence from slot 3).
+
+### tour:pm:1 - Subject: `A/B testing, designed right`
+
+```
+Most A/B tests are decided before they launch: wrong metric, sample too
+small, peeked at on day two. The fix is design, and design is a PM
+skill, not a statistician's secret.
+
+[Start A/B Testing and Experiment Design -> /AB-Testing-and-Experiment-Design.html]
+
+After this one you will know, before anyone ships a variant, whether the
+test can possibly answer the question.
+
+Selva
+```
+
+### tour:researcher:1 - Subject: `Design decides everything`
+
+```
+By the time the data arrives, most of your paper's fate is already
+decided. RCT, cohort, case-control: each design earns different claims,
+and reviewers know the difference even when authors forget.
+
+[Read Study Design Types -> /Study-Design-Types-RCT-Cohort-Case-Control.html]
+
+Chapter one of the handbook, for exactly that reason.
 
 Selva
 ```

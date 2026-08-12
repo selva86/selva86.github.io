@@ -52,8 +52,7 @@ buys Pro on day 24 stops being eligible for the day-27 coupon the moment
 their entitlement lands, because tomorrow's derivation puts them in S4 and
 the arc queries simply no longer match. Nothing needed to be "cancelled".
 
-Every account is in exactly one state. The engine evaluates state first,
-then eligibility, then arbitration.
+Every account is in exactly one state. The engine evaluates state first, then eligibility, then arbitration.
 
 | State | Definition | Email goal |
 |---|---|---|
@@ -143,7 +142,8 @@ relevant tomorrow, or drops if stale.
 
 1. Pass deadline (day 27, 30) - a real clock beats everything
 2. Payment recovery (ours, if any beyond Paddle's) - money already committed
-3. Intent follow-up - they raised a hand yesterday
+3. Intent follow-up - the wall follow-up 3e (fast lane) or pricing 3c;
+   they raised a hand
 4. Cap hit - explains a wall they just hit
 5. Pass progress (day 21, 23)
 6. Milestone (cert first, then hub completion)
@@ -158,6 +158,11 @@ timezone (from signup country; UTC 13:00 when unknown). Sunset: 10
 consecutive non-account sends with no opens drops the user to weekly recap
 only; 6 more weeks silent drops to account-only. Any site visit fully
 re-awakens.
+
+Nurture content is persona-personalized: the profiler collected at signup
+(persona, role, R/ML/time-series levels) selects a curated queue of the
+site's best content. The complete design, mapping, and queues:
+`nurture-personalization-plan.md`.
 
 ## 6. Journeys, persona by persona
 
@@ -253,12 +258,25 @@ no stored journey position, no sync problem.
   9a on invite acceptance, cancel confirm 8d on the cancellation webhook.
   These are all category `account`, so they skip arbitration; each still
   checks its flag and the ledger before sending.
-- **The daily brain** (a scheduled Worker on a Cron Trigger; Pages Functions
-  cannot cron, so this is the one new deployable): everything else. Runs
-  once a day per send band, derives each user's state, collects candidates,
-  applies consent, applies arbitration, sends at most one, writes the
-  ledger. v1 runs at 13:00 UTC for everyone; per-timezone bands are a later
-  refinement, not a launch requirement.
+- **The brain** (a scheduled Worker on a Cron Trigger; Pages Functions
+  cannot cron, so this is the one new deployable): everything else, on an
+  HOURLY heartbeat (decided 2026-08-12). Every email declares a send
+  policy: `daily` emails only fire in the 13:00 UTC run (the pass arc,
+  milestones, cap-hit, reps, recaps, winbacks); `fast, min-age 30m` emails
+  (3e wall follow-up; checkout abandonment when that signal exists) fire
+  in any hourly run 30-90 minutes after their signal. One cron, one code
+  path, latency as a per-email policy field. The one-email-per-day promise
+  survives: a fast-lane send consumes the day's non-account slot and the
+  13:00 run yields. Quiet hours bind every run. The 23 off-hour runs sweep
+  only fast-eligible signals, so they are nearly free.
+
+  Timing decisions with reasons (owner-reviewed 2026-08-12): cap-hit stays
+  daily because the in-product wall owns the moment and an instant email
+  duplicates a screen the user is looking at; pricing-visit intent (3c)
+  stays daily and never names the visit (passive signal, surveillance risk);
+  wall-hit intent (3e) is fast because the user experienced the event and
+  the evaluation window for a $65-99 decision is that evening, not tomorrow
+  (cart-abandonment logic).
 
 ### 7b. How "react to user actions" works without a queue
 
@@ -302,7 +320,8 @@ as considered; three same-day emails read as surveillance.
 | 2e what stays free | day 31-33 | drop |
 | 3a cert | mint + 24h | send anyway (account) |
 | 3b hub done | completion + 48h | drop |
-| 3c intent | signal + 1 to 3 days | drop until a fresh signal |
+| 3c intent (pricing) | signal + 1 to 3 days | drop until a fresh signal |
+| 3e wall follow-up | signal + 30-90 min (hourly runs) | after 24h drop; the wall was yesterday's news |
 | 3d cap hit | cap + 24h | drop (the in-product wall already told them) |
 | 8b Pro nudge | day 7-10 | drop |
 | 8e Pro winback | expiry + 30-37d | drop |
@@ -335,7 +354,9 @@ as considered; three same-day emails read as surveillance.
 
 1. Schema: `email_events` table; `users.email_status` + three consent
    columns (`email_progress`, `email_nurture`, `email_offers`, default on,
-   on, off); apply to both DBs.
+   on, off) + the six profiling columns (persona/role/role_other/level_r/
+   level_ml/level_ts, see `nurture-personalization-plan.md` s3); apply to
+   both DBs.
 2. `/api/webhooks/zeptomail` receiver.
 3. `_lib/email-templates.ts` (bodies from the copy book, token filling,
    drop-if-empty).
