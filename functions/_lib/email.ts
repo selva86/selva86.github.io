@@ -21,6 +21,10 @@ export interface SendMailArgs {
   textBody: string;
   // Optional reply-to (defaults to the sender so replies go nowhere useful).
   replyTo?: { email: string; name?: string };
+  // Optional from override. Default stays the neutral noreply sender; the
+  // lifecycle emails pass a person (see email-templates SENDER). The address
+  // must be on the ZeptoMail-verified domain.
+  from?: { email: string; name?: string };
 }
 
 export interface SendMailResult {
@@ -43,7 +47,9 @@ export async function sendMail(
     : `Zoho-enczapikey ${env.ZOHO_ZEPTOMAIL_TOKEN}`;
 
   const payload: Record<string, unknown> = {
-    from: { address: env.ZOHO_ZEPTOMAIL_SENDER, name: "r-statistics.co" },
+    from: args.from
+      ? { address: args.from.email, name: args.from.name || args.from.email }
+      : { address: env.ZOHO_ZEPTOMAIL_SENDER, name: "r-statistics.co" },
     to: [{ email_address: { address: args.to.email, name: args.to.name || args.to.email } }],
     subject: args.subject,
     htmlbody: args.htmlBody,

@@ -11,7 +11,7 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, jsonError } from "../../_lib/errors";
 import { runBrain, unsubUrl, userSig } from "../../_lib/brain";
-import { renderEmail, TEMPLATES } from "../../_lib/email-templates";
+import { renderEmail, TEMPLATES, SENDER, REPLY_TO } from "../../_lib/email-templates";
 import { sendMail } from "../../_lib/email";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
@@ -79,7 +79,7 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
       to: { email: to },
       subject: `[TEST] ${r.subject}`,
       htmlBody: r.html, textBody: r.text,
-      replyTo: { email: "selva@r-statistics.co", name: "Selva" },
+      from: SENDER, replyTo: REPLY_TO,
     });
     await context.env.DB.prepare(
       "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, ?3, 'test_sent', ?4, ?5)",

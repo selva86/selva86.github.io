@@ -1,15 +1,23 @@
 // Lifecycle email templates. Bodies are the copy SSOT verbatim:
 // Plans/01_email_and_nurture/email-copy-book.md - edit copy THERE first, then
-// mirror here. Every template returns subject/preheader/text/html plus its
-// category (arbitration + consent) and the footer reason line (the
-// transparency rule: the first footer line says exactly why this email sent).
+// mirror here.
+//
+// Voice pass v2 (2026-08-13, owner feedback): these render as PLAIN PERSONAL
+// NOTES, not marketing mail. No card chrome, no logo header, no button - a
+// short note from a person (Akshay) with inline links, exactly what a human
+// would send from their mail client. That is both the voice fix and the
+// Gmail-Promotions fix: buttons, benefit bullets, and branded shells are what
+// the tab classifier keys on. The styled emailShell stays in use for receipts
+// and fulfilment only.
 //
 // Token rule (P3): a line whose data is missing is DROPPED, never faked.
-// Templates receive already-computed tokens; helpers here only assemble.
-
-import { emailShell } from "./email";
 
 export type EmailCategory = "account" | "progress" | "nurture" | "offers";
+
+// The person these emails come from. The mailbox akshay@r-statistics.co must
+// exist (Zoho Mail alias) BEFORE flag:email-live flips, or replies bounce.
+export const SENDER = { email: "akshay@r-statistics.co", name: "Akshay from r-statistics.co" };
+export const REPLY_TO = { email: "akshay@r-statistics.co", name: "Akshay" };
 
 export interface RenderedEmail {
   subject: string;
@@ -49,23 +57,6 @@ function hi(d: TemplateData): string {
   return n ? `Hi ${n},` : "Hi,";
 }
 
-// Text footer. Account emails carry no unsubscribe (they are the service);
-// everything else gets reason + preferences + one-click unsubscribe.
-function footerText(category: EmailCategory, reason: string, d: TemplateData): string {
-  if (category === "account") return "";
-  const unsub = d.unsubscribe_url ? ` | Unsubscribe: ${d.unsubscribe_url}` : "";
-  return `\n\n--\nYou get this because ${reason}.\nEmail preferences: ${PREFS_URL}${unsub}`;
-}
-
-function footerHtml(category: EmailCategory, reason: string, d: TemplateData): string {
-  if (category === "account") return "";
-  const unsub = d.unsubscribe_url
-    ? ` &middot; <a href="${d.unsubscribe_url}" style="color:#6b7280">Unsubscribe</a>`
-    : "";
-  return `<p style="margin:24px 0 0;font-size:12px;color:#6b7280">You get this because ${reason}.<br>` +
-    `<a href="${PREFS_URL}" style="color:#6b7280">Email preferences</a>${unsub}</p>`;
-}
-
 function trackUrl(d: TemplateData, url: string): string {
   if (!d.track) return url;
   const abs = url.startsWith("http") ? url : SITE + (url.startsWith("/") ? url : "/" + url);
@@ -77,11 +68,41 @@ function openPixel(d: TemplateData): string {
   return `<img src="${SITE}/api/email/open?u=${encodeURIComponent(d.track.uid)}&k=${encodeURIComponent(d.track.key)}&t=${d.track.sig}" width="1" height="1" alt="" style="display:block;border:0">`;
 }
 
+// Text footer. Account emails carry no unsubscribe (they are the service);
+// everything else gets reason + preferences + one-click unsubscribe.
+function footerText(category: EmailCategory, reason: string, d: TemplateData): string {
+  if (category === "account") return "";
+  const unsub = d.unsubscribe_url ? ` | Unsubscribe: ${d.unsubscribe_url}` : "";
+  return `\n\n--\nYou get this because ${reason}.\nEmail preferences: ${PREFS_URL}${unsub}`;
+}
+
+function footerHtml(category: EmailCategory, reason: string, d: TemplateData): string {
+  if (category === "account") return "";
+  const unsub = d.unsubscribe_url
+    ? ` &middot; <a href="${d.unsubscribe_url}" style="color:#8a8f98">Unsubscribe</a>`
+    : "";
+  return `<p style="margin:28px 0 0;font-size:12px;color:#8a8f98">You get this because ${reason}.<br>` +
+    `<a href="${PREFS_URL}" style="color:#8a8f98">Email preferences</a>${unsub}</p>`;
+}
+
+// The plain personal-note wrapper. Deliberately looks like a human email:
+// default-ish font stack, no card, no header, links inline, nothing branded.
+function personalShell(preheader: string, contentHtml: string): string {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#ffffff">
+<div style="display:none;max-height:0;overflow:hidden">${preheader}</div>
+<div style="max-width:560px;padding:8px 16px;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1a1d23">
+${contentHtml}
+</div>
+</body></html>`;
+}
+
 function toHtmlParas(text: string, d: TemplateData): string {
-  // Plain paragraphs; [label -> url] becomes a link line.
+  // Plain paragraphs; a [label -> url] line becomes a plain inline link.
   return text.split(/\n\n+/).map((p) => {
     const m = p.match(/^\[(.+?) -> (.+?)\]$/);
-    if (m) return `<p style="margin:0 0 16px"><a href="${trackUrl(d, m[2])}" style="color:#2056d2;font-weight:600">${m[1]} &rarr;</a></p>`;
+    if (m) return `<p style="margin:0 0 16px"><a href="${trackUrl(d, m[2])}" style="color:#2056d2">${m[1]}</a></p>`;
     return `<p style="margin:0 0 16px">${p.replace(/\n/g, "<br>")}</p>`;
   }).join("");
 }
@@ -89,15 +110,12 @@ function toHtmlParas(text: string, d: TemplateData): string {
 function assemble(args: {
   key: string; category: EmailCategory; reason: string;
   subject: string; preheader: string; body: string; data: TemplateData;
-  ctaUrl?: string; ctaLabel?: string;
 }): RenderedEmail {
   const text = args.body + footerText(args.category, args.reason, args.data);
-  const html = emailShell({
-    preheader: args.preheader,
-    contentHtml: toHtmlParas(args.body, args.data) + footerHtml(args.category, args.reason, args.data) + openPixel(args.data),
-    ctaUrl: args.ctaUrl ? trackUrl(args.data, args.ctaUrl) : undefined,
-    ctaLabel: args.ctaLabel,
-  });
+  const html = personalShell(
+    args.preheader,
+    toHtmlParas(args.body, args.data) + footerHtml(args.category, args.reason, args.data) + openPixel(args.data),
+  );
   return { subject: args.subject, preheader: args.preheader, text, html, category: args.category, reason: args.reason };
 }
 
@@ -106,29 +124,32 @@ function assemble(args: {
 function welcomeExercise(d: TemplateData): RenderedEmail {
   const key = "welcome";
   const hub = utm(d.hub_url || "/exercises/", key);
+  const passLine = d.pass_end_date
+    ? `You've also got the full Data Analyst track free until ${d.pass_end_date}. Thirty days of interactive lessons, from wrangling messy data to building reports. If you're even half-serious about R, that's the thing I'd point you at.`
+    : `You've also got the full Data Analyst track free for your first 30 days. If you're even half-serious about R, that's the thing I'd point you at.`;
   const body =
 `${hi(d)}
 
-That solve you just made is on your profile now, with its XP. Your streak started today.
+Nice one. That solve you just made is safely on your profile, XP and all, and your streak started today.
 
-Two things your free account gives you, so you know what you have:
+Since you're new, two things worth knowing.
 
-1. 25 graded exercises every month. Any practice hub you start stays open until the month ends, so you can always finish what you began.
+You get 25 graded exercises a month on the free plan, and any hub you start stays open until the month ends, so you can always finish what you began.
 
-2. The full Data Analyst track, free until ${d.pass_end_date || "the end of your first 30 days"}. That is 30 days of interactive lessons, from wrangling data to building reports. It is the fastest way we know to get job-ready in R.
+${passLine}
 
-[Continue practicing -> ${hub}]
+[Keep practicing where you left off -> ${hub}]
 
-The New to R course and every tutorial on the site stay free forever, no clock on those.
+Everything else, the New to R course and all 1,300+ tutorials, is free forever. No clock on those.
 
-If anything is confusing, just reply. I read these.
+Stuck or confused about anything? Just hit reply. I actually read these.
 
-Selva`;
+Akshay`;
   return assemble({
     key, category: "account", reason: "you created an r-statistics.co account",
     subject: "Your first solve is saved",
-    preheader: "The XP is on your profile. Here is what else your account does.",
-    body, data: d, ctaUrl: hub, ctaLabel: "Continue practicing",
+    preheader: "The XP is on your profile. A couple of things worth knowing.",
+    body, data: d,
   });
 }
 
@@ -136,27 +157,27 @@ function welcomeLesson(d: TemplateData): RenderedEmail {
   const key = "welcome";
   const next = utm(d.next_lesson_url || "/roadmap/data-analyst.html", key);
   const courseLine = d.course_title
-    ? `You stopped mid-way through ${d.course_title}. It is open now, and your place is saved.`
-    : `The lesson you were reading is open now, and your place is saved.`;
+    ? `${d.course_title} is open again and your place is saved, so you can carry on right where the wall stopped you.`
+    : `The lesson you were reading is open again and your place is saved.`;
   const body =
 `${hi(d)}
 
-${courseLine}
+You're in. ${courseLine}
 
 [Continue the lesson -> ${next}]
 
-Your account also comes with the Data Analyst 30-day pass: the full track, free until ${d.pass_end_date || "the end of your first 30 days"}. Lessons you finish stay finished, and your XP and streak build as you go.
+One thing worth knowing: your account comes with the full Data Analyst track, free until ${d.pass_end_date || "the end of your first 30 days"}. Whatever you finish in those 30 days stays finished, along with the XP and streak you build up.
 
-The New to R course and every tutorial stay free forever.
+The New to R course and all the tutorials don't have a clock. Those are free, period.
 
-Questions? Reply to this email. I read every one.
+If anything's confusing, just reply and ask. Happy to help.
 
-Selva`;
+Akshay`;
   return assemble({
     key, category: "account", reason: "you created an r-statistics.co account",
     subject: "Pick up where you left off",
-    preheader: "Your lesson is open, and the Data Analyst track is free for 30 days.",
-    body, data: d, ctaUrl: next, ctaLabel: "Continue the lesson",
+    preheader: "Your lesson is open again, and your place is saved.",
+    body, data: d,
   });
 }
 
@@ -166,24 +187,24 @@ function welcomeBrowsing(d: TemplateData): RenderedEmail {
   const body =
 `${hi(d)}
 
-Welcome. Here is the short version of what you now have:
+Welcome aboard. Quick lay of the land, then I'll get out of your way.
 
-- 25 graded practice exercises a month, with instant feedback in the browser.
-- The Data Analyst track, free until ${d.pass_end_date || "the end of your first 30 days"}. Interactive lessons, quizzes, and a certificate at the end.
-- The New to R course and 1,300+ tutorials, free forever.
+The New to R course and all 1,300+ tutorials are free forever. Practice gives you 25 graded exercises a month, with instant feedback right in the browser.
 
-If you are new to R, start with New to R. If you already write some R, start the Data Analyst track and see how far you get in 30 days.
+And for your first 30 days, the full Data Analyst track is open to you free, until ${d.pass_end_date || "the end of your first 30 days"}. Lessons, quizzes, the certificate path, all of it.
 
-[Start learning -> ${start}]
+If you're brand new to R, start with New to R. If you already write a bit of code, jump straight into the track:
 
-Reply if you get stuck anywhere. I read these.
+[Start the Data Analyst track -> ${start}]
 
-Selva`;
+Wherever you get stuck, hit reply. A person answers, not a bot.
+
+Akshay`;
   return assemble({
     key, category: "account", reason: "you created an r-statistics.co account",
-    subject: "Your r-statistics.co account, in 30 seconds",
-    preheader: "What is free, what the 30-day pass covers, and where to start.",
-    body, data: d, ctaUrl: start, ctaLabel: "Start learning",
+    subject: "Welcome, and where to start",
+    preheader: "What's free, what's open for your first 30 days, and one good starting point.",
+    body, data: d,
   });
 }
 
@@ -196,22 +217,20 @@ function pass23(d: TemplateData): RenderedEmail {
   const body =
 `${hi(d)}
 
-One week left on your pass. Until ${end} the full Data Analyst track is open to you. After that, the track moves to Pro, and here is exactly what changes:
+Quick heads-up: one week left on your Data Analyst pass. Until ${end} the whole track is open to you.
 
-Stays free forever: the New to R course, every tutorial, your XP, your streak, and everything you already finished.
+After that it moves to Pro. What stays free: New to R, every tutorial, your XP and streak, and everything you've already finished. What doesn't: the remaining lessons and quizzes on the track.
 
-Needs Pro after ${end}: the remaining Data Analyst lessons and their quizzes.
+If you've got momentum, this is the week to use it.
 
-If you have momentum, this is the week to use it.
+[Carry on with the track -> ${next}]
 
-[Continue the track -> ${next}]
-
-Selva`;
+Akshay`;
   return assemble({
     key, category: "offers", reason: "your Data Analyst pass ends this week",
     subject: `Your Data Analyst pass ends ${end}`,
     preheader: "One week left. What stays free after, and what does not.",
-    body, data: d, ctaUrl: next, ctaLabel: "Continue the track",
+    body, data: d,
   });
 }
 
@@ -221,20 +240,20 @@ function pass30(d: TemplateData): RenderedEmail {
   const body =
 `${hi(d)}
 
-Today is the last day of your pass. At midnight UTC the Data Analyst track moves to Pro for your account.
+Last day of your pass. Tonight at midnight UTC the Data Analyst track moves to Pro for your account.
 
-If you are mid-lesson, tonight is the time to finish it.
+If you're mid-lesson, finish it tonight. It stays finished forever.
 
 [Open the track -> ${next}]
 
-Everything you finished stays on your profile, and your XP and streak keep building through the free practice exercises.
+Your XP, streak, and free practice aren't going anywhere either way.
 
-Selva`;
+Akshay`;
   return assemble({
     key, category: "offers", reason: "your Data Analyst pass ends today",
     subject: "Last day of your Data Analyst pass",
-    preheader: "The track closes tonight. Your progress stays.",
-    body, data: d, ctaUrl: next, ctaLabel: "Open the track",
+    preheader: "The track closes tonight. Everything you finished stays.",
+    body, data: d,
   });
 }
 
@@ -243,22 +262,19 @@ function pass31(d: TemplateData): RenderedEmail {
   const body =
 `${hi(d)}
 
-Your 30-day pass ended yesterday. Before anything else: thank you for spending part of your month learning here.
+Your 30-day pass wrapped up yesterday. First, thanks for spending part of your month learning here. Genuinely.
 
-What you keep, free, forever:
+Nothing you did is lost. Every lesson you finished, all your XP, your streak: still on your profile. The New to R course and all the tutorials stay free, and you still get 25 graded practice exercises every month.
 
-- Everything you finished, and all your XP.
-- The New to R course, end to end.
-- 25 graded practice exercises a month.
-- 1,300+ tutorials.
+If Pro ever makes sense for you down the road, you'll pick up exactly where you left off. Nothing resets.
 
-If you come back to Pro someday, your progress will be exactly where you left it. Reply anytime if I can help with something.
+And if there's something I can help with in the meantime, you know where the reply button is.
 
-Selva`;
+Akshay`;
   return assemble({
     key, category: "offers", reason: "your Data Analyst pass just ended",
-    subject: "What stays free on r-statistics.co",
-    preheader: "Your pass ended. Here is everything that did not.",
+    subject: "Your pass ended, your progress didn't",
+    preheader: "Everything you finished stays. Here is how things look from today.",
     body, data: d,
   });
 }
@@ -272,24 +288,22 @@ function capHit(d: TemplateData): RenderedEmail {
   const body =
 `${hi(d)}
 
-You used all 25 graded exercises this month. That is a full month of practice, most people do not get close.
+You just used your 25th graded exercise this month. That's a serious month of practice. Most people never get close.
 
-Until ${reset}:
+Nothing dramatic happens now: every hub you started stays open until ${reset}, lessons and tutorials aren't affected, and your streak and XP are safe. A fresh 25 lands on ${reset}.
 
-- Every hub you started stays open, finish them anytime.
-- Lessons and tutorials are not affected at all.
-- Your streak and XP are safe.
+If waiting sounds annoying, Pro removes the cap entirely:
 
-A fresh 25 lands on ${reset}. If you do not want to wait, Pro removes the cap entirely:
+[Have a look at Pro -> ${pricing}]
 
-[See Pro plans -> ${pricing}]
+Either way, nice work this month.
 
-Selva`;
+Akshay`;
   return assemble({
     key, category: "progress", reason: "you used all 25 free exercises this month",
     subject: "All 25 for this month, done",
-    preheader: `Your started hubs stay open. Fresh 25 on ${reset}.`,
-    body, data: d, ctaUrl: pricing, ctaLabel: "See Pro plans",
+    preheader: `Your started hubs stay open. A fresh 25 lands on ${reset}.`,
+    body, data: d,
   });
 }
 
@@ -301,26 +315,26 @@ function flipAnnouncement(d: TemplateData): RenderedEmail {
   const body =
 `${hi(d)}
 
-Two changes to how the free tier works, both live today.
+Two changes to the free tier, live today. The short version:
 
-1. Free practice is now 25 graded exercises a month. Any hub you start stays open until the month ends, so you will never be cut off in the middle of a set. Lessons and tutorials are not metered, and nothing you have already earned is affected.
+Free practice now gives you 25 graded exercises a month. Any hub you start stays open until the month ends, so you won't get cut off mid-set. Lessons and tutorials aren't metered at all, and nothing you've already earned changes.
 
-2. The full Data Analyst track is open to you, free, for the next 30 days, until ${d.pass_end_date || "30 days from today"}. Interactive lessons, quizzes, the certificate path, all of it. After 30 days the track moves to Pro, but whatever you finish stays finished.
+Second, and this one's the good news: the full Data Analyst track is open to you, free, for the next 30 days, until ${d.pass_end_date || "30 days from today"}. Whatever you finish stays finished, even after the window closes.
 
-Why the change: grading and hosting cost real money, and this keeps the free tier sustainable while keeping New to R and all 1,300+ tutorials free forever.
+Why the change? Grading and hosting cost real money, and this keeps the free tier sustainable without touching what matters: New to R and all 1,300+ tutorials stay free forever.
 
-If 30 days is enough to get value from the Data Analyst track, it is yours.
+Thirty days is enough to get real value out of that track. It's yours:
 
-[Start the track -> ${start}]
+[Start the Data Analyst track -> ${start}]
 
-Questions or objections, reply to this email. I answer.
+Questions or objections, just reply. I answer every one.
 
-Selva`;
+Akshay`;
   return assemble({
     key, category: "account", reason: "you have an r-statistics.co account",
     subject: "Two changes to your r-statistics.co account",
-    preheader: "Free practice gets a monthly allowance. The Data Analyst track opens free for 30 days.",
-    body, data: d, ctaUrl: start, ctaLabel: "Start the track",
+    preheader: "Free practice gets a monthly allowance, and the Data Analyst track opens free for 30 days.",
+    body, data: d,
   });
 }
 

@@ -23,7 +23,7 @@ import type { User } from "./db";
 import { resolvePass } from "./pass";
 import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail } from "./email";
-import { renderEmail, type TemplateData, type EmailCategory } from "./email-templates";
+import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
 
 export interface BrainEnv {
   DB: D1Database;
@@ -54,7 +54,6 @@ export interface BrainResult {
 const DAILY_HOUR_UTC = 13;
 const MAX_SENDS_PER_RUN = 200;
 const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
-const REPLY_TO = { email: "selva@r-statistics.co", name: "Selva" };
 const SITE = "https://r-statistics.co";
 
 const fmtDate = (sec: number) =>
@@ -311,7 +310,8 @@ export async function runBrain(
       }
       const res = await sendMail(env, {
         to: { email: u.email, name: u.display_name || undefined },
-        subject: r.subject, htmlBody: r.html, textBody: r.text, replyTo: REPLY_TO,
+        subject: r.subject, htmlBody: r.html, textBody: r.text,
+        from: SENDER, replyTo: REPLY_TO,
       });
       if (res.ok) {
         sends += 1;
