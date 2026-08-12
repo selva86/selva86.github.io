@@ -275,9 +275,17 @@ export async function runBrain(
         continue;
       }
       if (devBlocked) {
-        await env.DB.prepare(
-          "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, ?3, 'would_send', ?4, ?5)",
-        ).bind(userId, u.email, c.key, now, c.why).run();
+        // One simulation row per (user, key) per day - the hourly heartbeat
+        // would otherwise re-log the same pending users 24x and drown the
+        // dashboard in duplicates.
+        const already = await env.DB.prepare(
+          "SELECT 1 AS x FROM email_events WHERE user_id = ?1 AND email_key = ?2 AND event = 'would_send' AND at >= ?3 LIMIT 1",
+        ).bind(userId, c.key, dayStart).first<{ x: number }>();
+        if (!already) {
+          await env.DB.prepare(
+            "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, ?3, 'would_send', ?4, ?5)",
+          ).bind(userId, u.email, c.key, now, c.why).run();
+        }
         decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "would_send", reason: `dev mode: ${c.why}` });
         continue;
       }
