@@ -74,10 +74,27 @@ function findEventNames(payload: unknown): string[] {
   return out;
 }
 
+// The secret may arrive as ?key= in the URL (how we document it) or via the
+// Authorization header (ZeptoMail's webhook config offers header-auth boxes;
+// either the raw secret or "Bearer <secret>" is accepted).
+function authorized(request: Request, secret: string): boolean {
+  if (!secret) return false;
+  const key = new URL(request.url).searchParams.get("key") || "";
+  if (key && timingSafeEq(key, secret)) return true;
+  const h = request.headers.get("Authorization") || "";
+  const v = h.startsWith("Bearer ") ? h.slice(7) : h;
+  return !!v && timingSafeEq(v, secret);
+}
+
+// ZeptoMail's "Verify" button may probe the endpoint before any event flows;
+// answer GET with a plain 200 so verification succeeds.
+export const onRequestGet: PagesFunction<Env & { ZEPTOMAIL_WEBHOOK_SECRET?: string }, string, RequestData> = async (context) => {
+  if (!authorized(context.request, context.env.ZEPTOMAIL_WEBHOOK_SECRET || "")) return err401();
+  return json({ ok: true, ready: true });
+};
+
 export const onRequestPost: PagesFunction<Env & { ZEPTOMAIL_WEBHOOK_SECRET?: string }, string, RequestData> = async (context) => {
-  const secret = context.env.ZEPTOMAIL_WEBHOOK_SECRET || "";
-  const key = new URL(context.request.url).searchParams.get("key") || "";
-  if (!secret || !timingSafeEq(key, secret)) return err401();
+  if (!authorized(context.request, context.env.ZEPTOMAIL_WEBHOOK_SECRET || "")) return err401();
 
   let payload: unknown;
   try { payload = await context.request.json(); } catch { return jsonError(400, "bad_body", "Invalid JSON"); }
