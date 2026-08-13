@@ -67,7 +67,7 @@ B=Bayesian, L=latent structure, G=correlated data, S=special/treat.
 | 24 | B | Choosing priors: the decision that matters (title) | Choosing-Priors-in-R |
 | 25 | R | Find the breakpoint: segmented regression (rw) | Segmented-Regression-in-R |
 | 26 | X | After ANOVA: Tukey or Bonferroni? (rw) | Post-Hoc-Tests-After-ANOVA |
-| 27 | S | Experimental design: 20 solved problems (title) | Experimental-Design-Exercises |
+| 27 | S | Experimental design: 20 solved problems (title) | Experimental-Design-Exercises-in-R |
 | 28 | L | PCA results: what loadings and scores are telling you (rw) | Interpreting-PCA-Results-in-R |
 | 29 | R | Count data? Poisson regression, done right (rw) | Poisson-Regression-in-R |
 | 30 | T | Cointegration: two series that move together (rw) | Cointegration-in-R |
@@ -81,7 +81,7 @@ B=Bayesian, L=latent structure, G=correlated data, S=special/treat.
 | 38 | T | Did the intervention move the series? CausalImpact (title) | CausalImpact-in-R |
 | 39 | G | GEE or mixed models? How to choose (rw) | GEE-vs-Mixed-Models-in-R |
 | 40 | R | GAM: let the data draw the curve (rw) | GAM-in-R |
-| 41 | S | Optimization in R: methods and practical examples (title) | Optimization post (slug verify at build) |
+| 41 | S | Optimization in R: methods and practical examples (title) | Optimization-With-R (legacy classic tutorial, exists at root) |
 | 42 | R | Dose-response curves with drc (title) | Dose-Response-Analysis-in-R |
 | 43 | X | PERMANOVA: ANOVA for whole communities (rw) | Permutation-ANOVA-in-R |
 | 44 | T | Forecasting very short (and very long) series (title) | Forecasting-Short-Time-Series-in-R |
