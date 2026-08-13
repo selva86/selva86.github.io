@@ -115,7 +115,11 @@
     // request; the shells remain so step counts stay honest. A stripped page
     // is always treated as locked client-side regardless of any local state.
     var stripped = body.getAttribute('data-stripped') === '1';
-    var locked = ((access === 'pro') && !body.classList.contains('pro')) || stripped;
+    // Windowed nurture lessons: the SERVER is the only gate (the middleware
+    // 302s expired windows to the expiry page before this code ever runs),
+    // so the client never account-walls or pro-walls them.
+    var windowed = access === 'windowed';
+    var locked = (!windowed && (access === 'pro') && !body.classList.contains('pro')) || stripped;
     if (!stripped) { try { sessionStorage.removeItem('rsc-lm-reload:' + location.pathname); } catch (e) {} }
     // Gate v2 hold: a signed-in visitor holding a FULL (unstripped) Pro page
     // was verified Pro at the edge; give auth-hydrate a beat to confirm before
@@ -135,7 +139,7 @@
       return body.classList.contains('state-pro');
     }
     var signedIn = hasAuthToken();
-    var accountGated = (access !== 'pro') && lessonOrder > FREE_PREVIEW_LESSONS;
+    var accountGated = (access !== 'pro') && !windowed && lessonOrder > FREE_PREVIEW_LESSONS;
     var accountLocked = accountGated && !signedIn;
 
     /* ---- Data Analyst 30-day pass (plan s5) ---- */

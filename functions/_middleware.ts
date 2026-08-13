@@ -15,6 +15,7 @@ import { parseDeviceLabel } from "./_lib/devices";
 import { resolveScope, scopeCovers } from "./_lib/entitlement";
 import proLessonsJson from "./_data/pro-lessons.json";
 import renamedPagesJson from "./_data/renamed-pages.json";
+import miniCoursesJson from "./_data/mini-courses.json";
 
 // Slug -> roadmap track key of built lesson pages whose access is Pro
 // (generated at build time by Scripts/build_lessons_tracker.py). Requests for
@@ -36,6 +37,83 @@ const LESSON_PREVIEW_STEPS = 2; // must match PREVIEW_STEPS in www/lesson-mode.j
 // "tools/new-tool" redirects /tools/old-tool.html and its extensionless twin.
 // Add an entry whenever a published page is renamed. Never remove one.
 const RENAMED_PAGES = renamedPagesJson as Record<string, string>;
+
+// Windowed nurture lessons (Plans/01_email_and_nurture/windowed-lessons-
+// implementation-plan.md): slug -> sequence number, for BUILT lessons only
+// (the factory fills slugs as lessons ship). A windowed page serves only to
+// Pro, or to the user whose seq:<n> email was sent within the window; anyone
+// else is 302d to the graceful expiry page. Never in PRO_LESSONS.
+interface MiniCoursesData {
+  window_hours: number;
+  sequence: Array<{ seq: number; kind: string; slug?: string | null }>;
+}
+const MINI = miniCoursesJson as unknown as MiniCoursesData;
+const WINDOWED: Record<string, number> = {};
+for (const it of MINI.sequence) {
+  if (it.kind === "lesson" && it.slug) WINDOWED[it.slug] = it.seq;
+}
+const WINDOW_SEC = (MINI.window_hours || 72) * 3600;
+
+async function hmacHexMw(secret: string, msg: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Serve a windowed lesson or redirect to the expiry page. Fail-CLOSED to the
+// expiry page (it is graceful and names what is open), never to a 404.
+async function serveWindowedLesson(
+  context: { request: Request; env: Env },
+  res: Response,
+  slug: string,
+  seq: number,
+): Promise<Response> {
+  try {
+    // 1. Pro (or track scope) opens everything, forever.
+    const scope = await requesterScope(context);
+    if (scope !== "0") return windowedOk(res);
+    // 2. Resolve WHO: the signed link token (?u&t, same per-user HMAC as
+    //    unsubscribe/tracking) wins over the session, so email clicks work
+    //    signed-out on any device.
+    const url = new URL(context.request.url);
+    let uid: string | null = null;
+    const tu = url.searchParams.get("u"), tt = url.searchParams.get("t");
+    const secret = (context.env as { EMAIL_UNSUB_SECRET?: string }).EMAIL_UNSUB_SECRET || "";
+    if (tu && tt && secret && (await hmacHexMw(secret, tu)) === tt.toLowerCase()) {
+      uid = tu;
+    } else {
+      const token = extractToken(context.request);
+      if (token) {
+        const payload = await verifyJWT(token, context.env as never).catch(() => null);
+        uid = payload?.sub ?? null;
+      }
+    }
+    // 3. The window: their seq:<n> email sent within the last 72h.
+    if (uid) {
+      const row = await context.env.DB.prepare(
+        "SELECT sent_at FROM sent_emails WHERE user_id = ?1 AND email_key = ?2",
+      ).bind(uid, `seq:${seq}`).first<{ sent_at: number }>();
+      if (row && Math.floor(Date.now() / 1000) - row.sent_at < WINDOW_SEC) {
+        return windowedOk(res);
+      }
+    }
+  } catch { /* fall through to the expiry page */ }
+  const to = new URL(context.request.url);
+  to.pathname = "/lesson-locked.html";
+  to.search = `?slug=${encodeURIComponent(slug)}`;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: to.toString(), "Cache-Control": "private, no-store" },
+  });
+}
+
+function windowedOk(res: Response): Response {
+  const out = new Response(res.body, res);
+  out.headers.set("Cache-Control", "private, no-store");
+  out.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return out;
+}
 
 // Resolve the requester's Pro entitlement for a page request. Fail-closed:
 // any error means "not Pro" (they get the stripped page; the client's
@@ -180,6 +258,9 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
     // the requester is Pro. Responses depend on auth, so they must never be
     // cached or served stale across entitlement states.
     const lessonSlug = path.slice(1, -".html".length);
+    if (!path.slice(1).includes("/") && WINDOWED[lessonSlug] !== undefined) {
+      return serveWindowedLesson(context, res, lessonSlug, WINDOWED[lessonSlug]);
+    }
     if (!path.slice(1).includes("/") && PRO_LESSONS[lessonSlug]) {
       return serveProLesson(context, res, PRO_LESSONS[lessonSlug]);
     }
@@ -197,6 +278,10 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   // this project) must get the identical treatment or the strip is trivially
   // bypassed by dropping the extension.
   const cleanSlug = path.slice(1);
+  if (context.request.method === "GET" && !cleanSlug.includes("/") && !cleanSlug.includes(".") && WINDOWED[cleanSlug] !== undefined) {
+    const res = await context.next();
+    return serveWindowedLesson(context, res, cleanSlug, WINDOWED[cleanSlug]);
+  }
   if (context.request.method === "GET" && !cleanSlug.includes("/") && !cleanSlug.includes(".") && PRO_LESSONS[cleanSlug]) {
     const res = await context.next();
     return serveProLesson(context, res, PRO_LESSONS[cleanSlug]);
