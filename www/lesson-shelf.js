@@ -39,6 +39,14 @@
             '<span class="dh-sub" style="white-space:nowrap">' + left + 'h left</span></div>';
         }).join('') + '</div></section>';
     }
+    if (shelf.badges && shelf.badges.length){
+      html += '<section class="card"><h2>Your badges <span class="dh-sub">mini courses completed, every check passed</span></h2>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">' +
+        shelf.badges.map(function(b){
+          return '<a href="/badge/' + esc(b.public_id) + '" style="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#e7ebf1);border-radius:99px;padding:7px 14px;font-size:13px;font-weight:600;text-decoration:none">' +
+            '<span aria-hidden="true">\uD83C\uDFC6</span>' + esc(b.badge.replace(/-/g,' ')) + '</a>';
+        }).join('') + '</div></section>';
+    }
     var anyBuilt = (cat.courses||[]).some(function(c){ return c.parts.some(function(p){ return p.status === 'built'; }); });
     if (anyBuilt){
       html += '<section class="card"><h2>Mini courses <span class="dh-sub">one lesson arrives by email each day; Pro opens everything anytime</span></h2>' +
