@@ -22,21 +22,35 @@ why-this-matters in 3-5 sentences, one link, out. The email sells the
 CLICK by selling what the reader will be able to do; the post/lesson does
 the teaching. Natural speech, friendly, zero corporate filler.
 
-## The mini-course model (owner proposal 2026-08-13, adopted)
+## The windowed-lesson model (v3, owner-designed 2026-08-13: the free rotation)
 
-Each multi-part lesson in the plan below ships as a NAMED MINI COURSE:
+Each sequence topic gets a DEDICATED interactive lesson (Pro-grade,
+beginner-first, NOT public: noindex, no sitemap, no sidebar - email and
+dashboard are its only doors; the public blog post stays live for search).
+The daily email is a KEY, not a pointer:
 
-- Listed in the user's dashboard as a catalog (visible to everyone, like the
-  exercises index's gray-until-earned wall): a few free, most marked Pro.
-- **Part 1 of every mini course is free** - the email always lands on value,
-  never a wall (the win-first law). Parts 2+ are Pro, gated by the existing
-  lesson player mechanics (chip, gate, 3e wall follow-up).
-- The email sequence is the discovery engine: each email showcases a topic,
-  links the free part; wanting part 2 is the Pro moment.
-- Built beginner-first per `_build/lesson-pedagogy.md`: from scratch,
-  completely, simple language, even for researcher topics.
-- Until a mini-course part exists, emails link the interactive post; email
-  click-through sets the build order (the audience votes with opens).
+- **The send unlocks the lesson for that user for 3 days.** Real scarcity,
+  honestly enforced: after the window, the lesson locks (Pro opens
+  everything, forever). Unlimited rereads INSIDE the window - the clock is
+  the boundary, never a read counter (owner-settled).
+- **The unlock IS the ledger row**: a lesson is open for user U iff their
+  `seq:<n>` send is within 72h; Pro bypasses. Derived state, no new tables.
+- **The rolling shelf**: daily sends + 3-day windows = ~3 lessons open at
+  any moment. The dashboard frames it exactly that way ("Your open lessons")
+  and shows the full catalog with locks - desire built from experienced
+  value. Window length is a tunable dial (launch 3d; data may argue 4).
+- **The expiry page is graceful, never a 404**: what the lesson was, that
+  the window was real ("open for you Aug 12-15"), what is open right now,
+  and the Pro line. Its traffic feeds intent_signals (purest purchase
+  intent in the whole funnel).
+- **One scarcity per surface**: lesson content stays meter-exempt; the
+  window is the only wall here.
+- **Factory runway before launch**: no mixed modes (post links would blur
+  the email-is-a-key identity). Hold the sequence launch until ~14 lessons
+  exist; keep the factory a week ahead of the calendar. Sequence order =
+  build order; click data refines from day 15.
+- Back-pocket lever, not launch scope: amnesty reruns ("the five
+  most-missed lessons, open again this week") as a re-engagement campaign.
 
 Dashboard nav: once signed in, **Dashboard becomes a navbar tab** (approved;
 ships with the profiler/dashboard build increment).
@@ -182,6 +196,6 @@ deselected. Beginner-first, from scratch, always.
 ## Mechanics
 
 Daily send at 13:00 UTC, nurture consent required, ledger key `seq:<n>` per
-user (opt-in day = their day 1), one-brain rules, Sunday = recap. Pro stays
-post-value: free part 1 landings, the player chip, the part-2 gate, the 3e
-wall follow-up.
+user (opt-in day = their day 1), one-brain rules, Sunday = recap. The send
+unlocks the day's lesson for 72h (v3 model above); the expiry page and the
+dashboard shelf carry the Pro moments.
