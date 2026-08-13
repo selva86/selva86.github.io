@@ -340,6 +340,18 @@ CREATE TABLE IF NOT EXISTS traffic_daily (
   updated_at INTEGER NOT NULL
 );
 
+-- ===== badges_earned (mini-course badges; windowed-lessons plan Phase B) =====
+-- One row per (user, mini-course badge). public_id backs the public verify page
+-- /badge/<public_id> and the LinkedIn add link. Applied 2026-08-14 to dev+prod.
+CREATE TABLE IF NOT EXISTS badges_earned (
+  user_id   TEXT NOT NULL,
+  badge     TEXT NOT NULL,
+  public_id TEXT NOT NULL UNIQUE,
+  earned_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, badge)
+);
+CREATE INDEX IF NOT EXISTS idx_badges_public ON badges_earned(public_id);
+
 -- ===== sent_emails (lifecycle email dedupe; Plans/free-user-onboarding-plan.md s6) =====
 -- One row per (user, email step) ever sent. Every sender checks BEFORE sending
 -- and inserts on success, so no user receives a sequence step twice, whether the

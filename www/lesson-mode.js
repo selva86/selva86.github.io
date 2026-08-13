@@ -730,10 +730,100 @@
       }
     }
 
+    /* ---- windowed mini-course ceremony (Phase B) ----
+       On the final step of a windowed lesson: if this is the course's last
+       part and every gated check across all parts is passed, the server
+       mints the badge and we run the ceremony - the dismissable Why-Pro
+       screen first (owner-decided order; Pro users skip it), then the badge
+       with LinkedIn + verify links. Non-final parts get the slim next-part
+       nudge instead. Fail-quiet: any error leaves the normal completion
+       card untouched. */
+    var ceremonyRan = false;
+    function nurtureCeremony(step) {
+      if (!windowed || ceremonyRan) return;
+      ceremonyRan = true;
+      fetch('/api/nurture/catalog').then(function (r) { return r.json(); }).then(function (cat) {
+        var course = null, part = null;
+        (cat.courses || []).forEach(function (c) {
+          c.parts.forEach(function (pp) { if (pp.slug === curSlug) { course = c; part = pp; } });
+        });
+        if (!course) return;
+        var isLast = part.part === course.parts.length;
+        if (!isLast) {
+          var nxt = course.parts[part.part]; // 0-indexed access = next part
+          var nudge = document.createElement('div');
+          nudge.className = 'lm-nudge-next';
+          nudge.innerHTML = 'Part ' + (part.part + 1) + ' of ' + course.parts.length +
+            (nxt ? ', <b>' + esc(nxt.subject) + '</b>,' : '') +
+            ' unlocks with an upcoming email. <a href="/pricing.html">Pro opens every part now &rarr;</a>';
+          step.appendChild(nudge);
+          return;
+        }
+        var tok = null;
+        try { if (API && API.token) tok = API.token(); } catch (e) {}
+        if (!tok) return;
+        fetch('/api/nurture/course-status?course=' + encodeURIComponent(course.id), {
+          headers: { Authorization: 'Bearer ' + tok }
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+          if (!st) return;
+          if (!st.complete) {
+            var note = document.createElement('div');
+            note.className = 'lm-nudge-next';
+            note.innerHTML = 'Pass every check in all ' + st.parts_total + ' parts to earn the <b>' +
+              esc(course.title) + '</b> badge. ' + st.parts_done + ' of ' + st.parts_total + ' parts done.';
+            step.appendChild(note);
+            return;
+          }
+          if (body.classList.contains('pro')) { showBadgeScreen(course, st.badge); }
+          else { showWhyPro(function () { showBadgeScreen(course, st.badge); }); }
+        }).catch(function () {});
+      }).catch(function () {});
+    }
+
+    function showWhyPro(onContinue) {
+      var ov = document.createElement('div');
+      ov.className = 'lm-whypro';
+      ov.innerHTML = '<div class="lm-whypro-card">' +
+        '<h3>Why invest in r-statistics.co Pro?</h3>' +
+        '<p>You just finished a whole mini course, so here is the honest pitch, once.</p>' +
+        '<p>Pro opens every mini-course lesson anytime, forever - no 3-day windows, no waiting ' +
+        'for the schedule. Plus the full Data Analyst and Data Scientist tracks, unlimited ' +
+        'graded practice, and the certificates.</p>' +
+        '<p class="lm-whypro-fine">Whatever you choose, the daily emails stay free and everything ' +
+        'you have finished stays yours.</p>' +
+        '<a class="lm-whypro-cta" href="/pricing.html">See Pro plans</a>' +
+        '<button type="button" class="lm-whypro-skip">Continue to your badge &rarr;</button>' +
+        '</div>';
+      document.body.appendChild(ov);
+      try { if (typeof gtag === 'function') gtag('event', 'whypro_view', { course: curSlug }); } catch (e) {}
+      ov.querySelector('.lm-whypro-skip').addEventListener('click', function () {
+        ov.remove(); onContinue();
+      });
+    }
+
+    function showBadgeScreen(course, badge) {
+      if (!badge) return;
+      var ov = document.createElement('div');
+      ov.className = 'lm-whypro';
+      var when = new Date(badge.earned_at * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      ov.innerHTML = '<div class="lm-whypro-card lm-badge-card">' +
+        '<div class="lm-badge-medal">&#127942;</div>' +
+        '<h3>' + esc(course.title) + '</h3>' +
+        '<p>Every part finished, every check passed. This badge is yours - earned ' + esc(when) + '.</p>' +
+        '<a class="lm-whypro-cta" target="_blank" rel="noopener" href="' + esc(badge.linkedin_url) + '">Add to LinkedIn</a>' +
+        '<a class="lm-badge-verify" target="_blank" rel="noopener" href="' + esc(badge.verify_url) + '">View your verified badge page</a>' +
+        '<button type="button" class="lm-whypro-skip">Back to the lesson &rarr;</button>' +
+        '</div>';
+      document.body.appendChild(ov);
+      try { if (typeof gtag === 'function') gtag('event', 'badge_earned_view', { badge: badge.id }); } catch (e) {}
+      ov.querySelector('.lm-whypro-skip').addEventListener('click', function () { ov.remove(); });
+    }
+
     /* ---- completion-actions card (content-adjacent, not stranded at the bottom) ---- */
     function showCompleteActions() {
       var step = steps[total - 1];
       if (!step || step.querySelector('.lm-complete-actions')) return;
+      nurtureCeremony(step);
       var prog = '';
       if (railCourse && railCourse.lessons) {
         var st = courseState(), done = st.completed || {};

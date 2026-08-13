@@ -37,5 +37,8 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   }
   open.sort((a, b) => b.seq - a.seq);
   const position = rows.length ? Math.max(...[...sent.keys()]) : null;
-  return json({ open, position, badges: [] });
+  const badges = (await context.env.DB.prepare(
+    "SELECT badge, public_id, earned_at FROM badges_earned WHERE user_id = ?1 ORDER BY earned_at DESC",
+  ).bind(u.id).all<{ badge: string; public_id: string; earned_at: number }>()).results ?? [];
+  return json({ open, position, badges });
 };
