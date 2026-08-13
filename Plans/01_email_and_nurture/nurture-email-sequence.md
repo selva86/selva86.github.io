@@ -52,6 +52,26 @@ The daily email is a KEY, not a pointer:
 - Back-pocket lever, not launch scope: amnesty reruns ("the five
   most-missed lessons, open again this week") as a re-engagement campaign.
 
+**Badges + the completion ceremony (owner 2026-08-14):**
+
+- Every completed mini course awards a **BADGE** (not a certificate - the
+  certificate word stays reserved for track-level credentials, protecting
+  their premium meaning). Badge = public verify URL + one-click Add to
+  LinkedIn + OG share image, reusing the cert-page machinery. The dashboard
+  shows the badge wall (earned in color, unearned gray) beside the catalog.
+- **Ceremony order at course completion:** final check passed -> the
+  "Why invest in r-statistics.co Pro?" screen (Boot.dev pattern, ALWAYS
+  one-tap dismissable) -> the badge ceremony. Guardrails: the badge is
+  never conditional on the pitch (dismiss still awards it instantly); Pro
+  users skip straight to the badge.
+- Why-Pro placement map (refined): slim next-part nudge at each lesson's
+  end ("Part 3 unlocks with tomorrow's email - or open it now with Pro");
+  the FULL Why-Pro screen once per course at completion; the expiry page;
+  locked catalog cards. Post-value at every door.
+- Later lever, design-aware now: badge ROLL-UPS - collecting every badge in
+  a cluster can mint a real track certificate (the collection's endgame and
+  the Pro bridge).
+
 Dashboard nav: once signed in, **Dashboard becomes a navbar tab** (approved;
 ships with the profiler/dashboard build increment).
 
@@ -132,7 +152,7 @@ values (find/remove/impute), R vs Python, outlier detection.
 |---|---|---|---|---|
 | [ ] | F | What p-values mean (and what they never meant) (title) | What-p-Values-Mean | after #1 |
 | [ ] | R | lm() output, read line by line (title) | Read-lm-Output-in-R | after #3 |
-| [ ] | X | Which statistical test? A 5-question decision flowchart (title) | Which-Statistical-Test-in-R | after #6 |
+| [ ] | X | Which statistical test to use? A 5-question decision flowchart (title) | Which-Statistical-Test-in-R | after #6 |
 | [ ] | F | Hypothesis testing: the framework, explained (title) | Hypothesis-Testing-in-R | after #9 |
 | [ ] | T | How to choose ARIMA order (p, d, q): a practical guide (title) | How-to-Choose-ARIMA-Order-in-R | after #13 |
 | [ ] | R | Linear regression assumptions: the 5 checks (title) | Linear-Regression-Assumptions-in-R | after #17 |
