@@ -55,10 +55,11 @@
       '<h2 class="disp">'+esc(titleFor(item.slug))+'</h2>'+
       '<div class="clip">Resume where you left off'+(item.last_section?(' &middot; '+esc(item.last_section)):'')+'</div>'+
       '<div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div>'+
-      '<div class="meta"><span>Progress <b>'+pct+'%</b></span></div>'+
+      '<div class="meta"><span>Progress <b>'+(Math.round((+pct||0)*100)/100)+'%</b></span></div>'+
       '<div class="go"><a class="primary" href="'+postHref(item.slug)+'">Continue this lesson <span class="a">&rarr;</span></a></div></section>';
   }
 
+  function fmtPct(v){ v=+v||0; return (Math.round(v*100)/100).toFixed(v%1?2:0).replace(/\.00$/,''); }
   function renderStages(apiTracks, certBy){
     var byId={}; apiTracks.forEach(function(t){byId[t.id]=t;});
     $('dh-stages').innerHTML=LV.map(function(k){
@@ -71,7 +72,7 @@
       return '<a class="stage '+cls+'" href="'+rolePage(k)+'" style="--c:var(--ds)"><span class="sn">'+sn+'</span>'+
         '<span class="st"><b>'+esc(L.persona)+'</b><span>'+sub+'</span></span>'+
         '<span class="bar"><span class="fill" style="width:'+pct+'%"></span></span>'+
-        '<span class="pct">'+pct+'%</span></a>';
+        '<span class="pct">'+fmtPct(pct)+'%</span></a>';
     }).join('');
   }
 

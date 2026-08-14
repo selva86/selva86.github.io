@@ -118,6 +118,10 @@ def build():
             fm, _ = parse_frontmatter(f.read())
         if str(fm.get('post_type', '')).strip().upper() != 'LESSON':
             continue
+        # Windowed nurture lessons are non-public: never in courses.json or
+        # pro-lessons.json (the mini-courses registry + middleware own them).
+        if str(fm.get('lesson_access', '')).strip().lower() == 'windowed':
+            continue
         cid = str(fm.get('course_id', '')).strip()
         if not cid:
             continue
