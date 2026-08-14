@@ -15,6 +15,18 @@
     // Active link: longest matching prefix wins (so /roadmap/data-analyst.html
     // marks Roadmap; /tools/x.html marks Tools; root tutorials stay unmarked).
     var path = location.pathname;
+    // Dashboard tab for signed-in users (owner 2026-08-15). Injected at
+    // runtime so no page sweep is needed; CSS keys visibility on
+    // body.state-pro, which auth-hydrate sets before this script runs
+    // (both defer, auth-hydrate loads first) and corrects after /api/me.
+    var linksRow = nav.querySelector('.snav-links') || nav.querySelector('.links');
+    if (linksRow && !linksRow.querySelector('.snav-dash')) {
+      var dashA = document.createElement('a');
+      dashA.href = '/dashboard.html';
+      dashA.className = 'snav-dash';
+      dashA.textContent = 'Dashboard';
+      linksRow.insertBefore(dashA, linksRow.firstChild);
+    }
     var links = nav.querySelectorAll('.snav-links a, .links a');
     var best = null, bestLen = -1;
     links.forEach(function (a) {
@@ -76,10 +88,14 @@
         '<a class="snav-dsignin" href="/signin.html">Sign in</a>' +
         '</div>';
       document.body.appendChild(drawer);
-      // Signed-in users don't need the Sign in row.
+      // Signed-in users don't need the Sign in row; signed-out users
+      // don't get the Dashboard row (it 401-redirects anyway).
       if (document.body.classList.contains('state-pro')) {
         var si = drawer.querySelector('.snav-dsignin');
         if (si) si.remove();
+      } else {
+        var dd = drawer.querySelector('.snav-dash');
+        if (dd) dd.remove();
       }
       drawer.querySelector('.snav-scrim').addEventListener('click', close);
       drawer.querySelector('.snav-close').addEventListener('click', close);
