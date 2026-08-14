@@ -97,7 +97,7 @@
        .rn-node markup reused so hydrateProgress decorates the sheet too) ---- */
     var sheet = document.createElement('div');
     sheet.className = 'rn-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Roadmaps');
-    sheet.innerHTML = '<div class="rn-sheet-hd"><span class="rn-sheet-t">Roadmaps</span><button class="rn-sheet-x" aria-label="Close">&times;</button></div>'+
+    sheet.innerHTML = '<div class="rn-sheet-hd"><span class="rn-sheet-t">Courses</span><button class="rn-sheet-x" aria-label="Close">&times;</button></div>'+
       '<div class="rn-sheet-strip">Seven roadmaps, one path. Every roadmap ends in a verifiable certificate.</div>'+
       '<div class="rn-sheet-body">'+
         STAGES.map(function(sg){
