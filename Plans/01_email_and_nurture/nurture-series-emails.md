@@ -2,8 +2,9 @@
 
 Every written sequence email: subject, preheader, body. Machine copy:
 `functions/_data/nurture-emails.json` (dashboard edits override via KV).
-Voice v3: conversational, no em dashes, honest 3-day window. Regenerated
-2026-08-16; supersedes nurture-week-one-emails.md.
+Voice v4 (2026-08-16): conversational with a warm-up beat before the
+content, thread continuity between days, varied openers and closers, no
+em dashes. Regenerated after the owner's mechanical-voice note.
 
 ## seq 0 - public
 
@@ -114,13 +115,15 @@ Akshay
 ```
 Hi {first_name},
 
-Does the medicine work? Well, it depends on the dose. Does the ad work? Depends on who sees it. The moment an effect depends on something else, you're looking at an interaction, and models that ignore them give confidently wrong answers.
+You've had a lot of new ideas thrown at you this week, so I'll keep today's simple to say, even though it's one of the most useful things in regression.
 
-Today you'll learn to spot when an interaction is hiding in your data, add it to a model properly, and, the part nobody teaches well, interpret the result without tying your brain in knots.
+Some effects depend on other things. The medicine works, but how well depends on the dose. The ad works, but mostly on one audience. When an effect changes depending on something else, that's an interaction, and a model that ignores it can be confidently wrong.
+
+Today's lesson shows you how to spot one, add it to your model, and actually interpret the result, which is the part most courses rush.
 
 [Master interaction effects -> {url}]
 
-Open for the next 3 days.
+Open for 3 days, as always.
 
 Akshay
 ```
@@ -133,15 +136,15 @@ Akshay
 ```
 Hi {first_name},
 
-Something a bit different today, more of a bookmark than a lesson.
+It's been a dense week, so no lesson today. Instead, something people keep coming back to.
 
-It's fifty real R interview questions, each with a worked answer you can actually run. Not trivia, the kind that really get asked: vectors versus lists, how apply differs from a loop, what a factor actually is.
+Fifty real R interview questions with worked answers you can run. Not trivia, the genuinely asked kind: vectors versus lists, apply versus loops, what a factor really is.
 
-Even with no interview on the horizon, skimming these is the quickest self-audit of your R fundamentals I know of.
+No interview on the horizon? Skimming them is still the fastest check of your R fundamentals I know.
 
 [Browse the 50 questions -> {url}]
 
-This one's a regular page, no clock on it. Save it, share it.
+Regular page, no clock. Back to lessons tomorrow.
 
 Akshay
 ```
@@ -154,13 +157,15 @@ Akshay
 ```
 Hi {first_name},
 
-"How many observations do I need?" is probably the most expensive question in statistics to get wrong. Too few and your study can't see the effect that's really there. Too many and you've burned time and budget for nothing.
+Remember the p-value lesson from earlier in the week? Today it starts paying rent.
 
-Power analysis answers it before you collect a single data point. In today's lesson you'll run one, read the power curve, and walk away with a number you can defend to a boss, a reviewer or an ethics board.
+Because before any study or experiment, there's a question that decides whether the whole thing is worth running: how many observations do you need? Too few and you can't see the effect that's really there. Too many and you've burned time and budget for nothing.
+
+Power analysis answers it before you collect a single data point. You'll run one today, read the curve, and come away with a number you can defend to a boss or a reviewer.
 
 [Find your sample size -> {url}]
 
-Open for the next 3 days. This one pays off the p-value lesson from earlier in the week.
+Open for the next 3 days.
 
 Akshay
 ```
@@ -173,15 +178,15 @@ Akshay
 ```
 Hi {first_name},
 
-Ever frozen at the "which test do I run" moment? You're comparing two groups, or maybe three, the data might not be normal, and suddenly every textbook chapter looks the same.
+Here's a small confession about how most people actually do statistics: when it's time to pick a test, they google it, land on a forum thread, and hope.
 
-Today's lesson gives you a flowchart instead. You answer five plain questions about your data and the right test falls out the bottom. We'll walk real examples through it so the questions themselves start to feel natural.
+You can do better with one flowchart. Five plain questions about your data, and the right test falls out the bottom. Today's lesson walks real examples through it until the five questions feel natural to ask.
 
-People keep this one open in a tab for years.
+This one tends to live in an open tab for years.
 
 [Get the flowchart -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -189,18 +194,18 @@ Akshay
 ## seq 9 - lesson (foundations-extras)
 
 - **Subject:** Conditional probability: P(A given B), made concrete
-- **Preheader:** The probability idea behind medical tests, spam filters and Bayes.
+- **Preheader:** The probability idea behind medical tests and spam filters.
 
 ```
 Hi {first_name},
 
-A test for a rare disease is 99% accurate. You test positive. How worried should you be?
+Let me give you a puzzle before the lesson today, because it's a good one.
 
-Much less than you'd think, and the reason is conditional probability, the single most useful idea in everyday statistics. It's behind medical screening, spam filters and every Bayesian method you'll ever meet.
+A test for a rare disease is 99% accurate. You test positive. How worried should you be? The honest answer is far less than you'd think, and the reason is conditional probability, quietly the most useful idea in everyday statistics.
 
-Today you'll compute P(A given B) on concrete examples, including that disease test, until the notation stops being scary and starts being obvious.
+You'll work through that exact puzzle today, and the notation P(A given B) until it reads like plain English instead of algebra.
 
-[Make conditional probability concrete -> {url}]
+[Make it concrete -> {url}]
 
 Open for the next 3 days.
 
@@ -215,15 +220,15 @@ Akshay
 ```
 Hi {first_name},
 
-Back to the forecasting thread. Last time you learned what AR, I and MA mean. The natural next question is: for my series, how many of each?
+Back to the forecasting thread. Last time you learned what AR, I and MA actually mean. The natural next question: for your series, how many of each?
 
-The answer is sitting in two plots, the ACF and the PACF, and once someone shows you the reading rules they're surprisingly friendly. Spikes here mean AR terms, a cutoff there means MA terms.
+Turns out the answer is sitting in two plots, the ACF and the PACF, and they're much friendlier than they look once someone shows you the reading rules. A spike here means an AR term, a cutoff there means MA.
 
-Today you'll read both plots on real series until the patterns jump out at you.
+You'll read both on real series today until the patterns start jumping out on their own.
 
-[Learn to read ACF and PACF -> {url}]
+[Learn to read the plots -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -231,16 +236,18 @@ Akshay
 ## seq 11 - lesson (regression-health-check)
 
 - **Subject:** Multicollinearity: why your coefficients look wrong, and the fix
-- **Preheader:** When two predictors tell the same story, your coefficients lie.
+- **Preheader:** When two predictors tell the same story, coefficients lie.
 
 ```
 Hi {first_name},
 
-Here's an unsettling one. You add a sensible predictor to your regression and suddenly another coefficient flips sign, or a variable you know matters shows up as insignificant. The model isn't broken. Your predictors are just telling the same story twice.
+Today, a small horror story from the world of regression.
 
-That's multicollinearity. Today you'll learn to detect it with VIF in one line, understand what it does and doesn't ruin, and fix it without throwing away good variables.
+You add a perfectly sensible predictor to your model, and something strange happens: another coefficient flips its sign, or a variable you know matters suddenly looks insignificant. Nothing is broken. Two of your predictors are just telling the same story, and the model can't decide who gets the credit.
 
-[Diagnose multicollinearity -> {url}]
+That's multicollinearity. The good news is that detecting it takes one line, and today you'll learn that line, what it does and doesn't ruin, and the fixes that don't throw away good variables.
+
+[Diagnose it -> {url}]
 
 Open for the next 3 days.
 
@@ -250,18 +257,20 @@ Akshay
 ## seq 12 - lesson (inference-from-zero)
 
 - **Subject:** Hypothesis testing: the framework, explained
-- **Preheader:** Null, alternative, rejection: the full framework, finally in order.
+- **Preheader:** Null, alternative, decision: the pieces snap together today.
 
 ```
 Hi {first_name},
 
-You've met pieces of hypothesis testing already this month: p-values, the skeptic's logic. Today the pieces click together into the full framework, null and alternative, test statistic, rejection region, the whole machine.
+A quick look back before today's lesson. So far you've met the skeptic's logic, p-values, and confidence intervals as separate ideas. Today they snap together into one machine.
 
-Once you see the machine as one thing, every test you'll ever run is just this framework with different parts bolted in. That's the real payoff: learn it once, reuse it forever.
+That machine is the hypothesis testing framework. Null, alternative, test statistic, decision. See it once as a whole, and every test you'll ever run turns out to be this same machine with different parts bolted in.
+
+Learn it once, reuse it for the rest of your career. Genuinely.
 
 [See the whole framework -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -274,9 +283,9 @@ Akshay
 ```
 Hi {first_name},
 
-Classic ANOVA quietly assumes all your groups have roughly the same spread. Real data rarely got that memo, and when the spreads differ, the classic test starts giving wrong answers without warning you.
+Here's something that surprises people: the classic ANOVA everyone learns quietly assumes your groups all have similar spread. Real data often doesn't cooperate, and when it doesn't, the classic test misleads without any warning.
 
-Welch's ANOVA is the fix, and honestly it's what many statisticians now use by default. Today you'll see when the classic version breaks, run Welch's version, and know which to reach for from now on.
+There's a fix, and it's not obscure. Welch's ANOVA handles unequal variances properly, and plenty of statisticians now argue it should be the default. Today you'll see where the classic one breaks and run the version that doesn't.
 
 [Run Welch's ANOVA -> {url}]
 
@@ -293,13 +302,13 @@ Akshay
 ```
 Hi {first_name},
 
-Today's a treat day: a complete survey analysis, start to finish, on one page.
+No new theory today. Instead I want to show you what all these pieces look like when they work together on a real job.
 
-It begins with messy raw responses and walks all the way to finished findings: cleaning, recoding, weighting, the right tests for the right question types, and charts you could put in a report. It's the closest thing to sitting next to someone doing the real job.
+It's a complete survey analysis on one page: messy raw responses in, cleaned and recoded data, the right test for each question type, and charts you could put straight into a report. The closest thing to sitting next to someone doing the actual work.
 
-[Work through the survey analysis -> {url}]
+[Walk through the survey analysis -> {url}]
 
-Regular page, no clock. A good one to bookmark for your next questionnaire.
+Regular page, no clock. Bookmark it for your next questionnaire.
 
 Akshay
 ```
@@ -307,18 +316,20 @@ Akshay
 ## seq 15 - lesson (inference-from-zero)
 
 - **Subject:** Effect size: Cohen's d and friends, explained
-- **Preheader:** Significant is not the same as big. Here's the number that says big.
+- **Preheader:** Significant is not the same as big. Here's the number for big.
 
 ```
 Hi {first_name},
 
-A tiny effect becomes "statistically significant" if you just collect enough data. So when a result matters, reviewers and smart bosses ask a different question: how big is the effect?
+You know how to test whether an effect exists now. Today's question is subtler and, honestly, more important: how big is it?
 
-That's what Cohen's d and its friends measure. Today you'll compute them, learn the honest interpretation ranges, and see why a p-value and an effect size together tell a story neither can tell alone.
+Because here's the uncomfortable truth about significance: collect enough data and even a microscopic effect becomes "statistically significant". Which is why reviewers and sharp bosses always ask about size. Cohen's d and its friends are how you answer.
 
-[Measure effect sizes -> {url}]
+After today you'll report effects the way careful people do: a p-value and a size, together telling a story neither tells alone.
 
-Open for the next 3 days.
+[Measure your effects -> {url}]
+
+Open for 3 days.
 
 Akshay
 ```
@@ -326,16 +337,18 @@ Akshay
 ## seq 16 - lesson (foundations-extras)
 
 - **Subject:** Expected value and variance, explained
-- **Preheader:** The two numbers underneath every distribution you'll ever use.
+- **Preheader:** The two numbers underneath every distribution you'll use.
 
 ```
 Hi {first_name},
 
-Expected value and variance sound like textbook furniture, but they're the two numbers underneath everything: every distribution, every estimator, every risk calculation.
+Today we go back to basics, deliberately. Two numbers sit underneath everything you've learned this month: expected value and variance.
 
-Today you'll build both from scratch with dice and simulations, no calculus required, and see why the average of many random things becomes so reliable. That one insight quietly powers most of statistics.
+They sound like textbook furniture, but every distribution, every estimator and every risk calculation is built on them. And you can understand both properly with nothing but dice and simulation, no calculus anywhere.
 
-[Understand expected value and variance -> {url}]
+Twenty minutes today, and a surprising amount of statistics stops feeling arbitrary.
+
+[Build them from scratch -> {url}]
 
 Open for the next 3 days.
 
@@ -350,13 +363,13 @@ Akshay
 ```
 Hi {first_name},
 
-You can read ACF and PACF plots now, so let's put them to work: today you choose an actual ARIMA order, the (p, d, q), for real series.
+The forecasting thread continues. You can read ACF and PACF plots now, so today you get to use them for their real purpose: choosing an actual ARIMA order.
 
-There's a practical rhythm to it. Difference until stationary, read the plots, fit a couple of candidates, compare them honestly. By the end you'll have done the full dance a few times and the choice stops feeling like guesswork.
+There's a practical rhythm to it that nobody writes down clearly. Difference until stationary, read the plots, fit two or three candidates, compare honestly. You'll run that full loop on real series today, and (p, d, q) stops feeling like guesswork.
 
-[Choose your ARIMA order -> {url}]
+[Choose your first order -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -369,11 +382,13 @@ Akshay
 ```
 Hi {first_name},
 
-A fitted model isn't a trustworthy model. Before you hand a forecast to anyone, two checks tell you whether the model actually captured the structure or just memorised some of it.
+A short one today, about an important habit.
 
-They're the residual plot and the Ljung-Box test, and together they take about a minute. Today you'll run both, see what healthy residuals look like, and catch a model that looks fine but isn't.
+A fitted forecast model is not yet a trustworthy one. Before anyone sees your numbers, two checks tell you whether the model captured the real structure: a look at the residuals, and the Ljung-Box test. Together they take about a minute, and they regularly catch models that look fine but aren't.
 
-[Run the diagnostics -> {url}]
+Today you'll run both and learn what healthy leftovers look like.
+
+[Run the two checks -> {url}]
 
 Open for the next 3 days.
 
@@ -388,13 +403,15 @@ Akshay
 ```
 Hi {first_name},
 
-Here's a trap that catches even experienced modellers. When your data has a time order, the leftovers of your regression can be correlated with each other, and that quietly wrecks the p-values while everything looks normal on the surface.
+Today's lesson connects two of our threads, which is always satisfying.
 
-Today you'll test for autocorrelated residuals with Durbin-Watson, see exactly what goes wrong when it's there, and fix it properly.
+When regression meets time-ordered data, the residuals can end up correlated with each other. Everything looks normal on the surface, and meanwhile your p-values are quietly wrong. It's one of the most common invisible mistakes in applied work.
+
+You'll test for it with Durbin-Watson today, see exactly what breaks, and fix it properly.
 
 [Test your residuals -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -407,9 +424,9 @@ Akshay
 ```
 Hi {first_name},
 
-Sometimes your data just refuses to be normal. Skewed incomes, reaction times, tiny samples. The t-test's assumptions creak, and you need its tougher cousin.
+Sometimes data just refuses to behave. Skewed incomes, reaction times, a sample of eleven. The t-test's assumptions start creaking, and you need its tougher cousin.
 
-That's the Mann-Whitney U test. It compares two groups using ranks instead of raw values, so outliers and skew lose their power to mislead. Today you'll learn when to reach for it, how to run it, and how to report it properly.
+That's the Mann-Whitney U test, back on the test-choosing thread. It works on ranks instead of raw values, so skew and outliers lose their power to mislead. When to use it, how to run it, how to report it: that's today.
 
 [Run the Mann-Whitney test -> {url}]
 
@@ -426,13 +443,13 @@ Akshay
 ```
 Hi {first_name},
 
-A lighter one today, and a question you've maybe asked yourself: is R still worth learning in 2026, with Python everywhere?
+A lighter one today, and maybe a question that's been in the back of your mind while doing these lessons: is R actually worth it in 2026, with Python everywhere?
 
-This piece answers it with actual data rather than opinions: job listings, salary numbers, where R genuinely wins and where it honestly doesn't. Useful ammunition next time someone at work raises an eyebrow.
+This piece answers with data instead of tribal opinions. Job listings, salaries, the places R clearly wins, the places it honestly doesn't. Useful the next time someone at work raises an eyebrow at your setup.
 
 [Read the honest answer -> {url}]
 
-Regular page, no clock on this one.
+Regular page, no clock. Lessons resume tomorrow.
 
 Akshay
 ```
@@ -445,13 +462,15 @@ Akshay
 ```
 Hi {first_name},
 
-Every linear regression makes five promises about your data behind your back. When they hold, your inferences are solid. When one breaks, your confidence intervals and p-values can be quietly fictional.
+By now you've fitted a few regressions in these lessons. Time to learn the professional habit that goes with them.
 
-Today you'll run the five checks on a real model, learn to read each diagnostic plot, and know exactly what to do when a check fails. This is the routine that separates careful modellers from hopeful ones.
+Every linear regression makes five promises about your data behind your back. When they hold, your inferences are solid. When one quietly breaks, your p-values can be fiction. The five checks take a few minutes, and today you'll run all of them on a real model, plus learn what to do when one fails.
+
+This routine is what separates careful modellers from hopeful ones.
 
 [Check your regression -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -464,11 +483,11 @@ Akshay
 ```
 Hi {first_name},
 
-The Law of Large Numbers and the Central Limit Theorem get mixed up constantly, even in textbooks, and the confusion matters because they justify different things.
+A confession: the two most famous theorems in statistics get mixed up constantly, sometimes in textbooks. And the mix-up matters, because they justify different things.
 
-One says averages settle down. The other says how they wobble on the way. Today you'll watch both happen in simulations, side by side, and the difference will finally stick.
+The Law of Large Numbers says averages settle down. The Central Limit Theorem says how they wobble on the way. Today you'll watch both happen side by side in simulation, and the difference will finally stick for good.
 
-[See both theorems in action -> {url}]
+[Watch both theorems work -> {url}]
 
 Open for the next 3 days.
 
@@ -478,18 +497,18 @@ Akshay
 ## seq 24 - lesson (arima-from-zero)
 
 - **Subject:** Test stationarity: ADF, KPSS, and when to difference
-- **Preheader:** Stationarity: the assumption every forecast quietly leans on.
+- **Preheader:** The assumption every forecast quietly leans on.
 
 ```
 Hi {first_name},
 
-Every forecasting model you've met this month quietly assumes your series is stationary, meaning its behaviour isn't drifting over time. Feed it a trending series and it will happily produce nonsense.
+Something I glossed over earlier in the forecasting thread deserves its own day: every model we've used quietly assumes your series is stationary, meaning its basic behaviour isn't drifting.
 
-Today you'll test stationarity properly with ADF and KPSS, understand why the two tests can disagree, and learn when differencing fixes things and when it doesn't.
+Feed a trending series into ARIMA without handling that, and it produces confident nonsense. So today: the ADF and KPSS tests, why the two can disagree, and when differencing fixes things versus makes them worse.
 
 [Test your series -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -497,18 +516,18 @@ Akshay
 ## seq 25 - lesson (arima-from-zero)
 
 - **Subject:** ARIMAX: add outside variables to your ARIMA forecast
-- **Preheader:** Your forecast knows about the past. Tell it about promotions.
+- **Preheader:** Your forecast knows the past. Tell it about promotions too.
 
 ```
 Hi {first_name},
 
-Plain ARIMA only knows a series' own past. But sales respond to promotions, demand responds to weather, and your forecast gets sharper the moment you tell it about those outside forces.
+Here's the limitation of everything we've done in forecasting so far: plain ARIMA only knows a series' own past. But you often know more. Sales respond to promotions. Demand responds to weather.
 
-That's ARIMAX, and it's a small step from what you already know. Today you'll add external regressors to a real forecast and watch the accuracy improve.
+ARIMAX lets you tell the model about those outside forces, and it's a smaller step than the name suggests. Today you'll add real external regressors to a forecast and watch it sharpen.
 
 [Add outside variables -> {url}]
 
-Open for the next 3 days.
+Open for the next 3 days. That wraps the core ARIMA arc, by the way. You've come a long way from alphabet soup.
 
 Akshay
 ```
@@ -521,13 +540,15 @@ Akshay
 ```
 Hi {first_name},
 
-Ordinary regression has a soft spot: it minimises squared errors, so one wild outlier can drag the entire line toward itself. Sometimes that one point rewrites your conclusions.
+Back in the regression clinic. Today's patient: the outlier problem.
 
-Robust regression fixes this by refusing to let any single point shout that loudly. Today you'll fit one with rlm(), compare it against the ordinary fit, and know when each is the right choice.
+Ordinary regression minimises squared errors, which means one wild point can drag your whole line toward itself, sometimes far enough to rewrite conclusions. Robust regression simply refuses to let any single point shout that loudly.
+
+You'll fit one with rlm() today, compare it to the ordinary fit on the same data, and know when each is the honest choice.
 
 [Fit a robust regression -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -540,9 +561,9 @@ Akshay
 ```
 Hi {first_name},
 
-Here's a question worth asking of any model you care about: if I dropped one row, would my conclusions change? For most rows the answer is no. For a few, the answer can be alarmingly yes.
+A question worth asking of any model you actually care about: if I deleted one row of my data, would my conclusions change?
 
-Cook's distance finds those rows. Today you'll compute it, see the influence plots, and learn the honest protocol for what to do with an influential point, because deleting it is usually the wrong move.
+For most rows, nothing happens. But often there are one or two where the answer is alarmingly yes, and you want to know their names. Cook's distance finds them. Today you'll compute it, read the influence plots, and, importantly, learn what to do with an influential point, because quietly deleting it is usually the wrong move.
 
 [Find your influential points -> {url}]
 
@@ -559,13 +580,15 @@ Akshay
 ```
 Hi {first_name},
 
-Chi-square tests get unreliable when your table has small counts, and "expected cell count less than 5" is one of the most common review complaints in applied research.
+If you ever analyse small samples, today's test belongs in your pocket.
 
-Fisher's exact test has no such problem. It computes the exact probability, no approximations, which makes it the right tool for small tables. Today you'll work a real example end to end, including how to report it.
+Chi-square tests wobble when table counts get small. "Expected cell count less than five" is one of the most common complaints reviewers make. Fisher's exact test sidesteps the whole problem by computing the exact probability, no approximation involved.
+
+You'll work a real small-table example end to end today, including the reporting.
 
 [Run Fisher's exact test -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -578,13 +601,13 @@ Akshay
 ```
 Hi {first_name},
 
-Treat day. Twenty-five practice problems from the world of finance: returns, portfolios, risk, the workflows analysts actually run in R.
+Practice day. Twenty-five problems from the world of finance: returns, portfolios, risk, the workflows analysts actually run in R.
 
-Even if finance isn't your field, these are wonderful practice because the data is real-world messy and the questions have stakes. Every one grades itself in the browser.
+Even if finance isn't your field, I'd nudge you to try a few. The data is realistically messy and the questions have stakes, which makes it better practice than tidy textbook exercises. Everything grades itself in the browser.
 
 [Try the finance problems -> {url}]
 
-Regular page, no clock. Chip away at your own pace.
+Regular page, no clock. Chip away whenever.
 
 Akshay
 ```
@@ -597,11 +620,13 @@ Akshay
 ```
 Hi {first_name},
 
-Bayes' theorem has a reputation for being deep and difficult. It's actually one line of arithmetic about updating your beliefs when new evidence arrives, and it runs everything from spam filters to medical diagnosis.
+Today we start something new, and I've been looking forward to this thread.
 
-Today you'll watch it work in a simulation you control, evidence in, belief updated, until the famous formula feels less like algebra and more like common sense written down.
+Bayes' theorem has a fearsome reputation, and it's unearned. It's one line of arithmetic about updating what you believe when evidence arrives, and it quietly runs spam filters, medical screening and half of modern machine learning.
 
-[Watch Bayes' theorem click -> {url}]
+In today's lesson you control the simulation yourself: evidence goes in, belief updates, and the famous formula turns into common sense written down.
+
+[Watch it click -> {url}]
 
 Open for the next 3 days.
 
@@ -611,18 +636,20 @@ Akshay
 ## seq 31 - lesson (resampling)
 
 - **Subject:** Permutation tests: exact p-values without formulas
-- **Preheader:** Shuffle your data, get an exact p-value. No formulas needed.
+- **Preheader:** Shuffle your data, get an exact p-value. No formulas.
 
 ```
 Hi {first_name},
 
-Here's the most intuitive idea in all of statistical testing: if the groups really don't differ, then shuffling the labels shouldn't matter. So shuffle them a few thousand times and see how unusual your actual result is.
+Today's idea is my favourite kind: so intuitive you'll wonder why nobody led with it.
 
-That's a permutation test. No distributional assumptions, no formula lookup, just an exact answer built from your own data. Once you've run one, a lot of classical statistics suddenly makes more sense.
+If two groups really don't differ, then shuffling their labels shouldn't change anything. So shuffle them a few thousand times, and see how unusual your real result looks against all those shuffles. That's a permutation test: an exact p-value built from your own data, no distributional assumptions, no formula lookup.
 
-[Run a permutation test -> {url}]
+Run one today and a lot of classical statistics clicks into place retroactively.
 
-Open for the next 3 days.
+[Shuffle your way to a p-value -> {url}]
+
+Open for 3 days.
 
 Akshay
 ```
@@ -635,9 +662,11 @@ Akshay
 ```
 Hi {first_name},
 
-Textbooks give you confidence interval formulas for means and proportions, and then real work asks you for an interval on a median, a ratio, a correlation, things the formulas never covered.
+Yesterday you shuffled. Today you resample, and the trick is at least as useful.
 
-The bootstrap handles all of them the same way: resample your own data, recompute, repeat, and read the interval off the results. Today you'll bootstrap intervals for statistics that have no formula at all.
+Textbooks give you confidence interval formulas for means and proportions, then real work asks for an interval on a median, a ratio, a correlation. The bootstrap covers all of them with one move: resample your own data, recompute the statistic, repeat, read off the interval.
+
+Today you'll bootstrap intervals for things no formula covers.
 
 [Bootstrap an interval -> {url}]
 
@@ -654,13 +683,13 @@ Akshay
 ```
 Hi {first_name},
 
-Every Bayesian analysis starts with a decision people love to argue about: the prior. What you believe before seeing the data. Choose carelessly and you bias the result. Refuse to choose and you've just chosen a different prior without admitting it.
+The Bayesian thread continues with the decision people argue about most: the prior, what you believe before the data arrives.
 
-Today you'll see how much priors actually matter, when they wash out, when they don't, and the practical rules for choosing defensibly.
+Choose carelessly and you tilt the result. Refuse to choose and you've just chosen a different prior without admitting it. There's no escaping the decision, so today you'll learn to make it well: when priors matter, when the data washes them out, and the practical rules for choosing defensibly.
 
 [Choose your priors -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -673,11 +702,11 @@ Akshay
 ```
 Hi {first_name},
 
-A classical t-test can reject a hypothesis, but it can never tell you how much evidence you have for it. Oddly, it can't support the null at all, only fail to reject it.
+Here's a strange gap in classical statistics you may never have noticed: a t-test can reject a hypothesis, but it can never tell you how much evidence you have. It can't even support the null, only fail to reject it, which is a very lawyerly answer.
 
-The Bayesian t-test can do both. It gives you a Bayes factor, a number that says how strongly your data favours one hypothesis over the other, in either direction. Today you'll run one and read that number with confidence.
+The Bayesian t-test fills the gap with a Bayes factor: one number saying how strongly your data favours one hypothesis over the other, in either direction. Today you'll run one and read that number with confidence.
 
-[Measure the evidence -> {url}]
+[Measure your evidence -> {url}]
 
 Open for the next 3 days.
 
@@ -692,13 +721,13 @@ Akshay
 ```
 Hi {first_name},
 
-Remember the confidence interval lesson, and how careful we had to be about what the 95% promises? Bayesian credible intervals promise the thing everyone wishes confidence intervals meant: there's a 95% probability the value is in here.
+Remember the confidence interval lesson, and how careful we had to be about what the 95% promises? Today closes that loop in a satisfying way.
 
-Today you'll build both kinds on the same data, see where they agree and where they split, and know exactly which sentence you're allowed to say about each.
+Bayesian credible intervals promise exactly the thing everyone wishes confidence intervals meant: there's a 95% probability the true value is in this range. Full stop. Today you'll build both kinds on the same data, watch where they agree and where they split, and know precisely which sentence each one permits.
 
 [Compare the two intervals -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
@@ -711,9 +740,11 @@ Akshay
 ```
 Hi {first_name},
 
-Some relationships aren't one straight line, they're two. Sales grow slowly until a threshold, then take off. A treatment works until a dose, then plateaus. The interesting question is where the change happens.
+Some relationships aren't one straight line. They're two lines with a bend, and the bend is the interesting part.
 
-Segmented regression finds that breakpoint for you, with a confidence interval around it. Today you'll fit one on real data and locate the moment the pattern changed.
+Sales crawl until a threshold, then take off. A drug works up to a dose, then plateaus. Segmented regression finds that breakpoint for you, with a confidence interval around it, so "something changed around here" becomes a defensible number.
+
+Today you'll locate a real breakpoint yourself.
 
 [Find the breakpoint -> {url}]
 
@@ -730,13 +761,15 @@ Akshay
 ```
 Hi {first_name},
 
-"The chi-square test" is actually three different tests wearing the same name: one checks independence between two variables, one compares a distribution against expectations, and one tests homogeneity across groups.
+A tidy-up lesson today, on a name that causes more confusion than it should.
 
-Mix them up and your conclusion answers a question nobody asked. Today you'll learn to tell them apart in seconds and run each one properly.
+"The chi-square test" is actually three different tests sharing a name: one for independence between two variables, one for goodness of fit, one for homogeneity across groups. Mix them up and your conclusion answers a question nobody asked.
+
+After today you'll tell them apart in seconds and run each properly. A small skill that prevents big embarrassments.
 
 [Sort out chi-square -> {url}]
 
-Open for the next 3 days.
+Open for 3 days.
 
 Akshay
 ```
