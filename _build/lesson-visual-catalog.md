@@ -31,6 +31,7 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | Ranking of feature importance | sorted horizontal bars | `importance-bars` | static | built |
 | An N-step process / pipeline | numbered flow diagram | `process-flow` | static | built |
 | Hypothesis test: null dist + p-value tail | shaded tail under H0, draggable statistic | `null-distribution` | interactive | built |
+| How surprising is a result under pure chance | guessing-game histogram, live >= counter | `luck-simulator` | interactive | built |
 | Agent reasoning loop (ReAct) | Thought -> Action -> Observation cycle, stepped | `agent-loop` | interactive | built |
 | A table changing under a dplyr/data.table verb | before -> after table diff + the code | `table-transform` | interactive | built |
 | Joining two keyed tables | two tables + switchable join type + live result | `join-diagram` | interactive | built |
