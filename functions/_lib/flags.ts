@@ -61,4 +61,7 @@ export const FLAGS = {
   WELCOME_EMAIL: "welcome-email",
   LIFECYCLE_ENGINE: "lifecycle-engine",
   CAP_EMAIL: "cap-email",
+  // The daily nurture sequence (windowed lessons). The send IS the lesson
+  // unlock; flip only once the factory has runway (~14 built lessons).
+  NURTURE_SEQUENCE: "nurture-sequence",
 } as const;
