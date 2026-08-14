@@ -12,6 +12,8 @@
 //
 // Token rule (P3): a line whose data is missing is DROPPED, never faked.
 
+import lifecycleJson from "../_data/lifecycle-emails.json";
+
 export type EmailCategory = "account" | "progress" | "nurture" | "offers";
 
 // The person these emails come from. The mailbox akshay@r-statistics.co must
@@ -52,10 +54,6 @@ function utm(url: string, key: string): string {
   return `${abs}${abs.includes("?") ? "&" : "?"}utm_source=email&utm_campaign=${encodeURIComponent(key)}`;
 }
 
-function hi(d: TemplateData): string {
-  const n = (d.first_name || "").trim().split(/\s+/)[0];
-  return n ? `Hi ${n},` : "Hi,";
-}
 
 function trackUrl(d: TemplateData, url: string): string {
   if (!d.track) return url;
@@ -126,239 +124,125 @@ function assemble(args: {
   return { subject: args.subject, preheader: args.preheader, text, html, category: args.category, reason: args.reason };
 }
 
-// ---------------------------------------------------------------- welcomes
+// ------------------------------------------------------------------
+// Lifecycle templates, data-driven (editable from the dashboard).
+// Copy: _data/lifecycle-emails.json (KV override emailcopy:<key> beats it).
+// Every token resolves via fills() with a safe fallback, so an edited body
+// can never render an empty hole; link tokens are utm-tagged and (in HTML)
+// click-tracked. required = tokens a saved edit must keep.
+// ------------------------------------------------------------------
 
-function welcomeExercise(d: TemplateData): RenderedEmail {
-  const key = "welcome";
-  const hub = utm(d.hub_url || "/exercises/", key);
-  const passLine = d.pass_end_date
-    ? `You've also got the full Data Analyst track free until ${d.pass_end_date}. Thirty days of interactive lessons, from wrangling messy data to building reports. If you're even half-serious about R, that's the thing I'd point you at.`
-    : `You've also got the full Data Analyst track free for your first 30 days. If you're even half-serious about R, that's the thing I'd point you at.`;
-  const body =
-`${hi(d)}
+export interface EmailCopy { subject: string; preheader: string; body: string }
+const DEFAULT_COPY = lifecycleJson as unknown as Record<string, EmailCopy>;
 
-Nice one. That solve you just made is safely on your profile, XP and all, and your streak started today.
-
-Since you're new, two things worth knowing.
-
-You get 25 graded exercises a month on the free plan, and any hub you start stays open until the month ends, so you can always finish what you began.
-
-${passLine}
-
-[Keep practicing where you left off -> ${hub}]
-
-Everything else, the New to R course and all 1,300+ tutorials, is free forever. No clock on those.
-
-Stuck or confused about anything? Just hit reply. I actually read these.
-
-Akshay`;
-  return assemble({
-    key, category: "account", reason: "you created an r-statistics.co account",
-    subject: "Your first solve is saved",
-    preheader: "The XP is on your profile. A couple of things worth knowing.",
-    body, data: d,
-  });
+interface LifecycleMeta {
+  key: string; category: EmailCategory; reason: string;
+  fills: (d: TemplateData) => Record<string, string>;
+  linkTokens: string[]; // filled with utm'd absolute URLs
+  required: string[];
 }
 
-function welcomeLesson(d: TemplateData): RenderedEmail {
-  const key = "welcome";
-  const next = utm(d.next_lesson_url || "/roadmap/data-analyst.html", key);
-  const courseLine = d.course_title
-    ? `${d.course_title} is open again and your place is saved, so you can carry on right where the wall stopped you.`
-    : `The lesson you were reading is open again and your place is saved.`;
-  const body =
-`${hi(d)}
-
-You're in. ${courseLine}
-
-[Continue the lesson -> ${next}]
-
-One thing worth knowing: your account comes with the full Data Analyst track, free until ${d.pass_end_date || "the end of your first 30 days"}. Whatever you finish in those 30 days stays finished, along with the XP and streak you build up.
-
-The New to R course and all the tutorials don't have a clock. Those are free, period.
-
-If anything's confusing, just reply and ask. Happy to help.
-
-Akshay`;
-  return assemble({
-    key, category: "account", reason: "you created an r-statistics.co account",
-    subject: "Pick up where you left off",
-    preheader: "Your lesson is open again, and your place is saved.",
-    body, data: d,
-  });
+function firstName(d: TemplateData): string {
+  return (d.first_name || "").trim().split(/\s+/)[0] || "there";
 }
 
-function welcomeBrowsing(d: TemplateData): RenderedEmail {
-  const key = "welcome";
-  const start = utm("/roadmap/data-analyst.html", key);
-  const body =
-`${hi(d)}
-
-Welcome aboard. Quick lay of the land, then I'll get out of your way.
-
-The New to R course and all 1,300+ tutorials are free forever. Practice gives you 25 graded exercises a month, with instant feedback right in the browser.
-
-And for your first 30 days, the full Data Analyst track is open to you free, until ${d.pass_end_date || "the end of your first 30 days"}. Lessons, quizzes, the certificate path, all of it.
-
-If you're brand new to R, start with New to R. If you already write a bit of code, jump straight into the track:
-
-[Start the Data Analyst track -> ${start}]
-
-Wherever you get stuck, hit reply. A person answers, not a bot.
-
-Akshay`;
-  return assemble({
-    key, category: "account", reason: "you created an r-statistics.co account",
-    subject: "Welcome, and where to start",
-    preheader: "What's free, what's open for your first 30 days, and one good starting point.",
-    body, data: d,
-  });
-}
-
-// ---------------------------------------------------------------- pass arc
-
-function pass23(d: TemplateData): RenderedEmail {
-  const key = "pass-23";
-  const next = utm(d.next_lesson_url || "/roadmap/data-analyst.html", key);
-  const end = d.pass_end_date || "soon";
-  const body =
-`${hi(d)}
-
-Quick heads-up: one week left on your Data Analyst pass. Until ${end} the whole track is open to you.
-
-After that it moves to Pro. What stays free: New to R, every tutorial, your XP and streak, and everything you've already finished. What doesn't: the remaining lessons and quizzes on the track.
-
-If you've got momentum, this is the week to use it.
-
-[Carry on with the track -> ${next}]
-
-Akshay`;
-  return assemble({
-    key, category: "offers", reason: "your Data Analyst pass ends this week",
-    subject: `Your Data Analyst pass ends ${end}`,
-    preheader: "One week left. What stays free after, and what does not.",
-    body, data: d,
-  });
-}
-
-function pass30(d: TemplateData): RenderedEmail {
-  const key = "pass-30";
-  const next = utm(d.next_lesson_url || "/roadmap/data-analyst.html", key);
-  const body =
-`${hi(d)}
-
-Last day of your pass. Tonight at midnight UTC the Data Analyst track moves to Pro for your account.
-
-If you're mid-lesson, finish it tonight. It stays finished forever.
-
-[Open the track -> ${next}]
-
-Your XP, streak, and free practice aren't going anywhere either way.
-
-Akshay`;
-  return assemble({
-    key, category: "offers", reason: "your Data Analyst pass ends today",
-    subject: "Last day of your Data Analyst pass",
-    preheader: "The track closes tonight. Everything you finished stays.",
-    body, data: d,
-  });
-}
-
-function pass31(d: TemplateData): RenderedEmail {
-  const key = "pass-31";
-  const body =
-`${hi(d)}
-
-Your 30-day pass wrapped up yesterday. First, thanks for spending part of your month learning here. Genuinely.
-
-Nothing you did is lost. Every lesson you finished, all your XP, your streak: still on your profile. The New to R course and all the tutorials stay free, and you still get 25 graded practice exercises every month.
-
-If Pro ever makes sense for you down the road, you'll pick up exactly where you left off. Nothing resets.
-
-And if there's something I can help with in the meantime, you know where the reply button is.
-
-Akshay`;
-  return assemble({
-    key, category: "offers", reason: "your Data Analyst pass just ended",
-    subject: "Your pass ended, your progress didn't",
-    preheader: "Everything you finished stays. Here is how things look from today.",
-    body, data: d,
-  });
-}
-
-// ---------------------------------------------------------------- cap hit
-
-function capHit(d: TemplateData): RenderedEmail {
-  const key = "cap";
-  const pricing = utm("/pricing.html", key);
-  const reset = d.reset_date || "the 1st";
-  const body =
-`${hi(d)}
-
-You just used your 25th graded exercise this month. That's a serious month of practice. Most people never get close.
-
-Nothing dramatic happens now: every hub you started stays open until ${reset}, lessons and tutorials aren't affected, and your streak and XP are safe. A fresh 25 lands on ${reset}.
-
-If waiting sounds annoying, Pro removes the cap entirely:
-
-[Have a look at Pro -> ${pricing}]
-
-Either way, nice work this month.
-
-Akshay`;
-  return assemble({
-    key, category: "progress", reason: "you used all 25 free exercises this month",
-    subject: "All 25 for this month, done",
-    preheader: `Your started hubs stay open. A fresh 25 lands on ${reset}.`,
-    body, data: d,
-  });
-}
-
-// ---------------------------------------------------------------- the flip
-
-function flipAnnouncement(d: TemplateData): RenderedEmail {
-  const key = "flip";
-  const start = utm("/roadmap/data-analyst.html", key);
-  const body =
-`${hi(d)}
-
-Two changes to the free tier, live today. The short version:
-
-Free practice now gives you 25 graded exercises a month. Any hub you start stays open until the month ends, so you won't get cut off mid-set. Lessons and tutorials aren't metered at all, and nothing you've already earned changes.
-
-Second, and this one's the good news: the full Data Analyst track is open to you, free, for the next 30 days, until ${d.pass_end_date || "30 days from today"}. Whatever you finish stays finished, even after the window closes.
-
-Why the change? Grading and hosting cost real money, and this keeps the free tier sustainable without touching what matters: New to R and all 1,300+ tutorials stay free forever.
-
-Thirty days is enough to get real value out of that track. It's yours:
-
-[Start the Data Analyst track -> ${start}]
-
-Questions or objections, just reply. I answer every one.
-
-Akshay`;
-  return assemble({
-    key, category: "account", reason: "you have an r-statistics.co account",
-    subject: "Two changes to your r-statistics.co account",
-    preheader: "Free practice gets a monthly allowance, and the Data Analyst track opens free for 30 days.",
-    body, data: d,
-  });
-}
-
-// ---------------------------------------------------------------- registry
-
-export const TEMPLATES: Record<string, (d: TemplateData) => RenderedEmail> = {
-  "welcome-exercise": welcomeExercise,
-  "welcome-lesson": welcomeLesson,
-  "welcome-browsing": welcomeBrowsing,
-  "pass-23": pass23,
-  "pass-30": pass30,
-  "pass-31": pass31,
-  "cap": capHit,
-  "flip": flipAnnouncement,
+export const LIFECYCLE: Record<string, LifecycleMeta> = {
+  "welcome-exercise": {
+    key: "welcome", category: "account", reason: "you created an r-statistics.co account",
+    linkTokens: ["hub_url"], required: ["hub_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      pass_end_date: d.pass_end_date || "the end of your first 30 days",
+      hub_url: utm(d.hub_url || "/exercises/", "welcome"),
+    }),
+  },
+  "welcome-lesson": {
+    key: "welcome", category: "account", reason: "you created an r-statistics.co account",
+    linkTokens: ["next_lesson_url"], required: ["next_lesson_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      pass_end_date: d.pass_end_date || "the end of your first 30 days",
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "welcome"),
+      course_line: d.course_title
+        ? `${d.course_title} is open again and your place is saved, so you can carry on right where the wall stopped you.`
+        : "The lesson you were reading is open again and your place is saved.",
+    }),
+  },
+  "welcome-browsing": {
+    key: "welcome", category: "account", reason: "you created an r-statistics.co account",
+    linkTokens: ["start_url"], required: ["start_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      pass_end_date: d.pass_end_date || "the end of your first 30 days",
+      start_url: utm("/roadmap/data-analyst.html", "welcome"),
+    }),
+  },
+  "pass-23": {
+    key: "pass-23", category: "offers", reason: "your Data Analyst pass ends this week",
+    linkTokens: ["next_lesson_url"], required: ["next_lesson_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      pass_end_date: d.pass_end_date || "soon",
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-23"),
+    }),
+  },
+  "pass-30": {
+    key: "pass-30", category: "offers", reason: "your Data Analyst pass ends today",
+    linkTokens: ["next_lesson_url"], required: ["next_lesson_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-30"),
+    }),
+  },
+  "pass-31": {
+    key: "pass-31", category: "offers", reason: "your Data Analyst pass just ended",
+    linkTokens: [], required: [],
+    fills: (d) => ({ first_name: firstName(d) }),
+  },
+  "cap": {
+    key: "cap", category: "progress", reason: "you used all 25 free exercises this month",
+    linkTokens: ["pricing_url"], required: ["pricing_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      reset_date: d.reset_date || "the 1st",
+      pricing_url: utm("/pricing.html", "cap"),
+    }),
+  },
+  "flip": {
+    key: "flip", category: "account", reason: "you have an r-statistics.co account",
+    linkTokens: ["start_url"], required: ["start_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      pass_end_date: d.pass_end_date || "30 days from today",
+      start_url: utm("/roadmap/data-analyst.html", "flip"),
+    }),
+  },
 };
 
-export function renderEmail(key: string, data: TemplateData): RenderedEmail | null {
-  const fn = TEMPLATES[key];
-  return fn ? fn(data) : null;
+export const TEMPLATES: Record<string, true> = Object.fromEntries(
+  Object.keys(LIFECYCLE).map((k) => [k, true as const]),
+) as Record<string, true>;
+
+export function defaultLifecycleCopy(template: string): EmailCopy | null {
+  return DEFAULT_COPY[template] ?? null;
 }
+
+export function renderEmail(template: string, d: TemplateData, copy?: EmailCopy | null): RenderedEmail | null {
+  const meta = LIFECYCLE[template];
+  const c = copy ?? DEFAULT_COPY[template];
+  if (!meta || !c) return null;
+  const map = meta.fills(d);
+  const fill = (t: string) => t.replace(/\{([a-z_]+)\}/g, (_m, k) => (map[k] !== undefined ? map[k] : `{${k}}`));
+  return assemble({
+    key: meta.key, category: meta.category, reason: meta.reason,
+    subject: fill(c.subject), preheader: fill(c.preheader), body: fill(c.body), data: d,
+  });
+}
+
+export function lifecycleTokens(template: string): { allowed: string[]; required: string[] } | null {
+  const meta = LIFECYCLE[template];
+  if (!meta) return null;
+  const sample = meta.fills({});
+  return { allowed: Object.keys(sample), required: meta.required };
+}
+

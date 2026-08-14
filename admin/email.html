@@ -418,10 +418,18 @@
         '<span><b>'+n(c.test)+'</b>test sends</span>' +
         '<span><b>'+ago(c.last_sent)+'</b>last sent</span>' +
         '</div>' +
-        '<div class="acts">' +
-        '<button class="btn small" data-preview="'+esc(r.template)+'">Preview content</button>' +
-        '<button class="btn small" data-test="'+esc(r.template)+'">Send test to my inbox</button>' +
-        '</div></div>';
+        (function(){
+          var lc = (typeof lcItems !== 'undefined' ? lcItems : []).filter(function(x){ return x.key === r.template; })[0];
+          var extra = '';
+          if (lc){
+            extra = '<button class="btn small" data-lc-edit="'+esc(r.template)+'">Edit</button>' +
+              (lc.edited ? ' <button class="btn small" data-lc-revert="'+esc(r.template)+'">Revert</button> <span class="chip edited">edited</span>' : '');
+          }
+          return '<div class="acts">' +
+            '<button class="btn small" data-preview="'+esc(r.template)+'">Preview content</button>' +
+            '<button class="btn small" data-test="'+esc(r.template)+'">Send test to my inbox</button>' +
+            extra + '</div></div>';
+        })();
     }).join('');
     // fill subjects from preview endpoint lazily, cached per session
     withTemplate.forEach(function(r){
@@ -456,10 +464,40 @@
   }
   document.getElementById('emailcards').addEventListener('click', function(e){
     var pv = e.target.closest('[data-preview]');
-    if (pv){ openPreview(pv.dataset.preview); return; }
+    if (pv){ sessionStorage.removeItem('pv:' + pv.dataset.preview); openPreview(pv.dataset.preview); return; }
     var ts = e.target.closest('[data-test]');
-    if (ts){ act('Test ' + ts.dataset.test, fetch('/api/admin/email-plan?send_test=' + encodeURIComponent(ts.dataset.test), hdrs())); }
+    if (ts){ act('Test ' + ts.dataset.test, fetch('/api/admin/email-plan?send_test=' + encodeURIComponent(ts.dataset.test), hdrs())); return; }
+    var ed2 = e.target.closest('[data-lc-edit]');
+    if (ed2){
+      var lcit = lcItems.filter(function(x){ return x.key === ed2.dataset.lcEdit; })[0];
+      if (lcit) openEditor(lcit);
+      return;
+    }
+    var rv2 = e.target.closest('[data-lc-revert]');
+    if (rv2){
+      if (!confirm('Revert ' + rv2.dataset.lcRevert + ' to the shipped default copy?')) return;
+      act('Revert ' + rv2.dataset.lcRevert, fetch('/api/admin/email-copy?key=' + encodeURIComponent(rv2.dataset.lcRevert), { method: 'DELETE', headers: hdrs().headers }));
+      setTimeout(loadSeq, 800);
+    }
   });
+
+  function openEditor(it){
+    edKey = it.key;
+    document.getElementById('ed-title').textContent = 'Edit ' + it.key + (it.course ? ' (' + it.course + ')' : '');
+    var tokens = (it.allowed_tokens && it.allowed_tokens.length)
+      ? it.allowed_tokens.map(function(t){ return '{' + t + '}'; }).join(', ')
+      : '{first_name}, {url}';
+    var req = (it.required_tokens && it.required_tokens.length)
+      ? it.required_tokens.map(function(t){ return '{' + t + '}'; }).join(', ')
+      : (it.kind === 'lifecycle' ? '(none)' : '{url}');
+    document.querySelector('#ed .edsub').innerHTML =
+      'Tokens for this email: <b>' + esc(tokens) + '</b>. Required: <b>' + esc(req) + '</b>. Saved copy takes effect on the very next send; Revert returns to the shipped default.';
+    document.getElementById('ed-subject').value = it.subject;
+    document.getElementById('ed-preheader').value = it.preheader;
+    document.getElementById('ed-body').value = it.body;
+    document.getElementById('ed-msg').textContent = '';
+    edwrap.classList.add('open');
+  }
 
   function renderMode(d){
     var live = d.mode.live, eng = d.mode.engine;
@@ -586,13 +624,14 @@
 
   // ================= nurture sequence editor =================
   var seqItems = [];
+  var lcItems = [];
   var edKey = null;
   var edwrap = document.getElementById('edwrap');
 
   function loadSeq(){
     fetch('/api/admin/email-copy', hdrs())
       .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if (d){ seqItems = d.items || []; renderSeq(); } })
+      .then(function(d){ if (d){ seqItems = d.items || []; lcItems = d.lifecycle || []; renderSeq(); if (lastStats) renderEmails(lastStats); } })
       .catch(function(){});
   }
 
@@ -632,14 +671,7 @@
     }
     else if ((k = b.dataset.seqEdit)) {
       var it = seqItems.filter(function(x){ return x.key === k; })[0];
-      if (!it) return;
-      edKey = k;
-      document.getElementById('ed-title').textContent = 'Edit ' + k + (it.course ? ' (' + it.course + ')' : '');
-      document.getElementById('ed-subject').value = it.subject;
-      document.getElementById('ed-preheader').value = it.preheader;
-      document.getElementById('ed-body').value = it.body;
-      document.getElementById('ed-msg').textContent = '';
-      edwrap.classList.add('open');
+      if (it) openEditor(it);
     }
   });
 
@@ -651,7 +683,11 @@
   document.getElementById('ed-save').addEventListener('click', function(){
     var msg = document.getElementById('ed-msg');
     var body = document.getElementById('ed-body').value;
-    if (body.indexOf('{url}') === -1){ msg.className = 'edmsg'; msg.textContent = 'The body must contain {url} - that is the lesson link.'; return; }
+    var cur = seqItems.concat(lcItems).filter(function(x){ return x.key === edKey; })[0];
+    var reqs = (cur && cur.required_tokens) ? cur.required_tokens : ((cur && cur.kind === 'lifecycle') ? [] : ['url']);
+    for (var ri = 0; ri < reqs.length; ri++){
+      if (body.indexOf('{' + reqs[ri] + '}') === -1){ msg.className = 'edmsg'; msg.textContent = 'The body must contain {' + reqs[ri] + '}.'; return; }
+    }
     msg.className = 'edmsg'; msg.textContent = 'Saving...';
     fetch('/api/admin/email-copy', {
       method: 'POST',
