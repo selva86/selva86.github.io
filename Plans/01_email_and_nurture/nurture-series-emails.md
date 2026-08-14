@@ -34,9 +34,9 @@ Akshay
 ```
 Hi {first_name},
 
-Let me start with a bet. A friend claims she can tell Coke from Pepsi by taste. You pour ten cups, she gets nine right. Is she skilled, or just lucky?
+Let me start with a simple bet. A friend claims she can tell Coke from Pepsi by taste. You pour ten cups, she gets nine right. Is she skilled, or just lucky?
 
-However you just reasoned about that, you already did statistical inference. Every test you will ever run, t-tests, ANOVA, all of them, is that same reasoning made careful: how surprising would this result be if it were just luck?
+Whatever reasoning you just gave about that, you already did statistical inference. Every test you will ever run, t-tests, ANOVA, all of them, is that same reasoning made careful: how surprising would this result be if it were just luck?
 
 Today's lesson builds that idea up properly, with zero formulas. Once it clicks, everything that follows this month gets easier.
 
@@ -78,7 +78,7 @@ Hi {first_name},
 
 Imagine your pizza place says: "we are 95% confident the average delivery takes between 22 and 30 minutes." Sounds precise. But what is the 95% actually promising? That 95% of pizzas arrive in that window? That there is a 95% chance the true average is in there?
 
-Neither, quite. And almost everyone who uses confidence intervals has quietly avoided asking.
+Strangely, neither of those is exactly right. And almost everyone who uses confidence intervals has quietly avoided asking.
 
 Today you will build intervals yourself from repeated samples of delivery times and watch which intervals catch the true average and which miss. After that, you can explain the 95% to anyone. It happens to be a favourite interview question too.
 
