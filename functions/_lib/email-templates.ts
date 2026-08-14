@@ -107,6 +107,13 @@ function toHtmlParas(text: string, d: TemplateData): string {
   }).join("");
 }
 
+export function renderPersonalNote(args: {
+  key: string; category: EmailCategory; reason: string;
+  subject: string; preheader: string; body: string; data: TemplateData;
+}): RenderedEmail {
+  return assemble(args);
+}
+
 function assemble(args: {
   key: string; category: EmailCategory; reason: string;
   subject: string; preheader: string; body: string; data: TemplateData;

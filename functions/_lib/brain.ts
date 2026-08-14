@@ -24,6 +24,7 @@ import { resolvePass } from "./pass";
 import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
+import { seqSendable, seqUrl, renderSeqEmail, SEQ_ITEMS, MAX_SEQ } from "./nurture";
 
 export interface BrainEnv {
   DB: D1Database;
@@ -116,6 +117,7 @@ export async function runBrain(
     arc: (await env.KV.get("flag:lifecycle-engine")) === "on",
     cap: (await env.KV.get("flag:cap-email")) === "on",
     meter: (await env.KV.get("flag:exercise-meter")) === "on",
+    seq: (await env.KV.get("flag:nurture-sequence")) === "on",
   };
 
   const candidates: Candidate[] = [];
@@ -217,6 +219,43 @@ export async function runBrain(
     }
   }
 
+  // ---- nurture sequence (nurture, DAILY Mon-Sat; the send IS the lesson
+  // unlock, so this must never fire for an unbuilt lesson - users hold at
+  // the frontier until the factory catches up). Opt-in only. Sundays belong
+  // to the recap. seq 0 (write-your-first-script) goes only to level_r=new
+  // users; everyone else starts at seq 1. ----------------------------------
+  if (flags.seq && dailyRun && new Date(now * 1000).getUTCDay() !== 0) {
+    const rows = await env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
+              u.signup_gate, u.signup_slug, u.email_status, u.email_progress,
+              u.level_r
+       FROM users u
+       WHERE u.deleted_at IS NULL AND u.email_nurture = 1
+       LIMIT 2000`,
+    ).all<UserRow & { level_r: string | null }>();
+    for (const u of rows.results ?? []) {
+      const sentSeqs = (await env.DB.prepare(
+        "SELECT email_key FROM sent_emails WHERE user_id = ?1 AND email_key LIKE 'seq:%'",
+      ).bind(u.id).all<{ email_key: string }>()).results ?? [];
+      const have = new Set(sentSeqs.map((r) => parseInt(r.email_key.slice(4), 10)));
+      let next = -1;
+      if (!have.size) {
+        next = u.level_r === "new" ? 0 : 1;
+      } else {
+        const frontier = Math.max(...[...have]);
+        next = frontier + 1;
+        if (next === 1 && !have.has(0)) next = 1; // seq 0 users advance normally
+      }
+      if (next > MAX_SEQ || !SEQ_ITEMS[next]) continue;
+      if (!seqSendable(next)) continue; // frontier hold: lesson not built yet
+      candidates.push({
+        u, key: `seq:${next}`, template: `seq:${next}`, category: "nurture", priority: 8,
+        data: { first_name: u.display_name },
+        why: `sequence day ${have.size + 1}, seq ${next} (${SEQ_ITEMS[next].kind})`,
+      });
+    }
+  }
+
   // ---- arbitrate + send ---------------------------------------------------
   const decisions: Decision[] = [];
   const byUser = new Map<string, Candidate[]>();
@@ -246,7 +285,9 @@ export async function runBrain(
     // service-adjacent per plan s4 and sends; progress honors the toggle).
     const allowed = pending.filter((c) =>
       c.category === "account" ? true :
-      c.category === "progress" ? u.email_progress === 1 : true,
+      c.category === "progress" ? u.email_progress === 1 :
+      c.category === "nurture" ? true : // sender already filtered on email_nurture=1
+      true,
     );
     for (const c of pending.filter((x) => !allowed.includes(x))) {
       decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "skipped", reason: "consent: progress opted out" });
@@ -303,7 +344,14 @@ export async function runBrain(
       c.data.unsubscribe_url = await unsubUrl(env, userId, c.key);
       const sig = await userSig(env, userId);
       if (sig) c.data.track = { uid: userId, sig, key: c.key };
-      const r = renderEmail(c.template, c.data);
+      let r: ReturnType<typeof renderEmail>;
+      if (c.template.startsWith("seq:")) {
+        const seqN = parseInt(c.template.slice(4), 10);
+        const dest = seqUrl(seqN, userId, sig);
+        r = dest ? renderSeqEmail(seqN, dest, c.data) : null;
+      } else {
+        r = renderEmail(c.template, c.data);
+      }
       if (!r) {
         decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "error", reason: "no template" });
         continue;

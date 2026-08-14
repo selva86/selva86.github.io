@@ -12,6 +12,7 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, jsonError } from "../../_lib/errors";
 import { runBrain, unsubUrl, userSig } from "../../_lib/brain";
 import { renderEmail, TEMPLATES, SENDER, REPLY_TO } from "../../_lib/email-templates";
+import { renderSeqEmail, seqUrl, SEQ_ITEMS } from "../../_lib/nurture";
 import { sendMail } from "../../_lib/email";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
@@ -50,18 +51,25 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
   const previewKey = url.searchParams.get("preview");
 
   if (previewKey) {
-    if (!TEMPLATES[previewKey]) {
-      return jsonError(404, "no_template", `Unknown template. Have: ${Object.keys(TEMPLATES).join(", ")}`);
+    let r = null;
+    if (previewKey.startsWith("seq:")) {
+      const n = parseInt(previewKey.slice(4), 10);
+      const dest = seqUrl(n, "preview-user", undefined) || "https://r-statistics.co/";
+      r = renderSeqEmail(n, dest, { ...SAMPLE });
+      if (!r && SEQ_ITEMS[n]) return jsonError(404, "no_copy", "No copy written for this seq yet");
+    } else if (TEMPLATES[previewKey]) {
+      r = renderEmail(previewKey, { ...SAMPLE });
+    } else {
+      return jsonError(404, "no_template", `Unknown template. Have: ${Object.keys(TEMPLATES).join(", ")}, seq:<n>`);
     }
-    const r = renderEmail(previewKey, { ...SAMPLE });
     if (!r) return jsonError(500, "render_failed", "Template rendered null");
     return json({ template: previewKey, subject: r.subject, preheader: r.preheader,
       category: r.category, reason: r.reason, text: r.text, html: r.html });
   }
 
   if (testKey) {
-    if (!TEMPLATES[testKey]) {
-      return jsonError(404, "no_template", `Unknown template. Have: ${Object.keys(TEMPLATES).join(", ")}`);
+    if (!TEMPLATES[testKey] && !testKey.startsWith("seq:")) {
+      return jsonError(404, "no_template", `Unknown template. Have: ${Object.keys(TEMPLATES).join(", ")}, seq:<n>`);
     }
     const allow = new Set((context.env.EMAIL_TEST_ALLOWLIST || DEFAULT_ALLOWLIST)
       .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean));
@@ -69,12 +77,20 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
     if (!allow.has(to)) return err403("Test sends are allowlist-only.");
     const uid = u?.id || "test-recipient";
     const sig = await userSig(context.env, uid);
-    const r = renderEmail(testKey, {
+    const testData = {
       ...SAMPLE,
       unsubscribe_url: await unsubUrl(context.env, uid, `test:${testKey}`),
       ...(sig ? { track: { uid, sig, key: `test:${testKey}` } } : {}),
-    });
-    if (!r) return jsonError(500, "render_failed", "Template rendered null");
+    };
+    let r;
+    if (testKey.startsWith("seq:")) {
+      const n = parseInt(testKey.slice(4), 10);
+      const dest = seqUrl(n, uid, sig) || "https://r-statistics.co/";
+      r = renderSeqEmail(n, dest, testData);
+    } else {
+      r = renderEmail(testKey, testData);
+    }
+    if (!r) return jsonError(500, "render_failed", "Template rendered null (seq without copy?)");
     const res = await sendMail(context.env, {
       to: { email: to },
       subject: `[TEST] ${r.subject}`,
