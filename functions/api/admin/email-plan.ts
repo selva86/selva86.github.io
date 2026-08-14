@@ -12,7 +12,7 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, jsonError } from "../../_lib/errors";
 import { runBrain, unsubUrl, userSig } from "../../_lib/brain";
 import { renderEmail, TEMPLATES, SENDER, REPLY_TO } from "../../_lib/email-templates";
-import { renderSeqEmail, seqUrl, SEQ_ITEMS } from "../../_lib/nurture";
+import { renderSeqEmail, seqUrl, getSeqCopy, SEQ_ITEMS } from "../../_lib/nurture";
 import { sendMail } from "../../_lib/email";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
@@ -55,7 +55,7 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
     if (previewKey.startsWith("seq:")) {
       const n = parseInt(previewKey.slice(4), 10);
       const dest = seqUrl(n, "preview-user", undefined) || "https://r-statistics.co/";
-      r = renderSeqEmail(n, dest, { ...SAMPLE });
+      r = renderSeqEmail(n, dest, { ...SAMPLE }, await getSeqCopy(context.env.KV, n));
       if (!r && SEQ_ITEMS[n]) return jsonError(404, "no_copy", "No copy written for this seq yet");
     } else if (TEMPLATES[previewKey]) {
       r = renderEmail(previewKey, { ...SAMPLE });
@@ -86,7 +86,7 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
     if (testKey.startsWith("seq:")) {
       const n = parseInt(testKey.slice(4), 10);
       const dest = seqUrl(n, uid, sig) || "https://r-statistics.co/";
-      r = renderSeqEmail(n, dest, testData);
+      r = renderSeqEmail(n, dest, testData, await getSeqCopy(context.env.KV, n));
     } else {
       r = renderEmail(testKey, testData);
     }

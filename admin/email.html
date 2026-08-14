@@ -88,6 +88,19 @@
   #pv .pvhead .p{color:var(--mut);font-size:12.5px}
   #pv iframe{border:0;width:100%;flex:1;min-height:420px;background:#fff}
   .foot{color:var(--mut);font-size:12px;margin-top:18px}
+  .chip.edited{background:#fef3c7;color:#92400e}
+  html.dark .chip.edited{background:#78350f;color:#fde68a}
+  #edwrap{position:fixed;inset:0;background:rgba(10,13,20,.55);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
+  #edwrap.open{display:flex}
+  #ed{background:var(--card);border:1px solid var(--line);max-width:640px;width:100%;max-height:92vh;overflow:auto;padding:18px 20px}
+  #ed h3{margin:0 0 4px;font-size:15px}
+  #ed .edsub{color:var(--mut);font-size:12.5px;margin:0 0 12px}
+  #ed label{display:block;font-size:12px;color:var(--mut);font-weight:600;margin:10px 0 4px}
+  #ed input,#ed textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  #ed textarea{min-height:260px;line-height:1.5}
+  #ed .edmsg{font-size:12.5px;margin:10px 0 0;color:var(--bad)}
+  #ed .edmsg.ok{color:var(--good)}
+  #ed .edbtns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
 </style>
 </head>
 <body>
@@ -155,12 +168,29 @@
       <h2 class="sect" style="margin-top:8px">Every email, its content, and its numbers
         <em>opens are directional (Apple auto-opens pixels) · rates need volume before they mean anything</em></h2>
       <div id="emailcards"></div>
+      <h2 class="sect">The daily lesson series <em>every sequence email: edit, preview, test - saves go live on the next send, no deploy</em></h2>
+      <div class="card" style="overflow-x:auto"><table id="t-seq"></table></div>
     </div>
 
     <div class="foot" id="foot"></div>
   </div>
 </div>
 
+<div id="edwrap">
+  <div id="ed">
+    <h3 id="ed-title"></h3>
+    <p class="edsub">Tokens: <b>{first_name}</b> (recipient), <b>{url}</b> (the lesson link - required). Saved copy takes effect on the very next send; Revert returns to the shipped default.</p>
+    <label>Subject</label><input id="ed-subject" maxlength="90">
+    <label>Preheader</label><input id="ed-preheader" maxlength="140">
+    <label>Body</label><textarea id="ed-body"></textarea>
+    <div class="edmsg" id="ed-msg"></div>
+    <div class="edbtns">
+      <button class="btn" id="ed-save">Save</button>
+      <button class="btn small" id="ed-preview">Preview current</button>
+      <button class="btn small" id="ed-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 <div id="pvwrap">
   <div id="pv">
     <div class="pvhead">
@@ -554,7 +584,100 @@
     act('Daily run', fetch('/api/cron/email-brain?force_daily=1', { method: 'POST', headers: { Authorization: 'Bearer ' + tok } }));
   });
 
+  // ================= nurture sequence editor =================
+  var seqItems = [];
+  var edKey = null;
+  var edwrap = document.getElementById('edwrap');
+
+  function loadSeq(){
+    fetch('/api/admin/email-copy', hdrs())
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d){ seqItems = d.items || []; renderSeq(); } })
+      .catch(function(){});
+  }
+
+  function renderSeq(){
+    var el = document.getElementById('t-seq');
+    if (!el) return;
+    if (!seqItems.length){ el.innerHTML = '<tr><td style="color:var(--mut)">No sequence copy written yet</td></tr>'; return; }
+    el.innerHTML = '<tr><th>#</th><th>Subject</th><th>Status</th><th class="num">Sent</th><th class="num">Open</th><th class="num">CTR</th><th>Actions</th></tr>' +
+      seqItems.map(function(it){
+        var m = mk(it.key);
+        var openR = pct(m.openers, m.sent), ctr = pct(m.clickers, m.sent);
+        var status = (it.edited ? '<span class="chip edited">edited</span> ' : '') +
+          (it.built ? '<span class="chip on">' + (it.kind === 'public' ? 'public page' : 'lesson built') + '</span>'
+                    : '<span class="chip">awaiting lesson</span>');
+        return '<tr><td class="num">' + it.seq + '</td>' +
+          '<td><b>' + esc(it.subject) + '</b>' + (it.course ? ' <span class="trigwhy">' + esc(it.course) + '</span>' : '') + '</td>' +
+          '<td>' + status + '</td>' +
+          '<td class="num">' + n(m.sent) + '</td><td class="num">' + openR + '</td><td class="num">' + ctr + '</td>' +
+          '<td style="white-space:nowrap">' +
+          '<button class="btn small" data-seq-edit="' + esc(it.key) + '">Edit</button> ' +
+          '<button class="btn small" data-seq-pv="' + esc(it.key) + '">Preview</button> ' +
+          '<button class="btn small" data-seq-test="' + esc(it.key) + '">Test</button>' +
+          (it.edited ? ' <button class="btn small" data-seq-revert="' + esc(it.key) + '">Revert</button>' : '') +
+          '</td></tr>';
+      }).join('');
+  }
+
+  document.getElementById('t-seq').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    var k;
+    if ((k = b.dataset.seqPv)) { sessionStorage.removeItem('pv:' + k); openPreview(k); }
+    else if ((k = b.dataset.seqTest)) { act('Test ' + k, fetch('/api/admin/email-plan?send_test=' + encodeURIComponent(k), hdrs())); }
+    else if ((k = b.dataset.seqRevert)) {
+      if (!confirm('Revert ' + k + ' to the shipped default copy?')) return;
+      act('Revert ' + k, fetch('/api/admin/email-copy?key=' + encodeURIComponent(k), { method: 'DELETE', headers: hdrs().headers }));
+      setTimeout(loadSeq, 800);
+    }
+    else if ((k = b.dataset.seqEdit)) {
+      var it = seqItems.filter(function(x){ return x.key === k; })[0];
+      if (!it) return;
+      edKey = k;
+      document.getElementById('ed-title').textContent = 'Edit ' + k + (it.course ? ' (' + it.course + ')' : '');
+      document.getElementById('ed-subject').value = it.subject;
+      document.getElementById('ed-preheader').value = it.preheader;
+      document.getElementById('ed-body').value = it.body;
+      document.getElementById('ed-msg').textContent = '';
+      edwrap.classList.add('open');
+    }
+  });
+
+  document.getElementById('ed-cancel').addEventListener('click', function(){ edwrap.classList.remove('open'); });
+  edwrap.addEventListener('click', function(e){ if (e.target === edwrap) edwrap.classList.remove('open'); });
+  document.getElementById('ed-preview').addEventListener('click', function(){
+    if (edKey){ sessionStorage.removeItem('pv:' + edKey); openPreview(edKey); }
+  });
+  document.getElementById('ed-save').addEventListener('click', function(){
+    var msg = document.getElementById('ed-msg');
+    var body = document.getElementById('ed-body').value;
+    if (body.indexOf('{url}') === -1){ msg.className = 'edmsg'; msg.textContent = 'The body must contain {url} - that is the lesson link.'; return; }
+    msg.className = 'edmsg'; msg.textContent = 'Saving...';
+    fetch('/api/admin/email-copy', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, hdrs().headers),
+      body: JSON.stringify({
+        key: edKey,
+        subject: document.getElementById('ed-subject').value,
+        preheader: document.getElementById('ed-preheader').value,
+        body: body
+      })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+      .then(function(res){
+        if (res.ok){
+          msg.className = 'edmsg ok'; msg.textContent = 'Saved. Live on the next send. Opening preview...';
+          sessionStorage.removeItem('pv:' + edKey);
+          loadSeq();
+          setTimeout(function(){ edwrap.classList.remove('open'); openPreview(edKey); }, 700);
+        } else {
+          msg.className = 'edmsg'; msg.textContent = (res.j && res.j.error && res.j.error.message) || 'Save failed.';
+        }
+      })
+      .catch(function(e){ msg.className = 'edmsg'; msg.textContent = 'Save failed: ' + e; });
+  });
+
   load();
+  loadSeq();
   setInterval(load, 60000);
 })();
 </script>
