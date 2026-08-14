@@ -204,7 +204,11 @@ Hi {first_name},
 
 A puzzle before today's lesson, because it is one of the best in all of statistics.
 
-A disease affects 1 person in 1,000. The test for it is 99% accurate. Your result comes back positive. How worried should you be? Most people say very. The real answer: your chance of having it is still under 10%, because among 1,000 people the test frightens about ten healthy people for every one genuinely sick person it finds.
+A disease affects 1 person in 1,000 and the test for it is 99% accurate. You take the test and your result comes back positive. How worried should you be?
+
+Most people say very.
+
+However, the real answer: your chance of having it is still under 10%, because among 1,000 people the test frightens about ten healthy people for every one genuinely sick person it finds.
 
 If that surprised you, today's lesson is going to be a good one. It is all conditional probability, the idea behind medical screening, spam filters and everything Bayesian we will do later.
 
