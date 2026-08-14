@@ -84,6 +84,12 @@ conditional inserts.
 
 ---
 
+> 2026-08-16, owner: "lm() output, read line by line" removed from the
+> series (was seq 5); everything after renumbered down by one in the live
+> registry. The reading-model-output mini course is retitled "Reading
+> Regression Models" (parts: interaction effects + the 5 assumption checks).
+> The registry (functions/_data/mini-courses.json) is the numbering SSOT.
+
 ## Part 1 - the owner's list, in sending order
 
 Threads: F=foundations, R=regression clinic, T=time series, X=right test,
