@@ -1,0 +1,635 @@
+---
+title: "What p-values mean"
+slug: "Inference-Mini-2"
+catalog_blurb: "How to read a p-value without making the usual mistakes."
+description: "Your checkout test says p = 0.03. That is not a 3 percent chance the win was a fluke. Build the number yourself in R, then read it the way it was meant."
+keywords: "what p-values mean, p-value meaning, p-value misconceptions, interpret a p-value, A/B test significance, statistics for beginners, R"
+date: "2026-08-15"
+post_type: "LESSON"
+curriculum_id: "0.0.2"
+lesson_access: "windowed"
+course_id: "inference-from-zero"
+course_title: "Inference from Zero"
+course_lesson: "2"
+course_total: "7"
+course_landing: "/dashboard.html"
+course_prev: "Inference-Mini-1"
+webr: true
+mathjax: true
+---
+
+=== step === cover
+::eyebrow Part 2 of 7
+## What p-values mean
+
+Last time you judged Priya's nine correct cups by building the guessing world and counting how often pure luck reached nine, and right at the end that fraction turned out to have a name. It is called a p-value. If you missed part 1, nothing here leans on it, because everything gets built again from the beginning.
+
+Meera runs a small online shop. For the last three weeks she has been testing a redesigned checkout page against the old one, sending each arriving visitor to one version or the other by a coin toss so that neither page could get the better traffic. Two thousand four hundred people came through. Of the 1,200 who saw the new page, 150 bought something, and of the 1,200 who saw the old page, 120 did.
+
+That is 12.5 percent against 10 percent. The new page is ahead, though not by the sort of margin that settles an argument in a meeting. She runs the numbers in R and gets a p-value of 0.03.
+
+Her business partner reads it out loud: "so there is a 3 percent chance the improvement was a fluke." That reading is common enough that the American Statistical Association published a formal statement about it in 2016, and it is still not what the number says. Here is what the 0.03 actually is.
+
+::widget null-distribution {"tails": 1, "max": 4, "start": 1.85, "label": "how far out the result sits"}
+
+The hump is every result Meera could have seen in a world where the redesign changed nothing at all, common outcomes bunched in the middle and freak ones out at the edges. The orange line is where her actual result landed, the shaded sliver to the right of it covers every outcome at least that good, and the readout underneath is the size of that sliver. Drag the slider and watch the sliver grow and shrink, because that area, and nothing else, is what a p-value reports. The readout calls the boring story H0, which is shorthand you will meet everywhere and which gets a proper name two steps from now. Its verdict line leans on a cutoff at 0.05, and where that number comes from is something we go and settle later rather than take on trust.
+
+Meera's result sits at 1.87 on that scale, and the slider moves in steps of 0.05, so park it at 1.85 and you get 0.032, park it at 1.90 and you get 0.029. Her exact 0.030 lives between the two.
+
+By the end you will be able to:
+
+- Build Meera's 0.03 yourself, from nothing, by simulating the world where her redesign did nothing
+- State what the number means in a sentence that survives scrutiny, and spot the readings that do not
+- Work out how often a result like hers really is a dud, which turns out to be a completely different number
+- Name the things a p-value has never been able to tell you, and say what belongs in the write-up instead
+
+**What you need first:** you can read a simple R script, so a variable, a function call and a comparison like `x >= 150` are familiar. No statistics background is assumed, and every term gets defined the moment it appears.
+
+=== step === concept
+::eyebrow The trap
+## Two readings of the same number
+
+Put the two sentences side by side, because at a glance they look like paraphrases of each other.
+
+- **What Meera's partner said.** There is a 3 percent chance the improvement was a fluke.
+- **What the 0.03 says.** If the redesign changed nothing at all, a result this good or better would turn up about 3 percent of the time.
+
+Read them again slowly. The first one is about the redesign, putting odds on whether the improvement is real. The second one is about a world nobody was ever in: it assumes the redesign did nothing, then reports how often that pretend world produces a result like Meera's. So the first sentence starts from the data and reaches a conclusion about reality, whereas the second starts from an assumption about reality and reaches a conclusion about data. Those are opposite directions of travel.
+
+That sounds like hair-splitting right up until somebody counts what the swap costs. A thousand simulated business decisions from now, we will.
+
+[KEY INSIGHT]
+A p-value is computed inside a world where the boring story is taken as true. Every number it produces is therefore a statement about that world, which is why it can never be a statement about how likely the boring story was.
+
+The honest way to settle which sentence is right is to build the 0.03 yourself, and building it takes about ten lines of R.
+
+=== step === concept
+::eyebrow The world the number lives in
+## Pretend the redesign did nothing
+
+Statistics has a name for the boring story: the **null hypothesis**, usually written \\(H_0\\) and read aloud as "H nought". It is not a guess about what is probably true. It is a deliberate stand-in for "nothing happened", the dullest explanation available, stated precisely enough that you can build it and watch what it produces.
+
+For Meera the null hypothesis is one sentence. The redesign made no difference to whether anybody bought anything.
+
+Now push on that sentence until it says something about her actual data, because a story you cannot build is no use to anyone. If the redesign changed nothing, then those 270 purchases, which is 150 plus 120, were going to happen regardless. The same 270 people would have bought whichever page they had been shown, and all the coin toss did was decide which side of the split each purchase got recorded on.
+
+That is a world you can build. Here is the data we are going to build it against.
+
+```r
+visitors  <- c(new = 1200, old = 1200)
+purchases <- c(new = 150,  old = 120)
+
+purchases / visitors
+#>   new   old 
+#> 0.125 0.100 
+```
+
+Two named vectors and nothing clever. `c(new = 1200, old = 1200)` makes a vector of two numbers and sticks a label on each, so `purchases / visitors` divides them in matching pairs and keeps the labels: 150 out of 1,200 is 0.125, and 120 out of 1,200 is 0.100.
+
+The real gap is 2.5 percentage points, and there were 270 purchases in all. Hold on to that 270, because the entire simulation is about where those 270 purchases could have landed.
+
+=== step === concept
+::eyebrow One world
+## Deal the 270 purchases out again
+
+Line all 2,400 visitors up in a row and number them. Visitors 1 to 1,200 are the ones who saw the new page, and visitors 1,201 to 2,400 saw the old one. In the null world the purchases belong to no page in particular, so scatter all 270 of them across the row at random and see where they fall.
+
+```r
+set.seed(1)
+buyers <- sample(1:2400, 270)
+sum(buyers <= 1200)
+#> [1] 142
+```
+
+`sample(1:2400, 270)` picks 270 different numbers out of 1 to 2,400, which is exactly "choose 270 of the visitors, at random and with no repeats, to be the ones who bought". Then `buyers <= 1200` asks each of those 270 numbers whether it belongs to the new-page half and hands back 270 TRUE or FALSE answers, and `sum()` counts the TRUEs because R treats every TRUE as a 1. `set.seed(1)` pins R's random numbers down so that your run comes out identical to the one printed here.
+
+In this particular pretend world, 142 of the 270 purchases landed on the new page and 128 landed on the old one. Meera saw 150.
+
+Sit with that for a second. Nothing whatsoever was going on in that world, and it still handed back 142 against 128, a gap of fourteen purchases that anybody glancing at a dashboard would read as the new page nosing ahead.
+
+=== step === concept
+::eyebrow Twenty worlds
+## One world is an anecdote
+
+That 142 was a single draw from a random process, so it tells you about as much as one coin flip tells you about a coin. What we actually want is the whole range of what the null world can produce, so wrap the deal-them-out step in a function and then call it as often as we like.
+
+```r
+shuffle_once <- function() {
+  buyers <- sample(1:2400, 270)
+  sum(buyers <= 1200)
+}
+
+set.seed(2026)
+replicate(20, shuffle_once())
+#>  [1] 129 143 145 132 141 127 130 134 135 139 134 149 126 118 114 143 134 129 136
+#> [20] 135
+```
+
+`shuffle_once()` is the two lines you just read, packed into something reusable: scatter the purchases, count the ones on the new page, hand back that count. `replicate(20, shuffle_once())` then runs it twenty separate times and gathers the twenty answers into one row. The `[1]` and `[20]` down the left edge are R keeping count of where each printed line starts, not part of the data.
+
+Twenty worlds in which the redesign did precisely nothing, and look at them wander. Most sit in the 130s, which is what you would expect when half of 270 is 135. One dropped to 114, and one climbed to 149, which is a single purchase short of what Meera actually saw. None of the twenty reached 150, but a 149 turning up in a sample of twenty is fair warning that 150 is not out of reach.
+
+=== step === concept
+::eyebrow Fifty thousand worlds
+## Count it properly
+
+Twenty worlds is a hint rather than an answer. To pin down how often something happens when it might only happen once or twice in a hundred tries, you need far more than twenty, so run fifty thousand of them.
+
+```r
+set.seed(7)
+counts <- replicate(50000, shuffle_once())
+
+sum(counts >= 150)
+#> [1] 1495
+```
+
+`counts` now holds fifty thousand numbers, one per pretend world, each one the number of purchases that landed on the new page in a world where the redesign did nothing. `counts >= 150` puts the same question to all fifty thousand at once, did this world reach 150 or more, and `sum()` counts the yeses. Fifteen hundred of them did.
+
+Turn that count into a fraction of the whole and you have the number Meera's test reported.
+
+```r
+mean(counts >= 150)
+#> [1] 0.0299
+```
+
+Taking `mean()` of a pile of TRUE and FALSE values gives the fraction that are TRUE, because R counts every TRUE as 1 and every FALSE as 0, so averaging them adds up the yeses and divides by fifty thousand. The answer is 0.0299, which is three percent.
+
+Here is the same fifty thousand worlds as a picture. Press Run and you get them all as a histogram, with Meera's 150 marked.
+
+```r
+hist(counts, breaks = 30, col = "grey85", border = "white",
+     main = "50,000 worlds where the redesign changed nothing",
+     xlab = "purchases landing on the new page")
+abline(v = 150, col = "#d97706", lwd = 3)
+```
+
+The pile sits over 135, the boring middle where the purchases split evenly, and it thins out quickly in both directions. The orange line is Meera's result, out in the thin part on the right where only about three worlds in every hundred manage to reach.
+
+=== step === tryit
+::eyebrow Your turn
+## What if the new page had sold 140?
+
+Suppose the split had come out less flattering, 140 purchases on the new page and 130 on the old, still 270 in total. Would that have been worth a second look?
+
+You do not need a new simulation, because all fifty thousand null worlds are already sitting in `counts`. You only need to count a different set of them, the worlds that reached 140 or more. Fill in the blank and press Check.
+
+```r
+mean(counts >= ____)
+```
+::check {"regex":"counts\\s*>=\\s*140","gate":true,"difficulty":"beginner","ok":"That comes out at 0.2815, so about 28 percent. A bar set at 140 is a much wider net than one set at 150, so many more of the null worlds clear it, and something chance produces on better than one day in four is not much of a story.","no":"You want every null world that reached 140 or more, so the comparison to write is counts greater than or equal to 140."}
+::solution
+```r
+mean(counts >= 140)
+#> [1] 0.2815
+```
+
+=== step === concept
+::eyebrow The definition
+## So that is a p-value
+
+What you just did is the entire definition, so here it is in one sentence with nothing left out.
+
+**A p-value is the probability of a result at least as extreme as the one you actually got, calculated in a world where the boring story is true.**
+
+Every clause in that sentence is load-bearing.
+
+- **"at least as extreme"** is why we counted 150 or more rather than exactly 150. Landing on exactly 150 is not the interesting event, whereas landing on 150 or anything better is, and a rule that only counted exact matches would end up calling every result rare.
+- **"in a world where the boring story is true"** is the whole simulation. Fifty thousand times over, we built a world with no redesign effect in it, so the 0.0299 is a property of those worlds and of nothing else.
+- **"the probability of a result"** points at the data. The thing being handed a probability is Meera's 150 purchases, not her redesign.
+
+Written in notation, the same sentence is
+
+\\[ p = P(\\text{a result at least as extreme as the one observed} \\mid H_0) \\]
+
+which reads left to right as: p is the probability of that result, given \\(H_0\\). The vertical bar is the character that matters. It means "assuming", so everything to its right is what we are taking for granted and everything to its left is what we are measuring. The boring story \\(H_0\\) sits on the assumed side, and it never moves to the measured side.
+
+[KEY INSIGHT]
+A p-value assumes the boring story and measures the data. Swap those two roles around and you are asking for a completely different quantity, one that fifty thousand simulated worlds cannot give you.
+
+=== step === concept
+::eyebrow Two more routes
+## The same number as a tail, and from a built-in test
+
+Look at the picture from the cover again, now that every piece of it has a name.
+
+::widget null-distribution {"tails": 1, "max": 4, "start": 1.85, "label": "how far out the result sits"}
+
+The curve is the null world's output drawn smooth, instead of as fifty thousand histogram bars. Zero in the middle is the likeliest outcome when nothing is going on, and the horizontal axis measures how far out a result sits in units of the ordinary wobble, so 1 is a perfectly normal wobble and 3 is a big one. Drag the slider: the orange line is your result, the shaded region covers every result at least that extreme, and the readout is the area of that region. That area is the p-value, which is where the phrase "out in the tail" comes from.
+
+Meera's 150 sits at 1.87 on this scale, which falls between the slider's notches at 1.85 and 1.90, so the 0.032 and 0.029 those two settings report are the readings either side of her 0.030.
+
+Now, you might reasonably be wondering why anybody simulates anything when R has a test built in for this. It does, and for her experiment it is one line.
+
+```r
+prop.test(c(150, 120), c(1200, 1200), alternative = "greater")
+#> 
+#> 	2-sample test for equality of proportions with continuity correction
+#> 
+#> data:  c(150, 120) out of c(1200, 1200)
+#> X-squared = 3.5097, df = 1, p-value = 0.03051
+#> alternative hypothesis: greater
+#> 95 percent confidence interval:
+#>  0.002964903 1.000000000
+#> sample estimates:
+#> prop 1 prop 2 
+#>  0.125  0.100 
+```
+
+Read the arguments as the story you already know: `c(150, 120)` is how many people bought on each page, `c(1200, 1200)` is how many visitors each page received, and `alternative = "greater"` says the question is whether the first page did better rather than whether the two merely differed. Meera fixed that question before she launched, which matters far more than it looks like it should, and a later step is entirely about how much.
+
+The line to read is `p-value = 0.03051`. Your simulation said 0.0299. There is a third route as well, an exact calculation that works out every possible way the 270 purchases could have been dealt across the 2,400 visitors rather than sampling fifty thousand of them.
+
+```r
+fisher.test(matrix(c(150, 1050, 120, 1080), nrow = 2), alternative = "greater")$p.value
+#> [1] 0.03042706
+```
+
+The matrix is the four counts from the experiment read down its columns: 150 bought and 1,050 did not on the new page, then 120 bought and 1,080 did not on the old one. Adding `$p.value` pulls out just that number instead of printing the whole report.
+
+Three roads, and all three arrive at three percent. The exact answer is 0.03043, `prop.test` gives 0.03051 because it approximates that exact count with a smooth curve, and your simulation gives 0.0299 because fifty thousand worlds is a great many worlds but not all of them. The wobble in the third decimal is what simulating costs you; the thing being computed is identical in all three.
+
+=== step === quiz
+::eyebrow Check yourself
+## Say the 0.03 out loud
+
+Meera's test came back at 0.03. Which of these states what that number means?
+
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- There is a 3 percent chance that the improvement was a fluke
+- There is a 97 percent chance that the new checkout page is genuinely better
+- If the redesign made no difference at all, a result this good or better would turn up about 3 percent of the time ::ok That is it, and notice how much work the opening clause is doing. The 3 percent is a property of the no-difference world, because the no-difference world is the only thing your fifty thousand shuffles ever built. You assumed it and asked what it produces, so the answer can only be a description of what it produces.
+- The new checkout page will beat the old one on about 97 percent of days ::no Each of those turns the number into a claim about the redesign, and it cannot be one. Your simulation only ever ran the world where the redesign did nothing, so 0.03 says that world reaches Meera's result or better roughly three times in a hundred. Getting from there to the odds that her redesign works, or to how often it will win in future, needs information those 2,400 visitors simply do not contain.
+
+=== step === concept
+::eyebrow Direction
+## Why you cannot turn the sentence around
+
+The reading Meera's partner reached for is the computed number run backwards. He wanted the probability that the redesign did nothing, given the data. What the test handed him was the probability of the data, given that the redesign did nothing. Same two ingredients, opposite order, and flipping a conditional statement around is not a legal move.
+
+Here is a version with no statistics in it at all. Suppose 1 person in 1,000 in Meera's city is a professional chef, and suppose 90 percent of professional chefs own a good chef's knife while 10 percent of everybody else owns one too.
+
+- If someone is a chef, the chance they own a good knife is 90 percent.
+- If someone owns a good knife, the chance they are a chef is... something else entirely.
+
+Take a thousand people and count. One of them is a chef, and there is a 90 percent chance that chef owns a good knife, so call it 0.9 knife-owning chefs. The other 999 are not chefs, and a tenth of them own good knives, which is 99.9 knives.
+
+```r
+chefs        <- 1000 * 0.001
+non_chefs    <- 1000 - chefs
+knives_chef  <- chefs * 0.90
+knives_other <- non_chefs * 0.10
+
+knives_chef / (knives_chef + knives_other)
+#> [1] 0.008928571
+```
+
+Under 1 percent. Nothing changed except the direction of the question, and the answer fell from 90 percent to under one. What did the damage is the third number, the one that appears in neither conditional statement: how many chefs there were to begin with. Reversing a conditional needs that number, and a p-value has never seen it.
+
+[WARNING]
+"If the redesign did nothing, this happens 3 percent of the time" and "there is a 3 percent chance the redesign did nothing" differ by exactly the thing a p-value does not contain, which is how plausible the redesign was before anybody ran the test.
+
+=== step === concept
+::eyebrow The alarm rate
+## Run the same page against itself
+
+Before we can work out how often a result like Meera's really is a dud, there is a smaller question to settle first: how often does a test call something a winner when there is nothing there at all?
+
+Calling something a winner needs a line, and the line almost everyone draws sits at 0.05. A p-value below it gets called **significant**, a word that sounds like it means important and does not: it says only that the result cleared a line somebody chose, nothing about how big the win is or whether it is worth having. That line is a convention rather than a discovery, and nobody has to take a convention on trust.
+
+You can just go and measure it. Take her setup and remove the redesign entirely, so both groups see the identical page with an identical 10 percent purchase rate, then run that fake experiment five thousand times.
+
+```r
+aa_test <- function() {
+  old_sales <- rbinom(1, 1200, 0.10)
+  new_sales <- rbinom(1, 1200, 0.10)   # the very same page, twice
+  prop.test(c(new_sales, old_sales), c(1200, 1200), alternative = "greater")$p.value
+}
+
+set.seed(11)
+aa <- replicate(5000, aa_test())
+mean(aa < 0.05)
+#> [1] 0.046
+```
+
+`rbinom(1, 1200, 0.10)` is shorthand for "send 1,200 visitors to a page where each one buys with probability 0.10, and tell me how many bought". Two of those, one per group, make a complete fake experiment.
+
+Both pages were identical in all five thousand of those experiments, and 4.6 percent of them came back under 0.05 regardless. That is not a bug, it is the design doing what it says on the tin: a 0.05 cutoff is built to sound a false alarm about 5 percent of the time when nothing is happening.
+
+You can see where the 5 percent comes from by looking at the p-values themselves rather than only counting the small ones.
+
+```r
+hist(aa, breaks = 20, col = "grey85", border = "white",
+     main = "5,000 experiments where both pages were identical",
+     xlab = "p-value")
+```
+
+Roughly level. When the boring story is true, a p-value is about as likely to come out 0.02 as 0.42 or 0.91, so the share of them falling under any line you draw is simply the width of the strip beneath it. Draw the line at 0.05 and you catch 5 percent, draw it at 0.01 and you catch 1 percent. The bump part-way along the histogram is not a mistake either: purchases arrive in whole numbers, so only certain p-values are reachable and a few of them collect extra weight.
+
+=== step === concept
+::eyebrow The number people actually want
+## How often is a winner a dud?
+
+Now put the two pieces together. A test raises a false alarm about 5 percent of the time when nothing is there, and it catches a genuine improvement only some of the time. What fraction of the results that get called winners are actually duds depends on a third thing no test can see, which is how many of the ideas being tested were any good in the first place.
+
+So give Meera a year of ideas and find out. Suppose she tries a thousand tweaks to her shop, and suppose, generously, that one in ten of them genuinely lifts her purchase rate from 10 percent to 12.5 percent while the other nine hundred do nothing whatsoever. Nobody can measure that one-in-ten for a real shop, so we are choosing it in order to watch what follows from it.
+
+```r
+one_idea <- function(is_genuine) {
+  new_rate  <- if (is_genuine) 0.125 else 0.100
+  old_sales <- rbinom(1, 1200, 0.100)
+  new_sales <- rbinom(1, 1200, new_rate)
+  prop.test(c(new_sales, old_sales), c(1200, 1200), alternative = "greater")$p.value
+}
+
+set.seed(3)
+really_better <- rbinom(1000, 1, 0.10) == 1
+p_values      <- sapply(really_better, one_idea)
+
+table(really_better, called_a_winner = p_values < 0.05)
+#>              called_a_winner
+#> really_better FALSE TRUE
+#>         FALSE   864   36
+#>         TRUE     37   63
+```
+
+`rbinom(1000, 1, 0.10)` flips a thousand coins that come up heads a tenth of the time, so `really_better` is a thousand TRUE or FALSE values marking which ideas are the genuine ones. `sapply(really_better, one_idea)` runs the experiment once for each idea and collects the thousand p-values, and `table()` then cross-tabulates what was true against what the test said.
+
+Read the bottom right cell first: 63 genuine improvements were correctly spotted, which is most of the hundred that existed. Now read the top right: 36 ideas that did absolutely nothing were called winners anyway. So out of the 99 results that came back significant, 36 were duds.
+
+```r
+mean(!really_better[p_values < 0.05])
+#> [1] 0.3636364
+```
+
+`p_values < 0.05` picks out the significant results, `really_better[...]` looks up whether each of those was genuine, and the `!` flips it round so we are counting the duds. Thirty six percent of the year's winners were nothing at all.
+
+Say that next to the misreading and the gap is enormous. "There is a 3 percent chance this was a fluke" against "more than a third of the results I call winners are flukes". The honest figure also moves the instant the supply of good ideas moves: if only one idea in fifty were genuine the dud share would be far worse, and if half were genuine it would be small. The p-value never budges, because it never sees that number.
+
+```r
+mosaicplot(table(really_better, called_a_winner = p_values < 0.05),
+           color = c("grey85", "#d97706"), main = "1,000 ideas, judged")
+```
+
+The picture is that same table drawn to scale. The wide block is the nine hundred ideas that did nothing, and the thin orange slice inside it is the 36 of them that got called winners. That slice is small measured against all the duds, and yet it is more than a third of everything the year called a win, purely because there were nine hundred duds and only a hundred real ideas to begin with.
+
+=== step === quiz
+::eyebrow Check yourself
+## What the 36 percent tells you
+
+Meera's test came back at 0.03 and she is deciding how much to trust it. Given what the thousand-idea run showed, which of these is the honest summary?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- About 3 percent of results like hers turn out to be flukes, because her p-value was 0.03
+- What share of results like hers are flukes depends on how many of the ideas she tries are any good, and 0.03 is not that share ::ok Exactly right. The p-value is computed inside the no-difference world and never sees how common good ideas are, so it cannot report the fluke rate even in principle. In the run above, with one idea in ten being genuine, more than a third of the winners were duds. Change the supply of good ideas and that share changes with it, while the p-value sits there unmoved.
+- Exactly 36 percent of results like hers are flukes
+- The 36 percent shows the test is broken, so significance testing should be dropped ::no None of those hold up. The 3 percent is the wrong quantity entirely, since it describes the no-difference world rather than Meera's odds. The 36 percent is not a universal constant either, because it came out of one simulation built on a supposition we chose, that a tenth of her ideas are genuine, and it would move if that supposition moved. And the test is not broken: it did precisely what it promises, raising a false alarm about five times in a hundred when nothing was there, which only becomes a problem once you remember how many nothings get tested.
+
+=== step === concept
+::eyebrow Would it happen again?
+## Run the same real improvement twelve times
+
+Here is a fair question to ask of any p-value. If Meera ran the identical test again next month, would she get roughly the same number?
+
+We can answer it exactly, because we can build a world where the improvement is real and never changes. Set the old page at 10 percent and the new page at 12.5 percent, keep 1,200 visitors on each side, and run the month over and over. The improvement is genuine every single time, and only the visitors change.
+
+```r
+run_the_test <- function() {
+  old_sales <- rbinom(1, 1200, 0.100)
+  new_sales <- rbinom(1, 1200, 0.125)   # the new page really is better, every month
+  prop.test(c(new_sales, old_sales), c(1200, 1200), alternative = "greater")$p.value
+}
+
+set.seed(19)
+round(replicate(12, run_the_test()), 3)
+#>  [1] 0.102 0.112 0.198 0.060 0.048 0.208 0.527 0.008 0.143 0.422 0.094 0.021
+```
+
+Twelve months, one unchanging truth underneath all of them, and look at the spread. Month eight came back at 0.008, which would have the whole team celebrating. Month seven came back at 0.527, which reads as no evidence at all. Month five squeaked in at 0.048 and month four missed at 0.060, and those two months are describing precisely the same reality.
+
+That last pair deserves a long look, because the distance between 0.048 and 0.060 is the distance between shipping and shelving at most companies, and here it is entirely noise.
+
+So a p-value is not a stable property of an effect. It is a number computed from one sample, and it moves whenever the sample moves, which is why 1 minus the p-value is not the chance your result will hold up next time. A single p-value makes no promise whatsoever about the future.
+
+=== step === concept
+::eyebrow The other error
+## How often does a real win get caught?
+
+Those twelve months hint at something uncomfortable, so measure it. Run that same genuinely better page five thousand times and count how often the test notices.
+
+```r
+set.seed(19)
+many <- replicate(5000, run_the_test())
+mean(many < 0.05)
+#> [1] 0.6044
+```
+
+Sixty percent. The new page really is better in all five thousand of those months, and the test catches it in three months out of five. In the other two the number lands above 0.05, somebody says "no significant difference", and a genuinely better checkout page gets thrown in the bin. The seed is the same as the previous step, so those twelve months you just read are simply the first twelve of these five thousand.
+
+That hit rate has a name, **power**, and it is set mostly by how big the real effect is and how much data you gather. Choosing a sample size so that power is high enough to make running the test worthwhile at all is what part 4 of this course covers.
+
+For now the point is smaller and more immediate. A result above 0.05 is not a finding. It is the absence of one.
+
+=== step === tryit
+::eyebrow Your turn
+## Count the months that missed
+
+You have five thousand months sitting in `many`, every one of them from a world where the new page is genuinely better, and you know the test caught 60 percent of them.
+
+Now count the other kind of month directly, the ones where a real improvement failed to clear the 0.05 line. Fill in the blank.
+
+```r
+mean(many >= ____)
+```
+::check {"regex":"many\\s*>=\\s*0?\\.05","gate":true,"difficulty":"intermediate","ok":"Right, 0.3956, so very nearly four months in ten. A real improvement, a properly run test, and a two-in-five chance of walking away from it anyway. That is the failure nobody writes a triumphant blog post about.","no":"You want the months whose p-value failed to get under 0.05, so the comparison is many greater than or equal to 0.05."}
+::solution
+```r
+mean(many >= 0.05)
+#> [1] 0.3956
+```
+
+=== step === concept
+::eyebrow Not a size
+## A tiny p-value is not a big win
+
+People read a very small p-value as a very big effect. It does not work like that, because a p-value blends two separate things together: how big the difference is, and how much data you gathered. Hold the difference fixed at something trivial and add nothing but visitors.
+
+```r
+p_at_scale <- function(v) {
+  prop.test(c(round(v * 0.102), round(v * 0.100)), c(v, v), alternative = "greater")$p.value
+}
+
+sizes <- c(1200, 12000, 120000, 1200000)
+data.frame(visitors_per_page = sizes, p_value = signif(sapply(sizes, p_at_scale), 2))
+#>   visitors_per_page p_value
+#> 1              1200 4.7e-01
+#> 2             12000 3.1e-01
+#> 3            120000 5.3e-02
+#> 4           1200000 1.4e-07
+```
+
+R prints those p-values in scientific notation to keep the column tidy, so read `4.7e-01` as 4.7 with the decimal point shifted one place left, which is 0.47, and `1.4e-07` as 1.4 with it shifted seven places, which is 0.00000014.
+
+The difference is identical in every row: a purchase rate of 10.2 percent against 10.0 percent, which is two extra sales per thousand visitors and would not pay for the meeting that discussed it. At 1,200 visitors a side the p-value is 0.47, an emphatic shrug. At 1.2 million a side it is 0.00000014, which no threshold on earth would reject.
+
+Nothing about the improvement grew. Only the number of visitors did. A p-value answers "can I see this above the noise" and never "is this worth having", and those two questions have different answers all the time. A shop with enough traffic can prove a two-in-a-thousand improvement to any standard you like and still be entirely right to ignore it.
+
+The question p refuses to answer, how big the effect actually is, has tools of its own, and part 6 of this course is about them.
+
+=== step === concept
+::eyebrow The other misreading
+## A large p-value is not proof that nothing happened
+
+Meera's friend Dev runs a smaller shop and tries the same redesign. He gets 300 visitors on each page, with 38 purchases on the new one and 30 on the old.
+
+```r
+prop.test(c(38, 30), c(300, 300))
+#> 
+#> 	2-sample test for equality of proportions with continuity correction
+#> 
+#> data:  c(38, 30) out of c(300, 300)
+#> X-squared = 0.81269, df = 1, p-value = 0.3673
+#> alternative hypothesis: two.sided
+#> 95 percent confidence interval:
+#>  -0.02735138  0.08068471
+#> sample estimates:
+#>    prop 1    prop 2 
+#> 0.1266667 0.1000000 
+```
+
+His p-value is 0.37, so Dev concludes the redesign does nothing and keeps the old page. Look at what he just threw away.
+
+His new page converted 12.7 percent against 10.0 percent, which is the same sort of lift Meera saw. The line that matters is the confidence interval, running from -0.027 to 0.081. Read it as the range of improvements his data cannot rule out: anywhere from the new page being 2.7 points worse to it being 8.1 points better. His experiment is compatible with a substantial win and with a small loss at the same time, which is another way of saying he learned very little.
+
+That is what a large p-value means. Not "there is no difference" but "this experiment was too small to see one". Dev did not discover that nothing is there, he discovered that 300 visitors a side cannot answer his question. What that interval is and why 95 percent is a peculiar thing to be confident about is part 3 of this course.
+
+[WARNING]
+"Not significant" and "no difference" are different claims, and a large p-value only ever supports the first. Whenever you see the second one written down, go looking for the interval, because it usually turns out wide enough to include everything the writer said had been ruled out.
+
+=== step === quiz
+::eyebrow Check yourself
+## Writing up Dev's result
+
+Dev is sending his business partner a note about the test that came back at 0.37. Which version is honest?
+
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- The redesign makes no difference to sales, so we are keeping the old page
+- The redesign was not significant, which means the two pages perform the same
+- With 300 visitors on each page we could not tell the two apart: the data fits anything from 2.7 points worse to 8.1 points better, so we need a bigger test before deciding ::ok Yes, and notice that it reports what was actually learned, which is that the experiment was too small to answer the question. Putting the interval in the sentence makes the size of the uncertainty visible instead of burying it under the word "significant".
+- We should leave the test running and stop the moment it drops below 0.05 ::no None of those survive contact with the interval. Saying the redesign makes no difference, or that the pages perform the same, both claim something the data cannot support, since a true improvement of 8 points sits comfortably inside the range his experiment allows. Running on until the number dips under 0.05 is worse than either, because a test that can stop on any day it looks good will eventually look good even when nothing is happening, which is the stopping-rule trap from part 1.
+
+=== step === concept
+::eyebrow One question
+## The question has to be fixed before the data arrives
+
+Back at the start, `prop.test` was called with `alternative = "greater"`, and that little argument was doing more work than it looked like. It says the question is "did the new page do better", so "at least as extreme" means "at least this far ahead" and the shaded tail sits on one side of the curve only.
+
+Ask a different question of the identical data and you get a different number.
+
+```r
+prop.test(c(150, 120), c(1200, 1200))$p.value
+#> [1] 0.06101233
+```
+
+Leaving `alternative` out asks "did the two pages differ at all", which counts a big lead for the old page as being just as extreme as a big lead for the new one. There are now two tails to shade instead of one, and that is where the names come from: Meera's question is **one-sided**, this one is **two-sided**. Because the curve is symmetric the area comes to exactly double, so Meera's 0.031 becomes 0.061. Not a single purchase changed. Only the question did.
+
+Neither number is wrong, because they answer different questions. Which one is legitimate depends entirely on when Meera decided. She settled on "did the new page do better" before she launched, so 0.031 is hers to report. Had she run the test, seen the new page ahead, and only then decided to ask the one-sided question, she would have been picking the question to suit the answer, and the number would have stopped meaning what it claims.
+
+You met the sharpest version of this rule in part 1, where the experiment kept running until the numbers looked convincing. The principle underneath both is the same: everything about the question has to be settled before the data arrives, because the p-value is calculated as though it was.
+
+=== step === concept
+::eyebrow Nine dashboards
+## Checking nine metrics is not one test
+
+There is a quieter way to break that same rule, and it takes no dishonesty at all.
+
+Meera does not only track purchases. Her dashboard also reports average order value, time on page, cart abandonment, returns, newsletter sign-ups, repeat visits, support tickets and refunds. That is nine numbers, and if she checks each one for significance she is not running one test, she is running nine, with every one of them carrying its own 5 percent chance of a false alarm.
+
+Move the slider below. Every point on the curve comes from four thousand simulated studies in which nothing whatsoever is going on, and the height is the share of those studies that turned up at least one significant result.
+
+::widget multiplicity-sim {"kMax": 24, "kStart": 1, "alpha": 0.05, "nStudies": 4000, "corrections": ["none", "bonferroni"], "seed": 29, "study": 1}
+
+At one metric the false-alarm rate is 5 percent, which is the risk you knowingly signed up for and the flat line the chart labels alpha, the usual name for whichever cutoff you chose. At eight metrics it is past a third. By fourteen you are more likely than not to find a "winner" in a world where every single thing you measured is inert.
+
+Switch the correction on and you see the standard fix: judge each test against 0.05 divided by the number of tests instead of against 0.05 flat, which drags the overall false-alarm rate back to where you thought it was all along. It costs you sensitivity, and that is the honest trade rather than a free lunch.
+
+The habit worth taking away is simpler than any correction. Decide which single metric the decision rests on before you look, and treat everything else on the dashboard as something to investigate later rather than something to announce today.
+
+=== step === concept
+::eyebrow The write-up
+## What Meera should actually put in the email
+
+The p-value has told her one thing: the no-difference story has to strain a little to explain what she saw. That is genuinely useful, and it is also not a decision. A decision needs to know how much money is on the table and how sure she is about the amount.
+
+```r
+result <- prop.test(c(150, 120), c(1200, 1200))
+
+result$estimate
+#> prop 1 prop 2 
+#>  0.125  0.100 
+
+round(as.numeric(result$conf.int), 4)
+#> [1] -0.0011  0.0511
+```
+
+The estimate is the pair of rates she measured, so her best guess at the improvement is 2.5 percentage points. The interval says the true improvement is plausibly anywhere between about a tenth of a point worse and 5.1 points better. Wrapping it in `as.numeric()` just drops the label R attaches, so the two numbers print on one clean line.
+
+Now put that in her own units. Suppose the shop gets 5,000 visitors in a month.
+
+```r
+monthly_visitors <- 5000
+round(monthly_visitors * c(0.025, result$conf.int[1], result$conf.int[2]), 1)
+#> [1] 125.0  -5.5 255.5
+```
+
+Best guess, about 125 extra orders a month. Plausible range, anywhere from losing five orders to gaining 255. Now she has something she can actually decide with. If shipping the new page is cheap and easy to undo, 125 expected orders makes it an easy yes even with that much uncertainty hanging off it, whereas if it costs three weeks of development, the honest answer is that she does not know enough yet and should keep the test running.
+
+Notice that the interval dips just below zero at its lower end, by about a tenth of a percentage point, so it cannot quite rule out the new page being no better at all. That is the same fact the two-sided 0.061 was reporting a moment ago, said in a far more useful way, because this version also tells her how big the win could be.
+
+So the whole write-up is one sentence. The new page sold at 12.5 percent against 10.0 percent, an improvement of 2.5 points with a plausible range of roughly nothing to 5 points, and a result this good would turn up about 3 percent of the time if the redesign did nothing at all.
+
+=== step === concept
+::eyebrow The habit
+## Four questions to ask of any p-value
+
+::widget process-flow {"steps":[{"title":"Which world?","sub":"name the boring story the number was computed inside"},{"title":"Which question?","sub":"was it fixed before the data, and was there only one"},{"title":"How big?","sub":"the estimate and its interval, in units you care about"},{"title":"How likely was it?","sub":"good ideas are rare, and the p-value never saw that"}]}
+
+Take them in order. **Which world** forces whoever is talking to say out loud what the boring story was, and that question alone can end the conversation, because it is easy to report a p-value and hard to state precisely what it assumed.
+
+**Which question** catches the two failures from the last few steps. Was the comparison chosen before anyone saw the data, and was it the only comparison made? Nine metrics quietly checked is nine questions, whatever the write-up says.
+
+**How big** is the question the p-value cannot answer and the one your decision actually turns on. If the answer comes back without an interval, the reporting is incomplete no matter how small the p-value is.
+
+**How likely was it** is the one people forget, and it is what the thousand-idea simulation was about. A surprising result from a plausible idea and a surprising result from a wild guess deserve very different amounts of belief, and the p-value treats them identically.
+
+=== step === quiz
+::eyebrow Check yourself
+## One more claim to judge
+
+A colleague tells you the new onboarding flow lifted activation, p = 0.03. Over coffee it turns out they tracked nine different metrics on that release and this is the one that came back at 0.03. What is the honest thing to say?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- The result stands, because 0.03 is below 0.05 and the test itself was run correctly
+- The 0.03 was calculated as though a single question had been fixed in advance, and nine were asked, so it overstates how surprising the result is ::ok Exactly. The arithmetic behind that 0.03 is fine; what is wrong is the world it assumes. It assumes one prespecified comparison, and with nine comparisons the chance that at least one of them clears 0.05 by luck alone is roughly 37 percent rather than 5. Nothing here proves the onboarding flow does not work, and it may well be the real thing, which is exactly why the next move is to fix on activation as the metric and run it again.
+- The 0.03 means there is a 3 percent chance the new flow made no difference
+- Nine tests is fine, because each one carried its own separate 5 percent risk ::no None of those work. Saying the test was run correctly misses the point, since the problem is upstream of the arithmetic, in how many questions were asked. Reading 0.03 as the chance the flow made no difference runs the conditional backwards, which is the flip that took a thousand simulated ideas to break. And the last one has the arithmetic exactly wrong: each test does carry its own 5 percent risk, which is precisely why nine of them together carry far more, since it only takes one of the nine to light up.
+
+=== step === concept
+::eyebrow Go deeper
+## References
+
+Five places worth an hour if you want to push past where this lesson stops.
+
+- [The ASA statement on p-values and statistical significance, 2016](https://www.amstat.org/asa/files/pdfs/P-ValueStatement.pdf) - the American Statistical Association wrote this because of the misreadings you just worked through, and its six principles are two pages long.
+- [Greenland and colleagues, statistical tests, P values, confidence intervals and power, a guide to misinterpretations](https://link.springer.com/article/10.1007/s10654-016-0149-3) - twenty five specific misinterpretations taken apart one at a time, and the best single reference on this topic anywhere.
+- [Ioannidis, why most published research findings are false, 2005](https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.0020124) - the base-rate argument behind the thousand-idea simulation, worked out properly and applied to published science.
+- [Amrhein, Greenland and McShane in Nature, scientists rise up against statistical significance, 2019](https://www.nature.com/articles/d41586-019-00857-9) - the case for dropping the 0.05 verdict altogether, signed by more than eight hundred researchers.
+- [R documentation for prop.test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html) - the function you ran, including what the continuity correction does and when the approximation is safe.
+
+=== step === complete
+## Part 2 complete
+
+You built Meera's 0.03 from scratch, by scattering 270 purchases across 2,400 visitors fifty thousand times and counting how often chance alone put 150 or more of them on the new page. Then two other routes, the built-in test and an exact calculation, landed on the same three percent, which is about as good a sign as you get that the simulation and the formula were computing one idea between them.
+
+The sentence that survives is narrow on purpose. If the redesign changed nothing, a result this good or better would turn up about three times in a hundred. Everything the number refuses to say follows from that one clause. It is not the chance the improvement was a fluke, because a year of Meera's ideas would put that closer to a third. It is not a promise about next month, because the same true improvement handed back everything from 0.008 to 0.527 across twelve simulated months. It is not a measure of size, because 1.2 million visitors can make two extra sales per thousand look overwhelming. And a large p-value is not proof that nothing is there, as Dev found out with 300 visitors and an interval wide enough to hold almost any conclusion he wanted.
+
+The thing that kept rescuing the story was the interval, and every time it appeared it did more work than the p-value beside it. Part 3 is about that line: what "95 percent confident" actually means, why the textbook definition is the one most people get wrong, and how to build one yourself the same way you just built a p-value.
