@@ -24,6 +24,8 @@ TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "template.html")
 POSTS_DIR = os.path.join(REPO_ROOT, "_posts")
 LESSONS_DIR = os.path.join(REPO_ROOT, "_lessons")  # interactive lesson fragments (parallel to _posts)
 SITEMAP_PATH = os.path.join(REPO_ROOT, "sitemap.xml")
+# Built pages with lesson_access=windowed: excluded from sitemap + feed.
+WINDOWED_SLUGS = set()
 SIDEBAR_PATH = os.path.join(REPO_ROOT, "www", "sidebar.json")
 OG_DIR = os.path.join(REPO_ROOT, "screenshots", "og")
 VENDOR_DIR = os.path.join(REPO_ROOT, "www", "vendor")
@@ -2062,6 +2064,14 @@ def build_post(
         # them would leak locked text through search fragments.
         if _acc == 'pro':
             _attrs.append('data-pagefind-ignore')
+        # Windowed nurture lessons are non-public: out of search, out of the
+        # index, out of sitemap/feed (excluded below). Email + dashboard are
+        # their only doors; the middleware enforces the 72h window.
+        if _acc == 'windowed':
+            _attrs.append('data-pagefind-ignore')
+            page_html = page_html.replace(
+                '</head>', '<meta name="robots" content="noindex,nofollow">\n</head>', 1)
+            WINDOWED_SLUGS.add(os.path.splitext(os.path.basename(post_path))[0] + '.html')
         page_html = page_html.replace('{{LESSON_ACCESS}}', ' ' + ' '.join(_attrs))
         # Google's paywalled-content markup: Pro lessons serve the preview to
         # everyone and the full body only to entitled users (stripped at the
@@ -3842,9 +3852,12 @@ def main():
 
     # Sitemap and feed always regenerate from the full post_files list —
     # they are cheap and must stay in sync with what actually exists on disk.
-    update_sitemap(sorted(post_files))
+    public_files = [f for f in post_files if os.path.basename(f) not in WINDOWED_SLUGS]
+    if len(public_files) != len(post_files):
+        print(f'  Windowed lessons kept out of sitemap/feed: {len(post_files) - len(public_files)}')
+    update_sitemap(sorted(public_files))
     update_sitemap_tools()
-    generate_feed(sorted(post_files))
+    generate_feed(sorted(public_files))
 
     # Regenerate /tools/ landing page so its card grid stays in sync with
     # whatever tools/*.html files exist on disk (titles + descriptions).
