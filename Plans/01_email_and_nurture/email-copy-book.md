@@ -84,6 +84,11 @@ Voice pass v2 (2026-08-13, owner: v1 read mechanical). The additions:
 
 ---
 
+> **2026-08-16: the three welcome bodies and the flip were rewritten** (voice
+> pass v3: genuinely conversational, no em dashes, claim-to-start phrasing for
+> the pass). The live copy is `functions/_data/lifecycle-emails.json`; the
+> fenced bodies below for those four emails are historical.
+
 # 1. Welcome, day 0 (category: account, flag: welcome-email)
 
 One of three variants by `users.signup_gate`. Sent on first confirmed sign-in,

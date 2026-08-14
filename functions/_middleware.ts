@@ -13,6 +13,8 @@ import { extractToken, verifyJWT, type JWTPayload } from "./_lib/auth";
 import { getUserById, isSessionRevoked, upsertSession, type User } from "./_lib/db";
 import { parseDeviceLabel } from "./_lib/devices";
 import { resolveScope, scopeCovers } from "./_lib/entitlement";
+import { claimPass, PASS_TRACK } from "./_lib/pass";
+import { isProActive } from "./_lib/db";
 import proLessonsJson from "./_data/pro-lessons.json";
 import renamedPagesJson from "./_data/renamed-pages.json";
 import miniCoursesJson from "./_data/mini-courses.json";
@@ -128,6 +130,27 @@ async function serveProLesson(
   const out = new Response(res.body, res);
   out.headers.set("Cache-Control", "private, no-store");
   if (scopeCovers(scope, lessonTrack)) return out;
+  // Claim-to-start DA pass: a signed-in free user opening a gated DA-track
+  // lesson for the first time claims their 30 days right here, and this very
+  // page serves in full. The KV scope cache is busted so the claim takes
+  // effect everywhere immediately. Replays are no-ops (claimPass guards).
+  if (lessonTrack === PASS_TRACK) {
+    try {
+      if ((await context.env.KV.get("flag:da-pass")) === "on") {
+        const token = extractToken(context.request);
+        const payload = token ? await verifyJWT(token, context.env as never).catch(() => null) : null;
+        if (payload?.sub) {
+          const user = await getUserById(context.env.DB, payload.sub);
+          if (user && !isProActive(user) && !user.pass_claimed_at) {
+            if (await claimPass(context.env.DB, user.id)) {
+              await context.env.KV.delete(`prolesson:${payload.sub}`).catch(() => undefined);
+              return out; // their pass just started; serve the full lesson
+            }
+          }
+        }
+      }
+    } catch { /* fail closed to the normal strip */ }
+  }
   let stepIdx = 0;
   return new HTMLRewriter()
     .on("body", { element(el) { el.setAttribute("data-stripped", "1"); } })

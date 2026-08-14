@@ -145,7 +145,7 @@ export async function runBrain(
         u, key: "welcome", template, category: "account", priority: 0,
         data: {
           first_name: u.display_name,
-          pass_end_date: pass ? fmtDate(pass.ends_at) : undefined,
+          pass_end_date: pass && pass.claimed ? fmtDate(pass.ends_at) : undefined,
           hub_url: u.signup_slug ? `/${u.signup_slug.replace(/\.html$/, "")}.html` : undefined,
         },
         why: `signup ${Math.round((now - u.created_at) / 60)}min ago, gate=${gate || "none"}`,
@@ -156,23 +156,24 @@ export async function runBrain(
   // ---- pass arc (offers, DAILY). resolvePass is null while flag:da-pass is
   // off, so the whole arc is silent until the flip - by derivation. ---------
   if (flags.arc && dailyRun) {
-    const launchedRaw = await env.KV.get("da-pass:launched_at");
-    const launched = launchedRaw ? parseInt(launchedRaw, 10) : NaN;
     if ((await env.KV.get("flag:da-pass")) === "on") {
-      // Users whose pass day could be 23-33: start = max(created_at, launched).
-      const oldestStart = now - 34 * 86400;
+      // Claim-to-start: the arc runs on CLAIM day, so every email in it
+      // reaches someone who actually opened the track. Unclaimed users are
+      // simply not in the arc.
       const rows = await env.DB.prepare(
         `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
-                u.signup_gate, u.signup_slug, u.email_status, u.email_progress
+                u.signup_gate, u.signup_slug, u.email_status, u.email_progress,
+                u.pass_claimed_at
          FROM users u
-         WHERE u.deleted_at IS NULL AND u.created_at >= ?1
+         WHERE u.deleted_at IS NULL AND u.pass_claimed_at IS NOT NULL
+           AND u.pass_claimed_at >= ?1
          LIMIT 2000`,
-      ).bind(Number.isFinite(launched) ? Math.min(oldestStart, launched) : oldestStart)
-        .all<UserRow>();
+      ).bind(now - 34 * 86400)
+        .all<UserRow & { pass_claimed_at: number }>();
       for (const u of rows.results ?? []) {
         // Pro users have nothing expiring that matters; derivation retires them.
         if (u.pro_until === -1 || (u.pro_until ?? 0) > now) continue;
-        const start = Number.isFinite(launched) ? Math.max(u.created_at, launched) : u.created_at;
+        const start = u.pass_claimed_at;
         const day = Math.floor((now - start) / 86400);
         const endsAt = start + 30 * 86400;
         const dataCommon: TemplateData = {

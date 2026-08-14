@@ -110,21 +110,19 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
      GROUP BY a.user_id HAVING attempts >= 20 ORDER BY attempts DESC LIMIT 20`,
   ).bind(monthStart, now).all<{ email: string; display_name: string | null; attempts: number; last_at: number }>()).results ?? [];
 
-  // Pass-deadline cohort (only meaningful once flag:da-pass is on).
+  // Pass-deadline cohort (claim-to-start: day counts from pass_claimed_at).
   let passCohort: Array<{ email: string; day: number }> = [];
   if (flags["da-pass"]) {
-    const launchedRaw = await KV.get("da-pass:launched_at");
-    const launched = launchedRaw ? parseInt(launchedRaw, 10) : NaN;
     const rows = (await DB.prepare(
-      `SELECT email, created_at FROM users
-       WHERE deleted_at IS NULL AND (pro_until IS NULL OR (pro_until != -1 AND pro_until <= ?1))
-         AND created_at >= ?2 LIMIT 500`,
-    ).bind(now, Number.isFinite(launched) ? Math.min(now - 31 * 86400, launched) : now - 31 * 86400)
-      .all<{ email: string; created_at: number }>()).results ?? [];
+      `SELECT email, pass_claimed_at FROM users
+       WHERE deleted_at IS NULL AND pass_claimed_at IS NOT NULL
+         AND (pro_until IS NULL OR (pro_until != -1 AND pro_until <= ?1))
+         AND pass_claimed_at >= ?2 LIMIT 500`,
+    ).bind(now, now - 32 * 86400).all<{ email: string; pass_claimed_at: number }>()).results ?? [];
     passCohort = rows
-      .map((r) => ({ email: r.email, day: Math.floor((now - Math.max(r.created_at, Number.isFinite(launched) ? launched : r.created_at)) / 86400) }))
+      .map((r) => ({ email: r.email, day: Math.floor((now - r.pass_claimed_at) / 86400) }))
       .filter((r) => r.day >= 21 && r.day <= 31)
-      .sort((a, b) => b.day - a.day).slice(0, 30);
+      .sort((a2, b2) => b2.day - a2.day).slice(0, 30);
   }
 
   // ---- friction ------------------------------------------------------------
