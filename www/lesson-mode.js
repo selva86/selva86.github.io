@@ -119,6 +119,9 @@
     // 302s expired windows to the expiry page before this code ever runs),
     // so the client never account-walls or pro-walls them.
     var windowed = access === 'windowed';
+    // Mini courses award badges, not certificates: the Get-certified button
+    // is the wrong promise here, and the player has its own Pro moments.
+    if (windowed) { var certBtn = app.querySelector('.lm-cert'); if (certBtn) certBtn.style.display = 'none'; }
     var locked = (!windowed && (access === 'pro') && !body.classList.contains('pro')) || stripped;
     if (!stripped) { try { sessionStorage.removeItem('rsc-lm-reload:' + location.pathname); } catch (e) {} }
     // Gate v2 hold: a signed-in visitor holding a FULL (unstripped) Pro page
