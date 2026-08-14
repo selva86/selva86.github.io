@@ -1,0 +1,1455 @@
+---
+title: "Interaction effects: test and interpret them"
+description: "A coupon adds 12 dollars for new customers and about 3 for regulars, yet one model reports 7 for everybody. Fit it, test it, and report the difference honestly."
+keywords: "interaction effects, interaction term in R, lm interaction, simple slopes, moderation, centering predictors, interpreting an interaction coefficient, statistics for beginners"
+mathjax: true
+webr: true
+curriculum_id: "0.0.5"
+post_type: "LESSON"
+course_id: "reading-model-output"
+course_title: "Reading Regression Models"
+course_lesson: "1"
+course_total: "2"
+course_landing: "/dashboard.html"
+lesson_access: "windowed"
+catalog_blurb: "When one effect depends on another, and how to fit and report it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Part 1 of 2</div>
+<h2>Interaction effects: test and interpret them</h2>
+
+<p>You have had a lot of new ideas thrown at you this week, so today's is one you already know from ordinary life. It just needs a name and a bit of machinery.</p>
+
+<p>Priya runs an online tea shop. Last month she emailed a discount coupon to two hundred of her customers, half of them buying for the first time and half of them regulars who order every few weeks. When the month closed she worked out the average spend in each of the four groups and stuck the numbers on the wall.</p>
+
+<p>Read those bars in pairs. Among people ordering for the first time, the coupon moved the average from 22 dollars to 34, which is a lift of nearly 12. Among regulars it moved 39 to 42, a lift of about 3. So when her business partner asks the obvious question, does the coupon work, there is no single honest number to hand back, because it worked beautifully for one group and barely registered for the other.</p>
+
+<p>That is an <strong>interaction</strong>: the effect of one thing depends on another thing. The awkward part is that a model which has not been told to look for one will not report both numbers. It averages them and reports about 7, which is far too small to describe what happened to the new customers and far too big to describe what happened to the regulars. Nobody in Priya's shop received a lift of 7 dollars.</p>
+
+<p>By the end of this part you will be able to:</p>
+
+<ul>
+
+<li>Spot an interaction in a table of group averages, before fitting anything at all</li>
+
+<li>Put one into a model in R, and say in plain words what every coefficient means, including the strange-looking fourth one</li>
+
+<li>Test whether it earns its place, and say exactly what that test does and does not claim</li>
+
+<li>Report the result as two separate slopes with intervals, in a sentence someone can act on</li>
+
+<li>Read a main effect correctly once an interaction is present, and centre a predictor so the number means something</li>
+
+<li>Recognise the three ways this goes wrong: dropping a main effect, reading "not significant" as "the same in both groups", and running a study too small to find what you are looking for</li>
+
+</ul>
+
+<p><strong>What you need first:</strong> you can read a simple R script, so a variable, a vector, and a comparison like <code>customer == &quot;new&quot;</code> are familiar. No statistics background is assumed. Model, coefficient, slope, intercept, reference level, p-value, standard error and confidence interval all get defined here in plain words the moment they turn up.</p>
+
+<p>One thing worth saying before we start. Priya and her shop are invented, and we build her two hundred orders ourselves in R in a moment. That is deliberate rather than lazy, because in a made-up shop you know the true rules in advance, so at the end you can check whether the model found what we planted. On real data you never get to see the answer key.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"new, no","y":22.22},{"x":"new, yes","y":34.17},{"x":"regular, no","y":39.07},{"x":"regular, yes","y":41.88}],"geoms":["bar"],"x":"who","y":"avg_spend"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Three answers in a meeting</div>
+<h2>The three answers Priya could give</h2>
+
+<p>Put the three possible answers next to each other, because in a meeting they all sound equally reasonable.</p>
+
+<ul>
+
+<li><strong>Answer one.</strong> Yes, the coupon adds about 7 dollars per customer.</li>
+
+<li><strong>Answer two.</strong> Yes for new customers, who spend about 12 dollars more with it, and not really for regulars, who spend about 3 more.</li>
+
+<li><strong>Answer three.</strong> It depends, which is what people say when they have not looked.</li>
+
+</ul>
+
+<p>Answer one is a real number, correctly computed, and it describes nobody. Answer three is a shrug. Answer two is the one Priya can act on, because it tells her the coupon is a way of buying first orders rather than a way of getting more out of the people she already has, and those are two completely different business decisions.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">An interaction is not a complication somebody invented to make regression harder. It is what you get whenever the honest answer to "what is the effect of X" begins with "well, it depends on...". The model is only being asked to say out loud what you would say anyway.</div></div>
+
+<p>The rest of this part is about getting answer two out of R reliably, with a number attached to the difference, and a way to tell whether that difference is worth believing.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The raw material</div>
+<h2>Two hundred orders, built from nothing</h2>
+
+<p>Before we can model anything we need Priya's month. Here it is, made from scratch so we know exactly what is inside it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+
+orders &lt;- data.frame(
+  customer = rep(c(&quot;new&quot;, &quot;regular&quot;), each = 100),
+  coupon   = rep(c(&quot;no&quot;, &quot;yes&quot;), times = 100)
+)
+
+base_spend &lt;- ifelse(orders$customer == &quot;new&quot;, 22, 40)
+
+coupon_lift &lt;- rep(0, 200)
+coupon_lift[orders$coupon == &quot;yes&quot; &amp; orders$customer == &quot;new&quot;]     &lt;- 12
+coupon_lift[orders$coupon == &quot;yes&quot; &amp; orders$customer == &quot;regular&quot;] &lt;- 2
+
+orders$spend &lt;- round(base_spend + coupon_lift + rnorm(200, mean = 0, sd = 6), 2)
+
+head(orders)
+#&gt;   customer coupon spend
+#&gt; 1      new     no 30.23
+#&gt; 2      new    yes 30.61
+#&gt; 3      new     no 24.18
+#&gt; 4      new    yes 37.80
+#&gt; 5      new     no 24.43
+#&gt; 6      new    yes 33.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Take that apart line by line, because every rule we are about to try to recover is sitting in it.</p>
+
+<p><code>data.frame()</code> builds a table with one row per order. <code>rep(c(&quot;new&quot;, &quot;regular&quot;), each = 100)</code> writes "new" a hundred times and then "regular" a hundred times, and <code>rep(c(&quot;no&quot;, &quot;yes&quot;), times = 100)</code> alternates no, yes, no, yes all the way down, so within each customer type exactly half get a coupon. <code>set.seed(42)</code> pins R's random numbers so that your run prints the same figures as the ones here.</p>
+
+<p>Then the truth we are planting. A new customer's typical order is 22 dollars and a regular's is 40, which is <code>base_spend</code>. The coupon adds 12 dollars to a new customer's order and 2 to a regular's, which is <code>coupon_lift</code>, written as three plain lines rather than one clever one so you can see exactly which group gets what. Finally <code>rnorm(200, mean = 0, sd = 6)</code> adds ordinary noise, because no two orders are ever identical: the 6 is a <strong>standard deviation</strong>, the usual word for how far a typical order strays from its group's average, so most orders land within about 6 dollars either side of what the rules say.</p>
+
+<p>The interaction is that 12 against that 2. We put it there. Now everything that follows is a test of whether the tools can find it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(orders$customer, orders$coupon)
+#&gt;          
+#&gt;           no yes
+#&gt;   new     50  50
+#&gt;   regular 50  50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fifty orders in each of the four combinations, which is a tidy design and one less thing to worry about later.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The tempting shortcut</div>
+<h2>The answer you get if you do not look</h2>
+
+<p>Priya's first instinct is the natural one: compare everybody who got a coupon against everybody who did not.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(tapply(orders$spend, orders$coupon, mean), 2)
+#&gt;    no   yes 
+#&gt; 30.65 38.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tapply()</code> splits <code>spend</code> into groups defined by <code>coupon</code> and applies <code>mean()</code> to each group, so it is "average spend, one number per coupon status". The gap is 38.02 minus 30.65, which is 7.37 dollars.</p>
+
+<p>Nothing about that calculation is wrong. It is the true average difference across her two hundred orders, and if she had to summarise the month in one number it is the correct one number.</p>
+
+<p>The trouble starts the moment anyone uses it. Send a coupon to a new customer expecting 7 dollars back and you have badly undersold it. Send one to a regular expecting 7 and you have wasted the discount. A number that is wrong in opposite directions for the only two groups you have is worse than useless, because it is confidently wrong.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Look again, in groups</div>
+<h2>Split the same numbers four ways</h2>
+
+<p>The fix is not a technique. It is looking at the four cells you already have.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cell_means &lt;- tapply(orders$spend, list(orders$customer, orders$coupon), mean)
+round(cell_means, 2)
+#&gt;            no   yes
+#&gt; new     22.22 34.17
+#&gt; regular 39.07 41.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing <code>list(orders$customer, orders$coupon)</code> to <code>tapply()</code> splits by both columns at once, so you get a small grid: rows are customer type, columns are coupon status, and each entry is the average spend of the fifty orders in that combination. These four numbers are called <strong>cell means</strong>, cell being the old word for one box in a table like this.</p>
+
+<p>Now do the subtraction inside each row, which is what "the effect of the coupon" actually means for that group.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cell_means[, &quot;yes&quot;] - cell_means[, &quot;no&quot;], 2)
+#&gt;     new regular 
+#&gt;   11.95    2.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cell_means[, &quot;yes&quot;]</code> pulls out the whole "yes" column, so both coupon averages at once, and subtracting the "no" column gives the lift for each customer type in one line.</p>
+
+<p>There it is, before any model has been fitted: <strong>11.95 dollars for a first-time buyer and 2.81 for a regular.</strong> We planted 12 and 2, and two hundred orders got us to within a rounding error of both. The single average of 7.37 sits halfway between the two, which is exactly what an average does, and it describes neither of them.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The name for it</div>
+<h2>Two lines that are not parallel</h2>
+
+<p>Draw those four averages and the whole idea becomes something you can see rather than something you have to hold in your head.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interaction.plot(orders$coupon, orders$customer, orders$spend,
+                 xlab = &quot;coupon&quot;, ylab = &quot;average spend in dollars&quot;,
+                 trace.label = &quot;customer&quot;, type = &quot;b&quot;, pch = 19, lwd = 3,
+                 col = c(&quot;#2563a8&quot;, &quot;#b5631a&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>interaction.plot()</code> is built into R for exactly this picture. The first argument goes on the horizontal axis, the second becomes one line per group, and the third is the thing being averaged. So you get two lines, each running from its group's no-coupon average up to its coupon average.</p>
+
+<p>The line for new customers climbs steeply. The line for regulars is nearly flat. If the coupon had done the same thing to both groups the two lines would be <strong>parallel</strong>, sitting at different heights but rising by the same amount, and that is worth fixing in your memory because it is the whole visual signature:</p>
+
+<ul>
+
+<li><strong>Parallel lines</strong> mean the effect of the coupon is the same for everyone, and the two variables just add up.</li>
+
+<li><strong>Non-parallel lines</strong> mean the effect of one depends on the level of the other. That is an interaction.</li>
+
+</ul>
+
+<p>The vertical gap between the two lines is 16.85 dollars on the left and only 7.71 on the right, so you can also read the same fact the other way round: the difference between new customers and regulars shrinks when a coupon is involved. An interaction is always symmetric like that. The coupon's effect depends on who you are, and the who-you-are effect depends on the coupon, and those are two descriptions of one thing.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What the single number hides</h2>
+
+<p>Priya's partner sees the 7.37 dollar average lift and says the coupon is worth about 7 dollars a customer, so they should send it to everyone. Given the four cell means, what is wrong with that plan?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is wrong. 7.37 is the correct average, so it is the right number to plan with</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The 7.37 is wrong, because averages of averages are never valid</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It buys about 12 dollars of extra spend from a first-time buyer and about 3 from a regular, so a plan built on 7 overpays for regulars and undervalues the coupon as a way of winning new customers</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 7.37 is fine as a summary but coupons should never be sent to existing customers</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly, and notice that both halves of that sentence matter. The coupon looks like poor value if you judge it on regulars alone, and like a bargain if you judge it on new customers, so the single average leads to the wrong call in both directions at once. Priya can act on 12 and 3. Nobody can act on 7.</div><div class="lesson-qfb lesson-qfb-no">The arithmetic behind 7.37 is perfectly correct, which is what makes it dangerous rather than obviously broken: it is the true average lift across her two hundred orders. What it is not is a description of what happens to any actual customer, because the two groups it averages behave differently. And no rule of business follows automatically from that: whether the 3 dollars a regular spends is worth the discount is a separate question about margins, one the data here cannot answer.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Now fit a model</div>
+<h2>The model that cannot say it</h2>
+
+<p>So far this has all been arithmetic on group averages. Let us hand the same job to a model, because with two variables you can just about do it by hand, and with five you cannot.</p>
+
+<p>A <strong>linear model</strong> is a machine that takes the columns of your table and adds them up, with a weight on each one, to predict the outcome. Those weights are called <strong>coefficients</strong>, and <code>lm()</code> picks the ones that make the predictions miss the actual spends by as little as possible overall.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_add &lt;- lm(spend ~ coupon + customer, data = orders)
+round(coef(m_add), 3)
+#&gt;     (Intercept)       couponyes customerregular 
+#&gt;          24.506           7.378          12.280</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula <code>spend ~ coupon + customer</code> reads as "explain spend using coupon and customer". The <code>+</code> matters enormously and we are about to see why.</p>
+
+<p>Three coefficients came back. R turns each text column into a comparison against one level, chosen alphabetically and called the <strong>reference level</strong>, which here is "no" for coupon and "new" for customer. So:</p>
+
+<ul>
+
+<li><code>(Intercept)</code> <strong>24.506</strong> is what the model predicts for the reference combination, a new customer with no coupon.</li>
+
+<li><code>couponyes</code> <strong>7.378</strong> is what having a coupon adds.</li>
+
+<li><code>customerregular</code> <strong>12.280</strong> is what being a regular adds.</li>
+
+</ul>
+
+<p>Look hard at that middle number. It is one number. The model has exactly one slot for the effect of a coupon, so whatever it puts there gets applied to everybody, and it has landed on roughly the average lift we already computed by hand. This is not the model failing to notice something. It is the model doing precisely what <code>+</code> asked for: <strong>spend is the base, plus a bit for the coupon, plus a bit for being a regular</strong>, with the two bits never allowed to depend on each other.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where it goes wrong</div>
+<h2>An additive model can only draw parallel lines</h2>
+
+<p>That single-slot design has a consequence you can measure. Ask the model what it predicts in each of the four cells, and compare with what actually happened.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">four_cells &lt;- expand.grid(coupon = c(&quot;no&quot;, &quot;yes&quot;), customer = c(&quot;new&quot;, &quot;regular&quot;))
+four_cells$additive &lt;- round(predict(m_add, newdata = four_cells), 2)
+four_cells$actual &lt;- round(c(cell_means[&quot;new&quot;, &quot;no&quot;], cell_means[&quot;new&quot;, &quot;yes&quot;],
+                             cell_means[&quot;regular&quot;, &quot;no&quot;], cell_means[&quot;regular&quot;, &quot;yes&quot;]), 2)
+four_cells$miss &lt;- round(four_cells$actual - four_cells$additive, 2)
+four_cells
+#&gt;   coupon customer additive actual  miss
+#&gt; 1     no      new    24.51  22.22 -2.29
+#&gt; 2    yes      new    31.88  34.17  2.29
+#&gt; 3     no  regular    36.79  39.07  2.28
+#&gt; 4    yes  regular    44.16  41.88 -2.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>expand.grid()</code> builds every combination of the values you give it, so here it makes the four rows of Priya's table, and <code>predict()</code> asks a fitted model what it expects in each one.</p>
+
+<p>The model is wrong in all four cells by about the same 2.3 dollars, and the sign flips in a pattern: too high where the truth is low, too low where the truth is high. That is not random noise, which would scatter. It is a shape, and it is the shape of the thing the model was forbidden to fit.</p>
+
+<p>Here is the same failure in its cleanest possible form. The panel below fits two invented groups whose responses genuinely point in opposite directions, once with an additive model and once with an interaction, and reports what each one concludes.</p>
+
+<p>The dashed lines are the additive fit and they are parallel because nothing in that model could make them anything else. It is allowed to move a group up or down, and it is not allowed to change a group's direction. So when the two groups disagree about direction it averages them and reports a slope near zero, which is the numerical equivalent of standing between two arguing people and announcing that nobody said anything.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The sentence that comes out of an additive model when an interaction is present is not "there is no effect". It is "there is one effect and here is my best guess at it", said with complete confidence about a quantity that does not exist. The model has no way of telling you it was the wrong shape. Only you can notice that.</div></div>
+<div class="lesson-widget" data-widget-type="wrong-family-fit" data-widget-config='{"mode":"interaction","seed":31}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>One character changes everything</h2>
+
+<p>Swap the <code>+</code> for a <code>*</code> and refit.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_int &lt;- lm(spend ~ coupon * customer, data = orders)
+round(coef(m_int), 3)
+#&gt;               (Intercept)                 couponyes           customerregular 
+#&gt;                    22.221                    11.949                    16.851 
+#&gt; couponyes:customerregular 
+#&gt;                    -9.143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>coupon * customer</code> is shorthand. It expands to <code>coupon + customer + coupon:customer</code>, so you get both original terms plus a new one, and the colon is R's way of writing "these two, multiplied together". That new term is the <strong>interaction term</strong>, and it buys the model exactly one thing: permission to give the coupon a different effect in each customer group.</p>
+
+<p>Four coefficients now, and each has a job:</p>
+
+<ul>
+
+<li><code>(Intercept)</code> <strong>22.221</strong> is the reference cell again, a new customer with no coupon.</li>
+
+<li><code>couponyes</code> <strong>11.949</strong> is what the coupon adds <strong>for new customers only</strong>, because new is the reference level of customer.</li>
+
+<li><code>customerregular</code> <strong>16.851</strong> is how much more a regular spends <strong>when there is no coupon</strong>, because no is the reference level of coupon.</li>
+
+<li><code>couponyes:customerregular</code> <strong>-9.143</strong> is the new one: how much <em>less</em> the coupon does for a regular than it does for a new customer.</li>
+
+</ul>
+
+<p>Compare the second number with what we computed by hand a few steps ago. The lift for new customers was 11.95, and here it is again as a coefficient. Then 11.949 minus 9.143 is 2.806, which is the regulars' lift. The model has recovered both group answers, and it stored them as one answer plus a correction.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Once an interaction is in the model, <code>couponyes</code> is no longer "the effect of the coupon". It is the effect of the coupon <em>at the reference level of the other variable</em>. That single fact is behind most of the confusion people have with interaction output, and we will keep returning to it until it is boring.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Proof it worked</div>
+<h2>The model now reproduces all four cells exactly</h2>
+
+<p>The additive model missed every cell by 2.3 dollars. Ask the new one the same question.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">four_cells$with_interaction &lt;- round(predict(m_int, newdata = four_cells), 2)
+four_cells[, c(&quot;coupon&quot;, &quot;customer&quot;, &quot;actual&quot;, &quot;additive&quot;, &quot;with_interaction&quot;)]
+#&gt;   coupon customer actual additive with_interaction
+#&gt; 1     no      new  22.22    24.51            22.22
+#&gt; 2    yes      new  34.17    31.88            34.17
+#&gt; 3     no  regular  39.07    36.79            39.07
+#&gt; 4    yes  regular  41.88    44.16            41.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every prediction now matches its cell mean to the last decimal, and that is not luck. With two variables of two levels each you have four cell means to describe, and the interaction model has exactly four coefficients, so it can hit all four dead on. Fitting it is really just a way of re-expressing the table you already had.</p>
+
+<p>Which raises a fair question: if it only reproduces the cell means, why bother fitting anything? Three reasons, and they are the rest of this lesson.</p>
+
+<ul>
+
+<li>The model attaches <strong>uncertainty</strong> to each of those numbers, so you can tell a real difference from a lucky one.</li>
+
+<li>It keeps working when the variables are <strong>not</strong> two-level groups, for example a discount that can be any percentage, where there are no cells to average.</li>
+
+<li>It lets you <strong>test</strong> the difference formally, which is what someone reviewing the decision is going to ask for.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">The interpretation that sticks</div>
+<h2>An interaction coefficient is a difference of differences</h2>
+
+<p>The fourth coefficient looks strange, so let us build it from the cell means with nothing but subtraction.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_lift     &lt;- cell_means[&quot;new&quot;, &quot;yes&quot;]     - cell_means[&quot;new&quot;, &quot;no&quot;]
+regular_lift &lt;- cell_means[&quot;regular&quot;, &quot;yes&quot;] - cell_means[&quot;regular&quot;, &quot;no&quot;]
+
+round(c(new = new_lift,
+        regular = regular_lift,
+        difference = regular_lift - new_lift), 3)
+#&gt;        new    regular difference 
+#&gt;     11.949      2.806     -9.143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the last number and then look back at the coefficient table. <strong>-9.143</strong> appears in both places, and it is not a coincidence: an interaction coefficient is literally the difference between two differences. The coupon's effect for regulars, minus the coupon's effect for new customers.</p>
+
+<p>That gives you a sentence you can use every time. Say it as: <em>the coupon does 9.14 dollars less for a regular than it does for a first-time buyer</em>. Not "regulars spend 9.14 less", which is a different claim about a different thing, and not "the interaction is significant", which is not a claim about the world at all.</p>
+
+<p>The symmetry is worth checking too. Subtract the other way, taking the customer-type gap with a coupon minus the customer-type gap without one, and you get 7.71 minus 16.85, which is the same -9.14. There is one interaction between two variables, and you can tell its story from either side.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">When you get lost in an interaction model, go back to the cell means. Every coefficient in a two-by-two model is a sum or difference of those four numbers, and reconstructing one by hand takes thirty seconds and settles any argument.</div></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Write the same model the long way</h2>
+
+<p><code>coupon * customer</code> is shorthand for writing out both single terms and the cross term. Prove it to yourself by writing the long form, and check that R gives back exactly the same four coefficients.</p>
+
+<p>The colon operator, <code>a:b</code>, is the cross term on its own. Fill in the blank so the model has the coupon term, the customer term, and their interaction.</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step13" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(coupon\s*:\s*customer|customer\s*:\s*coupon)"><textarea class="lesson-tryit-input" spellcheck="false">m_colon &lt;- lm(spend ~ ____, data = orders)
+round(coef(m_colon), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Identical coefficients, down to the last decimal, because the two formulas describe the same model. Most people write the star form because it is shorter and it makes forgetting a main effect impossible. The colon form is worth knowing anyway, because you will meet it in other people's code, and because it is the only way to write down a model that has a cross term without its main effects, which is a trap we come back to near the end.</span><span class="lesson-tryit-fb lesson-tryit-no">You need all three pieces separated by plus signs: coupon, customer, and the cross term written with a colon between the two names.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">m_colon &lt;- lm(spend ~ coupon + customer + coupon:customer, data = orders)
+round(coef(m_colon), 3)
+#&gt;               (Intercept)                 couponyes           customerregular 
+#&gt;                    22.221                    11.949                    16.851 
+#&gt; couponyes:customerregular 
+#&gt;                    -9.143</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Say the coefficient out loud</h2>
+
+<p>The interaction coefficient <code>couponyes:customerregular</code> came back as <strong>-9.143</strong>. Which sentence states what it means?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Regulars spend 9.14 dollars less than new customers</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The coupon is worth 9.14 dollars less to a regular than it is to a first-time buyer, so the lift falls from 11.95 to 2.81</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The coupon costs Priya 9.14 dollars every time a regular uses it</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Regulars are 9.14 dollars less likely to use the coupon</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is it, and the giveaway is that the sentence has to mention both variables to make sense. An interaction coefficient is a difference between two differences, so any correct reading of it names the effect that is changing and the thing it changes with. Note also that the negative sign says smaller, not harmful: the coupon still lifts a regular by 2.81 dollars, just far less than it lifts a newcomer.</div><div class="lesson-qfb lesson-qfb-no">All three of the others quietly drop one of the two variables. The first describes a plain gap between customer types, which is a different coefficient in the same table, <code>customerregular</code>, and it is 16.85. The third invents a cost, when nothing here measures margins or discount value at all, only spend. The fourth talks about who uses the coupon, when every customer in the design was simply assigned one or not. The interaction is about how one effect changes across levels of the other, and nothing else.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">The notation</div>
+<h2>The same thing written with symbols</h2>
+
+<p>You will meet this model written out formally, so here it is with every symbol named. Let \\(y\\) be the spend on an order, and write the two group memberships as switches that are either 0 or 1: \\(c = 1\\) if the order used a coupon and 0 if it did not, and \\(r = 1\\) if the customer is a regular and 0 if they are new.</p>
+
+<p>\\[ y = \\beta_0 + \\beta_1 c + \\beta_2 r + \\beta_3 (c \\times r) + \\varepsilon \\]</p>
+
+<p>The Greek letters are just names for the four coefficients R printed, in the same order: \\(\\beta_0\\) is the intercept 22.221, \\(\\beta_1\\) is <code>couponyes</code> 11.949, \\(\\beta_2\\) is <code>customerregular</code> 16.851, and \\(\\beta_3\\) is the interaction -9.143. The last symbol, \\(\\varepsilon\\), is the leftover for each order, the part the four rules do not explain, which for us is the noise we added with <code>rnorm()</code>.</p>
+
+<p>Now do the useful thing with it. The effect of the coupon is whatever changes when \\(c\\) goes from 0 to 1 and the customer stays the same person, so write down both predictions and subtract. With a coupon, \\(c = 1\\), the prediction is \\(\\beta_0 + \\beta_1 + \\beta_2 r + \\beta_3 r\\). Without one, \\(c = 0\\), it is \\(\\beta_0 + \\beta_2 r\\). Take the second away from the first and the \\(\\beta_0\\) and \\(\\beta_2 r\\) cancel, leaving</p>
+
+<p>\\[ \\text{effect of the coupon} = \\beta_1 + \\beta_3 r \\]</p>
+
+<p>That is the whole idea in one line. The coupon's effect is not a number, it is a <strong>function of who is receiving it</strong>. Put \\(r = 0\\) in and you get \\(\\beta_1\\), which is 11.95 for a new customer. Put \\(r = 1\\) in and you get \\(\\beta_1 + \\beta_3\\), which is 11.949 minus 9.143, or 2.81 for a regular. Both of those are numbers we already had from the cell means, so the algebra is not telling us anything new, it is telling us where the numbers live.</p>
+
+<p>Set \\(\\beta_3 = 0\\) and the effect of the coupon stops depending on \\(r\\) at all, which is precisely the additive model from earlier. So "is there an interaction" is the same question as "is \\(\\beta_3\\) something other than zero", and that is a question we can test.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<div class="lesson-step-eyebrow">Does it earn its place</div>
+<h2>Testing the extra term</h2>
+
+<p>Adding a term to a model always improves its fit to the data in front of you, even when the term is nonsense, so "the fit got better" proves nothing on its own. The proper question is whether it improved by more than a useless term would have. Start with the full output, which is what you would normally look at first anyway.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(m_int)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = spend ~ coupon * customer, data = orders)
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -18.1806  -3.5004   0.2844   3.7050  16.3318 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                           Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)                22.2206     0.8307  26.749  &lt; 2e-16 ***
+#&gt; couponyes                  11.9494     1.1748  10.171  &lt; 2e-16 ***
+#&gt; customerregular            16.8514     1.1748  14.344  &lt; 2e-16 ***
+#&gt; couponyes:customerregular  -9.1432     1.6614  -5.503 1.16e-07 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 5.874 on 196 degrees of freedom
+#&gt; Multiple R-squared:  0.6257,	Adjusted R-squared:   0.62 
+#&gt; F-statistic: 109.2 on 3 and 196 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is a lot of print for one model, and most of it can wait. The <code>Residuals</code> block at the top and the <code>Residual standard error</code> line near the bottom both describe the leftovers, the part of each order the model could not explain, which is what part 2 is about. <code>Multiple R-squared</code> gets defined a few steps from now.</p>
+
+<p>The row to read is the last one. <code>Estimate</code> is the coefficient, -9.1432. <code>Std. Error</code> is the <strong>standard error</strong>, 1.6614, which is how much that estimate would typically wobble if Priya ran the whole month again with two hundred different customers. <code>t value</code> is simply the estimate divided by its standard error, so it asks how many wobbles away from zero the estimate sits, and -9.1432 divided by 1.6614 gives -5.503. <code>Pr(&gt;|t|)</code> is the <strong>p-value</strong>: how often you would see an estimate at least that far from zero if the coupon really did the same thing to both groups. Here it is 1.16e-07, which is 0.000000116, so almost never.</p>
+
+<p>The same question can be asked by comparing the two models directly, which is the version to use when the interaction involves more than one coefficient.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anova(m_add, m_int)
+#&gt; Analysis of Variance Table
+#&gt; 
+#&gt; Model 1: spend ~ coupon + customer
+#&gt; Model 2: spend ~ coupon * customer
+#&gt;   Res.Df    RSS Df Sum of Sq      F    Pr(&gt;F)    
+#&gt; 1    197 7807.7                                  
+#&gt; 2    196 6762.8  1      1045 30.286 1.157e-07 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>anova()</code> given two models compares them. <code>RSS</code> is the residual sum of squares, the total of all the squared misses, so smaller is a closer fit: allowing the coupon to act differently in the two groups cut the misses from 7807.7 to 6762.8. <code>Df</code> of 1 says the interaction cost exactly one extra coefficient. The <code>F</code> statistic weighs the improvement against that cost, and <code>Pr(&gt;F)</code> is again the p-value, 1.157e-07.</p>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">One decision, not three</div>
+<h2>The t test, the F test and AIC agree because they must</h2>
+
+<p>Two p-values came out of what look like two different procedures, and they are the same number: the 1.16e-07 in the coefficient table is 1.157e-07 with fewer digits shown. That is not a coincidence either.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t_value &lt;- coef(summary(m_int))[&quot;couponyes:customerregular&quot;, &quot;t value&quot;]
+round(c(t = t_value, t_squared = t_value^2), 3)
+#&gt;         t t_squared 
+#&gt;    -5.503    30.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Square the t and you get the F exactly. When an interaction is a single coefficient, the row in the coefficient table and the model comparison are the same test wearing different clothes, so there is no point running both and no sense in which two agreeing results are stronger evidence than one.</p>
+
+<p>A third tool gets used for the same decision and is genuinely different.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(m_add, m_int)
+#&gt;       df      AIC
+#&gt; m_add  4 1308.486
+#&gt; m_int  5 1281.750</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>AIC</strong> scores a model on how well it fits after charging it a fixed penalty for each coefficient it uses, and lower is better. The interaction model pays for its extra term and still comes out about 27 points ahead. AIC does not produce a p-value and does not test anything, it just ranks candidates, which makes it handy when you are choosing among several models rather than asking one yes-or-no question.</p>
+
+<p>All three point the same way here, which is the comfortable case. When they disagree it is nearly always because the effect is small relative to the data you have, and the honest response is to report the size and its uncertainty rather than to keep running tests until one of them says something you like.</p>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What the p-value on the interaction claims</h2>
+
+<p>The interaction came back with a p-value of 0.000000116. Which of these does that number support?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step18" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 0.000000116 chance that the coupon works equally well for both groups</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The interaction explains 99.99 percent of what happened to spend</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">If the coupon really did the same thing to both groups, a gap between the two lifts at least as big as the one Priya saw would turn up this rarely, so that explanation fits her data very badly</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The gap between the two lifts is 0.000000116 dollars away from its true value</span></button>
+<button type="button" class="lesson-opt" data-i="5"><span class="lesson-opt-mk">E</span><span class="lesson-opt-tx">Adding the interaction improved the fit, which is what the p-value measures</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right, and the shape of the sentence is the part worth keeping: a p-value starts from a supposed world in which there is no difference, and reports how ordinary or extraordinary your result would be in it. It never runs the other way. Notice too that it says nothing about size. This one is tiny because the gap of 9.14 dollars is large and two hundred orders is plenty; a trivial gap measured on a million orders would also produce a tiny p-value.</div><div class="lesson-qfb lesson-qfb-no">The three wrong answers each attach the number to the wrong thing. It is not the probability that the no-difference story is true, because that story is either true or it is not, and the p-value is computed by assuming it. It is not a share of anything explained, which is what R-squared reports, 0.6257 here for the whole model. And it is not a measure of improvement on its own, because any extra term improves the fit; the test is about whether the improvement is bigger than a useless term would have managed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="concept">
+<div class="lesson-step-eyebrow">A different flavour</div>
+<h2>When the moderator is a number, not a group</h2>
+
+<p>Priya runs a second campaign, and this one is more interesting. Instead of one coupon she sends out coupons of different sizes, anything from 5 percent off to 30 percent off, and she wants to know whether a bigger discount buys more spend.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+
+campaign &lt;- data.frame(
+  customer = rep(c(&quot;new&quot;, &quot;regular&quot;), each = 90),
+  discount = round(runif(180, min = 5, max = 30))
+)
+
+quiet_spend &lt;- ifelse(campaign$customer == &quot;new&quot;, 18, 39)
+per_percent &lt;- ifelse(campaign$customer == &quot;new&quot;, 0.9, 0.1)
+
+campaign$spend &lt;- round(quiet_spend + per_percent * campaign$discount +
+                          rnorm(180, mean = 0, sd = 5), 2)
+
+head(campaign)
+#&gt;   customer discount spend
+#&gt; 1      new       30 53.18
+#&gt; 2      new       15 28.27
+#&gt; 3      new        8 28.29
+#&gt; 4      new        7 25.48
+#&gt; 5      new       11 32.13
+#&gt; 6      new       25 37.63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>runif(180, min = 5, max = 30)</code> draws 180 numbers spread evenly between 5 and 30, which is the size of the discount each customer was offered, rounded to whole percentages. The truth we are planting this time is in <code>per_percent</code>: every extra percentage point off is worth 90 cents of extra spend to a new customer and 10 cents to a regular.</p>
+
+<p>Nothing structural has changed. One of the two variables is now a number that can take many values instead of a two-level group, so there are no cells to average any more, and the interaction stops being a difference of differences and becomes a difference of <strong>slopes</strong>. A slope is just "how much the outcome moves per one-unit change in the predictor", so here it is dollars of extra spend per extra percentage point off. The other variable gets a name at this point too. Whichever one the effect depends on is called the <strong>moderator</strong>, so customer type moderates the effect of the discount, and from here on that is the word for it.</p>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two slopes</div>
+<h2>The same formula, a different reading</h2>
+
+<p>The formula is the one you already know.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_disc &lt;- lm(spend ~ discount * customer, data = campaign)
+round(coef(summary(m_disc)), 3)
+#&gt;                          Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)                20.170      1.429  14.110        0
+#&gt; discount                    0.817      0.074  10.975        0
+#&gt; customerregular            20.249      2.111   9.592        0
+#&gt; discount:customerregular   -0.807      0.108  -7.445        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Before reading the numbers, one note on that last column: it says 0.000 for every row because rounding to three decimals cannot show a number smaller than 0.0005, not because the p-values are actually zero. We get the real one in a moment.</p>
+
+<p>Now the coefficients, which follow exactly the same rules as before with the word "slope" swapped in for "lift":</p>
+
+<ul>
+
+<li><code>(Intercept)</code> <strong>20.170</strong> is predicted spend for a new customer with a discount of zero, which is outside the range Priya actually offered, so treat it as a starting point for the line rather than a fact about anybody.</li>
+
+<li><code>discount</code> <strong>0.817</strong> is the slope <strong>for new customers</strong>, so 82 cents of extra spend per extra percentage point off.</li>
+
+<li><code>customerregular</code> <strong>20.249</strong> is how much higher a regular's line starts, again at a discount of zero.</li>
+
+<li><code>discount:customerregular</code> <strong>-0.807</strong> is how much <em>flatter</em> the regular's line is, in dollars per percentage point.</li>
+
+</ul>
+
+<p>Add the first and last of those to get the regulars' own slope.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">b &lt;- coef(m_disc)
+round(c(new     = unname(b[&quot;discount&quot;]),
+        regular = unname(b[&quot;discount&quot;] + b[&quot;discount:customerregular&quot;])), 3)
+#&gt;     new regular 
+#&gt;   0.817   0.010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>coef()</code> pulls the coefficients out as a named vector, <code>b[&quot;discount&quot;]</code> picks one by name, and <code>unname()</code> just strips the leftover label so the printout stays readable. <strong>0.817 for new customers and 0.010 for regulars</strong>, against the 0.9 and 0.1 we planted. A slope of 0.010 means a regular given one extra percentage point off spends about one more cent, which for practical purposes is nothing at all.</p>
+</section>
+
+<section class="lesson-step" data-step="21" data-step-type="concept">
+<div class="lesson-step-eyebrow">See it</div>
+<h2>One coupon, two very different answers</h2>
+
+<p>The numbers are the finding, and the picture is what you put in front of Priya.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">is_new &lt;- campaign$customer == &quot;new&quot;
+
+plot(campaign$discount, campaign$spend,
+     col = ifelse(is_new, &quot;#2563a8&quot;, &quot;#b5631a&quot;), pch = 19,
+     xlab = &quot;percent off the coupon gave&quot;, ylab = &quot;spend in dollars&quot;,
+     main = &quot;One coupon, two very different answers&quot;)
+abline(a = b[&quot;(Intercept)&quot;], b = b[&quot;discount&quot;], col = &quot;#2563a8&quot;, lwd = 3)
+abline(a = b[&quot;(Intercept)&quot;] + b[&quot;customerregular&quot;],
+       b = b[&quot;discount&quot;] + b[&quot;discount:customerregular&quot;], col = &quot;#b5631a&quot;, lwd = 3)
+legend(&quot;topleft&quot;, c(&quot;new&quot;, &quot;regular&quot;), col = c(&quot;#2563a8&quot;, &quot;#b5631a&quot;),
+       pch = 19, lwd = 3, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>plot()</code> draws one dot per customer, <code>ifelse(is_new, ...)</code> colours it by group, and <code>abline(a = , b = )</code> draws a straight line given an intercept and a slope. The two <code>abline()</code> calls are the two rows of algebra from the previous step, turned into lines: the blue line starts at the intercept and climbs at 0.817, and the orange line starts 20.25 higher and climbs at 0.010.</p>
+
+<p>The blue cloud tilts. The orange cloud does not. If Priya had fitted an additive model here she would have got one line for the tilt, drawn twice at two heights, and it would have been too flat for the newcomers and too steep for the regulars, exactly as before.</p>
+
+<p>Notice what happens across the chart, because this is the part that makes the finding actionable. At the small end, 5 percent off, the model puts a new customer at 24.26 dollars and a regular at 40.47, a gap of about 16. At 30 percent off it puts them at 44.69 and 40.72, so the newcomer has not merely caught up, they have gone about four dollars past. The deepest coupon Priya offers turns her lowest spenders into her highest, which tells her what the coupon is really for.</p>
+</section>
+
+<section class="lesson-step" data-step="22" data-step-type="concept">
+<div class="lesson-step-eyebrow">Honest uncertainty</div>
+<h2>Putting an interval on a slope you had to add up</h2>
+
+<p>The regulars' slope, 0.010, came from adding two coefficients together. Both of those coefficients are estimates with their own wobble, so the sum has wobble too, and R does not print it because it is not a row in the table. You have to build it.</p>
+
+<p>For a sum of two estimated things, the variances do not simply add. There is a third term for how the two estimates move together:</p>
+
+<p>\\[ \\text{Var}(\\beta_1 + \\beta_3) = \\text{Var}(\\beta_1) + \\text{Var}(\\beta_3) + 2\\,\\text{Cov}(\\beta_1, \\beta_3) \\]</p>
+
+<p><strong>Variance</strong> is the square of a standard error, so it is a measure of wobble, and <strong>covariance</strong> is how much two estimates tend to be wrong in the same direction. All of those numbers live in one table that <code>vcov()</code> hands you.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">V &lt;- vcov(m_disc)
+
+slope_regular &lt;- unname(b[&quot;discount&quot;] + b[&quot;discount:customerregular&quot;])
+se_regular &lt;- sqrt(V[&quot;discount&quot;, &quot;discount&quot;] +
+                     V[&quot;discount:customerregular&quot;, &quot;discount:customerregular&quot;] +
+                     2 * V[&quot;discount&quot;, &quot;discount:customerregular&quot;])
+
+t_crit &lt;- qt(0.975, df = df.residual(m_disc))
+
+round(c(slope = slope_regular,
+        lower = slope_regular - t_crit * se_regular,
+        upper = slope_regular + t_crit * se_regular), 3)
+#&gt;  slope  lower  upper 
+#&gt;  0.010 -0.145  0.166</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>vcov()</code> returns the variance-covariance matrix of the coefficients: the diagonal entries are the variances and the off-diagonal ones are the covariances, all picked out here by name. <code>qt(0.975, df = ...)</code> gives the multiplier for a 95 percent interval, asking for 0.975 rather than 0.95 because the leftover 5 percent is split between the two ends. <code>df.residual()</code> reports the degrees of freedom, which is the sample size minus the number of coefficients, 176 here.</p>
+
+<p>The estimate, plus and minus that multiplier times the standard error, is a <strong>confidence interval</strong>. The 95 percent is a claim about the method rather than about this one campaign: if Priya ran her month again and again and built an interval this way each time, about 95 in every 100 of them would contain the true slope. Day to day you read it as the range of values the data are compatible with. Written short it is a <strong>CI</strong>, which is how it turns up in the report at the end.</p>
+
+<p>So the regulars' slope is <strong>0.010, and the data are compatible with anything from -0.145 to 0.166</strong>. The interval comfortably contains zero, which is the formal way of saying that on this evidence a bigger discount does not measurably move a regular in either direction. Do the same for the new customers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">se_new &lt;- sqrt(V[&quot;discount&quot;, &quot;discount&quot;])
+slope_new &lt;- unname(b[&quot;discount&quot;])
+
+round(c(slope = slope_new,
+        lower = slope_new - t_crit * se_new,
+        upper = slope_new + t_crit * se_new), 3)
+#&gt; slope lower upper 
+#&gt; 0.817 0.670 0.964</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>New customers: <strong>0.817, with an interval from 0.670 to 0.964</strong>, nowhere near zero. That one is easier because R already printed its standard error, since <code>discount</code> is a row in the table. The interval for a group that needs two coefficients added is the one people skip, and it is usually the one the reader cares about most.</p>
+</section>
+
+<section class="lesson-step" data-step="23" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Test the second interaction yourself</h2>
+
+<p>You have the coefficient and its t test. Run the model comparison instead, which is the version you would use if <code>customer</code> had more than two levels.</p>
+
+<p>The model without the interaction is built for you below and called <code>m_flat</code>. Hand both models to <code>anova()</code>, the simpler one first.</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step23" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="anova\s*\(\s*m_flat"><textarea class="lesson-tryit-input" spellcheck="false">m_flat &lt;- lm(spend ~ discount + customer, data = campaign)
+anova(____, m_disc)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">F is 55.4 with a p-value of 4.15e-12, so letting the two groups have their own slopes cut the residual sum of squares from 5723.9 to 4353.0, and a useless extra term would essentially never manage that. Putting the simpler model first is only a convention, but a helpful one, because the table then reads as a story of what the extra term bought rather than what removing it cost.</span><span class="lesson-tryit-fb lesson-tryit-no">The first argument is the simpler model, the one without the interaction, which we just built and called m_flat.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">m_flat &lt;- lm(spend ~ discount + customer, data = campaign)
+anova(m_flat, m_disc)
+#&gt; Analysis of Variance Table
+#&gt; 
+#&gt; Model 1: spend ~ discount + customer
+#&gt; Model 2: spend ~ discount * customer
+#&gt;   Res.Df    RSS Df Sum of Sq      F    Pr(&gt;F)    
+#&gt; 1    177 5723.9                                  
+#&gt; 2    176 4353.0  1    1370.9 55.427 4.152e-12 ***</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="24" data-step-type="concept">
+<div class="lesson-step-eyebrow">What it is worth</div>
+<h2>Turn the slopes into money</h2>
+
+<p>Slopes are the model's language. Priya's language is dollars per customer, so convert before you present anything.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">menu &lt;- expand.grid(discount = c(10, 25), customer = c(&quot;new&quot;, &quot;regular&quot;))
+menu$predicted &lt;- round(predict(m_disc, newdata = menu), 2)
+menu
+#&gt;   discount customer predicted
+#&gt; 1       10      new     28.34
+#&gt; 2       25      new     40.60
+#&gt; 3       10  regular     40.52
+#&gt; 4       25  regular     40.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the pairs. Raising a new customer's coupon from 10 percent off to 25 percent off takes their expected order from 28.34 to 40.60, so <strong>12.26 dollars more spend for 15 more percentage points of discount</strong>. Doing the same for a regular takes 40.52 to 40.67. That is <strong>fifteen cents</strong>.</p>
+
+<p>Priya can now do arithmetic that has nothing to do with statistics. Everybody in this second campaign got a coupon of some size, so her question is not whether to send one but how deep to cut, and going from 10 percent off to 25 on a roughly 40 dollar order hands over about another 6 dollars. For a new customer those 6 dollars buy 12.26 dollars of extra spend, and a first order from somebody who had never bought anything. For a regular they buy fifteen cents.</p>
+
+<p>That is the decision the interaction opened up, and no single average lift could have got her there. It is also why the reporting step later insists on the slopes rather than the interaction coefficient: nobody can price a decision from "the interaction was -0.807".</p>
+</section>
+
+<section class="lesson-step" data-step="25" data-step-type="concept">
+<div class="lesson-step-eyebrow">Both variables continuous</div>
+<h2>When the moderator is a number too</h2>
+
+<p>There is one more shape to meet, and it is where interactions get genuinely slippery. Priya narrows her attention to regulars, who barely responded to the discount, and wonders whether that is true of all of them. Maybe a discount does nothing for somebody who ordered last week and quite a lot for somebody who has drifted away for months.</p>
+
+<p>Now both variables are numbers: the size of the discount, and how long it has been since the customer's last order.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+
+regulars &lt;- data.frame(
+  discount  = round(runif(200, min = 5, max = 30)),
+  days_away = round(runif(200, min = 10, max = 120))
+)
+
+regulars$spend &lt;- round(38 + 0.02 * regulars$discount - 0.05 * regulars$days_away +
+                          0.010 * regulars$discount * regulars$days_away +
+                          rnorm(200, mean = 0, sd = 5), 2)
+
+head(regulars)
+#&gt;   discount days_away spend
+#&gt; 1       12        46 44.75
+#&gt; 2        5        43 46.36
+#&gt; 3       18        76 41.96
+#&gt; 4        5        32 42.51
+#&gt; 5        7        90 43.65
+#&gt; 6       29       110 65.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Everything we are about to try to recover sits in that third line. A regular's baseline order is 38 dollars, and on its own the discount barely moves it, adding 2 cents per percentage point, while each extra day away costs 5 cents. The term that matters is the last one. That 0.010 says every day a customer has been away makes each percentage point of discount worth one more cent to them, so a coupon that is close to pointless for somebody who ordered on Monday has turned into real money by the time they have been gone three months.</p>
+
+<p>Fit it exactly as before.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_days &lt;- lm(spend ~ discount * days_away, data = regulars)
+round(coef(summary(m_days)), 4)
+#&gt;                    Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)         37.6038     2.1343 17.6186   0.0000
+#&gt; discount             0.0008     0.1162  0.0066   0.9948
+#&gt; days_away           -0.0187     0.0306 -0.6104   0.5423
+#&gt; discount:days_away   0.0086     0.0017  5.2083   0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interaction is there, 0.0086 against the 0.010 we planted, with a t value of 5.21. But look at the row above it, and imagine meeting this table without knowing what went into the data.</p>
+</section>
+
+<section class="lesson-step" data-step="26" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>A main effect of nothing, with a p-value of 0.99</h2>
+
+<p>The <code>discount</code> row says <strong>0.0008 with a p-value of 0.9948</strong>. Taken at face value that is the most emphatically null result you will ever see: the effect is eight ten-thousandths of a dollar and the p-value could hardly be closer to 1.</p>
+
+<p>It would be completely wrong to report that discounts do not move regulars. Here is why, and it follows from the algebra we did earlier.</p>
+
+<p>With both variables continuous the slope of spend on discount is</p>
+
+<p>\\[ \\text{slope of discount} = \\beta_1 + \\beta_3 \\times \\text{days away} \\]</p>
+
+<p>so the coefficient in the table, \\(\\beta_1\\), is the slope <strong>when days away equals zero</strong>. A customer who is zero days away from their last order placed it today. Priya's file contains nobody like that, because the shortest gap in it is 11 days, so that coefficient is describing a customer who does not exist and it was never worth reading on its own.</p>
+
+<p>Ask instead for the slope at gaps that do exist.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- coef(m_days)
+round(d[&quot;discount&quot;] + d[&quot;discount:days_away&quot;] * c(20, 60, 100), 3)
+#&gt; [1] 0.173 0.517 0.861</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For somebody who last ordered three weeks ago, a percentage point off is worth about 17 cents. For somebody gone two months, 52 cents. For somebody gone over three months, 86 cents, which is nearly the response we saw from brand new customers. The discount works, and it works on exactly the people who have drifted away.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">In a model with an interaction, a main effect is the effect at zero on the other variable. If zero is not a value your data contains, or not a value anyone cares about, that coefficient is arithmetic scaffolding rather than a finding, and its p-value is not evidence of anything.</div></div>
+</section>
+
+<section class="lesson-step" data-step="27" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Centre the moderator and the number means something</h2>
+
+<p>You do not have to live with a coefficient that describes an imaginary customer. Move the zero to somewhere useful by subtracting the average, which is called <strong>centering</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(regulars$days_away), 2)
+#&gt; [1] 66.48
+
+regulars$days_centred &lt;- regulars$days_away - mean(regulars$days_away)
+m_centred &lt;- lm(spend ~ discount * days_centred, data = regulars)
+round(coef(summary(m_centred)), 4)
+#&gt;                       Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)            36.3620     0.9199 39.5266   0.0000
+#&gt; discount                0.5725     0.0518 11.0588   0.0000
+#&gt; days_centred          -0.0187     0.0306 -0.6104   0.5423
+#&gt; discount:days_centred   0.0086     0.0017  5.2083   0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The average gap is 66.48 days, so <code>days_centred</code> is 0 for a typical regular, negative for somebody who ordered recently and positive for somebody who has been away a while. Nothing else about the data changed.</p>
+
+<p>Now the <code>discount</code> row reads <strong>0.5725 with a t value of 11.06</strong>. Same data, same model, and a coefficient that has gone from apparently nothing to unmistakably something, because it is now answering a question about a customer who exists: at a typical gap of 66 days, a percentage point off is worth about 57 cents.</p>
+
+<p>Check that against the previous step's formula and you will find 0.0008 plus 0.0086 times 66.48, which is 0.5725. The two models are not disagreeing. They are quoting the same line at two different points on it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(uncentred = summary(m_days)$r.squared,
+        centred   = summary(m_centred)$r.squared), 6)
+#&gt; uncentred   centred 
+#&gt;  0.587104  0.587104</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R-squared is the share of the variation in spend the model accounts for, and it is identical to six decimal places because these are the same model. The interaction coefficient is identical too, 0.0086 in both, which makes sense: how fast the slope changes per day does not depend on where you put the zero. Centering changes what the main effects mean, and nothing else.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Centre a continuous moderator before fitting whenever zero is not a real, interesting value, which is most of the time. Age, income, temperature, days away, all of them have a useless zero. It costs one line and it stops you and your readers from misreading a row of your own output.</div></div>
+</section>
+
+<section class="lesson-step" data-step="28" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The zero that was not there</h2>
+
+<p>In the uncentred model the <code>discount</code> coefficient was 0.0008 with a p-value of 0.9948. What is the right thing to say about it?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step28" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Discounts have no effect on regular customers, and the p-value is about as clear as evidence gets</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model has failed to converge and needs to be refitted</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The discount effect is real but too small to matter commercially</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It is the slope for a customer zero days since their last order, which nobody in the data is, so it is not a finding at all: at gaps that actually occur the slope runs from about 0.17 to 0.86</span></button>
+<button type="button" class="lesson-opt" data-i="5"><span class="lesson-opt-mk">E</span><span class="lesson-opt-tx">It shows the interaction has absorbed all of the discount effect, which is a sign the model is overfitted</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right, and the tell is that the coefficient is a conditional statement rather than a summary. Once an interaction is in the model, every main effect is pinned to zero on the other variable, and here zero sits eleven days below the closest customer in the file. Centering moved the zero to the average gap and the same coefficient came back as 0.5725 with a t of 11.06, which is the honest headline.</div><div class="lesson-qfb lesson-qfb-no">The three wrong readings all treat that row as a verdict on discounts in general. It is not: it is the slope at one specific value of the other variable, zero days away, chosen by nothing more than where the number line happens to start. Nothing went wrong with the fit, which is identical to the centred one down to six decimal places of R-squared, and nothing was absorbed by anything. Reading a main effect without asking "at what value of the other variable" is the single most common mistake with interaction output.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="29" data-step-type="concept">
+<div class="lesson-step-eyebrow">The shape of it</div>
+<h2>The slope is itself a straight line</h2>
+
+<p>With a categorical moderator you get two slopes. With a continuous one you get a slope for every possible value, and those slopes lie on a straight line of their own. That is what \\(\\beta_1 + \\beta_3 w\\) says, with \\(w\\) standing for the moderator.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gap_grid &lt;- seq(10, 120, by = 5)
+slope_grid &lt;- d[&quot;discount&quot;] + d[&quot;discount:days_away&quot;] * gap_grid
+
+plot(gap_grid, slope_grid, type = &quot;l&quot;, lwd = 3, col = &quot;#2563a8&quot;,
+     xlab = &quot;days since their last order&quot;,
+     ylab = &quot;extra dollars per extra percent off&quot;)
+abline(h = 0, lty = 3)
+round(range(slope_grid), 3)
+#&gt; [1] 0.087 1.033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>seq(10, 120, by = 5)</code> makes a row of gaps covering the range in the data, and the line plots what a percentage point of discount is worth at each one. It runs from <strong>8.7 cents</strong> for a customer who ordered ten days ago up to <strong>1.03 dollars</strong> for one who has been gone four months. The dotted line at zero is there so you can see the slope never actually turns negative anywhere in the observed range.</p>
+
+<p>The same fact drawn the other way is often easier for a non-technical reader, because it stays in dollars rather than dollars-per-percentage-point.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">percent_off &lt;- seq(5, 30, by = 1)
+
+plot(NA, xlim = c(5, 30), ylim = c(35, 65),
+     xlab = &quot;percent off&quot;, ylab = &quot;predicted spend in dollars&quot;,
+     main = &quot;The same coupon, three kinds of regular&quot;)
+for (i in 1:3) {
+  gap &lt;- c(20, 60, 100)[i]
+  predicted &lt;- predict(m_days, newdata = data.frame(discount = percent_off,
+                                                    days_away = gap))
+  lines(percent_off, predicted, lwd = 3, col = c(&quot;#2563a8&quot;, &quot;#1f7a55&quot;, &quot;#b5631a&quot;)[i])
+}
+legend(&quot;topleft&quot;, c(&quot;away 20 days&quot;, &quot;away 60 days&quot;, &quot;away 100 days&quot;),
+       col = c(&quot;#2563a8&quot;, &quot;#1f7a55&quot;, &quot;#b5631a&quot;), lwd = 3, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>plot(NA, ...)</code> sets up empty axes, then the loop asks the model for predicted spend across the whole discount range at three chosen gaps and draws each as a line. The three lines fan out: nearly flat for somebody who ordered three weeks ago, distinctly uphill for somebody gone a hundred days.</p>
+
+<p>Choosing three round values of the moderator to plot is the standard move for continuous-by-continuous interactions, and it is a presentation choice rather than a statistical one. Pick values you are willing to defend in writing, ideally ones that mean something in the business, and say in the caption that they were chosen rather than estimated.</p>
+</section>
+
+<section class="lesson-step" data-step="30" data-step-type="concept">
+<div class="lesson-step-eyebrow">Naming what you see</div>
+<h2>Four shapes, and what to call them</h2>
+
+<p>Every interaction you meet will look like one of these when you plot it. The block below draws all four from made-up slopes so you can see them side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">two_lines &lt;- function(slope_new, slope_regular, title) {
+  percent_off &lt;- seq(5, 30, by = 1)
+  plot(NA, xlim = c(5, 30), ylim = c(15, 60), main = title,
+       xlab = &quot;percent off&quot;, ylab = &quot;spend&quot;)
+  lines(percent_off, 20 + slope_new * percent_off, col = &quot;#2563a8&quot;, lwd = 3)
+  lines(percent_off, 40 + slope_regular * percent_off, col = &quot;#b5631a&quot;, lwd = 3)
+}
+
+par(mfrow = c(2, 2))
+two_lines(0.5,  0.5,  &quot;no interaction&quot;)
+two_lines(0.9,  0.1,  &quot;one group responds more&quot;)
+two_lines(0.2,  0.9,  &quot;the other way round&quot;)
+two_lines(0.9, -0.4,  &quot;crossover&quot;)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>par(mfrow = c(2, 2))</code> tells R to arrange the next four plots in a two by two grid, and the last line puts it back to one plot at a time so later blocks are not affected.</p>
+
+<ul>
+
+<li><strong>Parallel</strong> means no interaction. Both groups respond the same way and the model only needs the additive terms.</li>
+
+<li><strong>One group responds more</strong> is Priya's case, and the usual textbook name for it is a fan.</li>
+
+<li><strong>The other way round</strong> is the same shape mirrored, and it is worth drawing separately because which group is steeper is often the entire finding.</li>
+
+<li><strong>Crossover</strong> is the one that catches people out. The lines cross, so the better group at one end is the worse group at the other, and any single average sits in the middle describing nobody. If you only ever report an average effect, a crossover is the situation where you will be most confidently wrong.</li>
+
+</ul>
+
+<p>Naming the shape is not decoration. "The coupon pays off on first-time buyers and does nothing for regulars" is a sentence a reader keeps and repeats in a meeting, whereas "there was a significant interaction" is a sentence they immediately ask you to explain.</p>
+</section>
+
+<section class="lesson-step" data-step="31" data-step-type="concept">
+<div class="lesson-step-eyebrow">The rule with teeth</div>
+<h2>Never drop a main effect you are interacting</h2>
+
+<p>There is one structural rule about interaction models, and breaking it produces output that looks perfectly reasonable and is not.</p>
+
+<p>The rule, called the <strong>hierarchical principle</strong>, is that if <code>discount:customer</code> is in the model then <code>discount</code> and <code>customer</code> must both be in it too, even if one of them looks unimpressive on its own. Watch what happens when you break it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_no_main &lt;- lm(spend ~ discount + discount:customer, data = campaign)
+round(coef(summary(m_no_main)), 3)
+#&gt;                          Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)                29.453      1.294  22.755    0.000
+#&gt; discount                    0.367      0.071   5.162    0.000
+#&gt; discount:customerregular    0.166      0.047   3.546    0.001
+
+bad &lt;- coef(m_no_main)
+round(c(new     = unname(bad[&quot;discount&quot;]),
+        regular = unname(bad[&quot;discount&quot;] + bad[&quot;discount:customerregular&quot;])), 3)
+#&gt;     new regular 
+#&gt;   0.367   0.534</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That model says regulars respond to discounts <em>more</em> strongly than new customers, 0.53 against 0.37. We know the truth, because we planted it: the real slopes are 0.9 and 0.1, and the properly specified model recovered 0.817 and 0.010. The broken model has not just got the sizes wrong, it has reversed the finding, and every p-value in it is small enough to look convincing.</p>
+
+<p>The reason is simple once you see it. Dropping <code>customer</code> forces both groups to share a single intercept, so the model has no way to say that regulars simply start higher. The only knob it has left is the slope, so it tilts the regulars' line upwards to reach their cloud of points, and the tilt gets reported as responsiveness to discounts.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A model with a cross term and a missing main effect will fit, print, and lie. R will not warn you. If you ever see a formula with a colon and no matching plus terms, that is the first thing to fix, before reading a single coefficient.</div></div>
+</section>
+
+<section class="lesson-step" data-step="32" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why the main effects stay</h2>
+
+<p>In the campaign data, suppose <code>customer</code> on its own had come back with a large p-value while <code>discount:customer</code> was clearly significant. What should you do?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step32" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Drop <code>customer</code> and keep the interaction, since the data says the main effect is not needed</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Keep both, because the interaction is defined as a difference between group slopes, and removing the main effect forces the groups to share an intercept, which changes the slopes into something else entirely</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Drop the interaction instead, since a main effect matters more than a cross term</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Refit with the interaction only, so the model is as simple as possible</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes, and the demonstration in the previous step is what makes it concrete: dropping the customer term did not shrink the finding, it flipped it, reporting regulars as the more discount-responsive group when they are the less. Keeping a main effect with an unimpressive p-value costs you one degree of freedom, which is nothing. Removing it costs you the interpretation of every coefficient that remains.</div><div class="lesson-qfb lesson-qfb-no">All three alternatives treat model terms as independent items to be kept or binned on their p-values, and interaction terms are not independent of their parents. The interaction says how much the slope differs between groups, which is only meaningful once the model is allowed to give those groups different starting heights. A large p-value on a main effect that participates in a significant interaction is not evidence the term is useless, it is often just evidence that the two groups happen to be level at whatever point zero sits.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="33" data-step-type="concept">
+<div class="lesson-step-eyebrow">The expensive part</div>
+<h2>Interactions need far more data than main effects</h2>
+
+<p>Priya got a p-value of 0.000000116 for her first interaction, so it might look like these are easy to detect. They are not, and the reason is worth measuring rather than asserting.</p>
+
+<p>A main effect is estimated from all your data at once. An interaction is a difference between two effects, so it is estimated from the difference between two subsets, and differences are noisier than the things they are made of. The practical consequence is a rule of thumb that we can check directly: to detect an effect of half the size, you need roughly four times the data.</p>
+
+<p>The function below runs one imaginary version of Priya's whole experiment and reports whether the interaction came out significant. Then we run it hundreds of times under different conditions and count.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">detects_interaction &lt;- function(per_cell, regular_lift) {
+  shop &lt;- data.frame(
+    customer = rep(c(&quot;new&quot;, &quot;regular&quot;), each = 2 * per_cell),
+    coupon   = rep(c(&quot;no&quot;, &quot;yes&quot;), times = 2 * per_cell)
+  )
+  base &lt;- ifelse(shop$customer == &quot;new&quot;, 22, 40)
+  lift &lt;- rep(0, nrow(shop))
+  lift[shop$coupon == &quot;yes&quot; &amp; shop$customer == &quot;new&quot;]     &lt;- 12
+  lift[shop$coupon == &quot;yes&quot; &amp; shop$customer == &quot;regular&quot;] &lt;- regular_lift
+  shop$spend &lt;- base + lift + rnorm(nrow(shop), mean = 0, sd = 6)
+
+  fit &lt;- lm(spend ~ coupon * customer, data = shop)
+  coef(summary(fit))[&quot;couponyes:customerregular&quot;, &quot;Pr(&gt;|t|)&quot;] &lt; 0.05
+}
+
+set.seed(3)
+round(c(gap_10_n100 = mean(replicate(400, detects_interaction(25, 2))),
+        gap_5_n100  = mean(replicate(400, detects_interaction(25, 7))),
+        gap_5_n400  = mean(replicate(400, detects_interaction(100, 7)))), 3)
+#&gt; gap_10_n100  gap_5_n100  gap_5_n400 
+#&gt;       0.993       0.525       0.988</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function rebuilds the shop with <code>per_cell</code> customers in each of the four combinations and whatever lift you specify for regulars, fits the model, and returns TRUE when the interaction clears the conventional 0.05 line. <code>replicate(400, ...)</code> runs four hundred separate imaginary months, and <code>mean()</code> of a pile of TRUEs and FALSEs gives the fraction that were TRUE, because R counts every TRUE as 1.</p>
+
+<p>Read the three numbers as a story. With a hundred customers and the gap we actually planted, twelve against two, the test finds the interaction <strong>99.3 percent</strong> of the time. Halve the gap, so regulars get a lift of 7 instead of 2, and detection collapses to <strong>52.5 percent</strong>, a coin flip, on exactly the same sample size. Quadruple the sample to four hundred and it climbs back to <strong>98.8 percent</strong>.</p>
+
+<p>That last pair is the rule of thumb, measured rather than quoted: half the effect, four times the data. This fraction has a name, <strong>power</strong>, meaning the chance a study finds an effect that is genuinely there.</p>
+</section>
+
+<section class="lesson-step" data-step="34" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest sentence</div>
+<h2>"Not significant" is not "the same in both groups"</h2>
+
+<p>The power simulation and the interval we built for the regulars point at the same habit, and it is the one that separates an honest null result from a careless one.</p>
+
+<p>When a test comes back non-significant, whether it is the interaction itself or one group's own slope, there are two possibilities, and the test cannot tell them apart:</p>
+
+<ul>
+
+<li>The effect really is close to the same in both groups.</li>
+
+<li>The effect differs, and the study was too small to see it, which is exactly what the simulation above produced: a genuine gap of 5 dollars, missed 47.5 percent of the time.</li>
+
+</ul>
+
+<p>The way to tell them apart is to look at the interval rather than the verdict. Priya's regulars had a discount slope of 0.010 with an interval running from -0.145 to 0.166. That interval is narrow in the units that matter: it says that even at the pessimistic end, a percentage point off costs her about 15 cents of spend, and at the optimistic end it gains 17. Both ends lead to the same decision, so she can genuinely conclude the effect is small.</p>
+
+<p>Compare that with an imaginary study that returned a slope of 0.010 with an interval from -0.9 to 0.9. Same estimate, same non-significant verdict, and it is compatible with a discount being worthless or being worth as much as it is to a brand new customer. That study answered nothing, and reporting it as "no difference between groups" would be a straightforwardly false claim.</p>
+
+<p>Two other honest limits worth carrying:</p>
+
+<ul>
+
+<li><strong>Interactions found by searching are weak evidence.</strong> Fit a model with ten predictors and every pair of them, and you have tested forty-five interactions. Some will clear 0.05 by luck alone. An interaction you had a reason to look for before seeing the data is worth much more than one that turned up in a sweep, and if you did sweep, say so.</li>
+
+<li><strong>An interaction in the data is not a mechanism.</strong> Priya's result says the coupon behaves differently for new customers. Whether that is because they are price-sensitive, or because they were sitting on the fence anyway, or because regulars had already stocked up, is not in these numbers.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="35" data-step-type="concept">
+<div class="lesson-step-eyebrow">Writing it up</div>
+<h2>Report two slopes, not one coefficient</h2>
+
+<p>Nobody outside your team can act on "the interaction was -0.807, p less than 0.001". Build the table you actually want to publish, which is one row per group with its own slope and interval.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report &lt;- data.frame(
+  customer = c(&quot;new&quot;, &quot;regular&quot;),
+  slope = round(c(slope_new, slope_regular), 3),
+  lower = round(c(slope_new - t_crit * se_new,
+                  slope_regular - t_crit * se_regular), 3),
+  upper = round(c(slope_new + t_crit * se_new,
+                  slope_regular + t_crit * se_regular), 3)
+)
+report
+#&gt;   customer slope  lower upper
+#&gt; 1      new 0.817  0.670 0.964
+#&gt; 2  regular 0.010 -0.145 0.166</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Everything in there was computed a few steps ago, and putting it in one small frame is the difference between a result and a report. Those per-group slopes are usually called <strong>simple slopes</strong>, where simple means the effect of one variable held at a fixed level of the other.</p>
+
+<p>Now the paragraph. Three sentences do it: one saying the effect differs, one for each group with its interval, and a closing line about what it means in the units of the decision.</p>
+
+<blockquote><p>The size of a discount predicted spend very differently for the two customer types (interaction F(1, 176) = 55.4, p less than 0.001). Among first-time buyers, each extra percentage point off was worth 0.82 dollars of extra spend (95 percent CI 0.67 to 0.96). Among regulars it was worth 0.01 dollars (95 percent CI -0.15 to 0.17), so deepening a coupon from 10 percent off to 25 bought 12.26 dollars of extra spend from a first-time buyer and 15 cents from a regular.</p></blockquote>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The interaction coefficient belongs in your model, not in your headline. What the reader needs is both slopes, both intervals, and a sentence in their own units. If you have written the sentence and they still have to ask "so what should we do", the write-up is not finished.</div></div>
+</section>
+
+<section class="lesson-step" data-step="36" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which write-up is honest</h2>
+
+<p>A colleague tests whether a new checkout page helps mobile users more than desktop users. The interaction comes back with p = 0.21, and the estimated difference between the two lifts is 4 percent, with a 95 percent interval running from -3 percent to 11 percent. Which sentence should go in the report?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step36" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The new page works equally well on mobile and desktop, since the interaction was not significant</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The new page helps mobile users 4 percent more than desktop users</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The difference between mobile and desktop was estimated at 4 percent, but the data are compatible with anything from a 3 percent disadvantage to an 11 percent advantage, so this test cannot settle whether the page helps one group more</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The interaction was not significant, so the interaction term should be dropped and the main effect reported instead</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes, and what makes it honest is that it reports what was learned, which is that the study was too small to answer its own question. Naming both ends of the interval puts the size of the uncertainty in front of the reader instead of hiding it behind a verdict, and it makes the next step obvious: either run it longer or accept that you cannot target by device on this evidence.</div><div class="lesson-qfb lesson-qfb-no">The first two claims are opposite mistakes made from the same interval. Saying the page works equally well treats a failure to detect a difference as proof there is none, when an 11 percent advantage sits comfortably inside the range the data allow. Reporting the 4 percent as the finding does the reverse and drops the uncertainty entirely. And dropping the term to report a main effect instead is a decision that needs stating out loud, because the pooled number it produces is an average across two groups that may well differ.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="37" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Price the coupon for somebody who has drifted away</h2>
+
+<p>Back to the regulars and the days-since-last-order model, <code>m_days</code>. Priya wants to know what to expect from a customer who has not ordered in a hundred days, comparing a small coupon with a big one.</p>
+
+<p>Fill in the gap so both rows describe a customer who has been away 100 days, one offered 5 percent off and one offered 25.</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step37" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="100\s*,\s*100"><textarea class="lesson-tryit-input" spellcheck="false">away &lt;- data.frame(discount = c(5, 25), days_away = c(____, ____))
+round(predict(m_days, newdata = away), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">40.04 and 57.26, so 20 extra percentage points of discount bought 17.22 dollars of extra spend from somebody who had drifted away. Run the same pair at days_away = 20 and you get 38.09 and 41.55, a gain of 3.46 dollars for the identical discount. That is the interaction priced in dollars, and it points at a policy: send the deep coupons to the people who have gone quiet, not to the ones who ordered last week.</span><span class="lesson-tryit-fb lesson-tryit-no">Both rows need the same gap, 100 days, because you are comparing two discount sizes for one kind of customer. Put 100 in both slots.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">away &lt;- data.frame(discount = c(5, 25), days_away = c(100, 100))
+round(predict(m_days, newdata = away), 2)
+#&gt;     1     2 
+#&gt; 40.04 57.26</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="38" data-step-type="concept">
+<div class="lesson-step-eyebrow">The habit</div>
+<h2>Four questions to ask of any interaction</h2>
+
+<p>Take them in order.</p>
+
+<p><strong>What is interacting with what</strong> stops the most common reporting error, which is quoting the interaction coefficient as though it described one variable. It describes the relationship between two, and any sentence you write about it has to mention both.</p>
+
+<p><strong>At what value of the other</strong> is the question that saves you from the <code>discount</code> row reading 0.0008 with a p-value of 0.99. Ask it of every main effect in every model that contains an interaction, and centre the moderator so the answer is a customer who exists.</p>
+
+<p><strong>How big is it, in your units</strong> is where an interaction beats a test. Priya's finding was not "F equals 55.4". It was 12.26 dollars against fifteen cents, which is a number her partner can put next to the cost of the discount.</p>
+
+<p><strong>Could the study have found it</strong> is the one people skip, and skipping it is what makes so many published interaction results unreadable. A non-significant interaction from four hundred customers with a tight interval is a genuine finding of similarity. The same verdict from forty is silence, and reporting silence as agreement is how a false claim gets into print.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"What is interacting with what?","sub":"name both variables, and say which effect is the one that moves"},{"title":"At what value of the other?","sub":"a main effect is the effect at zero, so check that zero exists"},{"title":"How big is it, in your units?","sub":"two slopes with intervals, converted into money, days or people"},{"title":"Could the study have found it?","sub":"a small p-value with a wide interval settles nothing either way"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="39" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five places worth an hour each if you want to push past where this part stops.</p>
+
+<ul>
+
+<li><a href="https://us.sagepub.com/en-us/nam/multiple-regression/book2223">Aiken and West, Multiple Regression: Testing and Interpreting Interactions</a> - the standard book-length treatment, and the source of the centering and simple-slopes conventions used here.</li>
+
+<li><a href="https://doi.org/10.1093/pan/mpi014">Brambor, Clark and Golder, Understanding Interaction Models: Improving Empirical Analyses (2006)</a> - the clearest short paper on why main effects stay in and why you must report the effect across the range of the moderator rather than as one number.</li>
+
+<li><a href="https://statmodeling.stat.columbia.edu/2018/03/15/need16/">Gelman, You need 16 times the sample size to estimate an interaction than to estimate a main effect</a> - the arithmetic behind the power step, worked out for the case where the interaction is half the size of the main effect.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html">R documentation for the formula syntax</a> - what <code>*</code>, <code>:</code>, <code>^</code> and <code>%in%</code> actually expand to, which is worth reading once properly rather than guessing.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/emmeans/vignettes/interactions.html">The emmeans package vignette on interactions</a> - the package route to the simple slopes and intervals we built by hand, and the tool to reach for once your models get bigger than two predictors.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="40" data-step-type="complete">
+<h2>Part 1 complete</h2>
+
+<p>You started with four averages on Priya's wall and finished with a model that can be tested, priced and written up. The thread through all of it was one sentence: the effect of the coupon depends on who gets it, so any single number describing it has to be wrong for somebody.</p>
+
+<p>The mechanics turned out to be small. One character, <code>*</code> instead of <code>+</code>, buys the model permission to give each group its own effect, and the extra coefficient it produces is a difference of differences, -9.143 dollars for Priya's coupon, which you can rebuild from the cell means with nothing but subtraction. Testing it is a single <code>anova()</code> against the model without the term, and the coefficient's t squared is that F exactly, so there is one decision to make rather than three.</p>
+
+<p>The interpretation is where the care goes. A main effect stops being "the effect" and becomes the effect at zero on the other variable, which is why the discount row read 0.0008 with a p-value of 0.9948 until centering moved the zero to a customer who actually exists and the same coefficient came back as 0.5725. Simple slopes need their own intervals, built from <code>vcov()</code> rather than read off the table, and both of them go in the report because 0.82 dollars against 0.01 dollars is what anybody can act on. Then the three ways it goes wrong: a missing main effect that reversed the finding entirely, a study half the size finding a halved effect only 52.5 percent of the time, and the habit of reading "not significant" as "the same".</p>
+
+<p>Part 2 turns to the checks that sit underneath all of this. Every model here assumed things about its leftovers, the residuals, that we never once looked at, and when those assumptions fail the coefficients keep printing and the standard errors quietly stop being trustworthy. Five checks catch nearly all of it, and none of them is any harder than what you just did.</p>
+</section>
+
+{% endraw %}
