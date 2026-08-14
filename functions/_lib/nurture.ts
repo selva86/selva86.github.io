@@ -37,9 +37,33 @@ export function seqUrl(seq: number, uid: string, sig: string | undefined): strin
   return sig ? `${base}?u=${encodeURIComponent(uid)}&t=${sig}` : base;
 }
 
-export function renderSeqEmail(seq: number, url: string, d: TemplateData): RenderedEmail | null {
-  const it = SEQ_ITEMS[seq];
+// The editable layer: an owner edit saved from the dashboard lives in KV as
+// emailcopy:seq:<n> = {subject?, preheader, body} and beats the bundled copy.
+// Deleting the key reverts to the shipped default. Reads happen at render
+// time, so an edit reaches the very next send with no deploy (KV propagation
+// is under a minute).
+export interface SeqCopy { subject?: string; preheader: string; body: string }
+
+export async function getSeqCopy(kv: KVNamespace, seq: number): Promise<SeqCopy | null> {
+  try {
+    const raw = await kv.get(`emailcopy:seq:${seq}`);
+    if (raw) {
+      const o = JSON.parse(raw) as SeqCopy;
+      if (o && typeof o.body === "string" && o.body.includes("{url}")) return o;
+    }
+  } catch { /* fall through to bundled */ }
   const c = COPY[String(seq)];
+  return c ? { preheader: c.preheader, body: c.body } : null;
+}
+
+export function defaultSeqCopy(seq: number): SeqCopy | null {
+  const c = COPY[String(seq)];
+  return c ? { preheader: c.preheader, body: c.body } : null;
+}
+
+export function renderSeqEmail(seq: number, url: string, d: TemplateData, copy?: SeqCopy | null): RenderedEmail | null {
+  const it = SEQ_ITEMS[seq];
+  const c = copy ?? COPY[String(seq)];
   if (!it || !c) return null;
   const body = c.body
     .replace(/\{first_name\}/g, "__FIRST__")
@@ -49,7 +73,7 @@ export function renderSeqEmail(seq: number, url: string, d: TemplateData): Rende
     key: `seq:${seq}`,
     category: "nurture",
     reason: "you turned on the daily lesson series",
-    subject: it.subject,
+    subject: (copy && copy.subject) || it.subject,
     preheader: c.preheader,
     body,
     data: d,

@@ -24,7 +24,7 @@ import { resolvePass } from "./pass";
 import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
-import { seqSendable, seqUrl, renderSeqEmail, SEQ_ITEMS, MAX_SEQ } from "./nurture";
+import { seqSendable, seqUrl, renderSeqEmail, getSeqCopy, SEQ_ITEMS, MAX_SEQ } from "./nurture";
 
 export interface BrainEnv {
   DB: D1Database;
@@ -348,7 +348,8 @@ export async function runBrain(
       if (c.template.startsWith("seq:")) {
         const seqN = parseInt(c.template.slice(4), 10);
         const dest = seqUrl(seqN, userId, sig);
-        r = dest ? renderSeqEmail(seqN, dest, c.data) : null;
+        const copy = await getSeqCopy(env.KV, seqN);
+        r = dest ? renderSeqEmail(seqN, dest, c.data, copy) : null;
       } else {
         r = renderEmail(c.template, c.data);
       }
