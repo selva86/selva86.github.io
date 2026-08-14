@@ -351,7 +351,12 @@ export async function runBrain(
         const copy = await getSeqCopy(env.KV, seqN);
         r = dest ? renderSeqEmail(seqN, dest, c.data, copy) : null;
       } else {
-        r = renderEmail(c.template, c.data);
+        let ovr = null;
+        try {
+          const raw = await env.KV.get(`emailcopy:${c.template}`);
+          if (raw) ovr = JSON.parse(raw);
+        } catch { /* default */ }
+        r = renderEmail(c.template, c.data, ovr);
       }
       if (!r) {
         decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "error", reason: "no template" });

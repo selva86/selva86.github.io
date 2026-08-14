@@ -58,7 +58,9 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
       r = renderSeqEmail(n, dest, { ...SAMPLE }, await getSeqCopy(context.env.KV, n));
       if (!r && SEQ_ITEMS[n]) return jsonError(404, "no_copy", "No copy written for this seq yet");
     } else if (TEMPLATES[previewKey]) {
-      r = renderEmail(previewKey, { ...SAMPLE });
+      let ovr = null;
+      try { const raw = await context.env.KV.get(`emailcopy:${previewKey}`); if (raw) ovr = JSON.parse(raw); } catch { /* default */ }
+      r = renderEmail(previewKey, { ...SAMPLE }, ovr);
     } else {
       return jsonError(404, "no_template", `Unknown template. Have: ${Object.keys(TEMPLATES).join(", ")}, seq:<n>`);
     }
@@ -88,7 +90,9 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
       const dest = seqUrl(n, uid, sig) || "https://r-statistics.co/";
       r = renderSeqEmail(n, dest, testData, await getSeqCopy(context.env.KV, n));
     } else {
-      r = renderEmail(testKey, testData);
+      let ovr = null;
+      try { const raw = await context.env.KV.get(`emailcopy:${testKey}`); if (raw) ovr = JSON.parse(raw); } catch { /* default */ }
+      r = renderEmail(testKey, testData, ovr);
     }
     if (!r) return jsonError(500, "render_failed", "Template rendered null (seq without copy?)");
     const res = await sendMail(context.env, {
