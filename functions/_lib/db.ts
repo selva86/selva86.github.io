@@ -20,6 +20,7 @@ export interface User {
   longest_streak_days: number;
   last_active_date: string | null;
   role: string;
+  pass_claimed_at?: number | null;  // DA pass claim moment (claim-to-start)
   deleted_at: number | null;
 }
 

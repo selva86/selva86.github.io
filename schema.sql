@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
   role          TEXT DEFAULT 'user',     -- 'user' | 'admin'
   deleted_at    INTEGER,                 -- GDPR soft-delete
   signup_gate   TEXT,                    -- 'exercise' | 'lesson' | 'browsing' | magnet id; set once, never overwritten
-  signup_slug   TEXT                     -- the page/hub/lesson that gated them
+  signup_slug   TEXT,                    -- the page/hub/lesson that gated them
+  pass_claimed_at INTEGER                -- DA pass claim-to-start moment (applied 2026-08-16 to dev+prod)
 );
 -- Existing-deploy migration for signup context (applied 2026-08-10 to dev+prod):
 --   ALTER TABLE users ADD COLUMN signup_gate TEXT

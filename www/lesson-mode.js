@@ -157,7 +157,7 @@
         locked = false;
         render();
       }
-      if (passState && !passState.active) updateGatePassCopy();
+      if (passState && passState.claimed && !passState.active) updateGatePassCopy();
       renderPassChip();
       if (me && me.pro && locked) {
         if (stripped) {
@@ -459,7 +459,7 @@
         g.innerHTML = '<div class="lm-gate-card tex2jax_ignore">' +
           '<div class="lm-gate-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>' +
           '<h3>' + (isProUser ? 'This lesson is in a different track'
-            : (passState && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'This is a Pro lesson')) + '</h3>' +
+            : (passState && passState.claimed && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'This is a Pro lesson')) + '</h3>' +
           (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
           (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
           '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
@@ -476,7 +476,7 @@
         });
         try { if (typeof gtag === 'function') gtag('event', 'pro_gate_view', { lesson: curSlug, course: courseId || '' }); } catch (e) {}
       } else { g.style.display = ''; }
-      if (passState && !passState.active) updateGatePassCopy();
+      if (passState && passState.claimed && !passState.active) updateGatePassCopy();
       fillGateFreeLink();
       segEls.forEach(function (e2) { e2.className = ''; });
       curEl.textContent = 1;
