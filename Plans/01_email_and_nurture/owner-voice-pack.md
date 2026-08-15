@@ -58,7 +58,16 @@ and matches this voice, not a generic "conversational" register.
    service of naturalness. Do not replicate typos, but do not sand every
    sentence smooth either; perfect symmetry reads as machine output.
 
-10. **Standing rules that still apply:** no em or en dashes anywhere, pure
+10. **No stacked qualifier constructions.** Owner correction on the first
+    voice-pass lesson (2026-08-15): "The question is the ordinary one
+    anybody asks of three numbers like that:" -> "The question is an
+    ordinary one anyone would want to be answered:". The first version
+    nests qualifiers ("the ordinary one anybody asks of three numbers like
+    that") into a writerly knot; the owner's version is one plain clause.
+    When a sentence stacks two or more qualifying phrases, unwind it into
+    the simple direct version even if it feels less precise.
+
+11. **Standing rules that still apply:** no em or en dashes anywhere, pure
     ASCII, no staccato copywriter fragments strung for rhythm, no invented
     numbers, one named numbered everyday example carried through a piece.
 
