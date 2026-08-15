@@ -21,7 +21,7 @@ mathjax: true
 ::eyebrow Part 1 of 11
 ## Which statistical test to use? A 5-question decision flowchart
 
-Ravi runs three branches of a bookshop, and last Saturday he wrote down the value of every single order at each one. Station Road averaged $23.11 an order. Lakeview came in at $27.52. Hillside took $32.07. He puts the three numbers in front of you and asks the only question anybody ever asks about three numbers like that: is the difference real, or is Saturday just being Saturday?
+Ravi runs three branches of a bookshop, and last Saturday he wrote down the value of every single order at each one. Station Road averaged \$23.11 an order. Lakeview came in at \$27.52. Hillside took \$32.07. He puts the three numbers in front of you and asks the only question anybody ever asks about three numbers like that: is the difference real, or is Saturday just being Saturday?
 
 And there it is, the freeze. Somewhere in your head is a list with t-tests and ANOVA and chi-square and Mann-Whitney on it, and no rule for deciding which line of that list is yours. Most people go and look at a comparison table, get halfway down it, and quietly hope nobody asks why they picked the row they picked.
 
@@ -49,9 +49,9 @@ Fifteen orders at each branch, forty-five in total, every one of them a real amo
 
 ::widget chart-plotter {"data":[{"x":"Station Road","y":27.6},{"x":"Station Road","y":29.7},{"x":"Station Road","y":20.27},{"x":"Station Road","y":18.27},{"x":"Station Road","y":25.28},{"x":"Station Road","y":27.14},{"x":"Station Road","y":29.65},{"x":"Station Road","y":14.54},{"x":"Station Road","y":17.36},{"x":"Station Road","y":17.09},{"x":"Station Road","y":16.73},{"x":"Station Road","y":22.12},{"x":"Station Road","y":26.55},{"x":"Station Road","y":27.08},{"x":"Station Road","y":27.2},{"x":"Lakeview","y":20.78},{"x":"Lakeview","y":30.47},{"x":"Lakeview","y":29.67},{"x":"Lakeview","y":25.66},{"x":"Lakeview","y":26.26},{"x":"Lakeview","y":23.16},{"x":"Lakeview","y":26.04},{"x":"Lakeview","y":31.9},{"x":"Lakeview","y":22.94},{"x":"Lakeview","y":31.2},{"x":"Lakeview","y":24.05},{"x":"Lakeview","y":33.63},{"x":"Lakeview","y":27.56},{"x":"Lakeview","y":30.58},{"x":"Lakeview","y":28.94},{"x":"Hillside","y":37.38},{"x":"Hillside","y":32.42},{"x":"Hillside","y":11.24},{"x":"Hillside","y":32.45},{"x":"Hillside","y":44.4},{"x":"Hillside","y":26.61},{"x":"Hillside","y":34.28},{"x":"Hillside","y":32.11},{"x":"Hillside","y":24.86},{"x":"Hillside","y":25.91},{"x":"Hillside","y":26.8},{"x":"Hillside","y":45.47},{"x":"Hillside","y":36.5},{"x":"Hillside","y":35.46},{"x":"Hillside","y":35.21}],"geoms":["boxplot"],"x":"branch","y":"value"}
 
-Each box covers the middle half of that branch's orders, the thick line inside it is the middle order, and the thin lines stretch out over the rest. So Hillside does sit higher than Station Road, which is the gap Ravi noticed, but look at how much the boxes overlap, and look at how much taller Hillside's box and lines are: one order there was $11.24 and another was $45.47, while Lakeview's fifteen orders all landed in a fairly tight band.
+Each box covers the middle half of that branch's orders, the thick line inside it is the middle order, and the thin lines stretch out over the rest. So Hillside does sit higher than Station Road, which is the gap Ravi noticed, but look at how much the boxes overlap, and look at how much taller Hillside's box and lines are: one order there was \$11.24 and another was \$45.47, while Lakeview's fifteen orders all landed in a fairly tight band.
 
-When you press Run and see the real plot, one Hillside order sits on its own as a separate dot below everything else, which is how a boxplot marks a value far enough from the middle to deserve a second look. It is Ravi's $11.24 order, and it is a genuine sale rather than a typo, so it stays in.
+When you press Run and see the real plot, one Hillside order sits on its own as a separate dot below everything else, which is how a boxplot marks a value far enough from the middle to deserve a second look. It is Ravi's \$11.24 order, and it is a genuine sale rather than a typo, so it stays in.
 
 That overlap is the whole problem in one picture. Plenty of Station Road orders were bigger than plenty of Hillside orders. If you had walked in on a different Saturday and served a different fifteen customers, would the ranking still come out the same way? Nobody can answer that by staring harder at the picture, which is exactly why there is a test at the end of this.
 
@@ -147,7 +147,7 @@ This is the question that throws away the most, so it goes first. Every test is 
 
 The **outcome** is the thing you are trying to explain, the column you would point at if somebody asked "different in what?" For Ravi it is the value of an order. It comes in two kinds:
 
-- **A number**, where the gaps between values mean something. An order of $30 really is $10 more than an order of $20. Prices, minutes, weights, test scores.
+- **A number**, where the gaps between values mean something. An order of \$30 really is \$10 more than an order of \$20. Prices, minutes, weights, test scores.
 - **A label**, where each row falls into a category and arithmetic on it is nonsense. Which branch, paid by card or cash, joined the loyalty scheme or did not.
 
 R already knows which is which, so ask it:
@@ -189,7 +189,7 @@ Ravi's spreadsheet stores the payment method as a number: 1 for cash, 2 for card
 
 Question 1 left you on the numbers branch. Question 2 splits that branch into three, and the answer is usually visible from across the room.
 
-- **One group against a fixed value.** You have one pile of numbers and something to hold it up against. Head office tells Ravi the chain averages $25 an order, and he wants to know whether Station Road is genuinely off that mark.
+- **One group against a fixed value.** You have one pile of numbers and something to hold it up against. Head office tells Ravi the chain averages \$25 an order, and he wants to know whether Station Road is genuinely off that mark.
 - **Two groups.** Two piles, compared with each other. Station Road against Lakeview.
 - **Three or more groups.** Three or more piles at once. Ravi's actual question.
 
@@ -305,7 +305,7 @@ t.test(after, before)
 
 Same twenty-four numbers, and the p-value goes from 0.0000046 to 0.33. The paired version works on the twelve differences, which are tightly clustered around three dollars, so a real effect is easy to see. The unpaired version throws the pairing away and asks whether a pile of twelve "during" numbers sits higher than a pile of twelve "before" numbers, and against the huge spread between individual regulars, three dollars vanishes into the noise.
 
-The line marked **95 percent confidence interval** in each output tells the same story in dollars, and it is worth learning to read because every test on this page prints one. It is the range of true differences the data cannot rule out. Paired, that range runs from $2.12 to $3.66, so every amount still in play is an increase. Unpaired, it runs from -$3.15 to $8.93, and a range with zero sitting inside it is a range that cannot rule out no change at all.
+The line marked **95 percent confidence interval** in each output tells the same story in dollars, and it is worth learning to read because every test on this page prints one. It is the range of true differences the data cannot rule out. Paired, that range runs from \$2.12 to \$3.66, so every amount still in play is an increase. Unpaired, it runs from -\$3.15 to \$8.93, and a range with zero sitting inside it is a range that cannot rule out no change at all.
 
 [WARNING]
 Adding `paired = TRUE` to data that is not paired is just as wrong in the other direction, and R cannot catch either mistake for you. It matches up value 1 with value 1, value 2 with value 2, and so on down the two vectors, so if those pairings mean nothing, neither does the answer. This is a question about how the data was collected, and only you know that.
@@ -334,7 +334,7 @@ Here is Hillside, the branch with the widest spread, drawn as a histogram where 
 
 ::widget chart-plotter {"data":[{"x":37.38},{"x":32.42},{"x":11.24},{"x":32.45},{"x":44.4},{"x":26.61},{"x":34.28},{"x":32.11},{"x":24.86},{"x":25.91},{"x":26.8},{"x":45.47},{"x":36.5},{"x":35.46},{"x":35.21}],"geoms":["histogram"],"x":"value"}
 
-What do you make of that? Most orders sit in the twenties and thirties, one straggler is down at $11.24, and there are a couple up near $45. It is lumpy. It is not a smooth bell. And the honest reading is that fifteen numbers cannot tell you much either way, which is the point of the next block.
+What do you make of that? Most orders sit in the twenties and thirties, one straggler is down at \$11.24, and there are a couple up near \$45. It is lumpy. It is not a smooth bell. And the honest reading is that fifteen numbers cannot tell you much either way, which is the point of the next block.
 
 The code below draws six histograms, and every one of them is fifteen values pulled from a genuinely, perfectly normal population. Run it, then look at how ragged the panels are.
 
@@ -381,7 +381,7 @@ There is a subtler problem underneath. Choosing your test by first testing the s
 [WARNING]
 So use `shapiro.test()` as one piece of evidence, never as the switch. Look at the histogram, look at the boxplot, ask whether the outliers are real or typos, and ask how many values you have. If the picture is clearly lopsided or one value dominates, go rank-based. If it is roughly symmetric, or the groups are large, stay with the numbers.
 
-Ravi's three branches are small, roughly symmetric, and their one low order at $11.24 is a real order rather than a data-entry slip. He stays with the number-based family, and he checks his answer against the rank-based one later, which is the honest way to handle a borderline call.
+Ravi's three branches are small, roughly symmetric, and their one low order at \$11.24 is a real order rather than a data-entry slip. He stays with the number-based family, and he checks his answer against the rank-based one later, which is the honest way to handle a borderline call.
 
 === step === quiz
 ::eyebrow Check yourself
@@ -399,7 +399,7 @@ A colleague has 500 delivery times for each of two depots. He runs `shapiro.test
 ::eyebrow Question 4b
 ## Do the groups spread the same amount, and does R already handle it?
 
-There is a second half to question 4 that most flowcharts skip, and it is the one that will make you look like you know what you are doing. Comparing groups is not only about where their middles sit, because two branches could average exactly the same amount per order while one of them swings between $5 and $60 and the other barely leaves the twenties.
+There is a second half to question 4 that most flowcharts skip, and it is the one that will make you look like you know what you are doing. Comparing groups is not only about where their middles sit, because two branches could average exactly the same amount per order while one of them swings between \$5 and \$60 and the other barely leaves the twenties.
 
 You already met Ravi's spreads:
 
@@ -838,7 +838,7 @@ Here is every route in the lesson, in one table. Read your four answers across, 
 | two numbers | none | - | ordinary | Pearson correlation | `cor.test(x, y)` |
 | two numbers | none | - | lopsided | Spearman correlation | `cor.test(x, y, method = "spearman")` |
 
-The one-sample row is the case Ravi has not run yet, so here it is for completeness. Head office says the chain averages $25 an order, and he wants to know whether Station Road is genuinely below that or just having a quiet Saturday:
+The one-sample row is the case Ravi has not run yet, so here it is for completeness. Head office says the chain averages \$25 an order, and he wants to know whether Station Road is genuinely below that or just having a quiet Saturday:
 
 ```r
 t.test(station, mu = 25)
@@ -855,7 +855,7 @@ t.test(station, mu = 25)
 #>  23.10533 
 ```
 
-`mu = 25` is the fixed value to compare against, and p = 0.18 says fifteen orders cannot separate Station Road's $23.11 from the chain's $25. The confidence interval says the same thing more usefully: the true Station Road average is somewhere between $20.19 and $26.02, and $25 sits comfortably inside that.
+`mu = 25` is the fixed value to compare against, and p = 0.18 says fifteen orders cannot separate Station Road's \$23.11 from the chain's \$25. The confidence interval says the same thing more usefully: the true Station Road average is somewhere between \$20.19 and \$26.02, and \$25 sits comfortably inside that.
 
 === step === concept
 ::eyebrow Honesty
@@ -891,7 +891,7 @@ Five places worth an hour when you want more than this lesson gives.
 === step === complete
 ## Part 1 complete
 
-You started where Ravi did, staring at $23.11, $27.52 and $32.07 with no idea which of a dozen tests belonged to that moment. You now have five questions that get you there without remembering anything: what did you measure, how many groups, same people twice, is the shape ordinary, and how big is it. Those five put Ravi on `oneway.test(value ~ branch, data = orders)`, which came back at p = 0.004, and the follow-up said Station Road is the branch that genuinely lags while Hillside and Lakeview cannot be told apart on one Saturday.
+You started where Ravi did, staring at \$23.11, \$27.52 and \$32.07 with no idea which of a dozen tests belonged to that moment. You now have five questions that get you there without remembering anything: what did you measure, how many groups, same people twice, is the shape ordinary, and how big is it. Those five put Ravi on `oneway.test(value ~ branch, data = orders)`, which came back at p = 0.004, and the follow-up said Station Road is the branch that genuinely lags while Hillside and Lakeview cannot be told apart on one Saturday.
 
 You also picked up the parts most flowcharts leave out. A normality test is evidence, not a switch. R has been running Welch's version of the t-test by default the whole time. Three separate two-group tests turn a 5 percent false-alarm risk into 14 percent. And a p-value with no effect size beside it is half an answer.
 

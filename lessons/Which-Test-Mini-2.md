@@ -22,7 +22,7 @@ mathjax: true
 ::eyebrow Part 2 of 11
 ## Welch's ANOVA: the test for unequal group variances
 
-Let's consider a 45-person company where Meera runs people operations, and this week they are going through pay one team at a time. Support, 18 people, averages $50,700 a year. Marketing, also 18 people, averages $52,600. Engineering is 9 people and averages $61,700.
+Let's consider a 45-person company where Meera runs people operations, and this week they are going through pay one team at a time. Support, 18 people, averages \$50,700 a year. Marketing, also 18 people, averages \$52,600. Engineering is 9 people and averages \$61,700.
 
 The question is the ordinary one anybody asks of three numbers like that: do the teams genuinely pay differently, or is that gap just who happens to sit where?
 
@@ -32,7 +32,7 @@ Same salaries, same question, and the two tests point opposite ways.
 
 ::widget chart-plotter {"data":[{"x":"Support","y":49.6},{"x":"Support","y":52.1},{"x":"Support","y":45.9},{"x":"Support","y":46.5},{"x":"Support","y":56.7},{"x":"Support","y":48.3},{"x":"Support","y":57.3},{"x":"Support","y":54.5},{"x":"Support","y":51.8},{"x":"Support","y":48.0},{"x":"Support","y":48.7},{"x":"Support","y":50.6},{"x":"Support","y":45.8},{"x":"Support","y":51.0},{"x":"Support","y":47.4},{"x":"Support","y":52.0},{"x":"Support","y":51.1},{"x":"Support","y":55.6},{"x":"Marketing","y":51.8},{"x":"Marketing","y":51.5},{"x":"Marketing","y":51.4},{"x":"Marketing","y":54.4},{"x":"Marketing","y":52.5},{"x":"Marketing","y":56.1},{"x":"Marketing","y":54.8},{"x":"Marketing","y":54.5},{"x":"Marketing","y":53.7},{"x":"Marketing","y":51.1},{"x":"Marketing","y":53.5},{"x":"Marketing","y":50.1},{"x":"Marketing","y":49.5},{"x":"Marketing","y":50.3},{"x":"Marketing","y":57.6},{"x":"Marketing","y":47.4},{"x":"Marketing","y":50.6},{"x":"Marketing","y":56.7},{"x":"Engineering","y":46.0},{"x":"Engineering","y":48.5},{"x":"Engineering","y":49.2},{"x":"Engineering","y":52.0},{"x":"Engineering","y":55.4},{"x":"Engineering","y":58.1},{"x":"Engineering","y":62.0},{"x":"Engineering","y":88.0},{"x":"Engineering","y":96.5}],"geoms":["boxplot"],"x":"team","y":"salary"}
 
-The reason for the disagreement is sitting right there in the picture. Support and Marketing are two tidy little boxes, because almost everybody on those teams earns within a few thousand dollars of their teammates. Engineering is a tower: seven of its nine people earn ordinary salaries, and two are specialists on $88,000 and $96,500.
+The reason for the disagreement is sitting right there in the picture. Support and Marketing are two tidy little boxes, because almost everybody on those teams earns within a few thousand dollars of their teammates. Engineering is a tower: seven of its nine people earn ordinary salaries, and two are specialists on \$88,000 and \$96,500.
 
 Classic ANOVA quietly assumes all three teams scatter about the same amount. When that is not true, it does not warn you.
 
@@ -54,7 +54,7 @@ By the end of this lesson you will be able to:
 
 Here is the payroll. Run this block first, because every later block on this page uses what it creates.
 
-Salaries are in thousands of dollars a year, so 50.6 means $50,600. That keeps the numbers short enough to read in the output, and it changes nothing about the tests.
+Salaries are in thousands of dollars a year, so 50.6 means \$50,600. That keeps the numbers short enough to read in the output, and it changes nothing about the tests.
 
 ```r
 support <- c(49.6, 52.1, 45.9, 46.5, 56.7, 48.3, 57.3, 54.5, 51.8,
@@ -105,7 +105,7 @@ R prints the teams alphabetically rather than in the order you typed them, which
 
 An average tells you where a team sits. It says nothing about how tightly its people are packed around that spot, and that second thing is where the two tests part ways.
 
-The plain measure of packing is the **standard deviation**, which is the ordinary distance between one person's salary and their team's average. If Support's standard deviation is 3.6, then a typical Support salary sits about $3,600 away from $50,700, some above, some below.
+The plain measure of packing is the **standard deviation**, which is the ordinary distance between one person's salary and their team's average. If Support's standard deviation is 3.6, then a typical Support salary sits about \$3,600 away from \$50,700, some above, some below.
 
 ```r
 round(tapply(pay$salary, pay$team, sd), 2)
@@ -117,7 +117,7 @@ round(tapply(pay$salary, pay$team, var), 1)
 #>       328.3         7.4        12.8 
 ```
 
-Read the first line slowly. A typical Marketing salary sits $2,720 from its team average. A typical Engineering salary sits $18,120 from its team average, which is more than six times further out, and that is before you notice that Engineering has half as many people to work it out from.
+Read the first line slowly. A typical Marketing salary sits \$2,720 from its team average. A typical Engineering salary sits \$18,120 from its team average, which is more than six times further out, and that is before you notice that Engineering has half as many people to work it out from.
 
 The second line is the **variance**, which is just the standard deviation squared: 18.12 squared is 328.3. It is the same information in a different currency, and statistics does most of its arithmetic in that currency because variances add up neatly when standard deviations do not. Whenever you see the word variance in this lesson, picture the spread you already understand, squared.
 
@@ -173,9 +173,9 @@ round(sqrt(pooled_var), 2)
 #> [1] 8.41
 ```
 
-So the classic test walks into Meera's payroll and announces that every team has a typical wobble of $8,410.
+So the classic test walks into Meera's payroll and announces that every team has a typical wobble of \$8,410.
 
-Look at what that claim does to each team. Support really wobbles by $3,570, so the test treats Support as nearly two and a half times noisier than it is, and any real difference involving Support gets buried. Engineering really wobbles by $18,120, so the test treats Engineering as less than half as noisy as it is, and it will believe Engineering's average far more firmly than it has any right to.
+Look at what that claim does to each team. Support really wobbles by \$3,570, so the test treats Support as nearly two and a half times noisier than it is, and any real difference involving Support gets buried. Engineering really wobbles by \$18,120, so the test treats Engineering as less than half as noisy as it is, and it will believe Engineering's average far more firmly than it has any right to.
 
 [KEY INSIGHT]
 Pooling is not a rounding error or a small approximation here. One number, 8.41, is standing in for 3.57, 2.72 and 18.12. It is too big for two teams and much too small for the third, so it does not describe anybody in this company.
@@ -273,7 +273,7 @@ Here is the honest way to settle it, and the trick works on any test you ever ha
 
 A test's p-value comes with a promise attached. When it says p = 0.008, it is promising that results this extreme turn up 8 times in a thousand **when nothing is really going on**. So build a world where nothing is really going on, run the test thousands of times in that world, and count how often it claims to have found something. If the promise is good, the classic test should cry wolf about 5 times in 100 at the usual 0.05 threshold. If it cries wolf far more often than that, its p-values mean something other than what they say.
 
-The function below builds one imaginary payroll where all three teams pay exactly $52,000 on average, with the same team sizes and the same spreads as Meera's real company, and runs both tests on it.
+The function below builds one imaginary payroll where all three teams pay exactly \$52,000 on average, with the same team sizes and the same spreads as Meera's real company, and runs both tests on it.
 
 ```r
 one_payroll <- function(sizes   = c(18, 18, 9),
@@ -296,7 +296,7 @@ round(one_payroll(), 3)
 #>     0.018     0.374     4.410 
 ```
 
-Take that function apart before trusting it. `sizes` is how many people are on each team, `spreads` is each team's standard deviation, and `means` is what each team truly pays, which here is 52 for all three. `rnorm(18, mean = 52, sd = 3.6)` invents 18 salaries scattered around $52,000 with a typical distance of $3,600 from it. `oneway.test` with `var.equal = TRUE` is the classic test and with `var.equal = FALSE` is Welch, so both see exactly the same invented payroll.
+Take that function apart before trusting it. `sizes` is how many people are on each team, `spreads` is each team's standard deviation, and `means` is what each team truly pays, which here is 52 for all three. `rnorm(18, mean = 52, sd = 3.6)` invents 18 salaries scattered around \$52,000 with a typical distance of \$3,600 from it. `oneway.test` with `var.equal = TRUE` is the classic test and with `var.equal = FALSE` is Welch, so both see exactly the same invented payroll.
 
 Now read the result. In this made-up company **every team pays the same**. I know that for a fact, because I wrote the 52s myself. And the classic test came back with p = 0.018 and called it a difference.
 
@@ -440,7 +440,7 @@ Marketing, 18 tightly clustered people, carries 62.9 percent of the vote. Suppor
 
 So the team Meera was actually asking about gets less than one percent of the say. Uncomfortable right?
 
-And yet Welch is not being unfair to Engineering here. Nine people whose salaries run from $46,000 to $96,500 simply do not tell you much about what an engineer earns at this company. That was always true. The classic test simply hid it from you, and Welch does not.
+And yet Welch is not being unfair to Engineering here. Nine people whose salaries run from \$46,000 to \$96,500 simply do not tell you much about what an engineer earns at this company. That was always true. The classic test simply hid it from you, and Welch does not.
 
 === step === concept
 ::eyebrow Inside Welch
@@ -461,7 +461,7 @@ round(grand, 2)
 #> [1] 52
 ```
 
-$52,000, which sits between Support's $50,720 and Marketing's $52,640 and nowhere near Engineering's $61,740. The plain average of all 45 salaries is higher, because Engineering's two specialists drag it up. The weighted middle mostly ignores them, exactly as the weights said it would.
+\$52,000, which sits between Support's \$50,720 and Marketing's \$52,640 and nowhere near Engineering's \$61,740. The plain average of all 45 salaries is higher, because Engineering's two specialists drag it up. The weighted middle mostly ignores them, exactly as the weights said it would.
 
 Next the gaps, measured from that middle:
 
@@ -641,7 +641,7 @@ round(1.8084^2, 4)
 
 The F is the t squared, off in the last digit only because 1.8084 is the rounded t that R printed. With two groups Welch's ANOVA **is** the Welch t-test, so the two-group test people reach for without a second thought is the small case of what you just built by hand.
 
-Notice the confidence interval in the t-test output too, since it says something the p-value cannot. It runs from -$2,940 to $25,000. That is the range of true differences the data cannot rule out, and a range with zero inside it is a range that cannot rule out no difference at all. It is also enormously wide, which is the useful part: nine noisy salaries pin down almost nothing.
+Notice the confidence interval in the t-test output too, since it says something the p-value cannot. It runs from -\$2,940 to \$25,000. That is the range of true differences the data cannot rule out, and a range with zero inside it is a range that cannot rule out no difference at all. It is also enormously wide, which is the useful part: nine noisy salaries pin down almost nothing.
 
 === step === concept
 ::eyebrow Reporting
@@ -664,9 +664,9 @@ rbind(Support     = ci_for(support),
 #> Engineering 61.74 47.82 75.67
 ```
 
-`t.test(x)` on a single group hands back a 95 percent **confidence interval**, which is the range of true team averages the data cannot rule out. Support's is about three and a half thousand dollars wide. Marketing's is under three. Engineering's runs from $47,820 to $75,670, which is nearly $28,000 of not knowing.
+`t.test(x)` on a single group hands back a 95 percent **confidence interval**, which is the range of true team averages the data cannot rule out. Support's is about three and a half thousand dollars wide. Marketing's is under three. Engineering's runs from \$47,820 to \$75,670, which is nearly \$28,000 of not knowing.
 
-That last row is the answer to Meera's question, in a form somebody can act on. This payroll does not really hand you an Engineering average at all, it hands you a range nearly $28,000 wide.
+That last row is the answer to Meera's question, in a form somebody can act on. This payroll does not really hand you an Engineering average at all, it hands you a range nearly \$28,000 wide.
 
 Here is what the pooled model would have claimed for that same team:
 
@@ -698,7 +698,7 @@ pairwise.t.test(pay$salary, pay$team, p.adjust.method = "holm", pool.sd = FALSE)
 [TIP]
 The formal name for the Welch-style post-hoc after a Welch ANOVA is the Games-Howell test, which uses the same unpooled standard errors with a different reference distribution. `pairwise.t.test(pool.sd = FALSE)` is base R and close enough for most work; when you are writing something up for review, `rstatix::games_howell_test()` gives you the textbook version with confidence intervals attached. Part 6 of this course takes post-hoc testing apart properly.
 
-So the honest sentence for Meera is this. Support and Marketing average about $50,700 and $52,600, both known to within a couple of thousand. Engineering averages $61,700 but ranges from $46,000 to $96,500 across nine people, so its average is known only to within about fourteen thousand either way. Welch's ANOVA across the three teams gives F(2, 17.19) = 2.85, p = 0.085, so this payroll cannot establish that the teams differ. Whether that gap is real is a question nine engineers cannot answer.
+So the honest sentence for Meera is this. Support and Marketing average about \$50,700 and \$52,600, both known to within a couple of thousand. Engineering averages \$61,700 but ranges from \$46,000 to \$96,500 across nine people, so its average is known only to within about fourteen thousand either way. Welch's ANOVA across the three teams gives F(2, 17.19) = 2.85, p = 0.085, so this payroll cannot establish that the teams differ. Whether that gap is real is a question nine engineers cannot answer.
 
 === step === concept
 ::eyebrow The habit to break
@@ -736,7 +736,7 @@ Welch fixes one specific thing: groups that scatter by different amounts. It fix
 
 ::widget tree-diagram {"root":"is the mean fair?","l":"spreads equal?","r":"one wild value?","leaves":["classic F","Welch F","trimmed mean","Kruskal"]}
 
-Start at the top, because that question comes before any of this. **Is the average a fair summary of each group?** For Support and Marketing, plainly yes: their people cluster around a middle. For Engineering, honestly, not really. Seven people spread between $46,000 and $62,000, plus two near $92,000, is not a group with a typical salary, it is two groups wearing one label, and no test can rescue a summary that does not describe anybody.
+Start at the top, because that question comes before any of this. **Is the average a fair summary of each group?** For Support and Marketing, plainly yes: their people cluster around a middle. For Engineering, honestly, not really. Seven people spread between \$46,000 and \$62,000, plus two near \$92,000, is not a group with a typical salary, it is two groups wearing one label, and no test can rescue a summary that does not describe anybody.
 
 If the average is fair, the left branch is the whole lesson: equal spreads let you use either test, unequal spreads mean Welch.
 
@@ -757,7 +757,7 @@ round(tapply(pay$salary, pay$team, median), 2)
 
 Kruskal-Wallis is the three-or-more-group rank test, and it agrees with Welch here: p = 0.107, nothing established. That agreement is reassuring, because when a borderline judgement call flips your conclusion, the conclusion was never solid.
 
-The medians are worth a look on their own. By average, Engineering sits $11,000 above Support. By median, the middle engineer earns $55,400 against Support's $50,800, so the gap shrinks to $4,600 once the two specialists stop pulling. Both numbers are true. They answer different questions, and choosing which to report is judgement, not statistics.
+The medians are worth a look on their own. By average, Engineering sits \$11,000 above Support. By median, the middle engineer earns \$55,400 against Support's \$50,800, so the gap shrinks to \$4,600 once the two specialists stop pulling. Both numbers are true. They answer different questions, and choosing which to report is judgement, not statistics.
 
 There is also a limit on what any test can do for Meera here, and it is worth saying plainly. Welch does not narrow the range around Engineering's average, it only stops the report from pretending that range is narrow. If the company genuinely needs to know whether engineers are paid differently, the fix is more information, which means more engineers, a longer window, or splitting the specialists out as the separate group they really are. No choice of test substitutes for that.
 
