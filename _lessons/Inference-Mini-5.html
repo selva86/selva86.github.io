@@ -1,0 +1,1439 @@
+---
+title: "Hypothesis testing: the framework, explained"
+description: "A bakery is accused of underfilling its 500 g loaves. Weigh 20 of them in R and run the whole hypothesis testing framework, verdict and errors included."
+keywords: "hypothesis testing, null hypothesis, alternative hypothesis, p-value, significance level, alpha, type I error, type II error, t.test in R, test statistic, statistics for beginners, R"
+mathjax: true
+webr: true
+curriculum_id: "0.0.12"
+post_type: "LESSON"
+course_id: "inference-from-zero"
+course_title: "Inference from Zero"
+course_lesson: "5"
+course_total: "7"
+course_landing: "/dashboard.html"
+course_prev: "Inference-Mini-4"
+lesson_access: "windowed"
+catalog_blurb: "How a test reaches its verdict, and the two ways it goes wrong."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Part 5 of 7</div>
+<h2>Hypothesis testing: the framework, explained</h2>
+
+<p>Part 4 ended by saying the pieces you had been using by name would finally get a structure to sit in. This is that structure. If you missed the earlier parts, nothing here leans on them, because every piece gets rebuilt from the beginning.</p>
+
+<p>Nadia Okafor inspects weights and measures for her local council. Last month a customer wrote in about Sunrise Bakery, whose sourdough loaves are labelled <strong>500 grams</strong>, saying they had started to feel light. So Nadia bought loaves over two weeks, twenty in all, and weighed each one on a calibrated scale. They came out at an average of <strong>493.97 grams</strong>.</p>
+
+<p>Six grams short. That could be a bakery cutting corners, or it could be twenty ordinary loaves from an honest bakery, because no two loaves ever weigh the same. Deciding which is exactly the job the framework does, and it does it the way a courtroom does: the bakery is presumed innocent, Nadia's twenty weights are the evidence, and a conviction only follows if that evidence would be too surprising coming from an honest baker.</p>
+
+<p>The curve below is what the evidence looks like when the defendant is innocent. Drag the marker to move the evidence further from the middle, watch the shaded tail shrink, and watch the verdict at the bottom flip.</p>
+
+<p>At 1.50 the readout says 0.067 and the verdict is fail to reject. Nudge it along to 1.60 and it reads 0.055, still not enough. One more notch to 1.65 and it reads 0.049, and the verdict flips to reject. Somewhere in that hair-thin gap sits the convention that decides which results get called real, and it is worth being uncomfortable about that.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Write down the two competing claims in a test, in the right form and about the right thing</li>
+
+<li>Say what a p-value counts, naming the world it is counted inside</li>
+
+<li>Run a complete test in R and translate every line of the printout back into plain English</li>
+
+<li>Explain why "not significant" is not the same as "nothing happened", using a case that got it wrong</li>
+
+<li>Name the two ways a verdict goes wrong, say which dial controls which, and measure both rates yourself</li>
+
+<li>Catch the four ways the machine gets abused: charging after seeing the evidence, filing a dozen charges, reading a verdict as a sentence, and breaking the rules of evidence</li>
+
+<li>Run the same five moves on a completely different kind of evidence</li>
+
+</ul>
+
+<p><strong>What you need first:</strong> you can read a simple R script, so a variable, a function call and a comparison like <code>p &lt; 0.05</code> are familiar. No statistics background is assumed, and every term is defined in plain words the moment it appears.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":1,"max":4,"start":1.5,"label":"how far the evidence sits from what an honest bakery produces"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The shape of it</div>
+<h2>Every test is the same trial</h2>
+
+<p>Before any arithmetic, here is the whole machine. A statistical test always makes the same five moves, in the same order, whatever the subject.</p>
+
+<p>Nadia's case fills every one of those in.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>The trial</th>
+<th>The statistics word</th>
+<th>Sunrise Bakery</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The defendant</td>
+<td>the null hypothesis</td>
+<td>the loaves truly average 500 g</td>
+</tr>
+<tr>
+<td>The charge</td>
+<td>the alternative hypothesis</td>
+<td>the true average is below 500 g</td>
+</tr>
+<tr>
+<td>The evidence</td>
+<td>the sample</td>
+<td>20 weighed loaves</td>
+</tr>
+<tr>
+<td>The prosecution's summary</td>
+<td>the test statistic</td>
+<td>one number, computed next</td>
+</tr>
+<tr>
+<td>What innocent evidence looks like</td>
+<td>the null distribution</td>
+<td>the range of averages honest bakeries produce</td>
+</tr>
+<tr>
+<td>How damning this evidence is</td>
+<td>the p-value</td>
+<td>the number everyone quotes</td>
+</tr>
+<tr>
+<td>Beyond reasonable doubt</td>
+<td>the significance threshold</td>
+<td>the bar, set before weighing</td>
+</tr>
+<tr>
+<td>The verdict</td>
+<td>reject or fail to reject</td>
+<td>guilty, or not proven</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two things about that table are worth flagging now, because both trip people up later.</p>
+
+<p>The defendant is not "the bakery is cheating". It is "the bakery is fine", which sounds backwards until you notice the courtroom does the same thing. A trial does not start neutral, it starts with the presumption of innocence, and the prosecution has to shift it. In a statistical test the boring claim gets that presumption, and the data has to shift it.</p>
+
+<p>And the two verdicts are not symmetric. A jury can convict or it can fail to convict, but it never returns a verdict of "proven innocent". A test works the same way, which is why the second verdict is written as <strong>fail to reject</strong> rather than <strong>accept</strong>. That phrasing is clumsy and it is deliberate, because smoothing it over is what closed a real case against this very bakery six months too early.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Name the defendant","sub":"the boring claim that nothing unusual is going on"},{"title":"Collect the evidence","sub":"the data, gathered without knowing how it will come out"},{"title":"Summarise it in one number","sub":"the test statistic: how far the evidence sits from boring"},{"title":"Ask how surprising that is","sub":"if the defendant is innocent, how often does evidence look this bad"},{"title":"Compare it to the bar and decide","sub":"the threshold, fixed in advance, not chosen afterwards"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The evidence</div>
+<h2>Twenty loaves on a scale</h2>
+
+<p>Here is what Nadia actually has. Twenty weights in grams, in the order she bought them, from loaves labelled 500 g.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loaves &lt;- c(495.4, 491.6, 500.1, 480.3, 501.8, 510.1, 488.6, 483.4, 481.8, 492.2,
+            494.6, 486.8, 503.7, 502.1, 490.7, 499.7, 485.4, 508.3, 482.0, 500.8)
+
+length(loaves)
+#&gt; [1] 20
+
+round(mean(loaves), 2)
+#&gt; [1] 493.97
+
+round(sd(loaves), 2)
+#&gt; [1] 9.09
+
+sum(loaves &lt; 500)
+#&gt; [1] 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mean()</code> adds the twenty weights and divides by twenty, so <strong>493.97 g</strong> is the average loaf in Nadia's basket. <code>sd()</code> gives the <strong>standard deviation</strong>, the standard word for how much the individual loaves differ from that average, and <strong>9.09 g</strong> says a typical loaf sits about nine grams away from 493.97 in one direction or the other. <code>sum(loaves &lt; 500)</code> counts how many came in under label weight, because R treats every TRUE as a 1, and thirteen of the twenty did.</p>
+
+<p>Look at the raw numbers for a moment rather than the summaries. The lightest loaf is 480.3 g, nearly twenty grams short, whereas the heaviest is 510.1 g, ten grams <em>over</em>, and seven of the twenty came in above label weight. So whatever is going on at Sunrise Bakery, it is not that every loaf is short, which is exactly what you would expect: dough is portioned by weight before it goes in the oven, and how much water leaves during baking varies from loaf to loaf.</p>
+
+<p>So the question is not about any single loaf. It is about where the bakery's true average sits, and Nadia cannot see that number. She can only see twenty draws from it.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The obvious objection</div>
+<h2>An average below 500 is not yet guilt</h2>
+
+<p>Six grams short looks like evidence, and the natural next thought is that the case is already made. It is not, and here is why.</p>
+
+<p>Suppose Sunrise Bakery is completely honest, and its loaves really do average exactly 500 g with the same nine-gram loaf-to-loaf variation Nadia measured. Buy twenty of those loaves and weigh them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+honest &lt;- rnorm(20, mean = 500, sd = 9.09)
+
+round(mean(honest), 2)
+#&gt; [1] 501.73</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rnorm(20, mean = 500, sd = 9.09)</code> asks R for twenty loaves from a world whose true average is 500 and whose loaf-to-loaf spread is 9.09, and <code>set.seed(1)</code> pins R's random numbers down so your run comes out identical to the one printed here.</p>
+
+<p>This honest bakery's twenty loaves averaged <strong>501.73 g</strong>, not 500. Nobody cheated in the other direction either. The twenty loaves that happened to land in the basket were not perfectly average, so their average was not exactly 500.</p>
+
+<p>That is the entire difficulty. An honest bakery does not produce a sample average of 500.00. It produces something near 500, and "near" has a size. Until we know how big that wandering is, six grams short means nothing at all, because we cannot tell whether six grams is far outside what honest wandering produces or comfortably inside it.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">How big is near</div>
+<h2>Twenty honest bakeries</h2>
+
+<p>One imagined honest bakery tells us the average moves. Twenty of them tell us how much.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(33)
+twenty_honest &lt;- replicate(20, mean(rnorm(20, mean = 500, sd = 9.09)))
+
+round(twenty_honest, 2)
+#&gt;  [1] 500.61 501.68 498.06 503.13 499.22 501.42 504.42 500.54 499.03 499.83
+#&gt; [11] 500.64 498.24 499.07 502.14 500.28 495.76 498.41 497.21 500.38 500.02
+
+sum(twenty_honest &lt;= 493.97)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>replicate(20, ...)</code> runs the thing inside it twenty separate times and collects the twenty answers, so each number above is one honest bakery's twenty loaves, averaged. The <code>[1]</code> and <code>[11]</code> down the left edge are R keeping count of where each printed line starts, not part of the data.</p>
+
+<p>Read the spread of those twenty numbers. The lowest is <strong>495.76</strong> and the highest is <strong>504.42</strong>, so honest bakeries do wander, by four or five grams either way, and one of them came in more than four grams light purely by luck. That is the size of "near".</p>
+
+<p>Now look at the last line. Not one of the twenty honest bakeries got as low as Nadia's 493.97. Zero out of twenty.</p>
+
+<p>That is the first real evidence against Sunrise Bakery, and notice the shape of the argument, because every hypothesis test you will ever run has this shape. We did not try to prove the bakery is cheating. We built the world where it is innocent, looked at what that world produces, and found Nadia's basket sitting outside it.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Counting properly</div>
+<h2>Fifty thousand honest bakeries</h2>
+
+<p>Twenty runs is enough to see the shape and far too few to put a number on it, since zero out of twenty could mean one in fifty or one in fifty thousand. So run fifty thousand.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+many_honest &lt;- replicate(50000, mean(rnorm(20, mean = 500, sd = 9.09)))
+
+mean(many_honest &lt;= 493.97)
+#&gt; [1] 0.00126</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>many_honest &lt;= 493.97</code> turns the fifty thousand averages into fifty thousand TRUEs and FALSEs, and <code>mean()</code> of those gives the fraction that are TRUE, because R counts every TRUE as 1 and every FALSE as 0.</p>
+
+<p><strong>0.00126.</strong> About one honest bakery in eight hundred would hand Nadia a basket averaging 493.97 g or less, purely through the luck of which twenty loaves she happened to pick up.</p>
+
+<p>Here is the same fifty thousand as a picture. Press Run, and each bar counts how many imagined honest bakeries produced an average in that slice.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(many_honest, breaks = 60, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;50,000 honest bakeries, 20 loaves each&quot;,
+     xlab = &quot;average weight of the 20 loaves, in grams&quot;)
+abline(v = 493.97, col = &quot;#b5631a&quot;, lwd = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pile is centred on 500, which is where it should be, since these bakeries are honest by construction. It tails away in both directions, and the orange line marks where Nadia's basket landed. There is barely any curve left out there.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">This histogram is the single most important object in hypothesis testing, and it has a name: the <strong>null distribution</strong>. It is what the evidence looks like across all the ways an innocent defendant's evidence could have come out. Everything else is a way of measuring where the real evidence falls on it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two claims</div>
+<h2>The defendant and the charge, written down properly</h2>
+
+<p>We have been running the machine before naming its parts, which is the right order to learn it in. Now the names.</p>
+
+<p>The claim we simulated, the one that gets the presumption of innocence, is the <strong>null hypothesis</strong>, written \\( H_0 \\) and read "H nought" or "H zero". Nadia's version:</p>
+
+<p>\\[ H_0: \\mu = 500 \\]</p>
+
+<p>Every symbol in that line matters. \\( \\mu \\), the Greek letter mu, is the <strong>true average weight of every loaf Sunrise Bakery bakes</strong>, including the ones Nadia never bought and the ones not baked yet. It is a fixed number nobody can see. The line says that number is 500.</p>
+
+<p>Against it stands the <strong>alternative hypothesis</strong>, written \\( H_1 \\), which is the charge:</p>
+
+<p>\\[ H_1: \\mu < 500 \\]</p>
+
+<p>The true average is below 500. That is what Nadia would have to establish to act.</p>
+
+<p>Three things about how those two lines are built, each of which is a rule rather than a stylistic choice.</p>
+
+<p><strong>They are about \\( \\mu \\), never about the sample.</strong> Writing \\( H_0 \\) as "the average of Nadia's twenty loaves is 500" would be nonsense, because we can see that average and it is 493.97. There is nothing to test about a number you already have. The unknown is the bakery's true average, and hypotheses are always statements about the unknown.</p>
+
+<p><strong>The null is the boring one, and it has to be specific enough to simulate.</strong> "The bakery is fine" only became a world we could build because it pinned \\( \\mu \\) to exactly 500. "The bakery is cheating" pins nothing, since cheating by one gram and cheating by fifty are both cheating, and you cannot simulate a world that vague. That asymmetry is why the boring claim gets the presumption: it is the only one of the two that is precise enough to be tested against.</p>
+
+<p><strong>They are written before the evidence is looked at.</strong> Nadia's charge is one-directional, \\( \\mu < 500 \\), because a bakery giving customers <em>more</em> bread than promised is not what she was sent to investigate. That decision was made when the complaint came in, months before anyone weighed anything, and taking the two steps in the other order costs the test the very error rate it advertises.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which one is the null</h2>
+
+<p>Nadia is testing whether Sunrise Bakery's 500 g loaves are underweight. Which of these is the null hypothesis for her test?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The average of the 20 loaves Nadia weighed is 500 g</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The true average weight of all Sunrise Bakery loaves is 500 g</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The true average weight of all Sunrise Bakery loaves is below 500 g</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Sunrise Bakery is deliberately underfilling its loaves</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right, and both halves of that sentence are doing work. It is about the <em>true</em> average across every loaf the bakery makes, which is the number nobody can see, rather than about the twenty Nadia happened to buy. And it is the boring claim, the one that says nothing unusual is going on, which is what gets the presumption of innocence and what we simulated fifty thousand times.</div><div class="lesson-qfb lesson-qfb-no">The first option is a statement about the twenty loaves in the basket, and their average is already known to be 493.97, so there is nothing left to test. The third is the alternative hypothesis, the charge rather than the defendant. And the last one is about intent, which no scale can measure: a test can say the loaves are light, but whether that is fraud, a miscalibrated portioner or a new flour supplier is a question for the inspection visit, not the arithmetic.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">One number</div>
+<h2>Compress the evidence into a single figure</h2>
+
+<p>Nadia's evidence is currently twenty numbers. To compare it against anything, the prosecution has to summarise it into one, and the natural summary is "how far below 500 did the basket land, measured in units of how far baskets normally wander".</p>
+
+<p>The wandering has a size and a name. Part 3 called it the <strong>standard error</strong>: the typical distance between a sample average and the truth it is estimating. For an average of \\( n \\) things whose individual spread is \\( s \\), it is</p>
+
+<p>\\[ SE = \\frac{s}{\\sqrt{n}} \\]</p>
+
+<p>where \\( s \\) is the loaf-to-loaf standard deviation and \\( n \\) is how many loaves were weighed. Dividing by \\( \\sqrt{n} \\) is why more evidence is better: twenty loaves pin the average down more tightly than five do.</p>
+
+<p>Now the summary itself. Take how far the basket landed from the null's 500, and divide by that typical wandering:</p>
+
+<p>\\[ t = \\frac{\\bar{x} - \\mu_0}{SE} \\]</p>
+
+<p>where \\( \\bar{x} \\) is the average of the loaves Nadia weighed, and \\( \\mu_0 \\) is the value the null hypothesis pinned \\( \\mu \\) to, which here is 500. Work both out on Nadia's actual numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">se     &lt;- sd(loaves) / sqrt(length(loaves))
+t_stat &lt;- (mean(loaves) - 500) / se
+
+round(c(se = se, t = t_stat), 4)
+#&gt;      se       t 
+#&gt;  2.0328 -2.9664</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two numbers, and both are readable in plain English.</p>
+
+<p><strong>SE = 2.0328.</strong> A basket of twenty loaves from an honest bakery typically lands about two grams away from 500. That matches what you saw a moment ago: those twenty simulated honest bakeries ran from 495.76 to 504.42, which is roughly two standard errors either side of 500.</p>
+
+<p><strong>t = -2.9664.</strong> Nadia's basket landed almost three of those typical wanderings <em>below</em> 500. The minus sign says below, and the size says how far in units of ordinary wobble rather than in grams.</p>
+
+<p>That second number is the <strong>test statistic</strong>, and dividing by the standard error is what makes it portable. Six grams short means nothing on its own, because six grams is enormous for a chocolate bar and invisible for a sack of flour. Three standard errors short means the same thing everywhere.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">An honest correction</div>
+<h2>Why the curve is a little fatter than it looks</h2>
+
+<p>We now have two ways of measuring the same evidence, and they do not quite agree. That disagreement is worth chasing down, because it is where a genuinely important idea lives.</p>
+
+<p>The fifty-thousand-bakeries simulation gave 0.00126. But look at what it assumed: every simulated honest bakery was handed a spread of exactly 9.09, as though that number were known. It is not known. Nadia estimated it from the same twenty loaves, and a different twenty loaves would have produced a different estimate.</p>
+
+<p>So run the simulation again, honestly this time. Let each imagined honest bakery estimate its own spread from its own twenty loaves, exactly as Nadia had to, and compute its own test statistic.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+t_honest &lt;- replicate(50000, {
+  batch &lt;- rnorm(20, mean = 500, sd = 9.09)
+  (mean(batch) - 500) / (sd(batch) / sqrt(20))
+})
+
+mean(t_honest &lt;= -2.9664)
+#&gt; [1] 0.00394</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>0.00394</strong>, against 0.00126 from the version that pretended the spread was known. Three times as many honest bakeries look this guilty once you admit you had to estimate the spread.</p>
+
+<p>The reason is straightforward once you see it. There are now two things wobbling instead of one. A basket can look extreme because its average came out low, or because its estimated spread came out small, which shrinks the denominator and inflates the statistic. Two sources of wobble produce a fatter tail than one, so extreme-looking evidence is more common than the known-spread version suggested.</p>
+
+<p>That fatter curve has a name, the <strong>t distribution</strong>, and this is the entire reason it exists. It is the bell curve's slightly heavier-tailed cousin, used whenever the spread had to be estimated from the same data. How much heavier depends on how much data did the estimating, through a number called the <strong>degrees of freedom</strong>, which here is 19: twenty loaves, minus one, because the average had to be worked out from those same loaves before anything could be measured against it. With hundreds of loaves the two curves become indistinguishable, and with twenty the difference is a factor of three in the tail, as you just measured.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="widget">
+<div class="lesson-step-eyebrow">The number itself</div>
+<h2>The tail under the curve is the p-value</h2>
+
+<p>Everything so far has been a way of asking one question: <strong>if Sunrise Bakery is honest, how often would its evidence look at least this bad?</strong></p>
+
+<p>The picture below is that question. The curve is the null distribution in test-statistic units, so the middle is what an honest bakery typically produces and the edges are what it rarely produces. The vertical line is where the evidence landed, and the shaded region past it is every result at least that extreme. That shaded area is the whole answer.</p>
+
+<p>The marker starts at 2.65 and the readout says <strong>0.004</strong>, which is where Nadia's case lands. Drag it left towards zero and the shaded region swells: evidence near the middle is ordinary, an honest bakery produces it constantly, and there is nothing to explain. Drag it right and the region shrinks towards nothing, because evidence that far out is something an honest bakery almost never produces.</p>
+
+<p>One honest detail about that 2.65. The curve this widget draws is the bell curve, the known-spread version, whereas Nadia's statistic of 2.9664 lives on the slightly fatter t curve with 19 degrees of freedom. Those two curves put the same amount of area in the tail at different distances out, and 2.9664 on hers buys the same 0.004 that 2.65 buys here. The shape differs a little, the logic does not differ at all.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":1,"max":4,"start":2.65,"label":"how far from the middle the evidence sits"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">The definition</div>
+<h2>So that shaded area is the p-value</h2>
+
+<p>The number you have now measured twice, first by simulating fifty thousand honest bakeries and then as a shaded area under a curve, is the <strong>p-value</strong>, and it is worth stating carefully, because almost every misuse of it comes from a loose version of the sentence.</p>
+
+<p><strong>The p-value is the probability of getting evidence at least as extreme as the evidence you actually got, computed in the world where the null hypothesis is true.</strong></p>
+
+<p>Read it back with Nadia's numbers in place: if Sunrise Bakery's loaves truly average 500 g, then about 4 baskets in every 1,000 would produce evidence at least as extreme as hers. Her basket is one of those, or the bakery's true average is not 500.</p>
+
+<p>Every clause is load-bearing, and the three most common misreadings each drop a different one.</p>
+
+<ul>
+
+<li><strong>It is not the probability the bakery is innocent.</strong> The p-value is computed <em>assuming</em> innocence. It cannot then tell you how likely innocence is, any more than "an innocent man's fingerprints turn up here 4 times in 1,000" tells you the odds this particular man is innocent. Answering that second question needs something the p-value never sees: how common cheating bakeries are in the first place.</li>
+
+<li><strong>It is not the probability the result happened by chance.</strong> Same error wearing different clothes. Chance is assumed, not measured.</li>
+
+<li><strong>It is not a measure of how short the loaves are.</strong> 0.004 says the evidence is surprising for an honest bakery. It says nothing about whether the shortfall is 6 grams or 60, and a later step gets that number properly.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The phrase "at least as extreme" is doing quiet work. The p-value is not the probability of getting exactly 493.97, which for a continuous measurement is zero. It is the probability of landing that far out <strong>or further</strong>, which is the shaded tail rather than a single point on the curve. And "extreme" is measured in standard errors, so every imagined basket is judged against the spread it measured for itself. That is why the honest figure is about 4 in 1,000 rather than the roughly 1.3 in 1,000 from the earlier simulation, where each bakery was handed a spread of 9.09 as though somebody already knew it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">The bar</div>
+<h2>Beyond reasonable doubt, in grams</h2>
+
+<p>A p-value on its own does not convict anybody. It has to meet a bar, and the bar is a decision somebody makes rather than something the data produces.</p>
+
+<p>That bar is the <strong>significance level</strong>, written \\( \\alpha \\) and read "alpha". It is the p-value below which you have agreed to reject the null hypothesis, and it is fixed <strong>before</strong> the evidence is examined. Nadia's council uses the conventional</p>
+
+<p>\\[ \\alpha = 0.05 \\]</p>
+
+<p>which says: we will convict when the evidence is of a kind an honest bakery would produce less than 5 percent of the time.</p>
+
+<p>Where does 0.05 come from? Convention, repetition, and a remark by Ronald Fisher in the 1920s that one in twenty was a convenient line. It is not a law of nature, and nothing about the number 0.05 makes it correct. A council that fines bakeries on thin evidence would want a stricter bar; a screening test where missing a real problem is far worse than a false alarm might want a looser one. What matters far more than the value is that it is chosen in advance, for stated reasons.</p>
+
+<p>The bar can also be translated out of p-value units and back into grams, which makes it much easier to argue about. Ask what basket average sits exactly on the line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">critical_t &lt;- qt(0.05, df = 19)
+bar_grams  &lt;- 500 + critical_t * se
+
+round(c(critical_t = critical_t, bar_grams = bar_grams), 3)
+#&gt; critical_t  bar_grams 
+#&gt;     -1.729    496.485</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>qt(0.05, df = 19)</code> reads off the t curve the point with 5 percent of the area below it, and here that is <strong>-1.729</strong> standard errors. Multiplying by the standard error of 2.0328 and adding it to 500 puts the same line at <strong>496.485 grams</strong>.</p>
+
+<p>So Nadia's whole test, stripped of vocabulary, is this one sentence: <strong>if the twenty loaves average less than 496.485 g, convict.</strong> Hers averaged 493.97 g. That value, -1.729, is called the <strong>critical value</strong>, and the region past it is the <strong>rejection region</strong>, but the names matter less than the fact that the entire procedure collapses into a single number on a kitchen scale.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Say the 0.004 out loud</h2>
+
+<p>Nadia's test returns a p-value of 0.004. Which sentence states what that number means?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 0.4 percent chance that Sunrise Bakery's loaves are fine</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">There is a 99.6 percent chance the bakery is underfilling</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">If the bakery's loaves truly averaged 500 g, about 4 baskets of 20 in every 1,000 would produce evidence at least as extreme as Nadia's</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Only 0.4 percent of Sunrise Bakery loaves weigh less than 500 g</span></button>
+<button type="button" class="lesson-opt" data-i="5"><span class="lesson-opt-mk">E</span><span class="lesson-opt-tx">Nadia can be 99.6 percent confident she has the right answer</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is the definition with every clause intact. The conditional at the front is the part that gets dropped: the number is computed inside the world where the bakery is honest, so it describes what honest bakeries produce, not how likely honesty is. And "at least as extreme" is the tail rather than a single value, which is why it is an area under a curve.</div><div class="lesson-qfb lesson-qfb-no">The first two both try to turn the number around, from "how often does an innocent bakery produce evidence like this" into "how likely is this bakery innocent", and those are genuinely different quantities: answering the second needs to know how common short-weighting bakeries are before any weighing happened, which no p-value contains. The fourth confuses the p-value with a fact about individual loaves, and thirteen of Nadia's twenty were already under 500. The last one dresses the same reversal up as confidence.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">The whole thing in one line</div>
+<h2>The verdict, from R</h2>
+
+<p>Everything so far can be done by one function, and now that you know what each piece means, the printout reads like a summary of the trial.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(loaves, mu = 500, alternative = &quot;less&quot;)
+#&gt; 
+#&gt; 	One Sample t-test
+#&gt; 
+#&gt; data:  loaves
+#&gt; t = -2.9664, df = 19, p-value = 0.003965
+#&gt; alternative hypothesis: true mean is less than 500
+#&gt; 95 percent confidence interval:
+#&gt;      -Inf 497.4849
+#&gt; sample estimates:
+#&gt; mean of x 
+#&gt;    493.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three arguments, each one a piece of the trial. <code>loaves</code> is the evidence. <code>mu = 500</code> is the null hypothesis, the value the defendant claims. <code>alternative = &quot;less&quot;</code> is the charge, that the truth is below that value.</p>
+
+<p>And the printout says, line by line: the test statistic came out at <strong>-2.9664</strong>, on <strong>19</strong> degrees of freedom, with a p-value of <strong>0.003965</strong>. That p-value is the same 0.004 you simulated by hand from fifty thousand imagined honest bakeries, and the agreement is not a coincidence, it is two routes to the same area under the same curve.</p>
+
+<p>Since 0.003965 is below the 0.05 bar Nadia fixed in advance, the verdict is <strong>reject \\( H_0 \\)</strong>. In her report that becomes: the loaves are significantly underweight, and the evidence is not what an honest bakery ordinarily produces.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the printout</div>
+<h2>Every line, translated</h2>
+
+<p>That output is dense, so here is each line with what it actually tells you.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Line</th>
+<th>What it is</th>
+<th>Nadia's case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>One Sample t-test</code></td>
+<td>which test ran: one group against a fixed claimed value</td>
+<td>20 loaves against the labelled 500 g</td>
+</tr>
+<tr>
+<td><code>t = -2.9664</code></td>
+<td>the test statistic: how far the evidence sits from the null, in standard errors</td>
+<td>almost three, and below</td>
+</tr>
+<tr>
+<td><code>df = 19</code></td>
+<td>degrees of freedom: how much data estimated the spread, which sets how fat the curve is</td>
+<td>20 loaves minus 1</td>
+</tr>
+<tr>
+<td><code>p-value = 0.003965</code></td>
+<td>the shaded tail: how often innocence produces evidence this extreme</td>
+<td>about 4 in 1,000</td>
+</tr>
+<tr>
+<td><code>alternative hypothesis</code></td>
+<td>the charge, echoed back so you can check R tested what you meant</td>
+<td>true mean is less than 500</td>
+</tr>
+<tr>
+<td><code>95 percent confidence interval</code></td>
+<td>the range of true averages compatible with this evidence</td>
+<td>up to 497.4849</td>
+</tr>
+<tr>
+<td><code>sample estimates</code></td>
+<td>the plain summary of the evidence</td>
+<td>mean of x = 493.97</td>
+</tr>
+</tbody>
+</table>
+
+<p>That confidence interval line looks odd, running from <code>-Inf</code> up to 497.4849. It is one-sided because the test was one-sided: Nadia asked only whether the true average is <em>below</em> 500, so R answers only about the upper end, and the honest reading is "the evidence is compatible with any true average up to about 497.5 g". Ask a two-sided question and you get a two-sided interval, which is what the next step does.</p>
+
+<p>The one thing the printout does <strong>not</strong> contain is a verdict. R will not print the word "significant" or apply a threshold, because the threshold is your decision and not the function's. It hands you the number and stops.</p>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two verdicts, not three</div>
+<h2>Guilty, or not proven</h2>
+
+<p>Nadia's test rejected \\( H_0 \\). Suppose it had not. What would she then be entitled to say?</p>
+
+<p>Almost nothing, and this is the part of the framework people smooth over most often.</p>
+
+<p>A test has exactly two outcomes. <strong>Reject \\( H_0 \\)</strong> means the evidence was too surprising to live comfortably with the boring claim. <strong>Fail to reject \\( H_0 \\)</strong> means it was not. That second outcome is not evidence that the null is true. It is the absence of evidence that it is false, and those are different situations that happen to look identical from the outside.</p>
+
+<p>Scotland's courts have a verdict for this that English-speaking statisticians have quietly borrowed: <strong>not proven</strong>. It means the prosecution did not make its case, and it deliberately does not mean the defendant is innocent.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never write "we accept the null hypothesis" or "the test shows there is no difference". Write "we failed to reject" or, better, say what the data could and could not rule out. A test that fails to convict has told you about the strength of the evidence, and nothing whatever about the truth.</div></div>
+
+<p>The next step shows why this is not pedantry, using a case where the difference mattered.</p>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>What if the charge had been different</h2>
+
+<p>Nadia charged the bakery with underfilling, so her test looked in one direction only. Suppose instead a customer had complained that the loaves were <strong>mislabelled</strong>, with no claim about which way, so the charge became "the true average is not 500 g" and surprising evidence in either direction would count.</p>
+
+<p><code>t.test</code> takes that as <code>alternative = &quot;two.sided&quot;</code>. Fill in the blank and press Check.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step18" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="two\.sided"><textarea class="lesson-tryit-input" spellcheck="false">t.test(loaves, mu = 500, alternative = &quot;____&quot;)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">The p-value comes back as 0.00793, exactly twice the 0.003965 from the one-sided test, because the two-sided version counts baskets that are surprisingly heavy as well as surprisingly light. The confidence interval also turns into a proper two-ended one, 489.7154 to 498.2246, which is the range of true averages this evidence is compatible with. Both versions still convict, but notice that the price of asking a broader question was a p-value twice as large.</span><span class="lesson-tryit-fb lesson-tryit-no">The option R wants is a quoted string with a dot in the middle of it, so the blank is two.sided.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">t.test(loaves, mu = 500, alternative = &quot;two.sided&quot;)
+#&gt; 
+#&gt; 	One Sample t-test
+#&gt; 
+#&gt; data:  loaves
+#&gt; t = -2.9664, df = 19, p-value = 0.00793
+#&gt; alternative hypothesis: true mean is not equal to 500
+#&gt; 95 percent confidence interval:
+#&gt;  489.7154 498.2246
+#&gt; sample estimates:
+#&gt; mean of x 
+#&gt;    493.97</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="concept">
+<div class="lesson-step-eyebrow">It already happened</div>
+<h2>The first visit, and what it missed</h2>
+
+<p>Nadia's twenty loaves were not the council's first look at Sunrise Bakery. Six months earlier, after an initial complaint, she went in on a Friday afternoon and the shelves were nearly empty. She weighed the eight loaves that were left, filed the result, and closed the case.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first_check &lt;- c(486.4, 504.6, 496.5, 490.8, 482.5, 499.5, 511.4, 493.5)
+
+round(mean(first_check), 2)
+#&gt; [1] 495.65
+
+t.test(first_check, mu = 500, alternative = &quot;less&quot;)
+#&gt; 
+#&gt; 	One Sample t-test
+#&gt; 
+#&gt; data:  first_check
+#&gt; t = -1.2966, df = 7, p-value = 0.1179
+#&gt; alternative hypothesis: true mean is less than 500
+#&gt; 95 percent confidence interval:
+#&gt;      -Inf 502.0063
+#&gt; sample estimates:
+#&gt; mean of x 
+#&gt;    495.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of <strong>0.1179</strong>, comfortably above 0.05. Not proven. The file was closed with a note saying there was no evidence the loaves were underweight.</p>
+
+<p>Now hold both cases side by side. Same bakery. Same ovens, same recipe, same true average, whatever it is. Eight loaves said not proven and twenty loaves said guilty, and the difference between those two verdicts was not the bakery's behaviour. It was how many loaves happened to be left on the shelf that Friday.</p>
+
+<p>Look at what the earlier printout was actually saying, in its own confidence interval line: the evidence was compatible with any true average up to about <strong>502 g</strong>. That range covers 500, and it covers 494, and it covers 490. Eight loaves simply could not tell those worlds apart. The report said "no evidence of underweight loaves" when what the data supported was "this check could not have detected underweight loaves unless they were dramatically short".</p>
+
+<p>That is not a subtle distinction. An eight-loaf check misses a real six-gram shortfall close to half the time, and a few steps from here you will measure that yourself rather than take it on trust.</p>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the first visit</h2>
+
+<p>The eight-loaf check returned a p-value of 0.1179. What was the council entitled to conclude from it?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step20" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The loaves are not underweight</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">There is an 88 percent chance the bakery is honest</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The bakery is honest, but only just, since the p-value is not very large</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The check found no evidence strong enough to convict, which leaves both an honest bakery and a genuinely short one on the table</span></button>
+<button type="button" class="lesson-opt" data-i="5"><span class="lesson-opt-mk">E</span><span class="lesson-opt-tx">The check was correct at the time, and the later result means the bakery started cheating in between</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly, and the second half is the part worth practising saying out loud. Failing to reject is a statement about the strength of the evidence, not about the world. Its own confidence interval made this explicit: the data were compatible with any true average up to about 502 g, a range that comfortably contains both 500 and a bakery running several grams light.</div><div class="lesson-qfb lesson-qfb-no">The first three all convert "we could not prove it" into "it did not happen", which is the single most common error in reading a test, and the one that closed this file six months early. The 88 percent in the second option is 1 minus the p-value, which is not the probability of anything. And the last option invents a change in the bakery to explain a change in the verdict, when the simpler explanation is sitting in the printout: eight loaves is not enough evidence to detect a six-gram shortfall.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="21" data-step-type="concept">
+<div class="lesson-step-eyebrow">Both ways of being wrong</div>
+<h2>The two mistakes a verdict can make</h2>
+
+<p>Two things could be true about Sunrise Bakery, and two things could come out of Nadia's test, which makes four outcomes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>The loaves truly average 500 g</th>
+<th>The loaves are truly short</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Test convicts</strong></td>
+<td><strong>Type I error.</strong> An honest baker fined.</td>
+<td>Correct.</td>
+</tr>
+<tr>
+<td><strong>Test does not convict</strong></td>
+<td>Correct.</td>
+<td><strong>Type II error.</strong> A short-weighting baker walks.</td>
+</tr>
+</tbody>
+</table>
+
+<p>A <strong>Type I error</strong> is convicting the innocent: the test says something is going on when nothing is. A <strong>Type II error</strong> is acquitting the guilty: the test misses something real. Every test makes both kinds of mistake at some rate, and the two rates trade against each other.</p>
+
+<p>The picture below is the whole framework in one plot. Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grams        &lt;- seq(484, 512, length.out = 400)
+honest_world &lt;- dnorm(grams, mean = 500, sd = se)
+short_world  &lt;- dnorm(grams, mean = 494, sd = se)
+
+plot(grams, honest_world, type = &quot;l&quot;, lwd = 2, col = &quot;grey40&quot;,
+     main = &quot;What 20 loaves can average, in two different worlds&quot;,
+     xlab = &quot;average weight of the 20 loaves, in grams&quot;, ylab = &quot;&quot;)
+lines(grams, short_world, lwd = 2, col = &quot;#1f7a55&quot;)
+
+convict &lt;- grams &lt;= bar_grams
+polygon(c(484, grams[convict], bar_grams), c(0, honest_world[convict], 0),
+        col = &quot;#b5631a66&quot;, border = NA)
+polygon(c(484, grams[convict], bar_grams), c(0, short_world[convict], 0),
+        col = &quot;#1f7a5544&quot;, border = NA)
+abline(v = bar_grams, lwd = 2, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>dnorm()</code> gives the height of each hump at every point along the axis, <code>polygon()</code> fills the area to the left of the bar under each one, and <code>abline()</code> drops the dashed line at the 496.485 g bar from two steps ago.</p>
+
+<p>The <strong>grey hump</strong> is the world where the bakery is honest: baskets centred on 500. The <strong>green hump</strong> is a world where the loaves really do average 494: the same shape, shifted six grams left. The dashed line is the bar, and everything left of it is a conviction.</p>
+
+<p>Now read the two shaded areas.</p>
+
+<ul>
+
+<li>The <strong>orange sliver</strong> under the grey hump is baskets from an honest bakery that fall past the bar anyway. Those are Type I errors, and that sliver is 5 percent of the grey hump by construction, because that is exactly what setting \\( \\alpha = 0.05 \\) means.</li>
+
+<li>The <strong>green shaded area</strong> is baskets from a genuinely short bakery that do fall past the bar. Those are the correct convictions, and the unshaded green to the right of the line is the Type II errors: real shortfalls that walk free.</li>
+
+</ul>
+
+<p>Everything anybody ever does to a hypothesis test amounts to sliding that dashed line, or moving those humps further apart, or making them narrower.</p>
+</section>
+
+<section class="lesson-step" data-step="22" data-step-type="concept">
+<div class="lesson-step-eyebrow">Measuring the first mistake</div>
+<h2>The false conviction rate really is alpha</h2>
+
+<p>The claim that the orange sliver is exactly 5 percent deserves to be checked rather than asserted, so check it. Put ten thousand honest bakeries through Nadia's complete test and count the convictions.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">honest_p &lt;- function() {
+  batch &lt;- rnorm(20, mean = 500, sd = 9.09)
+  t.test(batch, mu = 500, alternative = &quot;less&quot;)$p.value
+}
+
+set.seed(5)
+p_honest &lt;- replicate(10000, honest_p())
+
+mean(p_honest &lt; 0.05)
+#&gt; [1] 0.0516</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>honest_p()</code> is the whole inspection packed into something reusable: bake twenty loaves in a world where the true average is 500, weigh them, run the test, hand back the p-value. Ten thousand honest bakeries later, <strong>0.0516</strong> of them were convicted.</p>
+
+<p>Five percent, as advertised, give or take the wobble you get from counting ten thousand of anything. That is not a happy accident. The threshold <strong>defines</strong> the rate: setting \\( \\alpha \\) at 0.05 is precisely the instruction "draw the line where 5 percent of innocent evidence falls past it".</p>
+
+<p>There is a deeper fact underneath, and it is easy to see. Look at the p-values from those ten thousand honest bakeries as a whole.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(p_honest, breaks = 20, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;p-values from 10,000 honest bakeries&quot;,
+     xlab = &quot;the p-value the inspection reported&quot;)
+abline(v = 0.05, col = &quot;#b5631a&quot;, lwd = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bars are flat. When the null hypothesis is true, every p-value from 0 to 1 is equally likely, so 5 percent of them land below 0.05, 20 percent land below 0.20, and half land below 0.50. Check any of those against the simulation and it holds.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Under the null hypothesis a p-value is not a measure of anything, it is a uniform random number. That single fact explains the false conviction rate, and it also explains why running many tests goes wrong so quickly, which is a trap a few steps from here.</div></div>
+</section>
+
+<section class="lesson-step" data-step="23" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>A stricter bar</h2>
+
+<p>Nadia's council is considering tightening its threshold, since fining an honest baker is a serious matter and there is no rush to act on thin evidence.</p>
+
+<p>Using the same ten thousand honest bakeries in <code>p_honest</code>, count what share would be convicted at a threshold of 0.01 instead of 0.05. Fill in the blank and press Check.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step23" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="p_honest\s*&lt;\s*0?\.01\b"><textarea class="lesson-tryit-input" spellcheck="false">mean(p_honest &lt; ____)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.0089, so under 1 percent, which is again what the threshold promises. Tightening the bar from 0.05 to 0.01 cuts false convictions roughly fivefold. It is not free, though: the same move makes the rejection region smaller, so genuinely short-weighting bakeries slip through more often too. That is the trade, and there is no setting that improves both.</span><span class="lesson-tryit-fb lesson-tryit-no">The threshold goes in as a proportion rather than a percentage, so 1 percent is written 0.01.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">mean(p_honest &lt; 0.01)
+#&gt; [1] 0.0089</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="24" data-step-type="concept">
+<div class="lesson-step-eyebrow">Measuring the second mistake</div>
+<h2>How often a guilty bakery walks</h2>
+
+<p>The false conviction rate is under Nadia's direct control, because she chooses \\( \\alpha \\). The other rate is not, and measuring it is what turns the eight-loaf embarrassment into a number.</p>
+
+<p>Build a world where the bakery genuinely is short, with a true average of 494 rather than 500, and run the inspection there. Start with eight loaves, the way the first visit went.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">short_p &lt;- function(n) {
+  batch &lt;- rnorm(n, mean = 494, sd = 9.09)
+  t.test(batch, mu = 500, alternative = &quot;less&quot;)$p.value
+}
+
+set.seed(6)
+mean(replicate(10000, short_p(8)) &lt; 0.05)
+#&gt; [1] 0.5152</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>0.5152.</strong> In a world where the loaves really do run six grams light, an eight-loaf check catches it about half the time. The other half of the time it returns a p-value above 0.05, the inspector writes "no evidence of underweight loaves", and the file closes. Nadia's first visit was not unlucky in any unusual way. It was a coin flip, and the coin came down the other way.</p>
+
+<p>Now twenty loaves.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(6)
+mean(replicate(10000, short_p(20)) &lt; 0.05)
+#&gt; [1] 0.884</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>0.884.</strong> Twelve extra loaves take the catch rate from half to seven in eight.</p>
+
+<p>That quantity, the probability of correctly rejecting a false null, is the <strong>power</strong> of the test, and part 4 was entirely about it. It is 1 minus the Type II error rate, so power of 0.884 means a Type II error rate of 0.116. R will compute it directly for this design without the ten thousand imagined inspections.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(power.t.test(n = 8,  delta = 6, sd = 9.09,
+                   type = &quot;one.sample&quot;, alternative = &quot;one.sided&quot;)$power, 3)
+#&gt; [1] 0.516
+
+round(power.t.test(n = 20, delta = 6, sd = 9.09,
+                   type = &quot;one.sample&quot;, alternative = &quot;one.sided&quot;)$power, 3)
+#&gt; [1] 0.885</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each argument there describes the inspection rather than its result. <code>n</code> is how many loaves get weighed, <code>delta = 6</code> is the size of shortfall worth catching, <code>sd = 9.09</code> is the loaf-to-loaf spread you expect to meet, <code>type = &quot;one.sample&quot;</code> says one group weighed against a claimed value, and <code>alternative = &quot;one.sided&quot;</code> says the charge points one way. No weight from Nadia's basket goes in, because the question is what an inspection of this shape could find rather than what one did find.</p>
+
+<p><strong>0.516 and 0.885</strong> from the formula, against 0.5152 and 0.884 from ten thousand simulated inspections each. Two completely different routes to the same pair of numbers.</p>
+
+<p>The same trade turns up in every design, so here it is in general form. An <strong>effect</strong> is the size of the thing you are hoping to detect, measured in spreads rather than in grams: Nadia's six-gram shortfall against a nine-gram loaf-to-loaf spread is about two thirds of a spread, which counts as a fairly large one. The widget compares two groups rather than one basket against a label, so its sample size is per group and its numbers will not line up with Nadia's, but the shape is what to watch. Switch between a small, medium and large effect and see how the chance of detection climbs as the measurements pile up.</p>
+<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="25" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Sizing the next inspection</h2>
+
+<p>Nadia is writing the council's new inspection protocol and wants a rule that catches a six-gram shortfall at least 80 percent of the time, rather than the coin flip the old one delivered.</p>
+
+<p><code>power.t.test</code> solves for whichever argument you leave out, so leave out <code>n</code> and hand it the power you want instead. It takes power as a proportion. Fill in the blank and press Check.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step25" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="power\s*=\s*0?\.8"><textarea class="lesson-tryit-input" spellcheck="false">power.t.test(delta = 6, sd = 9.09, power = ____,
+             type = &quot;one.sample&quot;, alternative = &quot;one.sided&quot;)$n</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">n comes back as 15.6355, and since you cannot weigh two thirds of a loaf, that rounds up to 16. So the protocol needs sixteen loaves, double the eight the first visit managed, and Nadia's twenty comfortably clears it. Worth noticing that this number is fixed before any inspection happens: it depends on the shortfall worth catching and the loaf-to-loaf spread, and not at all on what the loaves turn out to weigh.</span><span class="lesson-tryit-fb lesson-tryit-no">The power goes in as a proportion rather than a percentage, so 80 percent is written 0.80.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">power.t.test(delta = 6, sd = 9.09, power = 0.80,
+             type = &quot;one.sample&quot;, alternative = &quot;one.sided&quot;)$n
+#&gt; [1] 15.6355</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="26" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two dials</div>
+<h2>Why you cannot have both</h2>
+
+<p>The two errors have their own symbols and their own dials, and laying them side by side explains why every test involves a compromise rather than a solution.</p>
+
+<p>The Type I error rate is \\( \\alpha \\), which you set directly. The Type II error rate is \\( \\beta \\), read "beta", and power is</p>
+
+<p>\\[ \\text{power} = 1 - \\beta \\]</p>
+
+<p>so Nadia's twenty-loaf inspection has \\( \\beta = 0.116 \\).</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Dial</th>
+<th>Effect on false convictions</th>
+<th>Effect on missed shortfalls</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tighten \\( \\alpha \\) to 0.01</td>
+<td>fewer</td>
+<td>more</td>
+<td>free, but the test misses more</td>
+</tr>
+<tr>
+<td>Loosen \\( \\alpha \\) to 0.10</td>
+<td>more</td>
+<td>fewer</td>
+<td>free, but honest bakers get fined</td>
+</tr>
+<tr>
+<td>Weigh more loaves</td>
+<td>unchanged</td>
+<td>fewer</td>
+<td>more inspection time</td>
+</tr>
+<tr>
+<td>Weigh more precisely</td>
+<td>unchanged</td>
+<td>fewer</td>
+<td>a better scale</td>
+</tr>
+</tbody>
+</table>
+
+<p>The first two rows are the trade everybody notices: moving the dashed line on the two-hump picture shrinks one shaded area and grows the other, and no position makes both small. <strong>The last two rows are the ones people forget, and they are the only ones that genuinely improve the test.</strong> More evidence, or less noise in it, narrows both humps and pulls the two error rates down together.</p>
+
+<p>Which is why "what threshold should I use" is much less interesting than it sounds, and "how much evidence do I have" is much more interesting than it sounds.</p>
+</section>
+
+<section class="lesson-step" data-step="27" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which mistake is which</h2>
+
+<p>Nadia sets her threshold at 0.05 and her new protocol at sixteen loaves, giving 80 percent power against a six-gram shortfall. Which statement describes what those two numbers control?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step27" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Together they say she is wrong 25 percent of the time</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The 0.05 caps how often she fines an honest bakery, and the 80 percent is how often she catches a bakery that really is six grams short</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 0.05 is how often she misses a short bakery and the 80 percent is how often she fines an honest one</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 80 percent means 80 percent of the bakery's loaves are underweight</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is exactly the split, and the thing that makes it click is that the two numbers live in different worlds. Alpha is computed inside the world where the bakery is honest, so it governs false convictions and nothing else. Power is computed inside the world where the loaves really are six grams short, so it governs whether a real shortfall gets caught. Only one of those two worlds is the real one, and Nadia never finds out which.</div><div class="lesson-qfb lesson-qfb-no">The third option has the two errors swapped, which is the most common mix-up of the four. The first adds two rates that cannot be added, because each is conditional on a different state of the world, so at most one of them is even relevant to the bakery in front of her. And the last confuses a property of the inspection design with a fact about loaves: power says nothing about how many individual loaves are short.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="28" data-step-type="concept">
+<div class="lesson-step-eyebrow">Order of events</div>
+<h2>The charge has to come before the evidence</h2>
+
+<p>Nadia's test was one-sided, looking only for loaves that are too light. That halved her p-value compared with the two-sided version you ran earlier, 0.003965 against 0.00793, which is a real and legitimate saving. It is legitimate for exactly one reason: the direction was fixed by the complaint, months before anyone weighed anything.</p>
+
+<p>Reverse the order and the same choice becomes something else entirely. Suppose an inspector runs a two-sided test, sees p = 0.08, notices the loaves happen to be light, and switches to a one-sided test to get 0.04. Nothing in the arithmetic objects. The printout looks identical to an honest one-sided test. But the 5 percent false conviction rate is now a fiction, because the direction was chosen to suit the evidence, and a rule that adapts to the data is not the rule whose error rate you calculated.</p>
+
+<p>This is the general failure, and one-sidedness is only its most obvious form. The false conviction rate of 5 percent that you measured across ten thousand honest bakeries assumed one fixed test, decided in advance. Every degree of freedom you keep for yourself after the data arrive inflates it:</p>
+
+<ul>
+
+<li>Choosing the direction after seeing which way the result went</li>
+
+<li>Trying several thresholds and reporting the one that clears</li>
+
+<li>Dropping the loaf that came out at 480.3 because it "looked wrong"</li>
+
+<li>Weighing more loaves, checking, and weighing more only while the p-value is falling</li>
+
+<li>Comparing several things and reporting whichever comparison worked</li>
+
+</ul>
+
+<p>Every one of those is a decision that a strict reading forbids and a busy afternoon invites. The defence is unglamorous: write the test down before the data arrive, and if you change it afterwards, say so and treat the result as something to check rather than something to act on.</p>
+</section>
+
+<section class="lesson-step" data-step="29" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The tempting switch</h2>
+
+<p>An inspector runs a two-sided test on a different bakery, gets p = 0.08, notices the loaves are light rather than heavy, and reruns it one-sided to get p = 0.04. What has happened?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step29" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing wrong: a one-sided test is more powerful and the loaves were light, so it is the correct test</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing wrong, since the same data cannot support two different conclusions</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The reported 5 percent false conviction rate no longer holds, because the direction was chosen after seeing the data, so the procedure is not the one whose error rate was calculated</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The one-sided test is invalid in general and should never be used</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right, and the key is that a p-value belongs to a procedure and not to a number. The 5 percent rate assumed a single test fixed in advance. A procedure that says "run two-sided, and if that fails, run one-sided in whichever direction the data went" convicts honest bakeries far more than 5 percent of the time, because it gets two chances at every bakery. The test as computed is not the test that was actually run.</div><div class="lesson-qfb lesson-qfb-no">The first two treat the choice of test as if it could be made from the data, when the whole error rate calculation depends on it having been made before. One-sided tests are perfectly legitimate, as Nadia's was, because her direction came from a complaint months before any weighing, which is what the last option gets wrong in the other direction: the problem is the ordering, not the tool.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="30" data-step-type="concept">
+<div class="lesson-step-eyebrow">Many charges</div>
+<h2>Twelve products is not one test</h2>
+
+<p>Sunrise Bakery does not only sell sourdough. It sells twelve packaged lines, all with a weight on the label, and the obvious efficiency is to weigh a basket of each and test all twelve in one visit.</p>
+
+<p>Watch what that does. The widget below runs many studies where <strong>nothing is going on at all</strong>, and counts how false positives pile up as the number of tests rises. Drag the number of tests and watch the count climb.</p>
+
+<p>Now the same thing on Nadia's own numbers. Take a bakery that is perfectly honest on all twelve lines, test each one, and see how often at least one of the twelve gets convicted.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">twelve_lines &lt;- function() {
+  min(replicate(12, t.test(rnorm(20, mean = 500, sd = 9.09), mu = 500)$p.value))
+}
+
+set.seed(15)
+mean(replicate(1000, twelve_lines()) &lt; 0.05)
+#&gt; [1] 0.485</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>twelve_lines()</code> inspects all twelve products of one honest bakery and hands back the smallest p-value of the twelve, since that is the line an inspector would seize on. Across a thousand honest bakeries, <strong>0.485</strong> of them produced at least one conviction.</p>
+
+<p>Nearly half. Every one of those bakeries was honest by construction. The 5 percent guarantee was never broken on any individual test, and it still adds up to a coin flip, because twelve chances at a one-in-twenty event is not a one-in-twenty event.</p>
+
+<p>The flat histogram from earlier explains it exactly. Under the null a p-value is a uniform random number between 0 and 1, so asking for twelve of them and keeping the smallest is asking for the minimum of twelve random numbers, which lands below 0.05 far more often than one of them would.</p>
+
+<p>There are proper corrections for this. The simplest, <strong>Bonferroni</strong>, divides the threshold by the number of tests, so twelve lines get tested at 0.05 divided by 12, which is about 0.004. The widget's toggle shows what that does: false positives drop back into line, at the cost of making every individual test harder to pass. What is not acceptable is running twelve tests, reporting the one that worked, and quoting 0.05.</p>
+<div class="lesson-widget" data-widget-type="multiplicity-sim" data-widget-config='{"kMax":24,"kStart":1,"alpha":0.05,"nStudies":4000,"corrections":["none","bonferroni"],"seed":29,"study":1}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="31" data-step-type="concept">
+<div class="lesson-step-eyebrow">The sentence</div>
+<h2>A verdict is not a sentence</h2>
+
+<p>Nadia has a conviction. What she does not yet have is the one thing her report actually needs, which is <strong>how short the loaves are</strong>.</p>
+
+<p>The p-value cannot tell her. It answers "is this surprising for an honest bakery" and stops. A shortfall of half a gram would eventually produce a tiny p-value too, given enough loaves, and nobody would fine a bakery over half a gram.</p>
+
+<p>So ask the size question directly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(loaves, mu = 500)$conf.int
+#&gt; [1] 489.7154 498.2246
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95
+
+round(500 - mean(loaves), 2)
+#&gt; [1] 6.03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The best estimate is <strong>6.03 grams short</strong>, and the 95 percent confidence interval says the evidence is compatible with a true average anywhere between <strong>489.72 g and 498.22 g</strong>, which is a shortfall somewhere between about 1.8 g and 10.3 g.</p>
+
+<p>That interval is what Nadia's report should lead with, because it answers the question a magistrate would ask. A shortfall of 1.8 g on a 500 g loaf is about a third of a percent, which is arguably a portioning tolerance. A shortfall of 10.3 g is a little over two percent, which across a year of trading is a great deal of bread that customers paid for and did not get. Her twenty loaves cannot separate those two stories, and the interval says so out loud in a way the p-value never does.</p>
+
+<p>There is a unit-free version of the same thing, useful when comparing across products with different weights and spreads.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round((mean(loaves) - 500) / sd(loaves), 3)
+#&gt; [1] -0.663</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shortfall divided by the loaf-to-loaf spread comes out at <strong>-0.663</strong>, meaning the average loaf is about two thirds of a standard deviation below label weight. That number is called the <strong>effect size</strong>, and it is the currency that lets a bakery case be compared with a study of anything else, since the grams cancel.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Significance and size are different questions with different answers. A test says whether the evidence rules out the boring claim; an interval says what the evidence is compatible with, in the units of the decision. Report both, and lead with the second.</div></div>
+</section>
+
+<section class="lesson-step" data-step="32" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Significant, or big</h2>
+
+<p>A second inspector weighs 4,000 loaves at a large industrial bakery and reports a p-value of 0.000005, with a 95 percent confidence interval for the true average of 499.5 g to 499.8 g. What should the council do?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step32" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Prosecute immediately: a p-value that small is overwhelming evidence of underfilling</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ignore the result, since the p-value being that extreme suggests a mistake</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Rerun the test with fewer loaves so the p-value comes out more reasonable</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Accept that the loaves are genuinely a little under 500 g, and then decide whether a shortfall of between 0.2 and 0.5 grams is worth acting on</span></button>
+<button type="button" class="lesson-opt" data-i="5"><span class="lesson-opt-mk">E</span><span class="lesson-opt-tx">Prosecute, because any shortfall is a shortfall regardless of size</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly the right order: settle the statistical question, then ask the question that actually matters. The tiny p-value is real and it means the shortfall is almost certainly not zero, but with 4,000 loaves the test can resolve a fraction of a gram, and what it resolved was a fraction of a gram. The interval is what makes the decision obvious, which is why it belongs at the front of the report.</div><div class="lesson-qfb lesson-qfb-no">The first and last read the p-value as a measure of how short the loaves are, and it never was one: with enough evidence, a trivially small shortfall produces an extremely small p-value, which is exactly what happened here. The second treats a strong result as suspicious rather than reading the interval it came with. And the third describes throwing away evidence until the answer changes, which is choosing the conclusion rather than measuring it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="33" data-step-type="concept">
+<div class="lesson-step-eyebrow">Rules of evidence</div>
+<h2>What the test assumes, and what breaks it</h2>
+
+<p>A courtroom will not accept any evidence at all, and neither will a test. Nadia's t-test leans on three things, and it will produce a confident, official-looking p-value whether or not they hold.</p>
+
+<p><strong>The loaves are a fair sample.</strong> Twenty loaves picked because they looked small would convict any bakery in the country. Nadia bought whatever was on the shelf across several visits, without choosing.</p>
+
+<p><strong>The loaves are independent of each other.</strong> Each one carries its own separate piece of information, so twenty loaves really is twenty pieces of evidence.</p>
+
+<p><strong>The average behaves like a bell curve.</strong> The individual loaves need not, and with twenty of them the averaging does most of the work. This is the assumption that matters least here, and it becomes a real problem only with tiny samples or wildly lopsided data.</p>
+
+<p>The second one is where real inspections go wrong, so measure what breaks. Suppose all twenty loaves had come from a single morning's bake. The dough for that batch is mixed once, so if it was mixed a little light, <strong>every</strong> loaf in it is light together. Twenty loaves from one batch are not twenty independent pieces of evidence, they are closer to one.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">one_batch_p &lt;- function() {
+  days_dough &lt;- rnorm(1, mean = 0, sd = 6)
+  batch      &lt;- rnorm(20, mean = 500 + days_dough, sd = 7)
+  t.test(batch, mu = 500, alternative = &quot;less&quot;)$p.value
+}
+
+set.seed(9)
+mean(replicate(10000, one_batch_p()) &lt; 0.05)
+#&gt; [1] 0.3379</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>days_dough</code> is drawn once per bakery and shifts the whole batch together, which is what a single mix of dough does; the individual loaves then vary around that shifted level. Everything else is identical, and the total loaf-to-loaf spread still works out around nine grams, so the evidence looks the same on paper.</p>
+
+<p><strong>0.3379.</strong> A third of completely honest bakeries convicted, against the 5 percent the threshold promises. The test is not broken in any way you could see from its output: the p-values look normal, the printout is identical, and the false conviction rate is nearly seven times what was advertised.</p>
+
+<p>That is what an assumption violation does. It does not throw an error. It quietly makes the number mean something other than what it says, which is why the fix is procedural rather than statistical: Nadia buys loaves across several visits on different days, so the twenty really are twenty.</p>
+</section>
+
+<section class="lesson-step" data-step="34" data-step-type="concept">
+<div class="lesson-step-eyebrow">Different evidence</div>
+<h2>The same five moves, counting instead of weighing</h2>
+
+<p>Nadia's colleague suggests a simpler charge that avoids the scale readings entirely: never mind how short each loaf is, just count how many fall below label weight. An honest bakery aiming at 500 should land above and below about equally, so more than half falling short is the evidence.</p>
+
+<p>Thirteen of Nadia's twenty were under 500. Run the same five moves on that.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">binom.test(13, 20, p = 0.5, alternative = &quot;greater&quot;)
+#&gt; 
+#&gt; 	Exact binomial test
+#&gt; 
+#&gt; data:  13 and 20
+#&gt; number of successes = 13, number of trials = 20, p-value = 0.1316
+#&gt; alternative hypothesis: true probability of success is greater than 0.5
+#&gt; 95 percent confidence interval:
+#&gt;  0.4419655 1.0000000
+#&gt; sample estimates:
+#&gt; probability of success 
+#&gt;                   0.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same trial, different evidence. The null hypothesis is that a loaf is equally likely to land above or below 500, so the true proportion is 0.5. The charge is that it is above 0.5. The evidence is 13 out of 20. And the p-value is <strong>0.1316</strong>.</p>
+
+<p>Not proven, on exactly the same twenty loaves that convicted the bakery a few steps ago.</p>
+
+<p>Nothing went wrong. The counting version threw away almost all of the evidence. It knows that 480.3 g and 499.7 g were both "under", and treats a loaf twenty grams short exactly like one that missed by three tenths of a gram. All the information about <em>how</em> short is gone, and what remains is not enough to convict.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">When a choice exists between measuring a quantity and counting how many cross a line, the measurement is almost always the stronger test. Counting is worth its cost only when crossing the line is genuinely what matters, as in whether a patient recovers or a part passes inspection.</div></div>
+</section>
+
+<section class="lesson-step" data-step="35" data-step-type="concept">
+<div class="lesson-step-eyebrow">The family</div>
+<h2>Which test for which evidence</h2>
+
+<p><code>t.test</code> and <code>binom.test</code> are two members of a large family, and the family resemblance is the point: they all make the same five moves and differ only in what counts as evidence and what curve the null distribution takes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>The evidence</th>
+<th>The question</th>
+<th>The R function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One group of measurements against a claimed value</td>
+<td>is the true average 500 g?</td>
+<td><code>t.test(x, mu = 500)</code></td>
+</tr>
+<tr>
+<td>Two groups of measurements</td>
+<td>do these two bakeries differ?</td>
+<td><code>t.test(x, y)</code></td>
+</tr>
+<tr>
+<td>Two measurements on the same items</td>
+<td>did loaves get lighter after the recipe changed?</td>
+<td><code>t.test(x, y, paired = TRUE)</code></td>
+</tr>
+<tr>
+<td>Counts of successes out of a total</td>
+<td>do more than half fall short?</td>
+<td><code>binom.test(13, 20)</code></td>
+</tr>
+<tr>
+<td>Two proportions</td>
+<td>is the short-weight rate worse at branch A?</td>
+<td><code>prop.test(c(13, 6), c(20, 20))</code></td>
+</tr>
+<tr>
+<td>A table of counts across categories</td>
+<td>do shortfalls cluster by day of the week?</td>
+<td><code>chisq.test(counts)</code></td>
+</tr>
+<tr>
+<td>Measurements with wild outliers or tiny samples</td>
+<td>same question, fewer assumptions</td>
+<td><code>wilcox.test(x, mu = 500)</code></td>
+</tr>
+<tr>
+<td>Three or more groups of measurements</td>
+<td>do any of these five branches differ?</td>
+<td><code>aov(weight ~ branch)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Every one of those prints a p-value, and every one of those p-values means precisely what Nadia's meant: how often evidence at least this extreme turns up when the null hypothesis is true. Learn the machine once and the function names become a lookup.</p>
+
+<p>The choice between them is decided by the shape of the evidence rather than by the result, which is the same rule as before: pick the test from the design, before the data are in.</p>
+</section>
+
+<section class="lesson-step" data-step="36" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>A heavier count</h2>
+
+<p>Suppose the twenty loaves had been more lopsided, with <strong>16</strong> of the 20 coming in under 500 rather than 13.</p>
+
+<p>Rerun the counting charge with that number and see whether the weaker kind of evidence is enough this time. Fill in the blank and press Check.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-5-step36" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="\b16\s*,\s*20\b"><textarea class="lesson-tryit-input" spellcheck="false">binom.test(____, 20, p = 0.5, alternative = &quot;greater&quot;)$p.value</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.005908966, so about 0.006, which clears the 0.05 bar comfortably and would convict. Three extra loaves on the wrong side of the line took the counting charge from not proven to guilty, which shows how sharply this kind of evidence responds near the middle. It also shows the cost of counting: the weighing test convicted on 13 of 20, because it could see how far short each loaf was, while the counting test needed 16 to reach the same verdict.</span><span class="lesson-tryit-fb lesson-tryit-no">The first argument is the number of loaves that came in under 500 grams, so put 16 there.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">binom.test(16, 20, p = 0.5, alternative = &quot;greater&quot;)$p.value
+#&gt; [1] 0.005908966</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="37" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest limits</div>
+<h2>Four things the framework cannot do</h2>
+
+<p>The machine is genuinely good at one narrow job. Being clear about the edges is what stops it being asked to do jobs it cannot, and most of those jobs have a different tool waiting for them.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>The question somebody asks</th>
+<th>Does a test answer it?</th>
+<th>What does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is the boring claim ruled out?</td>
+<td>yes, that is the whole job</td>
+<td>the p-value against a threshold fixed in advance</td>
+</tr>
+<tr>
+<td>Is the boring claim true?</td>
+<td>no</td>
+<td>the confidence interval, which shows what is still on the table</td>
+</tr>
+<tr>
+<td>How likely is it that the loaves are short?</td>
+<td>no</td>
+<td>Bayesian methods, which also need how common short bakeries are</td>
+</tr>
+<tr>
+<td>Is the shortfall big enough to act on?</td>
+<td>no</td>
+<td>the effect size and the interval, read in grams</td>
+</tr>
+<tr>
+<td>Was the evidence any good?</td>
+<td>no, and it will not warn you</td>
+<td>the design, decided before anyone weighs anything</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each row is worth spelling out.</p>
+
+<p><strong>It cannot tell you the null is true.</strong> Every failure to reject leaves both worlds standing, which is why the eight-loaf file should have said "could not detect" rather than "no evidence of underweight loaves". Ruling something out is the interval's job, not the test's.</p>
+
+<p><strong>It cannot tell you how likely your hypothesis is.</strong> The p-value runs one way only: from an assumed null to the evidence. Running it backwards, from evidence to how likely the null is, needs something the test never sees, namely how common short-weighting bakeries were before anyone weighed anything. That is a genuine question with a genuine answer, and answering it is Bayesian statistics rather than this framework.</p>
+
+<p><strong>It cannot tell you anything matters.</strong> Nadia's conviction says the loaves are probably not averaging 500 g. Whether a shortfall of 6 g deserves a fine, a warning or a shrug is a judgement about bread, customers and the law, and no p-value contains it.</p>
+
+<p><strong>It cannot rescue a badly collected sample.</strong> The arithmetic assumes the evidence was gathered fairly and independently. Feed it twenty loaves from one batch and it returns a confident number with a false conviction rate nearly seven times what it claims, without complaint, as you measured.</p>
+
+<p>None of that makes the framework weak. It makes it a tool with a job description, and the failures worth worrying about all come from asking it to do something outside that description.</p>
+</section>
+
+<section class="lesson-step" data-step="38" data-step-type="concept">
+<div class="lesson-step-eyebrow">Writing it up</div>
+<h2>The report Nadia files</h2>
+
+<p>The output of the whole exercise is not a p-value, it is a paragraph somebody else can check. Here is hers.</p>
+
+<blockquote><p>Twenty loaves labelled 500 g were purchased from Sunrise Bakery across six visits between 2 and 15 July and weighed on a calibrated scale. Their mean weight was 493.97 g (standard deviation 9.09 g). Testing the pre-specified hypothesis that the true mean is below 500 g gave t = -2.97 on 19 degrees of freedom, p = 0.004, against a significance level of 0.05 fixed before sampling. The estimated shortfall is 6.03 g, with a 95 percent confidence interval for the true mean weight of 489.7 g to 498.2 g. A previous eight-loaf check in January returned p = 0.118; that sample was too small to detect a shortfall of this size reliably, and should not be read as evidence of compliance.</p></blockquote>
+
+<p>Six sentences, and everything in it is checkable. Four things it does deliberately.</p>
+
+<ul>
+
+<li><strong>It says how the sample was collected</strong>, across six visits, which is what makes the independence assumption believable rather than assumed.</li>
+
+<li><strong>It says the hypothesis was pre-specified</strong> and the threshold fixed in advance, which is what makes the p-value mean what it says.</li>
+
+<li><strong>It leads the finding with the size and the interval</strong>, not the p-value, because the shortfall is what anybody has to decide about.</li>
+
+<li><strong>It corrects the earlier file rather than hiding it.</strong> The January check is not evidence the bakery was fine in January; it is a check that could not have found this.</li>
+
+</ul>
+
+<p>What the paragraph never says is "the bakery is cheating", or "we accept that the loaves are underweight by 6.03 g", or "there is a 99.6 percent chance the loaves are short". Each of those would claim more than twenty loaves can support.</p>
+</section>
+
+<section class="lesson-step" data-step="39" data-step-type="concept">
+<div class="lesson-step-eyebrow">The habit</div>
+<h2>Four questions for any test</h2>
+
+<p>Take them in order, on any test anybody hands you.</p>
+
+<p><strong>What was the null, exactly?</strong> A p-value with no stated null is not a claim about anything. Ask what world the number was computed inside, and check that it is the boring one.</p>
+
+<p><strong>Was the test fixed before the data?</strong> One test, decided in advance, has the error rate it advertises. A direction chosen afterwards, a threshold tried twice, or twelve products tested and one reported, does not, and the difference showed up as 5 percent becoming 48.5 percent.</p>
+
+<p><strong>How big is the effect, with an interval?</strong> The p-value never answers this, and it is almost always the question that matters. If a report gives you a p-value and no interval, the interesting half is missing.</p>
+
+<p><strong>Do the rules of evidence hold?</strong> A fair sample, independent observations, and a model that suits the data. A violation does not announce itself, so this is the question nobody asks and everybody should.</p>
+
+<p>Four questions, and they catch nearly everything.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"What was the null, exactly?","sub":"which boring claim was the number computed inside"},{"title":"Was the test fixed before the data?","sub":"direction, threshold, and how many tests were run"},{"title":"How big is the effect, with an interval?","sub":"a verdict is not a sentence, and only one of them is a decision"},{"title":"Do the rules of evidence hold?","sub":"fair sample, independent observations, sensible model"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="40" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four places worth an hour if you want to push past where this part stops.</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1080/00031305.2016.1154108">The ASA statement on p-values, 2016</a> - the American Statistical Association's six principles, written in plain English after decades of argument. Two pages, and every line earns its place.</li>
+
+<li><a href="https://link.springer.com/article/10.1007/s10654-016-0149-3">Greenland and colleagues, Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations, 2016</a> - twenty-five specific misreadings taken apart one at a time, including the ones about confidence intervals and power that the framework quietly leans on.</li>
+
+<li><a href="https://doi.org/10.1080/00031305.2019.1583913">Wasserstein, Schirm and Lazar, Moving to a world beyond p < 0.05, 2019</a> - the editorial arguing that the threshold itself is the problem, and what to do instead.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">R documentation for t.test</a> - the function you used all lesson, including the paired and two-sample forms in the family table.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="41" data-step-type="complete">
+<h2>Part 5 complete</h2>
+
+<p>You started with twenty loaves averaging 493.97 g and ran the whole trial. The bakery was presumed innocent at exactly 500 g, fifty thousand imagined honest bakeries showed what innocent evidence looks like, and Nadia's basket came out more extreme than all but about 4 in 1,000 of them. <code>t.test</code> returned the same 0.003965 in one line, which cleared the 0.05 bar fixed before any weighing, so the verdict was guilty.</p>
+
+<p>Along the way the vocabulary stopped being vocabulary. The null hypothesis turned out to be the only claim precise enough to simulate, which is why it gets the presumption. The test statistic turned out to be the evidence measured in units of ordinary wobble, and the curve it lives on turned out to be fatter than a bell curve for a reason you measured: 0.00126 became 0.00394 the moment each simulated bakery had to estimate its own spread. The bar turned out to be 496.485 g on a kitchen scale.</p>
+
+<p>Both mistakes got measured rather than described. Ten thousand honest bakeries were convicted 5.16 percent of the time, which is the threshold doing exactly what it promises, and ten thousand genuinely short ones walked free half the time on eight loaves and one time in eight on twenty. That is why the January file was wrong: not because anyone miscalculated, but because "not proven" got written down as "no evidence of a problem".</p>
+
+<p>Then the machine got abused four ways on purpose, and each abuse left a number behind. Choosing the direction after seeing the data breaks the error rate the p-value claims. Testing twelve product lines took the false conviction rate from 5 percent to 48.5. Reading a verdict as a sentence would have prosecuted an industrial bakery over a third of a gram. And twenty loaves from one morning's dough, which look identical on paper, convicted a third of honest bakeries.</p>
+
+<p>Part 6 picks up the number this part introduced and then walked away from. Nadia's loaves came in two thirds of a spread below label weight, and that quantity, the effect size, is what lets a bakery case be compared with a drug trial or a teaching experiment. Part 6 is about reading it, reporting it, and knowing when two thirds of a spread is a lot.</p>
+</section>
+
+{% endraw %}
