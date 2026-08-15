@@ -3304,7 +3304,7 @@ def patch_tool_pages(sections, asset_hrefs):
         if 'auth-hydrate.js' not in new_html:
             new_html = re.sub(
                 r'</body>',
-                '<script defer src="/www/auth-hydrate.js?v=15"></script></body>',
+                '<script defer src="/www/auth-hydrate.js?v=16"></script></body>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         # Refresh the chrome layout CSS so mobile-drawer rules land on tools
@@ -3445,7 +3445,7 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script defer src="/www/practice-nav.js?v=12"></script>'
             f'<script defer src="/www/roadmap-nav.js?v=5"></script>'
             # Auth state (body.state-anon/.state-pro) + avatar dropdown.
-            f'<script defer src="/www/auth-hydrate.js?v=15"></script>'
+            f'<script defer src="/www/auth-hydrate.js?v=16"></script>'
         )
         # Add the shared site footer once (skip if already present, e.g. the
         # tools landing page already gets it from gen_tools_landing).

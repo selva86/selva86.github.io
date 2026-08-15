@@ -56,6 +56,80 @@
 <script>
 (function(){
   var slug = new URLSearchParams(location.search).get('slug') || '';
+
+  // ---- Silent access retry -------------------------------------------------
+  // The edge gate identifies the user by the rsc-at cookie, whose JWT lives
+  // one hour. A signed-in user deep-linking after being idle carries a stale
+  // cookie, gets bounced here, and reads "window closed" while their window
+  // is in fact open. So before showing that message: if a stored session
+  // exists, refresh the token when needed, re-sync the cookie, and send them
+  // back to the lesson ONCE. A sessionStorage guard (set just before the
+  // retry, honored for 60s) stops a genuinely-closed window from looping.
+  function readSession(){
+    try{
+      for (var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if (/^sb-.*-auth-token$/.test(k)){
+          var v = JSON.parse(localStorage.getItem(k));
+          if (v && typeof v.access_token === 'string') return v.access_token;
+          if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+        }
+      }
+    }catch(e){}
+    return null;
+  }
+  function tokenExpiresSoon(t){
+    try{
+      var p = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      return typeof p.exp === 'number' && (p.exp*1000 - Date.now()) < 60000;
+    }catch(e){ return true; }
+  }
+  function syncCookie(t){
+    try{ document.cookie = 'rsc-at=' + t + '; Path=/; Max-Age=3600; SameSite=Lax; Secure'; }catch(e){}
+  }
+  function refreshSession(){
+    return fetch('/api/_auth-config').then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(cfg){
+        return import('https://esm.sh/@supabase/supabase-js@2.45.4').then(function(m){
+          var supa = m.createClient(cfg.url, cfg.anonKey, {
+            auth: { persistSession: true, autoRefreshToken: false, detectSessionInUrl: false, flowType: 'implicit' }
+          });
+          return supa.auth.getSession();
+        });
+      })
+      .then(function(res){ return (res && res.data && res.data.session && res.data.session.access_token) || null; })
+      .catch(function(){ return null; });
+  }
+
+  var guardKey = 'rsc-relock:' + slug;
+  var guardAt = 0;
+  try{ guardAt = parseInt(sessionStorage.getItem(guardKey) || '0', 10) || 0; }catch(e){}
+  var stored = readSession();
+  var retrying = false;
+
+  if (slug && stored && Date.now() - guardAt > 60000){
+    retrying = true;
+    document.body.style.opacity = '0.35';
+    setTimeout(function(){
+      if (retrying){ retrying = false; document.body.style.opacity = ''; showState(); sendSignal(); }
+    }, 6000);
+    var settle = function(tok){
+      if (tok){
+        syncCookie(tok);
+        try{ sessionStorage.setItem(guardKey, String(Date.now())); }catch(e){}
+        location.replace('/' + encodeURIComponent(slug) + '.html');
+      } else {
+        retrying = false;
+        document.body.style.opacity = '';
+        showState();
+        sendSignal();
+      }
+    };
+    if (tokenExpiresSoon(stored)) refreshSession().then(settle);
+    else settle(stored);
+  }
+  // --------------------------------------------------------------------------
+
   // Name the lesson from the public catalog.
   fetch('/api/nurture/catalog').then(function(r){return r.json();}).then(function(c){
     var hit = null;
@@ -65,44 +139,42 @@
     });
     if (hit) document.getElementById('lesson-name').innerHTML = 'The lesson: <b>' + String(hit.subject).replace(/[&<>]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[ch];}) + '</b>';
   }).catch(function(){});
-  // Personal shelf when signed in; a hint otherwise.
-  var tok = null;
-  try{
-    for (var i=0;i<localStorage.length;i++){
-      var k = localStorage.key(i);
-      if (/^sb-.*-auth-token$/.test(k)){
-        var v = JSON.parse(localStorage.getItem(k));
-        tok = (Array.isArray(v) ? v[0] : (v && v.access_token)) || null;
-      }
+  // Personal shelf when signed in; a hint otherwise. Runs immediately when
+  // no retry is in flight, or from the retry's failure path.
+  function showState(){
+    var tok = readSession();
+    if (tok){
+      fetch('/api/me/shelf', { headers: { Authorization: 'Bearer ' + tok } })
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(s){
+          var list = document.getElementById('openlist');
+          if (s.open && s.open.length){
+            s.open.forEach(function(o){
+              var li = document.createElement('li');
+              var a = document.createElement('a');
+              a.href = '/' + o.slug + '.html';
+              a.textContent = o.subject;
+              var left = Math.max(1, Math.round((o.closes_at*1000 - Date.now())/36e5));
+              li.appendChild(a);
+              li.appendChild(document.createTextNode(' - ' + left + 'h left'));
+              list.appendChild(li);
+            });
+            document.getElementById('open-now').hidden = false;
+          }
+        }).catch(function(){});
+    } else {
+      document.getElementById('anon-hint').hidden = false;
     }
-  }catch(e){}
-  if (tok){
-    fetch('/api/me/shelf', { headers: { Authorization: 'Bearer ' + tok } })
-      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(s){
-        var list = document.getElementById('openlist');
-        if (s.open && s.open.length){
-          s.open.forEach(function(o){
-            var li = document.createElement('li');
-            var a = document.createElement('a');
-            a.href = '/' + o.slug + '.html';
-            a.textContent = o.subject;
-            var left = Math.max(1, Math.round((o.closes_at*1000 - Date.now())/36e5));
-            li.appendChild(a);
-            li.appendChild(document.createTextNode(' - ' + left + 'h left'));
-            list.appendChild(li);
-          });
-          document.getElementById('open-now').hidden = false;
-        }
-      }).catch(function(){});
-  } else {
-    document.getElementById('anon-hint').hidden = false;
   }
-  // The purest purchase-intent signal in the funnel.
-  try{
-    fetch('/api/signal', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ s:'lesson_window_closed', p: location.pathname + '?slug=' + slug }) });
-  }catch(e){}
+  // The purest purchase-intent signal in the funnel. Only fired when the
+  // closed message actually stands (not when a stale cookie is healing).
+  function sendSignal(){
+    try{
+      fetch('/api/signal', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ s:'lesson_window_closed', p: location.pathname + '?slug=' + slug }) });
+    }catch(e){}
+  }
+  if (!retrying){ showState(); sendSignal(); }
 })();
 </script>
 </body>

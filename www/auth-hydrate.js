@@ -418,10 +418,43 @@
     }).catch(function () { /* retry next page view */ });
   }
 
+  // A Supabase access token lives one hour. Pages that load the full
+  // supabase-js client (signin, nudge flows) refresh it; every other page
+  // only mirrors what localStorage holds. So after an hour idle the user
+  // LOOKED signed out sitewide (and edge-gated lessons bounced them) until
+  // they passed through a sign-in surface. Fix: when the stored token is
+  // expired or nearly so, lazy-load the client (same pattern the sign-out
+  // path already uses) and let getSession() refresh + persist the session,
+  // then hydrate with the fresh token.
+  function tokenExpiresSoon(token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return typeof payload.exp === 'number' && (payload.exp * 1000 - Date.now()) < 60000;
+    } catch (_) { return false; }
+  }
+
+  async function refreshExpiredSession() {
+    try {
+      const cfgResp = await fetch('/api/_auth-config');
+      if (!cfgResp.ok) return null;
+      const cfg = await cfgResp.json();
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.45.4');
+      const supa = createClient(cfg.url, cfg.anonKey, {
+        auth: { persistSession: true, autoRefreshToken: false, detectSessionInUrl: false, flowType: 'implicit' },
+      });
+      const { data } = await supa.auth.getSession();
+      return (data && data.session && data.session.access_token) || null;
+    } catch (_) { return null; }
+  }
+
   async function hydrate() {
     injectCssOnce();
     rewriteSigninLinks();
-    const token = readAccessToken();
+    let token = readAccessToken();
+    if (token && tokenExpiresSoon(token)) {
+      const fresh = await refreshExpiredSession();
+      if (fresh) token = fresh;
+    }
     cachedAccessToken = token;
     syncAuthCookie(token);
     // Fetch /api/me and /api/me/stats in parallel — both gated on the same
