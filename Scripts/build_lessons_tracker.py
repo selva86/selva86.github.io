@@ -89,6 +89,16 @@ LESSON_CATALOG_TITLE = {
     'LLM-Agents-in-R': 'Build an LLM agent from scratch',
     'The-t-test-from-scratch': 'The t-test from scratch',
     'Comparing-Groups-with-t-tests': 'Comparing groups with t-tests',
+    # Windowed nurture lessons: build() skips them, but lesson_quality_check.py
+    # reads this map for its cover-H2 check, and their titles carry a colon.
+    'Inference-Mini-3': 'Confidence intervals: what they really mean',
+    'Inference-Mini-4': 'Power analysis: find the sample size you need',
+    'Inference-Mini-5': 'Hypothesis testing: the framework, explained',
+    'ARIMA-Mini-1': 'ARIMA: what AR, I, and MA actually mean',
+    'ARIMA-Mini-2': 'ACF and PACF: how to read the plots for ARIMA orders',
+    'Regression-Reading-Mini-1': 'Interaction effects: test and interpret them',
+    'Regression-Health-Mini-1': 'Multicollinearity: why your coefficients look wrong, and the fix',
+    'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",
 }
 
 
