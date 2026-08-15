@@ -80,6 +80,11 @@ put a NEEDS-BUILD note in the plan and carry the step with a static diagram.
 R CODE: deterministic (set.seed), every #> exactly real, plain readable R,
 never name the in-browser R technology.
 
+CURRENCY: when mathjax is true, NEVER write a raw $ before a number in
+prose (MathJax treats $...$ as inline math and eats the text between two
+amounts). Write \\$50,700 instead; the page renders it as $50,700. Raw $
+inside R code blocks is fine.
+
 VOICE (non-negotiable): the owner hand-wrote the 12 exemplar emails in
 Plans/01_email_and_nurture/owner-voice-pack.md and your prose must be
 indistinguishable from that voice. Before writing, study the exemplars AND

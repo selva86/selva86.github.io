@@ -54,6 +54,10 @@ own email that unlocks it:
 {email_body}
 ---
 
+CURRENCY: when mathjax is true, never write a raw $ before a number in
+prose (MathJax eats the text between two amounts); write \\$50,700 style
+escapes. Raw $ inside R code blocks is fine.
+
 METHOD: go step by step through the whole file. For each step, read the
 prose aloud in your head; any sentence the owner would not say gets
 rewritten in their voice. Machine tells to hunt: clever compression,

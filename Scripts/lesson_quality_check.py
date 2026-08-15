@@ -254,6 +254,21 @@ def check_lesson(path):
     if ('\\(' in body or '\\[' in body) and str(fm.get('mathjax', '')).strip().lower() not in ('true', '1', 'yes'):
         fail('body has MathJax (\\( or \\[) but frontmatter mathjax is not true')
 
+    # Raw currency dollars + MathJax = mangled prose. Single-$ inline math is
+    # enabled sitewide, so two amounts in one paragraph become a math span and
+    # the text between them collapses ('$50,700 a year ... $52,600' rendered
+    # as '50,700ayear...'). Prose must escape currency as \$ (processEscapes
+    # renders it literally). Code blocks and ::-directive JSON are exempt
+    # (code is tex2jax-ignored; directive feedback is inserted post-typeset).
+    if str(fm.get('mathjax', '')).strip().lower() in ('true', '1', 'yes'):
+        prose = strip_code(body)
+        prose = re.sub(r'^\s*::.*$', '', prose, flags=re.M)
+        prose = re.sub(r'`[^`\n]*`', '', prose)
+        raw_cur = re.findall(r'.{0,25}(?<!\\)\$[0-9][^\s]*', prose)
+        if raw_cur:
+            fail('unescaped currency $ in prose while mathjax is on (MathJax eats the text '
+                 'between two amounts). Write \\$ instead. First hits: %r' % raw_cur[:3])
+
     # Runnable code: each lesson runs in its OWN WebR session, so every code block
     # must be self-contained. Catch the two ways that breaks (the 'train not found'
     # class): (a) a model/transform uses data never created in THIS lesson; (b) a
