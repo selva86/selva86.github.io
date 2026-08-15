@@ -37,9 +37,12 @@ PROMPT = """You are writing ONE interactive step-player lesson for r-statistics.
 windowed nurture lesson. Work from the project root; the repo is selva86.github.io/.
 
 READ FIRST, in order: (1) .claude/skills/write-lesson/SKILL.md (the process),
-(2) selva86.github.io/_build/lesson-pedagogy.md (R1-R15 law), (3)
-selva86.github.io/_build/lesson-contract.md, (4)
-selva86.github.io/_build/lesson-visual-catalog.md, (5)
+(2) selva86.github.io/Plans/01_email_and_nurture/owner-voice-pack.md (THE
+VOICE LAW: 12 owner-written exemplars + extracted patterns; every sentence
+you write must sound like those exemplars), (3)
+selva86.github.io/_build/lesson-pedagogy.md (R1-R15 law), (4)
+selva86.github.io/_build/lesson-contract.md, (5)
+selva86.github.io/_build/lesson-visual-catalog.md, (6)
 selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md.
 
 OVERRIDES (windowed nurture lesson; skip Pass 0 derivation, use exactly):
@@ -77,12 +80,21 @@ put a NEEDS-BUILD note in the plan and carry the step with a static diagram.
 R CODE: deterministic (set.seed), every #> exactly real, plain readable R,
 never name the in-browser R technology.
 
-VOICE (owner-calibrated, non-negotiable): conversational flowing sentences,
-contractions welcome, NO em or en dashes anywhere, no staccato copywriter
-fragments, plain spoken phrasing over clever compression, ONE named numbered
-everyday example carried through (reuse the email's), reader inside the
-story, beginner entry bar: can read a simple R script, no statistics
-background. No length cap: thoroughness always wins (R13).
+VOICE (non-negotiable): the owner hand-wrote the 12 exemplar emails in
+Plans/01_email_and_nurture/owner-voice-pack.md and your prose must be
+indistinguishable from that voice. Before writing, study the exemplars AND
+the extracted patterns in that file: invite the reader in ("Let's say...",
+"Consider this:"), land big points as short standalone paragraphs, check in
+sparingly ("Right?", "Remember?"), cut every clever flourish in favor of the
+plain sincere version, restate hard ideas in plainer words ("In other
+words..."), name practical stakes earnestly (interviews, real work), warm
+word choices, and never over-polish into machine-smooth symmetry. NO em or
+en dashes anywhere, pure ASCII, ONE named numbered everyday example carried
+through (reuse the email's), reader inside the story, beginner entry bar:
+can read a simple R script, no statistics background. No length cap:
+thoroughness always wins (R13). After drafting, do one dedicated VOICE PASS
+over every step: read each paragraph aloud in your head and rewrite any
+sentence the owner would not say.
 
 GATES BEFORE FINISHING:
 python selva86.github.io/Scripts/lesson_quality_check.py selva86.github.io/lessons/{slug}.md
@@ -95,10 +107,14 @@ CHECK_PROMPT = """Read and follow the skill at .claude/skills/check-lesson/SKILL
 lesson selva86.github.io/lessons/{slug}.md (plan:
 selva86.github.io/post_plans/{slug}_lesson-plan.md). This is a WINDOWED
 nurture lesson (rules: selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md).
-Judge especially: beginner-clarity from a zero-stats entry bar, the owner's
-voice standard (conversational, no em dashes, grounded everyday examples, no
-clever compression), that the email's promised example carries the lesson,
-and code-output sanity. Apply bounded fixes, re-run
+Judge especially: the owner's voice. Read
+selva86.github.io/Plans/01_email_and_nurture/owner-voice-pack.md first (12
+owner-written exemplars + patterns) and hunt for prose that would give away
+a machine author: clever compression, aphorisms, machine-smooth symmetric
+sentences, missing spoken-pause paragraphs, zero reader check-ins, em
+dashes. Rewrite offending passages into the exemplar voice. Also judge:
+beginner-clarity from a zero-stats entry bar, that the email's promised
+example carries the lesson, and code-output sanity. Apply bounded fixes, re-run
 python selva86.github.io/Scripts/lesson_quality_check.py selva86.github.io/lessons/{slug}.md
 after edits, and finish with a verdict. DO NOT publish, build, or touch git.
 """

@@ -17,7 +17,9 @@ Hi {first_name},
 
 Everyone remembers writing their first bit of code. Today is a good day for yours.
 
-There is nothing to install and no setup to fight with. You type R right in the browser and it runs instantly. Ten minutes from now you will have a small script that takes a year of monthly sales numbers and answers a simple question: which month was the best, and by how much?
+Because there is nothing to install and no setup to worry about. You type R right in the browser and it runs instantly. 
+
+Ten minutes from now you will have a small script that takes a year of monthly sales numbers and answers a simple question: which month was the best, and by how much? Learning to do this should get you setup for many great things that will follow.
 
 [Write your first R script -> {url}]
 
@@ -36,7 +38,7 @@ Hi {first_name},
 
 Let me start with a simple bet. A friend claims she can tell Coke from Pepsi by taste. You pour ten cups, she gets nine right. Is she skilled, or just lucky?
 
-Whatever reasoning you just gave about that, you already did statistical inference. Every test you will ever run, t-tests, ANOVA, all of them, is that same reasoning made careful: how surprising would this result be if it were just luck?
+Whatever reasoning you just gave about that, you already did statistical inference. Every test you will ever run, t-tests, ANOVA, all of them, is that same idea made more structured: how surprising would this result be if it were just luck?
 
 Today's lesson builds that idea up properly, with zero formulas. Once it clicks, everything that follows this month gets easier.
 
@@ -55,11 +57,15 @@ Akshay
 ```
 Hi {first_name},
 
-Say you test a new checkout page on your website. Sales go up a little, and the test says p = 0.03. Does that mean there is a 3% chance the improvement was a fluke?
+Let's say you test a new checkout page on your website. Sales go up a little, and the test says p = 0.03. Does that mean there is a 3% chance the improvement was a fluke?
 
-It does not, and most people who use p-values every day read them exactly that wrong way. The real meaning is subtler: if the new page changed nothing at all, results this good would show up only 3% of the time by luck.
+It does not.
 
-Today you will run that simulation yourself, watch the lucky results pile up, and never misread a p-value again.
+And most people who use p-values every day read them exactly that wrong way. The real meaning is subtler: if the new page changed nothing at all, results this good would show up only 3% of the time by luck.
+
+Little mind bending right? I know
+
+Today you will see through the matrix, I mean, you will truly grasp the intuition and never misread a p-value again.
 
 [See what p-values actually mean -> {url}]
 
@@ -76,11 +82,15 @@ Akshay
 ```
 Hi {first_name},
 
-Imagine your pizza place says: "we are 95% confident the average delivery takes between 22 and 30 minutes." Sounds precise. But what is the 95% actually promising? That 95% of pizzas arrive in that window? That there is a 95% chance the true average is in there?
+Imagine your pizza place says this: "we are 95% confident the average delivery takes between 22 and 30 minutes." 
 
-Strangely, neither of those is exactly right. And almost everyone who uses confidence intervals has quietly avoided asking.
+Sounds precise. But what is the 95% actually promising? 
 
-Today you will build intervals yourself from repeated samples of delivery times and watch which intervals catch the true average and which miss. After that, you can explain the 95% to anyone. It happens to be a favourite interview question too.
+That 95% of pizzas arrive in that window? or that there is a 95% chance the true average is in there?
+
+Strangely, neither of those is exactly right. And almost everyone who uses confidence intervals have quietly avoided asking.
+
+Today you will build intervals yourself from repeated samples of delivery times and watch which intervals catch the true average and which miss. After that, you can explain the 95% to anyone. It happens to be a favourite interview question too. Don't miss this.
 
 [Understand confidence intervals -> {url}]
 
@@ -97,11 +107,13 @@ Akshay
 ```
 Hi {first_name},
 
-Picture a coffee shop's daily sales. Busy days tend to follow busy days, a random rush yesterday still echoes a little today, and overall business is slowly growing. Those three everyday facts are literally the AR, the MA and the I in ARIMA.
+Let's consider a coffee shop's daily sales and you observe this: Busy days tend to follow busy days, a random rush yesterday still echoes a little today, and overall business is slowly growing. Those three essentially are the AR, the MA and the I in ARIMA.
 
-That is the whole secret. ARIMA looks like alphabet soup until someone maps each letter to something you have seen in real life, and today's lesson does exactly that with charts you can play with.
+That is the core idea. 
 
-By the end, ARIMA(2,1,1) reads like a sentence: today depends on the last two days, the trend was removed once, and one day of random shock still echoes.
+ARIMA looks like soup until you build the intuition for each letter to something you have seen in real life, and today's lesson does exactly that with charts you can work with.
+
+By the end, ARIMA(2,1,1) reads like a sentence: today depends on the last two days, the trend was removed once, and one day of random noise still echoes.
 
 [Decode ARIMA -> {url}]
 
@@ -118,11 +130,15 @@ Akshay
 ```
 Hi {first_name},
 
-You have had a lot of new ideas thrown at you this week, so today's is one you already know from real life. It just needs a name.
+You have had a lot of new ideas thrown at you this week, so today's is one you already know from real life. 
 
-A discount coupon lifts sales, but mostly for new customers. Regulars would have bought anyway. So "does the coupon work?" has no single answer: the effect depends on who gets it. That is an interaction, and a model that ignores it will happily report one average effect that is wrong for both groups.
+Typically, a discount coupon increases sales, but mostly for new customers. Because, regulars would have bought anyway. So the question "does the coupon work?" has no single answer: the effect depends on who gets the coupon. 
 
-Today you will spot interactions in real data, add them to a model, and read the result without tying your brain in knots.
+Right? 
+
+That is an interaction in real life and a model that ignores it will happily report an average effect that is wrong for both groups.
+
+Today you will learn to spot interactions in real data, add them to a model, and read the result without tying your brain in knots.
 
 [Master interaction effects -> {url}]
 
@@ -139,9 +155,9 @@ Akshay
 ```
 Hi {first_name},
 
-It has been a dense week, so no lesson today. Instead, something people keep coming back to.
+It has been a dense week, so no lesson today. Instead, here's something people keep coming back to.
 
-Fifty real R interview questions with worked answers you can run. Not trivia, the genuinely asked kind: when do you use a list instead of a vector, what does apply do that a loop does not, why did your numbers suddenly turn into text.
+Fifty real R interview questions with worked answers you can run. Not trivia, the genuinely asked kind.
 
 No interview on the horizon? Skimming them is still the fastest check of your R fundamentals I know.
 
@@ -160,11 +176,13 @@ Akshay
 ```
 Hi {first_name},
 
-Remember the p-value lesson from earlier in the week? Today it starts paying rent.
+Remember the p-value lesson from earlier in the week? Today it starts to pay off.
 
-Suppose a clinic is testing whether a new exercise program lowers blood pressure by around 10 points. They can recruit 40 patients. Is that enough to actually detect the improvement if it is real? Run the study blind and you might spend six months to learn nothing: too few patients and a real effect hides in the noise.
+Let's suppose a clinic is testing whether a new exercise program lowers blood pressure by around 10 points. They can recruit 40 patients. 
 
-Power analysis answers the question before a single patient walks in. Today you will run one and walk away with a sample size you can defend to a boss, a reviewer or an ethics board.
+But is that count actually enough to detect if the improvement is real? If you run the study without considering this, you might very well waste the whole analysis. Power analysis answers the question before even starting it. 
+
+Today you will learn how to run one and walk away knowing how to determine the exact sample size needed.
 
 [Find your sample size -> {url}]
 
@@ -181,11 +199,15 @@ Akshay
 ```
 Hi {first_name},
 
-Here is a moment you will recognise. You have average order values from three store branches and someone asks, "is the difference real?" And you freeze, because you know there are a dozen tests and you are not sure which one this situation needs.
+Consider this: You have average order values from three branches of a store and someone asks, "is the difference real?". In other words, does one store actually do better than the other? 
 
-Today's lesson replaces the freeze with a flowchart. Five plain questions about your data: how many groups, are they paired, is the data roughly normal, and so on. Answer them and the right test falls out the bottom. We will walk that store-branch example through it, plus a few others, until the questions feel automatic.
+And you freeze.
 
-This one tends to live in an open tab for years.
+Because you know there are a dozen tests you could possibly do and you are not sure which one this situation precisely needs.
+
+Today's lesson replaces the freeze with a flowchart. Ask these five plain questions about your data: how many groups, are they paired, is the data roughly normal, and so on. Answer them and you will have the right test standing in front of you. 
+
+We will walk through simple examples, plus a few others, until the questions feel at home.
 
 [Get the flowchart -> {url}]
 
@@ -202,15 +224,15 @@ Akshay
 ```
 Hi {first_name},
 
-A puzzle before today's lesson, because it is one of the best in all of statistics.
+Let's do a small puzzle before today's lesson, because it is one of the best in all of statistics.
 
-A disease affects 1 person in 1,000 and the test for it is 99% accurate. You take the test and your result comes back positive. How worried should you be?
+Here it is: A disease affects 1 person in 1,000 and the test for it is 99% accurate. You take the test and your result comes back positive. How worried should you be? 
 
-Most people say very.
+Most people say very. 
 
-However, the real answer: your chance of having it is still under 10%, because among 1,000 people the test frightens about ten healthy people for every one genuinely sick person it finds.
+But here is the real answer: your chance of having it is still under 10%, because among 1,000 people the test frightens about ten healthy people for every one genuinely sick person it finds.
 
-If that surprised you, today's lesson is going to be a good one. It is all conditional probability, the idea behind medical screening, spam filters and everything Bayesian we will do later.
+If that surprised you, today's lesson is going to be a good one. It is all conditional probability, the idea behind medical screening, spam filters and everything Bayesian we will do later. It is a foundational concept extremely useful in interviews.
 
 [Work through the puzzle -> {url}]
 
@@ -227,11 +249,15 @@ Akshay
 ```
 Hi {first_name},
 
-Back to the coffee shop from the ARIMA lesson. You suspect busy days follow busy days. But how far back does the echo reach? Does Monday still influence Thursday, or just Tuesday?
+Back to the coffee shop example from the ARIMA lesson earlier. You suspect busy days follow busy days. Remember?
 
-That is exactly what the ACF and PACF plots show: how strongly today's sales correlate with 1, 2, 3 days ago. And those correlations are what tell you how many AR and MA terms your model needs. A tall spike at lag 1, then nothing, is the data saying "only yesterday matters."
+But this time we want to know how far back does the echo reach or Does Monday still influence Thursday, or just till Tuesday?
 
-Today you will read both plots on real series until the patterns jump out on their own.
+Fair question right?
+
+That is exactly what the ACF and PACF plots try to answer: how strongly today's sales correlate with 1, 2, 3 days ago. And those correlations are what tell you how many AR and MA terms your model needs. A tall spike at lag 1, then nothing, is the data saying "only yesterday matters."
+
+Today you will learn to read both plots on real series until the patterns make sense and the exact mechanism behind it is crystal clear.
 
 [Learn to read the plots -> {url}]
 
@@ -248,11 +274,15 @@ Akshay
 ```
 Hi {first_name},
 
-Today, a small horror story from regression.
+Today, we have a small horror story from regression.
 
-You are predicting house prices from square footage and number of rooms. Both obviously matter. But big houses have many rooms, so the two predictors move together, and the model cannot tell which one deserves the credit. Result: coefficients flip signs, a variable you know matters looks useless, and nothing is technically broken.
+You are predicting house prices from square footage and number of rooms. Both obviously matter. But big houses have many rooms, so the two predictors move together, and the model cannot tell which one deserves the credit. 
 
-That is multicollinearity. Detecting it takes one line (the VIF), and today you will learn that line, what it does and does not ruin, and the fixes that do not throw away good variables.
+The Result: coefficients flip signs, a variable you know matters looks useless, yet nothing is technically broken.
+
+That is multicollinearity. 
+
+Detecting it takes one line (the VIF), and today you will learn that line, what it does and does not ruin, and the fixes that do not throw away good variables.
 
 [Diagnose it -> {url}]
 
