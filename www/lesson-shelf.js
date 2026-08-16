@@ -57,8 +57,50 @@
   var LOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
   var cat = null, shelf = { open: [], badges: [] };
+  var optin = null;   // null = unknown; else {decided, nurture, offers}
+  var OPTIN_DISMISS_KEY = 'rsc-optin-dismiss';
+  var OPTIN_ROUTE_KEY = 'rsc-optin-routed';
 
   function isPro(){ return document.body.classList.contains('pro'); }
+
+  // The daily-series consent state drives two things here:
+  //  - undecided users (nudge/one-tap signups who never passed signin.html,
+  //    plus accounts that predate the screen) get routed to the one-time
+  //    opt-in screen, once per session so a failing API can never ping-pong;
+  //  - decided-but-off users get a quiet retry card, dismissable for 14 days.
+  function checkOptin(tok){
+    if (!tok || optin) return;
+    fetch('/api/me/email-optin', { headers: { Authorization: 'Bearer ' + tok } })
+      .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+      .then(function(s){
+        optin = s;
+        if (!s.decided){
+          var routed = false;
+          try{ routed = !!sessionStorage.getItem(OPTIN_ROUTE_KEY); }catch(e){}
+          if (!routed){
+            try{ sessionStorage.setItem(OPTIN_ROUTE_KEY, '1'); }catch(e){}
+            location.href = '/email-optin.html?next=%2Fdashboard.html';
+            return;
+          }
+        }
+        render();
+      }).catch(function(){});
+  }
+
+  function optinCardHtml(){
+    if (!optin || !optin.decided || optin.nurture) return '';
+    try{
+      var at = parseInt(localStorage.getItem(OPTIN_DISMISS_KEY) || '0', 10) || 0;
+      if (Date.now() - at < 14 * 86400e3) return '';
+    }catch(e){}
+    return '<section class="card" data-optin-card>' +
+      '<h2 style="margin:0 0 4px">The daily lesson series</h2>' +
+      '<p class="dh-sub" style="margin:0 0 14px">A five-minute interactive R lesson in your inbox each morning, free. Every email opens that day&#39;s lesson for three days.</p>' +
+      '<div style="display:flex;gap:10px;align-items:center">' +
+      '<button class="mc-cta" style="margin:0;border:0;cursor:pointer;font:inherit;font-weight:600" data-optin-yes>Start getting the lessons</button>' +
+      '<button style="appearance:none;border:0;background:none;cursor:pointer;color:var(--mut,#64748b);font:inherit;font-size:13.5px" data-optin-dismiss>Not now</button>' +
+      '</div></section>';
+  }
 
   function courseCard(c, pro){
     var built = c.parts.filter(function(p){ return p.status === 'built'; });
@@ -97,7 +139,7 @@
   function render(){
     if (!cat) return;
     var pro = isPro();
-    var html = '';
+    var html = optinCardHtml();
 
     if (shelf.open && shelf.open.length){
       html += '<section class="card"><h2>Your open lessons <span class="dh-sub">each stays open 3 days from its email</span></h2><div>' +
@@ -131,6 +173,30 @@
   }
 
   host.addEventListener('click', function(e){
+    var yes = e.target.closest('[data-optin-yes]');
+    if (yes){
+      yes.disabled = true;
+      fetch('/api/me/email-optin', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optin: true, surface: 'dashboard-card', default_state: 'off' })
+      }).then(function(r){ if (!r.ok) throw 0; return r.json(); })
+        .then(function(){
+          optin.nurture = true;
+          var card = host.querySelector('[data-optin-card]');
+          if (card) card.innerHTML = '<h2 style="margin:0 0 4px">You&#39;re in</h2>' +
+            '<p class="dh-sub" style="margin:0">The first lesson lands tomorrow morning. Watch for Akshay in your inbox.</p>';
+          try{ if (typeof gtag === 'function') gtag('event', 'nurture_optin', { placement: 'dashboard-card' }); }catch(err){}
+        }).catch(function(){ yes.disabled = false; });
+      return;
+    }
+    var dis = e.target.closest('[data-optin-dismiss]');
+    if (dis){
+      try{ localStorage.setItem(OPTIN_DISMISS_KEY, String(Date.now())); }catch(err){}
+      var c = host.querySelector('[data-optin-card]');
+      if (c) c.remove();
+      return;
+    }
     var cta = e.target.closest('[data-mc-cta]');
     var card = e.target.closest('[data-mc]');
     try{
@@ -157,7 +223,13 @@
     cat = res[0]; shelf = res[1] || shelf;
     render();
   }).catch(function(){});
+  checkOptin(tok);
 
   // Pro state hydrates after first paint; re-render so the wall never lies.
-  document.addEventListener('auth-hydrated', render);
+  // auth-hydrate may also have refreshed an expired token, so re-check the
+  // consent state with the fresh one.
+  document.addEventListener('auth-hydrated', function(){
+    render();
+    checkOptin(token());
+  });
 })();
