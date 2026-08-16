@@ -386,6 +386,7 @@ CREATE INDEX IF NOT EXISTS idx_email_events_user ON email_events(user_id, at);
 --   ALTER TABLE users ADD COLUMN email_progress INTEGER DEFAULT 1;  -- consent: progress category (opt-out)
 --   ALTER TABLE users ADD COLUMN email_nurture INTEGER DEFAULT 0;   -- consent: nurture (strictly opt-in)
 --   ALTER TABLE users ADD COLUMN email_offers INTEGER DEFAULT 0;    -- consent: offers/marketing (opt-in)
+--   ALTER TABLE users ADD COLUMN email_optin_decided_at INTEGER;    -- post-signup opt-in screen: NULL = never asked
 --   ALTER TABLE users ADD COLUMN persona TEXT;        -- student|professional|jobseeker|researcher|explorer
 --   ALTER TABLE users ADD COLUMN job_role TEXT;       -- analyst|ds|mle|ai|pm|other (users.role = user|admin)
 --   ALTER TABLE users ADD COLUMN job_role_other TEXT;

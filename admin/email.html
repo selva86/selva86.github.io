@@ -222,6 +222,35 @@
   var dash = document.getElementById('dash');
   if (!tok){ gate.innerHTML = 'Sign in first, then reload. <a href="/signin.html?next=/admin/email.html">Sign in</a>'; return; }
 
+  // Session keeper: the stored access token lives one hour, so a dashboard
+  // opened after idle (or left open) started 401ing and read as a logout.
+  // One supabase client with autoRefreshToken keeps the session fresh in the
+  // background and rewrites localStorage; the boot waits for the first
+  // refresh when the stored token is already stale, and a timer re-reads
+  // whatever the client wrote so later calls always carry a live token.
+  function tokenExpiresSoon(t){
+    try{
+      var p = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      return typeof p.exp === 'number' && (p.exp*1000 - Date.now()) < 60000;
+    }catch(e){ return true; }
+  }
+  function startKeeper(){
+    return fetch('/api/_auth-config').then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(cfg){
+        return import('https://esm.sh/@supabase/supabase-js@2.45.4').then(function(m){
+          return m.createClient(cfg.url, cfg.anonKey, {
+            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'implicit' }
+          }).auth.getSession();
+        });
+      })
+      .then(function(res){
+        var t = res && res.data && res.data.session && res.data.session.access_token;
+        if (t) tok = t;
+      })
+      .catch(function(){});
+  }
+  setInterval(function(){ var t = token(); if (t) tok = t; }, 60000);
+
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function n(x){ return (x==null?0:x).toLocaleString('en-US'); }
   function pct(a,b){ return b ? Math.round(100*a/b) + '%' : '-'; }
@@ -715,9 +744,12 @@
       .catch(function(e){ msg.className = 'edmsg'; msg.textContent = 'Save failed: ' + e; });
   });
 
-  load();
-  loadSeq();
-  setInterval(load, 60000);
+  var keeper = startKeeper();
+  (tokenExpiresSoon(tok) ? keeper : Promise.resolve()).then(function(){
+    load();
+    loadSeq();
+    setInterval(load, 60000);
+  });
 })();
 </script>
 </body>

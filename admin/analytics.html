@@ -124,6 +124,33 @@
       '<a href="/signin.html?next=/admin/analytics.html">Sign in</a>';
     return;
   }
+
+  // Session keeper: same fix as /admin/email.html. The stored access token
+  // lives one hour; without a refresher the page 401s after idle and reads
+  // as a logout. The supabase client refreshes in the background and this
+  // page re-reads its token before use.
+  function tokenExpiresSoon(t){
+    try{
+      var p = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      return typeof p.exp === 'number' && (p.exp*1000 - Date.now()) < 60000;
+    }catch(e){ return true; }
+  }
+  function startKeeper(){
+    return fetch('/api/_auth-config').then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(cfg){
+        return import('https://esm.sh/@supabase/supabase-js@2.45.4').then(function(m){
+          return m.createClient(cfg.url, cfg.anonKey, {
+            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'implicit' }
+          }).auth.getSession();
+        });
+      })
+      .then(function(res){
+        var t = res && res.data && res.data.session && res.data.session.access_token;
+        if (t) tok = t;
+      })
+      .catch(function(){});
+  }
+  setInterval(function(){ var t = token(); if (t) tok = t; }, 60000);
   var RANGE_LABEL = { today: 'today', '7d': 'last 7 days', '30d': 'last 30 days', '90d': 'last 90 days', all: 'all time' };
   var range = '7d';
   try{ if (RANGE_LABEL[localStorage.getItem('rsc-adm-range')]) range = localStorage.getItem('rsc-adm-range'); }catch(e){}
