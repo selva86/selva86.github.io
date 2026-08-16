@@ -89,6 +89,9 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     items.push({
       key: `seq:${seq}`, seq, kind: it.kind, course: it.course ?? null,
       built: it.kind === "public" ? true : !!it.slug,
+      // Where this email's {url} points (bare path; the sender adds the
+      // personal token for windowed lessons). Null = lesson not built yet.
+      url: it.kind === "public" ? `/${it.source}.html` : (it.slug ? `/${it.slug}.html` : null),
       subject: (eff && eff.subject) || it.subject,
       default_subject: it.subject,
       preheader: eff?.preheader ?? def.preheader,
