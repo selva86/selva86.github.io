@@ -287,14 +287,27 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         if not os.path.exists(lesson_md):
             log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
             return None
-    log('writer done; reviewer starting')
-    r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-           cwd=PROJ, timeout=4000, stdin_text=CHECK_PROMPT.format(slug=slug))
-    io.open(os.path.join(BRIEFS, f'windowed-{slug}-check.log'), 'w',
-            encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
-    if r.returncode != 0:
-        log('FAIL: reviewer flagged manual_review; stopping this lesson')
-        return None
+    # Stage 4: a fresh session reviews the LESSON. A genuine refusal writes a
+    # line to Scripts/lesson-review.log; a transient API death (server error
+    # mid-response, empty/short stdout) does not, and is retried once rather
+    # than treated as a verdict.
+    review_log = os.path.join(ROOT, 'Scripts', 'lesson-review.log')
+    def review_log_size():
+        return os.path.getsize(review_log) if os.path.exists(review_log) else 0
+    for attempt in (1, 2):
+        log('writer done; reviewer starting' if attempt == 1 else 'reviewer retry (API death)')
+        before = review_log_size()
+        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+               cwd=PROJ, timeout=4000, stdin_text=CHECK_PROMPT.format(slug=slug) + indep)
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-check.log'), 'w',
+                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        if r.returncode == 0:
+            break
+        refused = review_log_size() > before
+        api_death = ('API Error' in r.stdout) or (len(r.stdout.strip()) < 400 and not refused)
+        if refused or not api_death or attempt == 2:
+            log('FAIL: reviewer flagged manual_review; stopping this lesson')
+            return None
 
     # Comparison builds: PROVE independence, never trust it. Diff every step
     # against the canonical lesson and hard-fail on copying (the seq-1 v2
