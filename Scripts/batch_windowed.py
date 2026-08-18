@@ -215,12 +215,26 @@ def build_one(seq_item, reg, copy, out_slug=None):
                subject=seq_item['subject'], email_body=body,
                siblings=siblings, source=seq_item['source'],
                prev_next=prev_next)
+    # Comparison builds must be INDEPENDENT: without this, the planner and
+    # builder open the canonical lesson and anchor on its arc and prose,
+    # which invalidates the comparison (measured 48-98% step similarity on
+    # the first attempt).
+    indep = ''
+    if out_slug:
+        canonical = f"{PREFIX[cid]}-{part['part']}"
+        indep = (f"\nINDEPENDENCE (comparison build): a lesson for this topic already "
+                 f"exists at lessons/{canonical}.md with its plan at "
+                 f"post_plans/{canonical}_lesson-plan.md. Do NOT open, read, quote, "
+                 f"or reuse either file. Plan and build from the email promise, the "
+                 f"source post, and the SSOTs alone, as if that lesson had never "
+                 f"been written. (The owner's voice-pack exemplars are still the "
+                 f"voice law, including the cover exemplar.)\n")
     os.makedirs(BRIEFS, exist_ok=True)
     plan_path = os.path.join(ROOT, 'post_plans', f'{slug}_lesson-plan.md')
     lesson_md = os.path.join(ROOT, 'lessons', f'{slug}.md')
 
     # Stage 1: a fresh session PLANS only.
-    prompt = PLAN_PROMPT.format(**fmt)
+    prompt = PLAN_PROMPT.format(**fmt) + indep
     io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
             encoding='utf-8', newline='\n').write(prompt)
     log(f'seq {seq} -> {slug}: planner (Opus 5) starting')
@@ -235,7 +249,7 @@ def build_one(seq_item, reg, copy, out_slug=None):
     # Stage 2: a fresh session reviews the PLAN for flow and must approve it.
     log('plan done; plan reviewer starting')
     r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-           cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt))
+           cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt) + indep)
     io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'), 'w',
             encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
     if r.returncode != 0 or 'status: approved' not in io.open(plan_path, encoding='utf-8').read():
@@ -243,7 +257,7 @@ def build_one(seq_item, reg, copy, out_slug=None):
         return None
 
     # Stage 3: a fresh session BUILDS strictly from the approved plan.
-    prompt = PROMPT.format(**fmt)
+    prompt = PROMPT.format(**fmt) + indep
     io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
             encoding='utf-8', newline='\n').write(prompt)
     log('plan approved; builder (Opus 5) starting')
