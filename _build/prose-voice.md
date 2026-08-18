@@ -200,3 +200,5 @@ prose, and a page can satisfy all of them and still be dead. Optimising a draft
 until the metrics clear is how you produce writing that passes a check and reads
 like it. The "healthy" column is where most decent pages happen to land, which is
 all it is.
+
+**Precedence note (lessons):** for interactive lesson prose, `Plans/01_email_and_nurture/owner-voice-pack.md` (the owner's hand-written exemplars) takes precedence over everything in this file. See the voice-precedence rule at the top of `_build/lesson-pedagogy.md`.
