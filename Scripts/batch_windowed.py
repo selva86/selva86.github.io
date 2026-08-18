@@ -233,47 +233,60 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     plan_path = os.path.join(ROOT, 'post_plans', f'{slug}_lesson-plan.md')
     lesson_md = os.path.join(ROOT, 'lessons', f'{slug}.md')
 
-    # Stage 1: a fresh session PLANS only.
-    prompt = PLAN_PROMPT.format(**fmt) + indep
-    io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
-            encoding='utf-8', newline='\n').write(prompt)
-    log(f'seq {seq} -> {slug}: planner (Opus 5) starting')
-    r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-           cwd=PROJ, timeout=3600, stdin_text=prompt)
-    io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan.log'), 'w',
-            encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
-    if not os.path.exists(plan_path):
-        log(f'FAIL: planner produced no plan (see briefs/windowed-{slug}-plan.log)')
-        return None
+    # Stage 1: a fresh session PLANS only. (--resume: skip if a plan exists.)
+    if resume and os.path.exists(plan_path):
+        log(f'seq {seq} -> {slug}: resume, plan exists; skipping planner')
+    else:
+        prompt = PLAN_PROMPT.format(**fmt) + indep
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
+                encoding='utf-8', newline='\n').write(prompt)
+        log(f'seq {seq} -> {slug}: planner (Opus 5) starting')
+        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+               cwd=PROJ, timeout=3600, stdin_text=prompt)
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan.log'), 'w',
+                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        if not os.path.exists(plan_path):
+            log(f'FAIL: planner produced no plan (see briefs/windowed-{slug}-plan.log)')
+            return None
 
     # Stage 2: a fresh session reviews the PLAN for flow and must approve it.
-    log('plan done; plan reviewer starting')
-    r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-           cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt) + indep)
-    io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'), 'w',
-            encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
-    # Trust the ARTIFACT, not the exit code: `claude -p` can exit non-zero
-    # with empty stdout after a session that plainly did its work (seen
-    # 2026-08-18: 26-minute review, plan grown and stamped approved, exit
-    # non-zero). The approval stamp on disk is the verdict.
-    if 'status: approved' not in io.open(plan_path, encoding='utf-8').read():
-        log('FAIL: plan review did not approve; stopping this lesson')
-        return None
-    if r.returncode != 0:
-        log('WARN: plan reviewer exited non-zero but the plan is stamped approved; continuing')
+    # (--resume: skip if the plan is already stamped approved.)
+    def approved():
+        return 'status: approved' in io.open(plan_path, encoding='utf-8').read()
+    if resume and approved():
+        log('resume, plan already approved; skipping plan reviewer')
+    else:
+        log('plan done; plan reviewer starting')
+        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+               cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt) + indep)
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'), 'w',
+                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        # Trust the ARTIFACT, not the exit code: `claude -p` can exit non-zero
+        # with empty stdout after a session that plainly did its work (seen
+        # 2026-08-18: 26-minute review, plan grown and stamped approved, exit
+        # non-zero). The approval stamp on disk is the verdict.
+        if not approved():
+            log('FAIL: plan review did not approve; stopping this lesson')
+            return None
+        if r.returncode != 0:
+            log('WARN: plan reviewer exited non-zero but the plan is stamped approved; continuing')
 
     # Stage 3: a fresh session BUILDS strictly from the approved plan.
-    prompt = PROMPT.format(**fmt) + indep
-    io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
-            encoding='utf-8', newline='\n').write(prompt)
-    log('plan approved; builder (Opus 5) starting')
-    r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-           cwd=PROJ, timeout=6000, stdin_text=prompt)
-    io.open(os.path.join(BRIEFS, f'windowed-{slug}-run.log'), 'w',
-            encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
-    if not os.path.exists(lesson_md):
-        log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
-        return None
+    # (--resume: skip if the lesson markdown already exists.)
+    if resume and os.path.exists(lesson_md):
+        log('resume, lesson exists; skipping builder')
+    else:
+        prompt = PROMPT.format(**fmt) + indep
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
+                encoding='utf-8', newline='\n').write(prompt)
+        log('plan approved; builder (Opus 5) starting')
+        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+               cwd=PROJ, timeout=6000, stdin_text=prompt)
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-run.log'), 'w',
+                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        if not os.path.exists(lesson_md):
+            log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
+            return None
     log('writer done; reviewer starting')
     r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
            cwd=PROJ, timeout=4000, stdin_text=CHECK_PROMPT.format(slug=slug))
