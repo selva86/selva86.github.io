@@ -195,6 +195,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     # one. On any failure the archive is restored so the working tree is left
     # exactly as it was.
     archive = None
+    owner_cover_used = False
     if rebuild:
         import glob, shutil
         archive = os.path.join(BRIEFS, 'rebuild-archive', slug)
@@ -208,6 +209,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
         for src in cands:
             if os.path.exists(src):
                 dst = os.path.join(archive, os.path.relpath(src, ROOT).replace(os.sep, '__'))
+                if os.path.exists(dst):
+                    continue          # already archived (a --resume): the file in the tree is the NEW one
                 shutil.move(src, dst)
                 moved.append((src, dst))
         log(f'rebuild: archived {len(moved)} earlier artifact(s) of {slug} to briefs/rebuild-archive/{slug}/')
@@ -219,7 +222,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
                  "email promise, the source post, and the skill alone, as if no lesson "
                  "had ever been written for it.\n")
         owner_cover = os.path.join(BRIEFS, f'owner-cover-{slug}.md')
-        if os.path.exists(owner_cover):
+        owner_cover_used = os.path.exists(owner_cover)
+        if owner_cover_used:
             indep += ("\nOWNER-WRITTEN COVER (verbatim, untouchable): the owner hand-wrote the "
                       "cover prose for this lesson. Use it word for word as the cover step's "
                       "prose (widget and objectives follow it), and never edit it:\n---\n"
@@ -290,7 +294,11 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     review_log = os.path.join(ROOT, 'Scripts', 'lesson-review.log')
     def review_log_size():
         return os.path.getsize(review_log) if os.path.exists(review_log) else 0
-    for attempt in (1, 2):
+    check_log = os.path.join(BRIEFS, f'windowed-{slug}-check.log')
+    reviewed = resume and os.path.exists(check_log) and 'PASS' in io.open(check_log, encoding='utf-8').read()[:400]
+    if reviewed:
+        log('resume, reviewer already passed this lesson; skipping reviewer')
+    for attempt in ((1, 2) if not reviewed else ()):
         log('writer done; reviewer starting' if attempt == 1 else 'reviewer retry (API death)')
         before = review_log_size()
         r = claude(CHECK_PROMPT.format(**fmt) + indep, 4000,
@@ -315,6 +323,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
         if os.path.exists(canon_md):
             split = lambda p: re.split(r'^=== step ===.*$', io.open(p, encoding='utf-8').read(), flags=re.M)[1:]
             new_steps, old_steps = split(lesson_md), split(canon_md)
+            if owner_cover_used and new_steps:
+                new_steps = new_steps[1:]   # the cover is the owner's verbatim text by design
             worst = 0.0
             for ns in new_steps:
                 for os_ in old_steps:
@@ -372,6 +382,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--seq', type=int)
+    ap.add_argument('--seqs', help='comma-separated list of seqs to process, in sequence order')
     ap.add_argument('--max', type=int, default=1)
     ap.add_argument('--out-slug', help='comparison mode: build --seq N at this '
                     'alternate slug; registry and canonical lesson untouched')
@@ -398,6 +409,8 @@ def main():
         elif it.get('slug') and not a.out_slug:
             continue
         if a.seq is not None and it['seq'] != a.seq:
+            continue
+        if a.seqs and str(it['seq']) not in [x.strip() for x in a.seqs.split(',')]:
             continue
         if str(it['seq']) not in copy:
             log(f"seq {it['seq']}: no email copy written; stopping (copy is the promise)")
