@@ -111,6 +111,36 @@ def sh(cmd, cwd=ROOT, timeout=None, stdin_text=None):
                           input=stdin_text, shell=isinstance(cmd, str))
 
 
+API_DEATH_MARKERS = ('API Error', 'Overloaded', 'Internal server error', 'overloaded_error')
+
+
+def api_died(r):
+    """A claude -p run that hit a server-side error before doing real work:
+    error text in stdout and very little else. Real refusals and real work
+    produce long stdout."""
+    out = (r.stdout or '')
+    return any(m in out for m in API_DEATH_MARKERS) and len(out.strip()) < 600
+
+
+def claude(stdin_text, timeout, log_path):
+    """Run one fresh claude -p session with the given brief. Retries a
+    server-side API death (529 Overloaded, 500, mid-response errors) up to
+    three times with growing back-off, because those kill a stage before it
+    reads a single file and are not a verdict on anything. Writes the last
+    attempt's transcript to log_path."""
+    for attempt in range(1, 4):
+        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+               cwd=PROJ, timeout=timeout, stdin_text=stdin_text)
+        io.open(log_path, 'w', encoding='utf-8', newline='\n').write(
+            r.stdout + '\n--- stderr ---\n' + r.stderr)
+        if not api_died(r):
+            return r
+        wait = 120 * attempt
+        log(f'API death (attempt {attempt}/3): waiting {wait}s then relaunching this stage')
+        time.sleep(wait)
+    return r
+
+
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
@@ -164,10 +194,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
         log(f'seq {seq} -> {slug}: planner (Opus 5) starting')
-        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-               cwd=PROJ, timeout=3600, stdin_text=prompt)
-        io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan.log'), 'w',
-                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        r = claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-plan.log'))
         if not os.path.exists(plan_path):
             log(f'FAIL: planner produced no plan (see briefs/windowed-{slug}-plan.log)')
             return None
@@ -180,10 +207,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         log('resume, plan already approved; skipping plan reviewer')
     else:
         log('plan done; plan reviewer starting')
-        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-               cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt) + indep)
-        io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'), 'w',
-                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        r = claude(PLAN_CHECK_PROMPT.format(**fmt) + indep, 3600,
+                   os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'))
         # Trust the ARTIFACT, not the exit code: `claude -p` can exit non-zero
         # with empty stdout after a session that plainly did its work (seen
         # 2026-08-18: 26-minute review, plan grown and stamped approved, exit
@@ -203,10 +228,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
         log('plan approved; builder (Opus 5) starting')
-        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-               cwd=PROJ, timeout=6000, stdin_text=prompt)
-        io.open(os.path.join(BRIEFS, f'windowed-{slug}-run.log'), 'w',
-                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        r = claude(prompt, 6000, os.path.join(BRIEFS, f'windowed-{slug}-run.log'))
         if not os.path.exists(lesson_md):
             log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
             return None
@@ -220,10 +242,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     for attempt in (1, 2):
         log('writer done; reviewer starting' if attempt == 1 else 'reviewer retry (API death)')
         before = review_log_size()
-        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-               cwd=PROJ, timeout=4000, stdin_text=CHECK_PROMPT.format(**fmt) + indep)
-        io.open(os.path.join(BRIEFS, f'windowed-{slug}-check.log'), 'w',
-                encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+        r = claude(CHECK_PROMPT.format(**fmt) + indep, 4000,
+                   os.path.join(BRIEFS, f'windowed-{slug}-check.log'))
         if r.returncode == 0:
             break
         refused = review_log_size() > before
