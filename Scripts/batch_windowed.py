@@ -192,7 +192,7 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_one(seq_item, reg, copy, out_slug=None):
+def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     seq = seq_item['seq']
     cid = seq_item['course']
     course = reg['courses'][cid]
@@ -252,9 +252,15 @@ def build_one(seq_item, reg, copy, out_slug=None):
            cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt) + indep)
     io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'), 'w',
             encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
-    if r.returncode != 0 or 'status: approved' not in io.open(plan_path, encoding='utf-8').read():
+    # Trust the ARTIFACT, not the exit code: `claude -p` can exit non-zero
+    # with empty stdout after a session that plainly did its work (seen
+    # 2026-08-18: 26-minute review, plan grown and stamped approved, exit
+    # non-zero). The approval stamp on disk is the verdict.
+    if 'status: approved' not in io.open(plan_path, encoding='utf-8').read():
         log('FAIL: plan review did not approve; stopping this lesson')
         return None
+    if r.returncode != 0:
+        log('WARN: plan reviewer exited non-zero but the plan is stamped approved; continuing')
 
     # Stage 3: a fresh session BUILDS strictly from the approved plan.
     prompt = PROMPT.format(**fmt) + indep
@@ -346,6 +352,8 @@ def main():
     ap.add_argument('--max', type=int, default=1)
     ap.add_argument('--out-slug', help='comparison mode: build --seq N at this '
                     'alternate slug; registry and canonical lesson untouched')
+    ap.add_argument('--resume', action='store_true',
+                    help='skip stages whose artifact already exists (plan / approved plan / lesson)')
     a = ap.parse_args()
     if a.out_slug and a.seq is None:
         log('--out-slug requires --seq')
@@ -365,7 +373,7 @@ def main():
         if str(it['seq']) not in copy:
             log(f"seq {it['seq']}: no email copy written; stopping (copy is the promise)")
             break
-        slug = build_one(it, reg, copy, out_slug=a.out_slug)
+        slug = build_one(it, reg, copy, out_slug=a.out_slug, resume=a.resume)
         if not slug:
             sys.exit(1)
         reg = json.load(io.open(REG, encoding='utf-8'))  # reload after registry write
