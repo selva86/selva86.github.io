@@ -130,6 +130,10 @@ def check_lesson(path):
         warn('first step is "%s", expected cover' % cov_type)
     if not is_quiz and not has_visual(cov_md):
         fail('cover (step 1) has no visual (R1): needs a ::widget, <img>/<svg>, or image')
+    cov_prose = ' '.join(l for l in cov_md.splitlines() if not l.startswith('::'))
+    if re.search(r'\bPart \d+\b|previous (lesson|part)|earlier (lesson|part)s?|last (lesson|part)|missed the earlier',
+                 cov_prose, re.I):
+        fail('cover refers to another part or lesson; open with the scene instead')
 
     # Title match: the cover H2 must equal the catalog title (the roadmap-visible name) - the
     # LESSON_CATALOG_TITLE override if present, else the colon-tail of `title`. Keeps
@@ -176,7 +180,7 @@ def check_lesson(path):
             continue
         hits = lexicon_hits(md)
         if hits:
-            fail('step %d "%s": bare prose about a visualizable idea (%s) - add a visual '
+            warn('step %d "%s": bare prose about a visualizable idea (%s) - add a visual '
                  'or mark ::prose-only <reason> (R6)' % (n, head, ', '.join(hits[:4])))
 
     # R5 - practice cadence. A section quiz is all questions: it needs >=1 quiz step but

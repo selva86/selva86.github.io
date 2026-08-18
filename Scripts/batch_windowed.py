@@ -51,7 +51,7 @@ PREFIX = {
 # The lesson-specific brief shared by every stage. Rules live in the skills.
 BRIEF = """LESSON: slug {slug}; title "{title}"; part {part} of {total} of the mini course
 "{course_title}" (course_id {course_id}); curriculum_id 0.0.{seq};
-lesson_access windowed; course_landing /dashboard.html{prev_next}.{siblings}
+lesson_access windowed; course_landing /dashboard.html{prev_next}.
 
 THE PROMISE THIS LESSON MUST DELIVER: the daily email that unlocks it.
 Subject: "{subject}"
@@ -59,10 +59,10 @@ Subject: "{subject}"
 {email_body}
 ---
 The email's example and framing are the lesson's opening contract. Deliver
-exactly what it promises, then go deeper.
+exactly what it promises, in the owner's voice.
 
 SOURCE MATERIAL: selva86.github.io/_posts/{source}.html is the existing blog
-post. Raw material only; the lesson must exceed it, never summarize it.
+post. Raw material only.
 Windowed frontmatter beyond the identity above: post_type "LESSON", webr
 true, mathjax true only if formulas are rendered, description 150-160 chars,
 keywords sensible, catalog_blurb one plain credible line, date today.
@@ -72,7 +72,8 @@ PLAN_PROMPT = """Follow the skill at .claude/skills/write-lesson/SKILL.md in --p
 mode. Work from the project root; the repo is selva86.github.io/. The lesson
 identity below replaces the skill's Part 3 derivation. Produce ONLY the plan
 file the skill's Part 4 describes. Do not write lesson prose. Do not run
-gates. Do not touch git.
+gates. Do not touch git. Stay inside the Part 4 budget and format; the
+reviewer deletes anything beyond it.
 
 """ + BRIEF
 
@@ -156,17 +157,15 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     title = re.sub(r'\s*\(.*\)\s*$', '', seq_item['subject']).strip()
     title = title[0].upper() + title[1:]
     body = copy[str(seq)]['body']
-    built_sib = [p for p in course['parts'] if p.get('slug') and p['seq'] != seq]
-    siblings = (' Built sibling parts you may bridge to: ' +
-                ', '.join(f"part {p['part']} = {p['slug']}" for p in built_sib)) if built_sib else ''
     prev = next((p['slug'] for p in course['parts'] if p['part'] == part['part'] - 1 and p.get('slug')), '')
-    prev_next = f' / course_prev: "{prev}"' if prev else ''
+    prev_next = (f' / course_prev: "{prev}" (frontmatter only; never mention '
+                 f'other parts in prose)') if prev else ''
 
     fmt = dict(slug=slug, title=title, course_id=cid,
                course_title=course['title'], part=part['part'],
                total=len(course['parts']), seq=seq,
                subject=seq_item['subject'], email_body=body,
-               siblings=siblings, source=seq_item['source'],
+               source=seq_item['source'],
                prev_next=prev_next)
     # Comparison builds must be INDEPENDENT: without this, the planner and
     # builder open the canonical lesson and anchor on its arc and prose,
@@ -295,7 +294,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     assert slug not in smap, 'sitemap leak'
 
     add_paths = [f'lessons/{slug}.md', f'_lessons/{slug}.html', f'{slug}.html',
-                 f'post_plans/{slug}_lesson-plan.md', 'functions/_data/exercise-manifest.json']
+                 f'post_plans/{slug}_lesson-plan.md', 'functions/_data/exercise-manifest.json',
+                 'Scripts/build_lessons_tracker.py']
     if not out_slug:
         add_paths.append('functions/_data/mini-courses.json')
     msg = (f'Comparison build {slug} (from seq {seq}): {title}\n\n'
