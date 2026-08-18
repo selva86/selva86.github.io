@@ -177,7 +177,21 @@ def main():
             st[slug] = {'course_id': args.course or st.get(slug, {}).get('course_id', ''), 'status': 'writing'}
             save_status(st)
 
-            if run_claude(args.claude, '/write-lesson ' + slug, args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
+            # Three fresh sessions per lesson: plan -> plan review -> build.
+            # The plan is a contract (status: approved) the builder may deepen
+            # but never reorder; the flow gate runs while fixes are cheap.
+            plan_path = os.path.join(ROOT, 'post_plans', slug + '_lesson-plan.md')
+            if run_claude(args.claude, '/write-lesson ' + slug + ' --plan-only', args.timeout or None) != 0 or not os.path.exists(plan_path):
+                st[slug]['status'] = 'plan_failed'
+                save_status(st)
+                print('  plan failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
+                continue
+            if run_claude(args.claude, '/check-lesson-plan ' + slug, args.timeout or None) != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read():
+                st[slug]['status'] = 'plan_review_failed'
+                save_status(st)
+                print('  plan review failed: %s' % slug)
+                continue
+            if run_claude(args.claude, '/write-lesson ' + slug + ' --build', args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
                 st[slug]['status'] = 'failed'
                 save_status(st)
                 print('  write failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))

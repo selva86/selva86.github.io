@@ -33,6 +33,58 @@ PREFIX = {
     'time-series-toolkit': 'TS-Toolkit-Mini', 'foundations-extras': 'Foundations-Mini',
 }
 
+PLAN_PROMPT = """You are PLANNING one interactive step-player lesson for r-statistics.co: a
+windowed nurture lesson. Work from the project root; the repo is selva86.github.io/.
+This is the PLAN phase: you produce ONLY the plan artifact, no lesson prose.
+
+READ FIRST, in order: (1) .claude/skills/write-lesson/SKILL.md (Pass 0 + Pass 1
+define the plan you must produce), (2)
+selva86.github.io/Plans/01_email_and_nurture/owner-voice-pack.md (step titles
+must sound like the owner), (3) selva86.github.io/_build/lesson-pedagogy.md
+(Gate 1 is your contract), (4) selva86.github.io/_build/lesson-visual-catalog.md
+(the only widgets you may plan), (5) selva86.github.io/Scripts/webr-package-compat.json
+(only `runnable` packages may appear in the code plan), (6)
+selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md.
+
+THE LESSON BEING PLANNED: slug {slug}, title "{title}", part {part} of {total}
+of "{course_title}".{siblings}
+
+THE PROMISE THIS LESSON MUST CASH (the daily email that unlocks it):
+Subject: "{subject}"
+Body:
+---
+{email_body}
+---
+The email's example and framing are the lesson's opening contract.
+
+SOURCE MATERIAL: selva86.github.io/_posts/{source}.html (raw material only;
+the lesson must exceed it).
+
+PRODUCE ONLY: selva86.github.io/post_plans/{slug}_lesson-plan.md containing,
+per the skill's Pass 1: a `status: draft` header line; the one-paragraph
+NARRATIVE SPINE; 3-6 objectives each mapped to a step and a check; the
+prerequisites (entry bar); the concept order; and the FULL STEP ARC where
+every step names its exact TITLE, its one new idea, its visual from the
+catalog (or `prose-only (why)`), its CODE PLAN (dataset/package + what each
+block demonstrates), its check, its BRIDGE line (`coming from -> leading
+to`), and where the running example stands.
+
+DO NOT write lessons/{slug}.md. DO NOT run gates. DO NOT touch git.
+"""
+
+PLAN_CHECK_PROMPT = """Read and follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the
+plan selva86.github.io/post_plans/{slug}_lesson-plan.md. This is a WINDOWED
+nurture lesson: part {part} of {total} of "{course_title}". The daily email
+below is the promise the lesson must cash; the plan's cover and arc must
+serve it:
+---
+{email_body}
+---
+Fix flow problems DIRECTLY in the plan (reordering is your job), then set
+`status: approved` and exit 0. Do not approve an unfixable plan. DO NOT
+write lesson prose or touch git.
+"""
+
 PROMPT = """You are writing ONE interactive step-player lesson for r-statistics.co: a
 windowed nurture lesson. Work from the project root; the repo is selva86.github.io/.
 
@@ -45,9 +97,14 @@ selva86.github.io/_build/lesson-contract.md, (5)
 selva86.github.io/_build/lesson-visual-catalog.md, (6)
 selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md.
 
+THE PLAN IS APPROVED: selva86.github.io/post_plans/{slug}_lesson-plan.md
+carries `status: approved`. Build STRICTLY from it: exact step titles, order,
+visuals, and code plan. The plan is a floor, not a ceiling: add steps or
+depth wherever thoroughness demands it (R13), but never reorder or cut the
+approved arc, and never re-plan.
+
 OVERRIDES (windowed nurture lesson; skip Pass 0 derivation, use exactly):
 - Write to: selva86.github.io/lessons/{slug}.md
-- Plan artifact first: selva86.github.io/post_plans/{slug}_lesson-plan.md
 - Frontmatter exactly: title: "{title}" / slug: "{slug}" / description: (write
   a 150-160 char one from the subject) / keywords: (sensible) / date: today /
   post_type: "LESSON" / lesson_access: "windowed" / course_id: "{course_id}" /
@@ -135,12 +192,14 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_one(seq_item, reg, copy):
+def build_one(seq_item, reg, copy, out_slug=None):
     seq = seq_item['seq']
     cid = seq_item['course']
     course = reg['courses'][cid]
     part = next(p for p in course['parts'] if p['seq'] == seq)
-    slug = f"{PREFIX[cid]}-{part['part']}"
+    # out_slug = comparison mode: build the lesson at an alternate slug,
+    # never touching the registry or the canonical lesson.
+    slug = out_slug or f"{PREFIX[cid]}-{part['part']}"
     title = re.sub(r'\s*\(.*\)\s*$', '', seq_item['subject']).strip()
     title = title[0].upper() + title[1:]
     body = copy[str(seq)]['body']
@@ -150,24 +209,50 @@ def build_one(seq_item, reg, copy):
     prev = next((p['slug'] for p in course['parts'] if p['part'] == part['part'] - 1 and p.get('slug')), '')
     prev_next = f' / course_prev: "{prev}"' if prev else ''
 
-    prompt = PROMPT.format(slug=slug, title=title, course_id=cid,
-                           course_title=course['title'], part=part['part'],
-                           total=len(course['parts']), seq=seq,
-                           subject=seq_item['subject'], email_body=body,
-                           siblings=siblings, source=seq_item['source'],
-                           prev_next=prev_next)
+    fmt = dict(slug=slug, title=title, course_id=cid,
+               course_title=course['title'], part=part['part'],
+               total=len(course['parts']), seq=seq,
+               subject=seq_item['subject'], email_body=body,
+               siblings=siblings, source=seq_item['source'],
+               prev_next=prev_next)
     os.makedirs(BRIEFS, exist_ok=True)
+    plan_path = os.path.join(ROOT, 'post_plans', f'{slug}_lesson-plan.md')
+    lesson_md = os.path.join(ROOT, 'lessons', f'{slug}.md')
+
+    # Stage 1: a fresh session PLANS only.
+    prompt = PLAN_PROMPT.format(**fmt)
+    io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
+            encoding='utf-8', newline='\n').write(prompt)
+    log(f'seq {seq} -> {slug}: planner (Opus 5) starting')
+    r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+           cwd=PROJ, timeout=3600, stdin_text=prompt)
+    io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan.log'), 'w',
+            encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+    if not os.path.exists(plan_path):
+        log(f'FAIL: planner produced no plan (see briefs/windowed-{slug}-plan.log)')
+        return None
+
+    # Stage 2: a fresh session reviews the PLAN for flow and must approve it.
+    log('plan done; plan reviewer starting')
+    r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+           cwd=PROJ, timeout=3600, stdin_text=PLAN_CHECK_PROMPT.format(**fmt))
+    io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-check.log'), 'w',
+            encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
+    if r.returncode != 0 or 'status: approved' not in io.open(plan_path, encoding='utf-8').read():
+        log('FAIL: plan review did not approve; stopping this lesson')
+        return None
+
+    # Stage 3: a fresh session BUILDS strictly from the approved plan.
+    prompt = PROMPT.format(**fmt)
     io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
             encoding='utf-8', newline='\n').write(prompt)
-
-    lesson_md = os.path.join(ROOT, 'lessons', f'{slug}.md')
-    log(f'seq {seq} -> {slug}: writer (Opus 5) starting')
+    log('plan approved; builder (Opus 5) starting')
     r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
            cwd=PROJ, timeout=6000, stdin_text=prompt)
     io.open(os.path.join(BRIEFS, f'windowed-{slug}-run.log'), 'w',
             encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
     if not os.path.exists(lesson_md):
-        log(f'FAIL: writer produced no lesson (see briefs/windowed-{slug}-run.log)')
+        log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
         return None
     log('writer done; reviewer starting')
     r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
@@ -183,10 +268,13 @@ def build_one(seq_item, reg, copy):
     if g.returncode != 0:
         log('FAIL: final gate\n' + g.stdout[-800:])
         return None
-    for cmd in ([sys.executable, '_build/md2lesson.py', f'lessons/{slug}.md'],
-                [sys.executable, '_build/build.py'],
-                [sys.executable, '_build/build_exercise_manifest.py'],
-                [sys.executable, 'Scripts/update_mini_registry.py', '--seq', str(seq), '--slug', slug, '--status', 'built']):
+    publish_cmds = [[sys.executable, '_build/md2lesson.py', f'lessons/{slug}.md'],
+                    [sys.executable, '_build/build.py'],
+                    [sys.executable, '_build/build_exercise_manifest.py']]
+    if not out_slug:
+        publish_cmds.append([sys.executable, 'Scripts/update_mini_registry.py',
+                             '--seq', str(seq), '--slug', slug, '--status', 'built'])
+    for cmd in publish_cmds:
         r = sh(cmd)
         if r.returncode != 0:
             log(f'FAIL: {" ".join(cmd[1:])}\n' + (r.stdout + r.stderr)[-600:])
@@ -197,13 +285,19 @@ def build_one(seq_item, reg, copy):
     smap = io.open(os.path.join(ROOT, 'sitemap.xml'), encoding='utf-8').read()
     assert slug not in smap, 'sitemap leak'
 
-    for cmd in (['git', 'add', f'lessons/{slug}.md', f'_lessons/{slug}.html', f'{slug}.html',
-                 'functions/_data/mini-courses.json', 'functions/_data/exercise-manifest.json'],
-                ['git', 'commit', '-q', '-m',
-                 f'Publish windowed lesson {slug} (seq {seq}): {title}\n\n'
-                 f'Part {part["part"]} of {course["title"]}. Fresh Opus 5 writer +\n'
-                 f'fresh reviewer sessions, both gates green, windowed attrs and\n'
-                 f'sitemap exclusion asserted, registry updated by the batch driver.'],
+    add_paths = [f'lessons/{slug}.md', f'_lessons/{slug}.html', f'{slug}.html',
+                 f'post_plans/{slug}_lesson-plan.md', 'functions/_data/exercise-manifest.json']
+    if not out_slug:
+        add_paths.append('functions/_data/mini-courses.json')
+    msg = (f'Comparison build {slug} (from seq {seq}): {title}\n\n'
+           f'Plan -> plan-review -> build pipeline; registry untouched; the\n'
+           f'canonical lesson is unchanged.') if out_slug else (
+           f'Publish windowed lesson {slug} (seq {seq}): {title}\n\n'
+           f'Part {part["part"]} of {course["title"]}. Plan -> plan-review ->\n'
+           f'build in fresh Opus 5 sessions + fresh reviewer, both gates green,\n'
+           f'windowed attrs and sitemap exclusion asserted, registry updated.')
+    for cmd in (['git', 'add'] + add_paths,
+                ['git', 'commit', '-q', '-m', msg],
                 ['git', 'push', '-q', 'origin', 'master']):
         r = sh(cmd)
         if r.returncode != 0 and 'commit' in cmd:
@@ -216,21 +310,28 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--seq', type=int)
     ap.add_argument('--max', type=int, default=1)
+    ap.add_argument('--out-slug', help='comparison mode: build --seq N at this '
+                    'alternate slug; registry and canonical lesson untouched')
     a = ap.parse_args()
+    if a.out_slug and a.seq is None:
+        log('--out-slug requires --seq')
+        sys.exit(2)
     reg = json.load(io.open(REG, encoding='utf-8'))
     copy = json.load(io.open(COPY, encoding='utf-8'))
     done = 0
     for it in reg['sequence']:
         if done >= a.max:
             break
-        if it['kind'] != 'lesson' or it.get('slug'):
+        if it['kind'] != 'lesson':
+            continue
+        if it.get('slug') and not a.out_slug:
             continue
         if a.seq is not None and it['seq'] != a.seq:
             continue
         if str(it['seq']) not in copy:
             log(f"seq {it['seq']}: no email copy written; stopping (copy is the promise)")
             break
-        slug = build_one(it, reg, copy)
+        slug = build_one(it, reg, copy, out_slug=a.out_slug)
         if not slug:
             sys.exit(1)
         reg = json.load(io.open(REG, encoding='utf-8'))  # reload after registry write
