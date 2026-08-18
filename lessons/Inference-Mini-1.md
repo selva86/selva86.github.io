@@ -56,7 +56,7 @@ By the end you will be able to:
 
 =
 
-== step === concept
+=== step === concept
 ::eyebrow The problem
 ## Two stories fit the same nine cups
 
