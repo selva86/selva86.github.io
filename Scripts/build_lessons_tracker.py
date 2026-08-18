@@ -97,6 +97,7 @@ LESSON_CATALOG_TITLE = {
     'Inference-Mini-6': "Effect size: Cohen's d and friends, explained",
     'Inference-Mini-6-v2': "Effect size: Cohen's d and friends, explained",
     'Inference-Mini-6-v3': "Effect size: Cohen's d and friends, explained",
+    'Inference-Mini-1': 'How Statistical Inference Works',
     'ARIMA-Mini-1': 'ARIMA: what AR, I, and MA actually mean',
     'ARIMA-Mini-2': 'ACF and PACF: how to read the plots for ARIMA orders',
     'Regression-Reading-Mini-1': 'Interaction effects: test and interpret them',
