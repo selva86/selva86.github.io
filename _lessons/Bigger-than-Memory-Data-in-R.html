@@ -1,6 +1,5 @@
 ---
 title: "data.table Lesson 3: Bigger-Than-Memory Data"
-catalog_blurb: "Work with datasets larger than your computer's memory."
 description: "Your data is bigger than your laptop memory. Stream it in chunks and query it on disk with DuckDB and dplyr from R, without ever loading the whole file."
 keywords: "bigger than memory data R, out of core R, duckdb in R, duckplyr, data.table fread, streaming chunks R, large data R, query parquet R"
 mathjax: true
@@ -15,7 +14,9 @@ course_landing: "data-table-Course.html"
 course_next: ""
 course_prev: "dplyr-vs-data-table.html"
 lesson_access: "free"
+catalog_blurb: "Work with datasets larger than your computer's memory."
 ---
+{% raw %}
 <!-- md2lesson:generated -->
 
 <section class="lesson-step" data-step="1" data-step-type="cover">
@@ -74,9 +75,8 @@ round(mb, 1)
 </div>
 
 <p>Ten times the rows, ten times the memory. There is no clever option that makes 38 million rows weigh nothing; the chart below is the wall Maya hit.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Tidier types help a little: store a category as a <code>factor</code> or an integer instead of text, drop columns you do not need, and a table can shrink two or three times over. But that is a constant factor. It buys you a bigger laptop, not an unlimited one. Past some row count you still need a different idea.</div></div>
 <div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"10K rows","y":0.3},{"x":"100K rows","y":3.2},{"x":"1M rows","y":32}],"geoms":["bar"],"x":"rows","y":"MB","code":{"bar":"ggplot(mem, aes(rows, mb)) +\n  geom_col()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Tidier types help a little: store a category as a <code>factor</code> or an integer instead of text, drop columns you do not need, and a table can shrink two or three times over. But that is a constant factor. It buys you a bigger laptop, not an unlimited one. Past some row count you still need a different idea.</div></div>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
@@ -86,7 +86,7 @@ round(mb, 1)
 <p>Here is the first real idea, and it is one you can picture. Maya does not actually need all 38 million rows in memory at once. She needs <strong>total revenue per shop</strong>, which is just a handful of numbers. So read the file a slice at a time, add each slice into a small running total, then throw the slice away before reading the next.</p>
 
 <p>The whole table never lives in memory at once. Only one chunk plus a tiny running total does, so the memory you need is \(O(g)\) where \(g\) is the number of groups (here, the number of shops), not \(O(n)\). The number of passes is about \(n / c\) rounded up (the \(\lceil\;\rceil\) ceiling brackets just mean "round up to the next whole pass") for a chunk size \(c\). The flow below is the loop.</p>
-
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Read a chunk","sub":"pull the next million rows off disk into memory"},{"title":"Update the totals","sub":"add this chunk into a small running per-shop total"},{"title":"Discard the chunk","sub":"free those rows, so the full table is never in memory all at once"},{"title":"Repeat to the end","sub":"after about n / chunk passes the running totals are complete"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 <p>Here is the pattern in miniature. We build a 30,000-row stand-in for the real file, then process it in three 10,000-row chunks, keeping only a per-shop total:</p>
 
 <div class="webr-container">
@@ -140,7 +140,6 @@ head(cols_needed, 3)
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Read a chunk","sub":"pull the next million rows off disk into memory"},{"title":"Update the totals","sub":"add this chunk into a small running per-shop total"},{"title":"Discard the chunk","sub":"free those rows, so the full table is never in memory all at once"},{"title":"Repeat to the end","sub":"after about n / chunk passes the running totals are complete"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
@@ -241,7 +240,7 @@ dbGetQuery(con, &quot;SELECT year, SUM(revenue) AS revenue FROM sales GROUP BY y
 <div class="lesson-step-eyebrow">Keep your dplyr</div>
 <h2>Point it at the files, write dplyr</h2>
 
-<p>You do not have to write SQL. DuckDB can stand behind ordinary <strong>dplyr</strong>: you point a table at the files on disk, write the same <code>group_by</code> and <code>summarise</code> you already know, and DuckDB runs it out-of-core. The catch, and the feature, is that it is <strong>lazy</strong>: nothing runs while you build the pipeline. It only runs when you call <strong><code>collect()</code></strong>, and only the small final result is pulled into R.</p>
+<p>You do not have to write SQL. DuckDB can stand behind ordinary <strong>dplyr</strong>: you point a table at the files on disk, write the same <code>group_by</code> and <code>summarise</code> you already know, and DuckDB runs it out-of-core. The catch, and the feature, is that it is <strong>lazy</strong>: nothing runs while you build the pipeline. It only runs when you call **<code>collect()</code>**, and only the small final result is pulled into R.</p>
 
 <pre><code class="language-r">library(duckdb)
 library(dplyr)
@@ -256,9 +255,8 @@ revenue_by_year &lt;- sales |&gt;
   summarise(revenue = sum(revenue)) |&gt;
   arrange(year) |&gt;
   collect()          # only NOW does DuckDB scan the files; only this small result enters R</code></pre>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The <strong>duckplyr</strong> package makes this even smoother: load it and your normal dplyr on a plain data frame is quietly executed by DuckDB, with no connection to manage. The <strong>arrow</strong> package does the same trick for folders of Parquet files. Different front doors, same idea: write dplyr, let an out-of-core engine do the scanning. <strong>Parquet</strong> is worth knowing here too: a columnar file format that, unlike CSV, lets the engine grab one column without reading the rest, which is what makes column pruning so cheap.</div></div>
 <div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Describe the query","sub":"write group_by plus summarise on a table pointed at the files; nothing runs yet"},{"title":"DuckDB runs it on disk","sub":"the engine scans the Parquet files out of core, never loading them into R"},{"title":"collect() the result","sub":"only now does the work happen, and only the small summary enters R"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The <strong>duckplyr</strong> package makes this even smoother: load it and your normal dplyr on a plain data frame is quietly executed by DuckDB, with no connection to manage. The <strong>arrow</strong> package does the same trick for folders of Parquet files. Different front doors, same idea: write dplyr, let an out-of-core engine do the scanning. <strong>Parquet</strong> is worth knowing here too: a columnar file format that, unlike CSV, lets the engine grab one column without reading the rest, which is what makes column pruning so cheap.</div></div>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
@@ -339,3 +337,4 @@ revenue_by_year &lt;- sales |&gt;
 <p>That closes the <strong>Fast Data Wrangling with data.table</strong> course. Across three lessons you went from the <code>DT[i, j, by]</code> bracket and keys, to data.table versus dplyr head to head, to querying data far bigger than your laptop. This course is part of the Data Analyst track: pass the track assessment and it counts toward your verified certificate.</p>
 </section>
 
+{% endraw %}

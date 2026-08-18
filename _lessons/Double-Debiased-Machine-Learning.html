@@ -110,13 +110,12 @@ round(head(dat, 4), 2)
 <p>Picture the three things in play. Tutoring hours (the treatment) and exam score (the outcome) are what we care about. But a student's underlying keenness and aptitude sit behind both: an abler, more motivated student books more tutoring AND scores higher, entirely on their own. Draw that and the problem jumps out, there is a second route connecting tutoring to score that has nothing to do with tutoring causing anything.</p>
 
 <p>Switch the widget below to the confounder pattern and run its R. A variable Z drives both X and Y; ignore it and X looks like it moves Y even when it does not. Put Z into the model and the fake effect collapses to about zero. That is exactly BrightLearn's situation, with Z standing in for the student traits.</p>
-
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 <p>To get an honest effect we must compare students who are alike on those traits, so the only thing left to explain a score gap is the tutoring itself. Writing \(Y\) for score, \(D\) for tutoring hours and \(X\) for the measured traits, we need</p>
 
 <p>\[ \{Y^{d}\}_{d}\ \perp\!\!\!\perp\ D \mid X, \]</p>
 
 <p>read as: once we hold the measured traits \(X\) fixed, how much tutoring a student books is unrelated to the scores they would get at any level of tutoring. This is the <strong>ignorability</strong> (no-unmeasured-confounding) assumption from Lesson 1. Every method today rides on it.</p>
-<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
@@ -218,9 +217,8 @@ round(coef(lm(score_lin ~ tut_lin))[[&quot;tut_lin&quot;]], 2)
 <p>So replace the two linear models with something that can bend to any shape: a flexible machine-learning learner such as a random forest, which splits exactly on thresholds like <code>ability &gt; 0.5</code> and captures them almost perfectly.</p>
 
 <p>There is a catch, and it is the reason double machine learning has to be careful. A flexible learner is deliberately BIASED. To avoid chasing noise it shrinks and smooths its predictions, trading a little bias for a lot less variance. Drag the complexity slider below: a too-flexible model overfits, a too-stiff one underfits, and every useful learner lives in between, carrying some bias on purpose.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">If you shoved a biased predictor of the score straight into a naive estimate of \(\theta\), that built-in bias would ride along into your effect. Partialling-out is what saves you: because we residualize BOTH sides, the estimate is first-order insensitive to small errors in \(g\) and \(m\). This robustness is called <strong>Neyman orthogonality</strong>, and it is exactly what lets us use a biased ML learner for the nuisances without wrecking \(\theta\).</div></div>
 <div class="lesson-widget" data-widget-type="bias-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">If you shoved a biased predictor of the score straight into a naive estimate of \(\theta\), that built-in bias would ride along into your effect. Partialling-out is what saves you: because we residualize BOTH sides, the estimate is first-order insensitive to small errors in \(g\) and \(m\). This robustness is called <strong>Neyman orthogonality</strong>, and it is exactly what lets us use a biased ML learner for the nuisances without wrecking \(\theta\).</div></div>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
@@ -243,9 +241,8 @@ round(coef(lm(score_lin ~ tut_lin))[[&quot;tut_lin&quot;]], 2)
 <p>One subtlety remains. If you fit the forest for \(g\) on the same rows where you then compute residuals, the forest has partly memorized those rows, so its residuals there are artificially small in a way that quietly correlates with \(\tilde D\). That is overfitting bias, and it can spoil the honesty of your confidence interval however orthogonal the score is.</p>
 
 <p>The fix is <strong>cross-fitting</strong>. Split the rows into K folds. To residualize a fold, fit the two nuisance forests on the OTHER folds and predict into the held-out one. Rotate until every row has been residualized by models that never trained on it. It is the rotating-holdout idea from cross-validation, used here not to score a model but to compute clean residuals. Step through the folds below.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Cross-fitting is what earns you a trustworthy standard error when the nuisances are flexible ML: it removes the own-row bias that would otherwise demand unrealistically well-behaved learners. On a large, clean sample the point estimate barely moves with or without it, but the guarantee, valid root-n inference no matter how you fit the nuisances, is why every serious DML implementation cross-fits by default.</div></div>
 <div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Cross-fitting is what earns you a trustworthy standard error when the nuisances are flexible ML: it removes the own-row bias that would otherwise demand unrealistically well-behaved learners. On a large, clean sample the point estimate barely moves with or without it, but the guarantee, valid root-n inference no matter how you fit the nuisances, is why every serious DML implementation cross-fits by default.</div></div>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="widget">
@@ -253,9 +250,8 @@ round(coef(lm(score_lin ~ tut_lin))[[&quot;tut_lin&quot;]], 2)
 <h2>Double machine learning, in five steps</h2>
 
 <p>Put the two ideas together and you have the whole method. Orthogonalize (residualize both sides) so the estimate shrugs off nuisance error; cross-fit so overfitting cannot sneak in. Everything else is bookkeeping.</p>
-
-<p>That is double machine learning: two nuisance models, one orthogonal score, cross-fit. Now let us run it on BrightLearn.</p>
 <div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split into K folds","sub":"divide the rows at random into K equal groups"},{"title":"Fit both nuisance models","sub":"on the other folds, predict the outcome and the treatment from X"},{"title":"Residualize the held-out fold","sub":"subtract the predictions to get outcome and treatment residuals"},{"title":"Rotate through every fold","sub":"so each row is residualized by models that never saw it"},{"title":"Regress residual on residual","sub":"the slope is the effect; its standard error is valid"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That is double machine learning: two nuisance models, one orthogonal score, cross-fit. Now let us run it on BrightLearn.</p>
 </section>
 
 <section class="lesson-step" data-step="11" data-step-type="concept">
