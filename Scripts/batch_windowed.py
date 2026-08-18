@@ -277,6 +277,26 @@ def build_one(seq_item, reg, copy, out_slug=None):
         log('FAIL: reviewer flagged manual_review; stopping this lesson')
         return None
 
+    # Comparison builds: PROVE independence, never trust it. Diff every step
+    # against the canonical lesson and hard-fail on copying (the seq-1 v2
+    # attempt sailed through every instruction while reusing v1's prose at
+    # up to 98% similarity - only measurement catches that).
+    if out_slug:
+        import difflib
+        canon_md = os.path.join(ROOT, 'lessons', f"{PREFIX[cid]}-{part['part']}.md")
+        if os.path.exists(canon_md):
+            split = lambda p: re.split(r'^=== step ===.*$', io.open(p, encoding='utf-8').read(), flags=re.M)[1:]
+            new_steps, old_steps = split(lesson_md), split(canon_md)
+            worst = 0.0
+            for ns in new_steps:
+                for os_ in old_steps:
+                    worst = max(worst, difflib.SequenceMatcher(None, ns, os_).quick_ratio()
+                                and difflib.SequenceMatcher(None, ns, os_).ratio())
+            log(f'independence check: worst step similarity vs canonical = {worst:.2f}')
+            if worst > 0.65:
+                log('FAIL: comparison build copied the canonical lesson (similarity > 0.65)')
+                return None
+
     log('gates + publish steps')
     g = sh([sys.executable, 'Scripts/lesson_quality_check.py', f'lessons/{slug}.md'])
     if g.returncode != 0:
