@@ -61,8 +61,14 @@ escapes. Raw $ inside R code blocks is fine.
 METHOD: go step by step through the whole file. For each step, read the
 prose aloud in your head; any sentence the owner would not say gets
 rewritten in their voice. Machine tells to hunt: clever compression,
-aphorisms, symmetric sentence pairs, rhythm-of-three lists, every point the
-same length, no spoken pauses, no reader check-ins.
+aphorisms, CLIPPED FRAGMENTS posing as drama (a spoken-pause paragraph is
+always a complete sentence), symmetric sentence pairs, rhythm-of-three
+lists, every point the same length, no spoken pauses, no reader check-ins.
+
+OWNER-WRITTEN PROSE IS UNTOUCHABLE: any step whose prose already matches
+the voice pack's exemplars verbatim (the owner hand-writes some sections,
+e.g. the Inference-Mini-1 cover) must be left exactly as it is, typos and
+loose grammar included. Never "improve" the owner's own words.
 
 GATES BEFORE FINISHING:
 python selva86.github.io/Scripts/lesson_quality_check.py selva86.github.io/lessons/{slug}.md

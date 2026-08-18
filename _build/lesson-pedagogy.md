@@ -2,6 +2,14 @@
 
 The quality contract for every interactive lesson. The `/write-lesson` skill follows it; `Scripts/lesson_quality_check.py` (deterministic + LLM-judge + headless) enforces it. Companion: `_build/lesson-contract.md` (the DOM + authoring mechanics). Terse by design: a rule with no measure is not a rule.
 
+**VOICE PRECEDENCE (binding for all lesson prose).** The controlling voice
+authority is `Plans/01_email_and_nurture/owner-voice-pack.md` - the owner's
+hand-written exemplars (emails + the Inference-Mini-1 cover) and extracted
+patterns. Where ANY generic voice or style guidance - R12's phrasing, R15,
+`_build/prose-voice.md`, an exemplar lesson's register, or a judge's own
+taste - conflicts with the voice pack, the voice pack wins. No rule in this
+file or any companion may be read as overriding it.
+
 ## Definition of done
 
 A lesson is done only when **a learner who meets the stated prerequisites can finish it with zero unexplained leaps and then pass every check unaided.** "From scratch" = from an explicitly declared entry bar, nothing used is left undefined. One lesson gets a learner to *competent* on its slice; *expert* = the whole course + spaced practice + references + the assessment.

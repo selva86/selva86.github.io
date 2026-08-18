@@ -13,11 +13,14 @@ and matches this voice, not a generic "conversational" register.
    The owner rewrote "Say you test" -> "Let's say you test" and "Picture a
    coffee shop" -> "Let's consider a coffee shop... and you observe this:".
 
-2. **Short standalone paragraphs as spoken pauses.** When a point lands, it
-   gets its own line. The owner split "It does not, and most people..." into
-   "It does not." (own paragraph) then "And most people..." (next paragraph).
-   Same with "And you freeze." / "Because you know...". "Most people say
-   very." stands alone. Use this beat where the reader needs a breath.
+2. **Short standalone paragraphs as spoken pauses, but ALWAYS complete
+   sentences.** When a point lands, it gets its own line. The owner split
+   "It does not, and most people..." into "It does not." (own paragraph)
+   then "And most people..." (next paragraph). "Most people say very."
+   stands alone. BUT the owner rewrote the fragment pair "Nine right. One
+   wrong." into "She gets nine right and one wrong." (lesson cover edit,
+   2026-08-18): the pause is a full spoken sentence on its own line, never
+   a clipped copywriter fragment. Fragments are a machine tell.
 
 3. **Check in with the reader, sparingly.** Small rhetorical taps that keep
    it two-way: "Right?", "Remember?", "Fair question right?", "Little mind
@@ -70,6 +73,71 @@ and matches this voice, not a generic "conversational" register.
 11. **Standing rules that still apply:** no em or en dashes anywhere, pure
     ASCII, no staccato copywriter fragments strung for rhythm, no invented
     numbers, one named numbered everyday example carried through a piece.
+
+## Lesson-prose patterns (from the owner's hand-edit of the
+## Inference-Mini-1 cover, 2026-08-18)
+
+The owner rewrote the cover step of Inference-Mini-1 by hand as lesson-voice
+calibration. New patterns it teaches, all binding for lesson prose:
+
+12. **Open with one plain orientation sentence** naming what today is about
+    ("Today let's understand the essence of how statistical inference
+    works.") BEFORE the story begins. Then start the scene.
+
+13. **Spell out procedure with sequencing words.** "When it lands heads you
+    fill it with Coke and for tails fill it with Pepsi", "Next, Priya
+    tastes all ten", "Now, is Priya really skilled...". Walk actions in
+    order with Next / Now / Then; never compress a procedure into one
+    clever clause.
+
+14. **Hand the reader the wheel with a question before an instruction.**
+    "How can we find out?" then "Press the buttons below." The question
+    makes the instruction theirs.
+
+15. **First person plural for the journey.** "We will build the intuition
+    here from scratch." The teacher walks WITH the learner.
+
+16. **Connectives like However are welcome; loose grammar is fine.** "However,
+    the trouble is...", "or just got lucky?" Do not sand these smooth.
+
+17. **Keep cutting cleverness at the verb level.** Owner replaced "count how
+    often it fakes a result that good" with "know how often you get a
+    result that good", and "run the same three moves somewhere else" with
+    "apply the method somewhere else entirely". Plain verbs, no winking.
+
+### The owner's cover, verbatim (the lesson-prose exemplar)
+
+Today let's understand the essence of how statistical inference works.
+
+Let's start with a simple bet. You are at a friend's place for dinner when
+Priya makes a claim: she can tell Coke from Pepsi purely by taste alone.
+
+Nobody at the table believes it.
+
+So you carry ten identical plastic cups into the kitchen and fill each one
+by tossing a coin. When it lands heads you fill it with Coke and for tails
+fill it with Pepsi, while writing the answers down as you go.
+
+Not even you know how many of each you poured. Next, Priya tastes all ten
+and calls them one at a time.
+
+She gets nine right and one wrong.
+
+Now, is Priya really skilled, or just got lucky?
+
+Getting nine out of ten right does feel like a lot. However, the trouble is
+that somebody with no ability whatsoever, somebody purely guessing, would
+still get a fair share of the cups right by chance, and every so often that
+guesser would get almost all of them right.
+
+So the question is not whether 9 out of 10 sounds impressive. It does. The
+real question is how often blind luck manages nine.
+
+How can we find out?
+
+Press the buttons below. Every bar you get in the output is a real round of
+ten pure-guess calls, played right now in front of you, and the orange bars
+are the rounds where luck alone did as good as Priya or better.
 
 ## Adapting this voice to lesson-length prose
 

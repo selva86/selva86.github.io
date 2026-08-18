@@ -21,30 +21,42 @@ mathjax: false
 ::eyebrow Part 1 of 7
 ## How Statistical Inference Works
 
-Let's start with a simple bet. You are at a friend's place for dinner when Priya makes a claim: they can tell Coke from Pepsi by taste alone.
+Today let's understand the essence of how statistical inference works. 
 
-Nobody at the table believes it. So you carry ten identical plastic cups into the kitchen and fill each one by tossing a coin, heads for Coke and tails for Pepsi, writing the answers down as you go. Not even you know how many of each you poured. Priya tastes all ten and calls them one at a time.
+Let's start with a simple bet. You are at a friend's place for dinner when Priya makes a claim: she can tell Coke from Pepsi purely by taste alone.
 
-Nine right. One wrong.
+Nobody at the table believes it. 
 
-So is Priya skilled, or just lucky?
+So you carry ten identical plastic cups into the kitchen and fill each one by tossing a coin. When it lands heads you fill it with Coke and for tails fill it with Pepsi, while writing the answers down as you go. 
 
-Nine out of ten does feel like a lot. The trouble is that somebody with no ability whatsoever, somebody purely guessing, would still get a fair share of the cups right by chance, and every so often that guesser would get almost all of them right. So the question is not whether nine sounds impressive. It does. The question is how often blind luck manages nine.
+Not even you know how many of each you poured. Next, Priya tastes all ten and calls them one at a time.
 
-And you can just go and find out. Press the buttons below. Every bar is a real round of ten pure-guess calls, played right now in front of you, and the orange bars are the rounds where luck alone did as well as Priya or better.
+She gets nine right and one wrong.
+
+Now, is Priya really skilled, or just got lucky?
+
+Getting nine out of ten right does feel like a lot. However, the trouble is that somebody with no ability whatsoever, somebody purely guessing, would still get a fair share of the cups right by chance, and every so often that guesser would get almost all of them right. 
+
+So the question is not whether 9 out of 10 sounds impressive. It does. The real question is how often blind luck manages nine.
+
+How can we find out?
+
+Press the buttons below. Every bar you get in the output is a real round of ten pure-guess calls, played right now in front of you, and the orange bars are the rounds where luck alone did as good as Priya or better.
 
 ::widget luck-simulator {"trials": 10, "p": 0.5, "observed": 9, "unit": "correct guesses", "seed": 42}
 
 By the end you will be able to:
 
 - Say why nine right out of ten, on its own, is not evidence of anything
-- Build the guessing world in R and count how often it fakes a result that good
-- Read the answer correctly, and say plainly what it never claims
-- Run the same three moves somewhere else entirely, like a shop comparing two versions of its checkout page
+- Build the guessing world in R and know how often you get a result that good
+- Read and understand the answer correctly, and state the inference plainly
+- Apply the method somewhere else entirely, like an online shop comparing two versions of its checkout page
 
-**What you need first:** you can read a simple R script, so a variable, a function call and a comparison like `x >= 9` are familiar. No statistics at all is assumed. Everything else we build here from nothing.
+**What you need first:** you can read a simple R script, so a variable, a function call and a comparison like `x >= 9` are familiar. No statistics at all is assumed. We will build the intuition here from scratch.
 
-=== step === concept
+=
+
+== step === concept
 ::eyebrow The problem
 ## Two stories fit the same nine cups
 
