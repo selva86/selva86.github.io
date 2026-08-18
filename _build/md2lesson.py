@@ -226,20 +226,56 @@ def parse_step(stype, smd, slug, n):
             if sci != -1:
                 sol_code, _l, _e = _extract_code_block(after[si + 1:], sci)
         interactive, gated = build_tryit(slug, n, starter, check_line, sol_code)
+        # Prose the author wrote AFTER the try-it (a hint, a "what to notice")
+        # used to be silently dropped. Keep it, rendered after the try-it box.
+        trailing, k = [], 0
+        while k < len(after):
+            ln = after[k]
+            if ln.strip().startswith('::check'):
+                k += 1
+                continue
+            if ln.strip().startswith('::solution'):
+                sci = _first_code_index(after[k + 1:])
+                if sci != -1:
+                    _c, _l, e2 = _extract_code_block(after[k + 1:], sci)
+                    k = k + 1 + e2
+                else:
+                    k += 1
+                continue
+            trailing.append(ln)
+            k += 1
+        if any(t.strip() for t in trailing):
+            interactive = interactive + '\n' + render_prose('\n'.join(trailing), slug)
 
-    else:  # cover | concept | widget | complete: prose + an optional ::widget
-        wi = next((k for k, ln in enumerate(lines) if ln.strip().startswith('::widget')), -1)
-        if wi == -1:
-            prose_md = '\n'.join(lines)
-        else:
-            prose_md = '\n'.join(lines[:wi] + lines[wi + 1:])
-            interactive = build_widget(lines[wi])
+    else:  # cover | concept | widget | complete: prose with ::widget lines IN PLACE
+        # A widget renders exactly where the author put it, between the prose
+        # that leads into it and the prose that discusses it. (Until 2026-08-18
+        # the widget was appended AFTER all the step's prose, so "have a look at
+        # the chart below" pointed at a chart that sat at the very bottom.)
+        # Several ::widget lines in one step are all honored, in order.
+        parts, buf = [], []
+        for ln in lines:
+            if ln.strip().startswith('::widget'):
+                if buf:
+                    parts.append(('prose', '\n'.join(buf)))
+                    buf = []
+                parts.append(('widget', build_widget(ln)))
+            else:
+                buf.append(ln)
+        if buf:
+            parts.append(('prose', '\n'.join(buf)))
+        prose_md = None  # assembled from parts below
 
-    prose_html = render_prose(prose_md, slug)
     eyebrow_html = (f'<div class="lesson-step-eyebrow">{md_inline(eyebrow)}</div>'
                     if eyebrow else '')
     gate_attr = ' data-gate="1"' if gated else ''
-    body = '\n'.join(p for p in (eyebrow_html, prose_html, interactive) if p)
+    if prose_md is None:
+        rendered = [eyebrow_html] + [render_prose(txt, slug) if kind == 'prose' else txt
+                                     for kind, txt in parts]
+        body = '\n'.join(p for p in rendered if p)
+    else:
+        prose_html = render_prose(prose_md, slug)
+        body = '\n'.join(p for p in (eyebrow_html, prose_html, interactive) if p)
     return (f'<section class="lesson-step" data-step="{n}" data-step-type="{stype}"{gate_attr}>\n'
             f'{body}\n</section>')
 
