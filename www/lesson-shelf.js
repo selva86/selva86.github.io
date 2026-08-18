@@ -68,8 +68,13 @@
   //    plus accounts that predate the screen) get routed to the one-time
   //    opt-in screen, once per session so a failing API can never ping-pong;
   //  - decided-but-off users get a quiet retry card, dismissable for 14 days.
+  // PAUSED until the daily-lesson series launches (owner, 2026-08-18):
+  // flip OPTIN_LIVE to true on launch day to restore the dashboard routing
+  // and the retry card.
+  var OPTIN_LIVE = false;
+
   function checkOptin(tok){
-    if (!tok || optin) return;
+    if (!OPTIN_LIVE || !tok || optin) return;
     fetch('/api/me/email-optin', { headers: { Authorization: 'Bearer ' + tok } })
       .then(function(r){ if (!r.ok) throw 0; return r.json(); })
       .then(function(s){
