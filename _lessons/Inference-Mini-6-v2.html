@@ -1,0 +1,1016 @@
+---
+title: "Effect size: Cohen's d and friends, explained"
+description: "Two diet trials both passed the test: one moved half a kilo, the other moved five. Compute Cohen's d and its cousins in R and report size, not just luck."
+keywords: "effect size, Cohen's d, Hedges g, eta squared, omega squared, Cramer's V, effect size in R, practical significance, p-value versus effect size, bootstrap interval, statistics for beginners, R"
+mathjax: true
+webr: true
+curriculum_id: "0.0.15"
+post_type: "LESSON"
+course_id: "inference-from-zero"
+course_title: "Inference from Zero"
+course_lesson: "6"
+course_total: "7"
+course_landing: "/dashboard.html"
+course_prev: "Inference-Mini-5"
+lesson_access: "windowed"
+catalog_blurb: "How to say whether a real difference is also a big one."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Part 6 of 7</div>
+<h2>Effect size: Cohen's d and friends, explained</h2>
+
+<p>Part 5 ended by pointing at a number it had introduced and then walked away from: not whether the effect was real, but how big it was. This part is that number. If you missed the earlier parts, nothing here leans on them, because every piece gets built from the beginning.</p>
+
+<p>Farah Haddad runs the nutrition clinic at a community health centre. There is room in the timetable for exactly one weight-loss programme, and two trials are open on her desk.</p>
+
+<p><strong>Trial A</strong> tested a diet called Lean Plate. Five hundred people on the plan, five hundred on usual care. The plan group lost <strong>0.59 kg</strong> more on average, and the trial reported <strong>p = 0.019</strong>.</p>
+
+<p><strong>Trial B</strong> tested time-restricted eating, where people eat only inside an eight-hour window. Twenty-two people on the plan, twenty-two on usual care. The plan group lost <strong>5.42 kg</strong> more, and the trial reported <strong>p = 0.00002</strong>.</p>
+
+<p>Both trials passed. Both get written up as working. But half a kilo is a heavy lunch, and five and a half kilos is a different pair of trousers, and the word "significant" sits on both of them without flinching.</p>
+
+<p>Here is what Farah is actually choosing between. Four bars, four average results, in kilograms.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"geoms":["bar"],"x":"arm","y":"kg_lost","data":[{"x":"A: usual care","y":0.39},{"x":"A: Lean Plate","y":0.98},{"x":"B: usual care","y":0.21},{"x":"B: fasting","y":5.63}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Trial A's two bars are almost the same height. Trial B's are not close. Yet the smaller p-value came from the trial with one twentieth of the people. Something is going on that a p-value was never built to tell you about, and this part is about the number that does tell you.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Say in one sentence why a p-value cannot tell you how big an effect is</li>
+
+<li>Compute Cohen's d from two groups in R, and say what its units are</li>
+
+<li>Read a d against the usual benchmarks, and say when those benchmarks mislead</li>
+
+<li>Put an interval around an effect size instead of quoting a bare number</li>
+
+<li>Pick the right effect size for three groups, for a table of counts, or for two numeric columns</li>
+
+</ul>
+
+<p><strong>What you need first:</strong> you can read a simple R script, so a variable, a function call and a vector like <code>c(1, 2, 3)</code> look familiar. No statistics background is assumed, and every term is defined in plain words the moment it appears.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The question a p-value answers</div>
+<h2>What did the p-value actually answer?</h2>
+
+<p>Start with what a p-value is, because everything today is defined against it.</p>
+
+<p>Suppose the Lean Plate diet does nothing at all. Not "a little", not "a bit less than claimed", but genuinely nothing: it makes no difference to anyone's weight. Even in that world, the two groups in the trial would not come out exactly equal. People differ. Some lose weight in a fortnight for reasons nobody recorded, and some gain it. So a gap of some size shows up every time, out of nothing but the luck of who ended up in which group.</p>
+
+<p><strong>The p-value is the share of that luck-only world in which the gap comes out at least as big as the one you saw.</strong> Small p means the result would be a rare accident if the plan did nothing. That is all it means.</p>
+
+<p>Notice what is missing from that sentence. There is no kilogram in it. There is no "how much", no "worth doing", no "big". It is a statement about how <em>surprising</em> the result is, not about how <em>large</em> it is.</p>
+
+<p>Let us build Farah's two trials so you can run every number in this lesson yourself.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+
+# Trial A: the Lean Plate diet, 500 people in each arm
+n_a &lt;- 500
+trial_a &lt;- data.frame(
+  arm     = rep(c(&quot;usual care&quot;, &quot;Lean Plate&quot;), each = n_a),
+  kg_lost = c(rnorm(n_a, mean = 0.4, sd = 4.0),
+              rnorm(n_a, mean = 0.9, sd = 4.0))
+)
+
+# Trial B: time-restricted eating, 22 people in each arm
+n_b &lt;- 22
+trial_b &lt;- data.frame(
+  arm     = rep(c(&quot;usual care&quot;, &quot;time-restricted&quot;), each = n_b),
+  kg_lost = c(rnorm(n_b, mean = 0.4, sd = 4.0),
+              rnorm(n_b, mean = 5.4, sd = 4.0))
+)
+
+# One vector per arm, so every later step can reach for them
+a_ctrl &lt;- trial_a$kg_lost[trial_a$arm == &quot;usual care&quot;]
+a_plan &lt;- trial_a$kg_lost[trial_a$arm == &quot;Lean Plate&quot;]
+b_ctrl &lt;- trial_b$kg_lost[trial_b$arm == &quot;usual care&quot;]
+b_plan &lt;- trial_b$kg_lost[trial_b$arm == &quot;time-restricted&quot;]
+
+# The verdict each trial reported
+round(c(trial_a = t.test(a_plan, a_ctrl)$p.value,
+        trial_b = t.test(b_plan, b_ctrl)$p.value), 5)
+#&gt; trial_a trial_b 
+#&gt; 0.01918 0.00002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Farah's two trials are stand-ins, generated here in R to the shape the two real reports had: the same headcounts, the same average gaps, the same person-to-person variation. Everything printed in this lesson is real output from the code beside it, so you can change a number and watch what moves.</div></div>
+
+<p>Both p-values clear the usual 0.05 bar. Trial A says a gap this big would turn up by luck about 19 times in a thousand. Trial B says twice in a hundred thousand. Both trials get to say the word "significant", and neither number told you a single thing about kilograms.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The uncomfortable part</div>
+<h2>Why did the half-kilo plan pass at all?</h2>
+
+<p>Trial A found 0.59 kg. That is small. So how did it pass?</p>
+
+<p>Because a p-value has a second ingredient nobody talks about: the number of people. Take Trial A's gap of 0.59 kg and Trial A's person-to-person variation, hold both of them absolutely fixed, and change only the headcount. Here is what the p-value does.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gap_a &lt;- mean(a_plan) - mean(a_ctrl)
+round(gap_a, 2)
+#&gt; [1] 0.59
+
+# How much a gap wobbles: it shrinks as the headcount grows
+v_gap  &lt;- var(a_ctrl) + var(a_plan)
+sizes  &lt;- c(25, 50, 100, 250, 500, 1000)
+se     &lt;- sqrt(v_gap / sizes)
+t_stat &lt;- gap_a / se
+
+# pt() turns a t statistic into a p-value, the same conversion t.test() does inside
+p_by_n &lt;- data.frame(
+  n_per_arm = sizes,
+  p_value   = round(2 * pt(-abs(t_stat), df = 2 * sizes - 2), 4)
+)
+p_by_n
+#&gt;   n_per_arm p_value
+#&gt; 1        25  0.6023
+#&gt; 2        50  0.4600
+#&gt; 3       100  0.2954
+#&gt; 4       250  0.0978
+#&gt; 5       500  0.0192
+#&gt; 6      1000  0.0009</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two columns together. The diet is identical on every row. The gap is 0.59 kg on every row. The spread of results between people is identical on every row. The only thing that changes is how many people were recruited, and the p-value falls from 0.60 to 0.0009.</p>
+
+<p>At 25 people per arm the same diet looks like nothing. At 500 it is significant. At 1,000 it is very significant. Nothing about the diet improved. Farah's clinic just got a bigger budget.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(p_by_n, aes(n_per_arm, p_value)) +
+  geom_hline(yintercept = 0.05, linetype = &quot;dashed&quot;, colour = &quot;#c0392b&quot;) +
+  geom_line(colour = &quot;#2c7fb8&quot;, linewidth = 1) +
+  geom_point(size = 3, colour = &quot;#2c7fb8&quot;) +
+  scale_x_log10(breaks = sizes) +
+  labs(title = &quot;Same 0.59 kg gap, same spread, only the headcount changes&quot;,
+       subtitle = &quot;Below the dashed line at 0.05 the trial gets called significant&quot;,
+       x = &quot;people per arm (log scale)&quot;, y = &quot;p-value&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A p-value mixes two things that have nothing to do with each other: how big the effect is, and how many people you asked. Given enough people, an effect too small to care about will pass. Given too few, an effect worth acting on will fail. So "did it pass?" and "is it big?" have to be answered by two different numbers.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does p = 0.048 buy you?</h2>
+
+<p>A colleague emails Farah about a third trial and writes: "Good news, the new plan came out at p = 0.048." Nothing else is in the email.</p>
+
+<p>Which of these is the correct reading of that number, on its own?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-6-v2-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 4.8 percent chance the plan does nothing.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The effect is small, because 0.048 is a small number.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">If the plan did nothing, a result at least this good would turn up about 4.8 percent of the time. It says nothing about the size of the effect.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The plan works 95.2 percent of the time.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. That is the whole content of the number, and the second sentence is the part that matters today. The email told Farah that the result is hard to explain away as luck, and told her nothing at all about whether the plan is worth an hour of clinic time.</div><div class="lesson-qfb lesson-qfb-no">A p-value is a share of a luck-only world, not a success rate and not a quantity of kilograms. Its size is driven as much by the headcount as by the effect, which is exactly what the last step showed, so on its own it can never answer "how big".</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The simplest effect size there is</div>
+<h2>How big is the gap, in kilos?</h2>
+
+<p>So we need a number that answers "how big". The first one is embarrassingly simple, and people skip past it far too fast: the raw difference between the two averages.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gap_b &lt;- mean(b_plan) - mean(b_ctrl)
+round(c(trial_a = gap_a, trial_b = gap_b), 2)
+#&gt; trial_a trial_b 
+#&gt;    0.59    5.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is. Trial A moved people by 0.59 kg. Trial B moved them by 5.42 kg. Farah's patients do not care about p-values, and they care very much about that second number.</p>
+
+<p>An <strong>effect size</strong> is any number that describes how big a difference or a relationship is, on a scale that does not grow just because you recruited more people. The raw gap qualifies. Recruiting another thousand people would sharpen the estimate of it, but it would not push it up.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">If your reader understands the units, the raw difference is the best effect size you can report. Kilograms, minutes, pounds sterling, percentage points. Never replace a number your reader can picture with one they cannot.</div></div>
+
+<p>So why is there anything more to learn? Because a raw gap only travels as far as its units do. Farah cannot compare 5.42 kg against a colleague's trial measured in body-mass index, or against a diabetes trial measured in blood sugar. And, as the next step shows, a gap in kilograms does not even mean the same thing in two different clinics.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The missing ingredient</div>
+<h2>Why kilos alone will not travel</h2>
+
+<p>Here is the part that makes effect size click, so take it slowly.</p>
+
+<p>Imagine two clinics running the same trial and getting the same result: the plan group loses 0.5 kg more than the control group.</p>
+
+<p>In the first clinic, the people are remarkably alike. Everybody's fortnight lands within about a kilogram of everybody else's, in both arms. A half-kilo gap in that clinic is enormous. It shifts almost the whole group.</p>
+
+<p>In the second clinic, people are all over the place. Some lose 8 kg, some gain 6, for reasons that have nothing to do with the diet. A half-kilo gap in that clinic disappears into the noise. You could not pick a dieter out of a line-up.</p>
+
+<p>Same 0.5 kg. Completely different meaning. The thing that changed is the <strong>spread</strong>: how far apart people are from each other inside a single arm. Statistics measures spread with the <strong>standard deviation</strong>, which is roughly the typical distance between one person's result and their group's average.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+kg_grid &lt;- seq(-14, 14, by = 0.05)
+spread_demo &lt;- rbind(
+  data.frame(kg = kg_grid, height = dnorm(kg_grid, mean = 0.0, sd = 1),
+             arm = &quot;usual care&quot;, world = &quot;A clinic where the spread is 1 kg&quot;),
+  data.frame(kg = kg_grid, height = dnorm(kg_grid, mean = 0.5, sd = 1),
+             arm = &quot;the plan&quot;,   world = &quot;A clinic where the spread is 1 kg&quot;),
+  data.frame(kg = kg_grid, height = dnorm(kg_grid, mean = 0.0, sd = 4),
+             arm = &quot;usual care&quot;, world = &quot;Farah clinic, where the spread is 4 kg&quot;),
+  data.frame(kg = kg_grid, height = dnorm(kg_grid, mean = 0.5, sd = 4),
+             arm = &quot;the plan&quot;,   world = &quot;Farah clinic, where the spread is 4 kg&quot;)
+)
+
+ggplot(spread_demo, aes(kg, height, colour = arm)) +
+  geom_line(linewidth = 1.1) +
+  facet_wrap(~ world, ncol = 1, scales = &quot;free_y&quot;) +
+  labs(title = &quot;The same half-kilo gap, in two different clinics&quot;,
+       x = &quot;kilograms lost&quot;, y = &quot;how common&quot;, colour = NULL) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each curve shows how common each result is in one arm. Run it and look at the two panels. In the top panel the two curves are clearly two curves. In the bottom panel they are almost one blob with a slight lean. The distance between their peaks is 0.5 kg in both.</p>
+
+<p>That is the whole idea: <strong>a gap only means something next to the spread it sits in.</strong> So measure the gap in units of spread, and you have a number that survives leaving the clinic.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The main event</div>
+<h2>What is Cohen's d?</h2>
+
+<p>Cohen's d is the mean gap divided by the spread. That is the entire idea, and the rest of this step is just being careful about which spread.</p>
+
+<p>\[ d = \frac{\bar{x}_1 - \bar{x}_2}{s_p} \]</p>
+
+<p>Reading it out loud: \(\bar{x}_1\) is the average of the first group (the plan arm), \(\bar{x}_2\) is the average of the second group (the control arm), so the top is the raw gap you already computed. The \(s_p\) on the bottom is the <strong>pooled standard deviation</strong>, and "pooled" just means one spread built from both arms together instead of picking one arm's spread arbitrarily.</p>
+
+<p>\[ s_p = \sqrt{\frac{(n_1 - 1)s_1^2 + (n_2 - 1)s_2^2}{n_1 + n_2 - 2}} \]</p>
+
+<p>Here \(n_1\) and \(n_2\) are how many people are in each arm, and \(s_1\) and \(s_2\) are each arm's own standard deviation. Squaring a standard deviation gives the <strong>variance</strong>, which is what <code>var()</code> returns in R, and variance is the thing that averages sensibly. So the formula says: take each arm's variance, weight it by how many people that arm contributed, average the two, and take the square root to get back to kilograms.</p>
+
+<p>On Trial A:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">s_pooled_a &lt;- sqrt(((n_a - 1) * var(a_ctrl) + (n_a - 1) * var(a_plan)) /
+                   (n_a + n_a - 2))
+round(s_pooled_a, 2)
+#&gt; [1] 3.99
+
+d_a &lt;- gap_a / s_pooled_a
+round(d_a, 3)
+#&gt; [1] 0.148</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Follow the arithmetic once, on real numbers. The typical distance between one Trial A person and their arm's average is 3.99 kg. The gap between the two arms is 0.59 kg. Divide one by the other: 0.148.</p>
+
+<p><strong>And now the units.</strong> The 3.99 on the bottom is in kilograms and the 0.59 on top is in kilograms, so they cancel, and d has no units at all. What d counts is <em>spreads</em>. Trial A's diet moved people by about a seventh of one ordinary spread. That sentence would mean exactly the same thing if the trial had been measured in pounds, or in stones, or in blood sugar, which is precisely why d travels and kilograms do not.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The reveal</div>
+<h2>The two trials, in d</h2>
+
+<p>Now put both of Farah's trials on that one scale.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">s_pooled_b &lt;- sqrt(((n_b - 1) * var(b_ctrl) + (n_b - 1) * var(b_plan)) /
+                   (n_b + n_b - 2))
+d_b &lt;- gap_b / s_pooled_b
+
+round(c(trial_a = d_a, trial_b = d_b), 2)
+#&gt; trial_a trial_b 
+#&gt;    0.15    1.45
+
+round(d_b / d_a, 1)
+#&gt; [1] 9.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Trial B's effect is <strong>9.8 times</strong> the size of Trial A's. Nearly ten to one. And the two p-values said only that both had cleared the same bar.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+both_trials &lt;- rbind(
+  data.frame(trial = paste0(&quot;Trial A: Lean Plate, d = &quot;, round(d_a, 2)), trial_a),
+  data.frame(trial = paste0(&quot;Trial B: time-restricted, d = &quot;, round(d_b, 2)), trial_b)
+)
+both_trials$group &lt;- ifelse(both_trials$arm == &quot;usual care&quot;,
+                            &quot;usual care&quot;, &quot;the new plan&quot;)
+
+ggplot(both_trials, aes(kg_lost, fill = group)) +
+  geom_density(alpha = 0.45, colour = NA) +
+  facet_wrap(~ trial, ncol = 1) +
+  labs(title = &quot;Both trials passed. Only one of them separated the arms.&quot;,
+       x = &quot;kilograms lost&quot;, y = &quot;how common&quot;, fill = NULL) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it and look at the two panels. In Trial A the two shapes sit almost on top of each other. In Trial B they have pulled apart into two visible humps. That separation is what d is measuring, and it is the picture Farah needed on day one.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Trial B's shapes look bumpy because they are drawn from 22 real people per arm, not from a formula. That bumpiness is not a flaw in the plot. It is a preview of a problem we come back to at step 14: with 22 people, you do not know d very precisely either.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Your turn: d for the walking programme</h2>
+
+<p>There is a third plan on Farah's desk. A twelve-week walking programme was trialled at a neighbouring clinic on twelve people, against twelve on usual care, and the report gives every individual result rather than a summary.</p>
+
+<p>Below is the whole calculation with one piece missing. The pooled spread has already been worked out for you and stored in <code>s_pooled_w</code>. Fill in the blank so that <code>d_walk</code> is the gap measured in pooled spreads, then press Check.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-6-v2-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="/\s*s_pooled_w"><textarea class="lesson-tryit-input" spellcheck="false">walk_ctrl &lt;- c( 1.2, -2.6,  3.4, -0.7,  2.9,  0.3,  4.1, -3.2,  1.8,  0.6,  3.8, -1.4)
+walk_prog &lt;- c( 3.1,  0.7,  5.8,  4.0, -1.7,  6.6,  1.9,  3.5,  5.2,  0.0,  4.4,  2.3)
+n_w &lt;- 12
+
+s_pooled_w &lt;- sqrt(((n_w - 1) * var(walk_ctrl) + (n_w - 1) * var(walk_prog)) /
+                   (n_w + n_w - 2))
+
+d_walk &lt;- (mean(walk_prog) - mean(walk_ctrl)) / ____
+
+round(c(gap = mean(walk_prog) - mean(walk_ctrl),
+        pooled_sd = s_pooled_w,
+        d = d_walk), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. The walkers lost 2.133 kg more than the controls, the pooled spread is 2.469 kg, and dividing one by the other gives d = 0.864. So the walking programme moved people by about seven eighths of one ordinary spread, which is nearly six times Trial A and still well short of Trial B. Notice that the raw gap here (2.13 kg) is much smaller than Trial B (5.42 kg), yet the two are closer in d than those raw numbers suggest, because the walking trial had a much tighter spread to divide by.</span><span class="lesson-tryit-fb lesson-tryit-no">The divisor has to be the spread the two arms share, and it is already sitting in the variable s_pooled_w. Dividing by the number of people, or by one arm sd alone, would answer a different question. Put s_pooled_w in the blank.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">walk_ctrl &lt;- c( 1.2, -2.6,  3.4, -0.7,  2.9,  0.3,  4.1, -3.2,  1.8,  0.6,  3.8, -1.4)
+walk_prog &lt;- c( 3.1,  0.7,  5.8,  4.0, -1.7,  6.6,  1.9,  3.5,  5.2,  0.0,  4.4,  2.3)
+n_w &lt;- 12
+
+s_pooled_w &lt;- sqrt(((n_w - 1) * var(walk_ctrl) + (n_w - 1) * var(walk_prog)) /
+                   (n_w + n_w - 2))
+
+d_walk &lt;- (mean(walk_prog) - mean(walk_ctrl)) / s_pooled_w
+
+round(c(gap = mean(walk_prog) - mean(walk_ctrl),
+        pooled_sd = s_pooled_w,
+        d = d_walk), 3)
+#&gt;       gap pooled_sd         d 
+#&gt;     2.133     2.469     0.864</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">What d feels like</div>
+<h2>How often does a Lean Plate dieter beat a control?</h2>
+
+<p>"A seventh of a spread" is honest but hard to picture. Here is a translation anybody understands.</p>
+
+<p>Pick one person at random from the plan arm and one at random from the control arm. How often does the plan person lose more weight? If the plan does nothing, the answer is 50 percent, a coin flip. The bigger the effect, the further above 50 that number climbs. It is called the <strong>probability of superiority</strong>, and when both groups have roughly bell-shaped results with similar spread it comes straight out of d:</p>
+
+<p>\[ \Pr(\text{plan person loses more}) = \Phi\left(\frac{d}{\sqrt{2}}\right) \]</p>
+
+<p>\(\Phi\) is the running total under the standard bell curve, which is what <code>pnorm()</code> gives you in R: hand it a number, and it returns the share of the curve lying to the left of it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Farah's walking programme again, the same twelve pairs as two steps back
+walk_ctrl &lt;- c( 1.2, -2.6,  3.4, -0.7,  2.9,  0.3,  4.1, -3.2,  1.8,  0.6,  3.8, -1.4)
+walk_prog &lt;- c( 3.1,  0.7,  5.8,  4.0, -1.7,  6.6,  1.9,  3.5,  5.2,  0.0,  4.4,  2.3)
+n_w        &lt;- 12
+s_pooled_w &lt;- sqrt(((n_w - 1) * var(walk_ctrl) + (n_w - 1) * var(walk_prog)) /
+                   (n_w + n_w - 2))
+d_walk     &lt;- (mean(walk_prog) - mean(walk_ctrl)) / s_pooled_w
+
+round(pnorm(c(trial_a = d_a, trial_b = d_b, walking = d_walk) / sqrt(2)), 3)
+#&gt; trial_a trial_b walking 
+#&gt;   0.542   0.847   0.729</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the three plans are in a language Farah can use in a consultation.</p>
+
+<ul>
+
+<li><strong>Trial A, Lean Plate.</strong> 54 times in 100 instead of 50. Four extra wins per hundred coin flips. That is what a significant result with p = 0.019 bought.</li>
+
+<li><strong>Trial B, time-restricted.</strong> 85 times in 100. Most people on the plan beat most people off it.</li>
+
+<li><strong>Walking.</strong> 73 times in 100.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Trial A is not nothing. It is real, and 54 against 50 is a genuine tilt. It is just very small, and the p-value could never have told her that, because a p-value has no idea what 54 against 50 feels like.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the number</div>
+<h2>Small, medium, large: whose sizes are these?</h2>
+
+<p>You will meet three numbers everywhere effect sizes are discussed: 0.2 is small, 0.5 is medium, 0.8 is large. They come from Jacob Cohen, the psychologist whose 1988 book popularised d.</p>
+
+<p>Here they are next to Farah's clinic, where the pooled spread is 3.99 kg, so one spread is roughly 4 kg.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Cohen's label</th>
+<th>d</th>
+<th>in kilograms</th>
+<th>plan person beats control</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>small</td>
+<td>0.2</td>
+<td>0.80 kg</td>
+<td>56 in 100</td>
+</tr>
+<tr>
+<td>medium</td>
+<td>0.5</td>
+<td>2.00 kg</td>
+<td>64 in 100</td>
+</tr>
+<tr>
+<td>large</td>
+<td>0.8</td>
+<td>3.19 kg</td>
+<td>71 in 100</td>
+</tr>
+<tr>
+<td>Trial A, Lean Plate</td>
+<td>0.15</td>
+<td>0.59 kg</td>
+<td>54 in 100</td>
+</tr>
+<tr>
+<td>Walking programme</td>
+<td>0.86</td>
+<td>2.13 kg</td>
+<td>73 in 100</td>
+</tr>
+<tr>
+<td>Trial B, time-restricted</td>
+<td>1.45</td>
+<td>5.42 kg</td>
+<td>85 in 100</td>
+</tr>
+</tbody>
+</table>
+
+<p>The top three rows convert Cohen's labels at Farah's spread of 3.99 kg. The bottom three carry each trial's own gap, which is why the walking programme reaches d = 0.86 on 2.13 kg: its people were far more alike, so it had a tighter spread to divide by.</p>
+
+<p>Now the honest part, and it matters more than the table. Cohen picked those three numbers by looking at the psychology research of his day and describing what a typical small, medium and large study looked like. He said in print that they were arbitrary, offered them only for fields with nothing better to go on, and warned against exactly the use they get put to.</p>
+
+<p>Because the right benchmark depends entirely on the field:</p>
+
+<ul>
+
+<li>In a large drug trial, d = 0.2 can be worth licensing, because the outcome is survival and the treatment is cheap.</li>
+
+<li>In education, d = 0.4 is often treated as a good year's progress, so 0.8 would be extraordinary.</li>
+
+<li>In a lab study of reaction times under tightly controlled conditions, d = 0.8 is unremarkable, because the spread is tiny by design.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">"Large by Cohen's benchmark" is not a reason to do anything. It is a reason to ask two more questions: what does that d mean in the units my reader lives in, and how sure am I of the d itself? Steps 13 and 14 are those two questions.</div></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When does a large d still not mean act?</h2>
+
+<p>A primary school sends Farah a study of a new reading app. Fourteen children used the app, fourteen did not, and the report says d = 0.9, above Cohen's "large" line.</p>
+
+<p>The head teacher wants to buy it for the whole school. What is the right response?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-6-v2-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, buy it. 0.9 is above 0.8, so this is a large effect by the standard benchmark.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ask two things first: how many reading-test points 0.9 spreads actually is, and how precisely 0.9 was pinned down by fourteen children per group.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Reject it, because d cannot be trusted below 30 people per group, so the study is meaningless.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Buy it, because once you have a large effect size the p-value no longer matters.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right on both counts. Translating d back into the units the school cares about is what turns it into a decision, and with fourteen children per arm the d itself could be almost anywhere, which is exactly what step 14 measures. Neither question needs a statistician, and either one can change the answer.</div><div class="lesson-qfb lesson-qfb-no">Neither number settles it on its own. A benchmark label is a rough rule of thumb borrowed from another field, and a bare d with no interval and no translation back into reading-test points cannot tell a head teacher whether the money is well spent. Fourteen children per group is also very few.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">A small correction</div>
+<h2>Hedges' g, the small-sample fix</h2>
+
+<p>Cohen's d has a quiet flaw. When the groups are small, it runs slightly too big. Not because of any mistake in the arithmetic, but because the pooled spread on the bottom is itself estimated from few people, and small samples tend to underestimate spread. A too-small divisor makes a too-large d.</p>
+
+<p>Larry Hedges worked out the correction in 1981. Multiply d by a factor a shade under 1:</p>
+
+<p>\[ g = d \times \left( 1 - \frac{3}{4\,df - 1} \right), \qquad df = n_1 + n_2 - 2 \]</p>
+
+<p>Here \(df\) is the <strong>degrees of freedom</strong>, which for two groups is simply the total headcount minus 2. The corrected number is called <strong>Hedges' g</strong>. In R it is one line:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">J_b &lt;- 1 - 3 / (4 * (n_b + n_b - 2) - 1)
+round(c(J = J_b, d = d_b, g = J_b * d_b), 3)
+#&gt;     J     d     g 
+#&gt; 0.982 1.449 1.423</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 22 per arm the factor is 0.982, so Trial B's 1.449 comes down to 1.423. Barely anything, and that is the point: the fix is small, cheap, and always in the right direction.</p>
+
+<p>Watch what it does at Trial A's headcount:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">J_a &lt;- 1 - 3 / (4 * (n_a + n_a - 2) - 1)
+round(J_a, 4)
+#&gt; [1] 0.9992</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.9992. Nothing at all. The correction bites when the groups are small, 1.8 percent at Trial B's 22 per arm and more below that, and by Trial A's 500 it has vanished. So apply it on small groups, and stop thinking about it on large ones.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Report g rather than d whenever your groups are small, and say which one you used. Many papers write "Cohen's d" when they computed g, which is harmless when the groups are large and misleading when they are not.</div></div>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">How sure are we?</div>
+<h2>How sure are we of d itself?</h2>
+
+<p>Trial B's d is 1.449, and its corrected g is 1.423. Both were measured on 22 people per arm, so if the trial were run again on 22 different people, both would come out different. So how different? The question is easiest to ask about d, and the answer carries straight over to g, because g is only d multiplied by that fixed factor of 0.982.</p>
+
+<p>There is a way to find out using nothing but the data you already have, and it is called the <strong>bootstrap</strong>. The idea is honest and slightly cheeky. Your 22 dieters are your best picture of the kind of people this plan attracts. So build a new pretend trial by drawing 22 people <em>from those same 22, with replacement</em>, which means the same person can be drawn twice and some are not drawn at all. Do the same for the controls. Compute d on that pretend trial. Then do it two thousand times, and look at the spread of answers you get.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_reps &lt;- 2000
+boot_d &lt;- numeric(n_reps)
+
+for (i in 1:n_reps) {
+  ctrl_i &lt;- sample(b_ctrl, n_b, replace = TRUE)
+  plan_i &lt;- sample(b_plan, n_b, replace = TRUE)
+  s_i    &lt;- sqrt(((n_b - 1) * var(ctrl_i) + (n_b - 1) * var(plan_i)) /
+                 (n_b + n_b - 2))
+  boot_d[i] &lt;- (mean(plan_i) - mean(ctrl_i)) / s_i
+}
+
+round(quantile(boot_d, c(0.025, 0.975)), 2)
+#&gt;  2.5% 97.5% 
+#&gt;  0.86  2.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>quantile(boot_d, 0.025)</code> returns the value that 2.5 percent of the two thousand answers fall below, and <code>0.975</code> the value that 2.5 percent fall above. Cutting those two tails off leaves the middle 95 percent, and that range is the <strong>95 percent confidence interval</strong> for d: the set of values for d that this data is comfortable with.</p>
+
+<p>For Trial B it runs from 0.86 to 2.30. So the honest sentence is not "d is 1.45". It is "d is about 1.45, and the data is consistent with anything from 0.86 to 2.30". Even the low end is past Cohen's "large" line, so Farah's conclusion survives.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+boot_frame &lt;- data.frame(d = boot_d)
+ci_b &lt;- quantile(boot_d, c(0.025, 0.975))
+
+ggplot(boot_frame, aes(d)) +
+  geom_histogram(bins = 40, fill = &quot;#8fb8d8&quot;, colour = &quot;white&quot;) +
+  geom_vline(xintercept = as.numeric(ci_b), linetype = &quot;dashed&quot;, linewidth = 0.8) +
+  geom_vline(xintercept = d_b, colour = &quot;#c0392b&quot;, linewidth = 1.1) +
+  labs(title = &quot;2,000 re-runs of Trial B, each one re-measured in d&quot;,
+       subtitle = &quot;Red is the d we got. The dashed lines cut off the middle 95 percent.&quot;,
+       x = &quot;Cohen's d&quot;, y = &quot;how many of the 2,000 re-runs&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The histogram is wide, and it should be. Twenty-two people per arm does not pin a number down.</p>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Your turn: an interval for the walking d</h2>
+
+<p>The walking programme came out at d = 0.864, past Cohen's "large" line. It was measured on twelve people per arm.</p>
+
+<p>The bootstrap below is already written and already run 2,000 times. All that is missing is the last line: the two cut-off points that leave the middle 95 percent between them. Fill in both blanks and press Check.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-6-v2-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="0\.025\s*,\s*0\.975"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(7)
+boot_walk &lt;- numeric(2000)
+
+for (i in 1:2000) {
+  ctrl_i &lt;- sample(walk_ctrl, n_w, replace = TRUE)
+  prog_i &lt;- sample(walk_prog, n_w, replace = TRUE)
+  s_i    &lt;- sqrt(((n_w - 1) * var(ctrl_i) + (n_w - 1) * var(prog_i)) /
+                 (n_w + n_w - 2))
+  boot_walk[i] &lt;- (mean(prog_i) - mean(ctrl_i)) / s_i
+}
+
+round(quantile(boot_walk, c(____, ____)), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Correct: to keep the middle 95 percent you cut 2.5 percent off each end, which is 0.025 and 0.975. The answer comes back as 0.13 to 1.87, and it is worth sitting with. The walking programme scored a large d by the benchmark, but the data is equally comfortable with 0.13, which is smaller than Trial A, and with 1.87, which is enormous. Twelve people per arm bought Farah almost no information about the size of the effect, and the bare 0.864 hid that completely.</span><span class="lesson-tryit-fb lesson-tryit-no">Ninety-five percent in the middle means 5 percent left over, split evenly between the two tails, so 2.5 percent gets cut off each end. Write the two cut-off points as decimals, the lower one first.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(7)
+boot_walk &lt;- numeric(2000)
+
+for (i in 1:2000) {
+  ctrl_i &lt;- sample(walk_ctrl, n_w, replace = TRUE)
+  prog_i &lt;- sample(walk_prog, n_w, replace = TRUE)
+  s_i    &lt;- sqrt(((n_w - 1) * var(ctrl_i) + (n_w - 1) * var(prog_i)) /
+                 (n_w + n_w - 2))
+  boot_walk[i] &lt;- (mean(prog_i) - mean(ctrl_i)) / s_i
+}
+
+round(quantile(boot_walk, c(0.025, 0.975)), 2)
+#&gt;  2.5% 97.5% 
+#&gt;  0.13  1.87</code></pre></details></div>
+</section>
+<p>Compare the two intervals. Trial B ran from 0.86 to 2.30, and every value in it is worth acting on. Walking runs from 0.13 to 1.87, which contains both "barely worth mentioning" and "the best thing on the desk". Same benchmark label, completely different amount of knowledge.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<div class="lesson-step-eyebrow">Beyond two groups</div>
+<h2>Three groups: eta-squared</h2>
+
+<p>Cohen's d has one hard requirement: exactly two groups. Farah's clinic ran a follow-up with three arms, so d has nothing to say about it, and the question changes shape.</p>
+
+<p>With three or more groups, it becomes: <strong>of all the variation in weight lost, what share lines up with which arm people were in?</strong> That share is called <strong>eta-squared</strong>, written \(\eta^2\).</p>
+
+<p>The follow-up put 120 people across the three arms and recorded three things about each of them: kilograms lost, how many days they logged a food diary, and whether they finished the programme. This step uses the first. The other two come back in the two steps after it. Like the trials, it is built in R here, so every number you see is one you can run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(23)
+arm_labels  &lt;- rep(c(&quot;usual care&quot;, &quot;Lean Plate&quot;, &quot;time-restricted&quot;), each = 40)
+days_logged &lt;- round(rnorm(120, mean = 45, sd = 15))
+days_logged[days_logged &lt; 0] &lt;- 0
+arm_boost   &lt;- c(&quot;usual care&quot; = 0.3, &quot;Lean Plate&quot; = 1.6,
+                 &quot;time-restricted&quot; = 3.6)[arm_labels]
+
+followup &lt;- data.frame(
+  arm         = factor(arm_labels,
+                       levels = c(&quot;usual care&quot;, &quot;Lean Plate&quot;, &quot;time-restricted&quot;)),
+  days_logged = days_logged,
+  kg_lost     = as.numeric(arm_boost) + 0.14 * (days_logged - 45) +
+                rnorm(120, mean = 0, sd = 2.6)
+)
+finish_rate       &lt;- c(&quot;usual care&quot; = 0.85, &quot;Lean Plate&quot; = 0.72,
+                       &quot;time-restricted&quot; = 0.50)[arm_labels]
+followup$finished &lt;- ifelse(runif(120) &lt; finish_rate, &quot;finished&quot;, &quot;dropped out&quot;)
+
+round(tapply(followup$kg_lost, followup$arm, mean), 2)
+#&gt;      usual care      Lean Plate time-restricted 
+#&gt;            0.47            1.27            3.71</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tool that splits variation into "between the arms" and "within the arms" is analysis of variance, <code>aov()</code> in R. Its table is where the two ingredients come from.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- aov(kg_lost ~ arm, data = followup)
+summary(fit)
+#&gt;              Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; arm           2  228.1  114.06   13.36 5.97e-06 ***
+#&gt; Residuals   117  999.3    8.54                     </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Sum Sq</code> column is total squared distance, and it splits in two. The <code>arm</code> row, 228.1, is the part explained by which arm someone was in. The <code>Residuals</code> row, 999.3, is the part left over, the differences between people inside the same arm. Eta-squared is the first as a share of the whole:</p>
+
+<p>\[ \eta^2 = \frac{SS_{\text{between}}}{SS_{\text{between}} + SS_{\text{within}}} \]</p>
+
+<p>There is one wrinkle. Eta-squared runs a little high, for the same reason d does: it is computed from the sample, and the sample flatters itself. <strong>Omega-squared</strong>, written \(\omega^2\), is the bias-corrected twin, and it subtracts off the share the arms would appear to explain even if they explained nothing at all.</p>
+
+<p>\[ \omega^2 = \frac{SS_{\text{between}} - df_{\text{between}} \times MS_{\text{within}}}{SS_{\text{between}} + SS_{\text{within}} + MS_{\text{within}}} \]</p>
+
+<p>\(MS_{\text{within}}\) is the <code>Mean Sq</code> from the Residuals row, 8.54, and \(df_{\text{between}}\) is the 2 in the <code>Df</code> column.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tab        &lt;- summary(fit)[[1]]
+ss_between &lt;- tab[1, &quot;Sum Sq&quot;]
+ss_within  &lt;- tab[2, &quot;Sum Sq&quot;]
+df_between &lt;- tab[1, &quot;Df&quot;]
+ms_within  &lt;- tab[2, &quot;Mean Sq&quot;]
+
+eta_sq   &lt;- ss_between / (ss_between + ss_within)
+omega_sq &lt;- (ss_between - df_between * ms_within) /
+            (ss_between + ss_within + ms_within)
+
+round(c(eta_squared = eta_sq, omega_squared = omega_sq), 3)
+#&gt;   eta_squared omega_squared 
+#&gt;         0.186         0.171</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So about 17 to 19 percent of the differences in weight lost line up with which arm someone was in. The other four fifths is people being people. Report \(\omega^2\) when you can; the gap between the two shrinks as the study grows.</p>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">Beyond numeric outcomes</div>
+<h2>Counts in a table: Cramer's V</h2>
+
+<p>Now relax a different requirement. Weight lost is a number. But Farah also wants to know whether the three arms differ in <strong>whether people stuck with the programme at all</strong>, and "finished" against "dropped out" is not a number, it is a label. So there is no mean, no spread, and no d.</p>
+
+<p>What you have instead is a table of counts.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">finish_tbl &lt;- table(followup$arm, followup$finished)
+finish_tbl
+#&gt;                  
+#&gt;                   dropped out finished
+#&gt;   usual care                5       35
+#&gt;   Lean Plate               13       27
+#&gt;   time-restricted          21       19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The usual test for a table like this is the chi-squared test, which measures how far the counts sit from what you would expect if the two things were unrelated. And it has exactly the disease we met at step 3: multiply every count by ten and the chi-squared statistic multiplies by ten too, while the pattern in the table has not changed one bit.</p>
+
+<p><strong>Cramer's V</strong> is that statistic scaled back down into a size. It runs from 0, no association whatsoever, to 1, perfect association.</p>
+
+<p>\[ V = \sqrt{\frac{\chi^2}{n \,(k - 1)}} \]</p>
+
+<p>Here \(\chi^2\) is the chi-squared statistic, \(n\) is the total number of people in the table, and \(k\) is the smaller of the two dimensions, so for a table with 3 rows and 2 columns, \(k = 2\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">chi &lt;- chisq.test(finish_tbl)
+round(c(chi_squared = as.numeric(chi$statistic), p_value = chi$p.value), 4)
+#&gt; chi_squared     p_value 
+#&gt;     14.5869      0.0007
+
+cramers_v &lt;- sqrt(as.numeric(chi$statistic) /
+                  (sum(finish_tbl) * (min(dim(finish_tbl)) - 1)))
+round(cramers_v, 3)
+#&gt; [1] 0.349</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>V = 0.349, a moderate association. And unlike the 14.59, that 0.349 would not move if the clinic had recruited ten times as many people with the same drop-out pattern.</p>
+
+<p>Now look back at the table, because this is the finding Farah would otherwise have missed. Time-restricted eating had by far the biggest effect on weight, and it also lost 21 of its 40 people. Roughly half the group never finished. An effect size measured on the people who stayed is not an effect size on the people you would enrol.</p>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="concept">
+<div class="lesson-step-eyebrow">Beyond groups entirely</div>
+<h2>Two numeric columns: r</h2>
+
+<p>Last relaxation. Sometimes there are no groups at all, just two numbers measured on the same people. Farah has a pair: every person's weight lost, and the number of days they logged their food diary.</p>
+
+<p>The measure here is <strong>Pearson's correlation</strong>, written \(r\). It runs from -1 to +1: 0 means the two move independently, +1 means they rise together in a perfect straight line, and -1 means one rises exactly as the other falls. Being already unit-free and already bounded, r <em>is</em> an effect size. There is nothing to convert.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(followup, aes(days_logged, kg_lost)) +
+  geom_point(alpha = 0.65, size = 2.4, colour = &quot;#2c7fb8&quot;) +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x, se = FALSE, colour = &quot;#c0392b&quot;) +
+  labs(title = &quot;Days logged against kilograms lost, all 120 people&quot;,
+       x = &quot;days the food diary was logged&quot;, y = &quot;kilograms lost&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r &lt;- cor(followup$days_logged, followup$kg_lost)
+round(c(r = r, r_squared = r^2), 3)
+#&gt;         r r_squared 
+#&gt;     0.513     0.263</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>r = 0.513: people who logged more days lost more weight, and the tie is a solid one. Squaring it gives <strong>r-squared</strong>, 0.263, which reads as a share exactly like eta-squared did: about 26 percent of the differences in weight lost line up with differences in days logged.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">r measures how tightly two things move together. It does not say that one causes the other. People who log their diary for longer are probably more motivated in a dozen ways that no column here records, and Farah handing out more diary pages would not, by itself, move anybody's weight.</div></div>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which effect size fits which data?</h2>
+
+<p>A colleague at the same health centre has average hours of sleep for staff on four different shift patterns, and wants a single number for how much the shift pattern matters.</p>
+
+<p>Which effect size fits?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-6-v2-step19" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Cohen's d, because it is the standard measure for comparing groups.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Eta-squared, because there are more than two groups and the outcome is a number.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Cramer's V, because there are four categories.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Pearson's r, because it works for any two variables.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Sleep hours is numeric and there are four groups, so the question becomes what share of the variation in sleep lines up with shift pattern, which is what eta-squared reports. Report omega-squared beside it if you can, since it corrects the same small upward bias that Hedges' g corrects for d.</div><div class="lesson-qfb lesson-qfb-no">Match the measure to the shape of the data. d needs exactly two groups, Cramer's V needs an outcome that is a label rather than a number, and r needs two numeric columns and no groups at all. Sleep hours across four shift patterns is a numeric outcome with more than two groups.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="concept">
+<div class="lesson-step-eyebrow">The habit</div>
+<h2>How to write it down</h2>
+
+<p>Farah has to put one line in the minutes. Here is the shape that answers both questions at once, in the order a reader needs them.</p>
+
+<ol>
+
+<li><strong>The raw difference, in the units of the thing.</strong> The number your reader can picture.</li>
+
+<li><strong>The standardised effect size, named.</strong> Cohen's d, or Hedges' g for small groups, or eta-squared, or Cramer's V, or r. Say which one you used.</li>
+
+<li><strong>An interval around it.</strong> A bare effect size hides how much you know, exactly as a bare p-value hides how big the effect is.</li>
+
+<li><strong>The p-value, last.</strong> It answers whether luck is a good explanation, and it goes at the end because that is the smallest of the four questions.</li>
+
+</ol>
+
+<p>Farah's recommendation, written that way:</p>
+
+<blockquote><p>Time-restricted eating produced 5.42 kg more weight loss than usual care over the trial period, a Cohen's d of 1.45 with a 95 percent interval of 0.86 to 2.30, or a Hedges' g of 1.42 after the small-sample correction, p = 0.00002. The Lean Plate trial was also statistically significant, but its effect was 0.59 kg, d = 0.15, which puts a plan dieter ahead of a control 54 times in 100. On effect size, time-restricted eating is the clear recommendation. Against that, 21 of its 40 follow-up participants dropped out, and drop-out was related to arm at a moderate Cramer's V of 0.35, so the plan should be offered with a check-in in week two.</p></blockquote>
+
+<p>Read the two questions back out of it. Is it real? Yes, and the p-value at the end says so. Is it big? Yes, and the g with its interval says so. And then a third thing that neither number could have told her on its own, sitting right there in the drop-out table.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">"Significant" and "big" are two separate answers to two separate questions. A report that gives you only one of them has given you half the result, and there is no way to work out the other half from what you were handed.</div></div>
+</section>
+
+<section class="lesson-step" data-step="21" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five sources worth an hour if you want to push past where this part stops.</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.4324/9780203771587">Cohen, Statistical Power Analysis for the Behavioral Sciences, 2nd edition, 1988</a> - where 0.2, 0.5 and 0.8 come from, including Cohen's own warning that he chose them for want of anything better.</li>
+
+<li><a href="https://doi.org/10.3102/10769986006002107">Hedges, Distribution theory for Glass's estimator of effect size and related estimators, 1981</a> - the paper behind the small-sample correction in step 13.</li>
+
+<li><a href="https://doi.org/10.3389/fpsyg.2013.00863">Lakens, Calculating and reporting effect sizes to facilitate cumulative science, 2013</a> - the practical companion to this lesson: formulas for t-tests, ANOVA and correlations, with worked examples and the reasoning behind each choice.</li>
+
+<li><a href="https://doi.org/10.4300/JGME-D-12-00156.1">Sullivan and Feinn, Using effect size, or why the p value is not enough, 2012</a> - four pages on the same argument as step 3, written for people who read medical papers.</li>
+
+<li><a href="https://doi.org/10.1080/00031305.2016.1154108">Wasserstein and Lazar, The ASA statement on p-values, 2016</a> - the American Statistical Association's six principles, one of which is that a p-value does not measure the size of an effect.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="22" data-step-type="complete">
+<h2>Part 6 complete</h2>
+
+<p>Farah started with two trials that carried the same stamp. Trial A moved people 0.59 kg with p = 0.019, and Trial B moved them 5.42 kg with p = 0.00002. The word "significant" sat on both and told her nothing about the difference between them.</p>
+
+<p>The reason turned out to be structural. A p-value mixes the size of an effect with the number of people you asked, and you watched it happen: the same 0.59 kg gap with the same spread went from p = 0.60 at 25 people per arm to p = 0.0009 at 1,000, with the diet identical on every row.</p>
+
+<p>So you built the number that answers the other question. The raw gap first, in kilograms, because it is the one a patient can picture. Then Cohen's d, the gap measured in pooled spreads, 0.148 for Trial A and 1.449 for Trial B, a ten-to-one ratio that two identical verdicts had hidden. Then a translation anybody understands: a Lean Plate dieter beats a control 54 times in 100, a time-restricted dieter 85 times in 100.</p>
+
+<p>Then three ways of being careful with it. Cohen's small, medium and large are a borrowed rule of thumb its own author called arbitrary. Hedges' g pulls d back down when the groups are small, by 1.8 percent at 22 per arm and by nothing worth mentioning at 500. And the bootstrap put an interval around d itself, which is where the walking programme gave itself away: a "large" 0.864 whose honest range ran from 0.13 to 1.87, because twelve people per arm buys almost no precision.</p>
+
+<p>Then the rest of the family. Eta-squared and omega-squared for three or more groups, 0.186 and 0.171 in the follow-up. Cramer's V for a table of counts, 0.349, which is how you found that the winning plan also lost half its participants. And r for two numeric columns, 0.513, with r-squared, 0.263, reading as a share the same way eta-squared does.</p>
+
+<p>Part 7 is the last one, and it goes back to the verdict itself. A test can be wrong in two directions: it can call an effect real when nothing is there, and it can miss an effect that is. Those two mistakes trade off against each other, and part 7 puts you at the dial.</p>
+</section>
+
+{% endraw %}
