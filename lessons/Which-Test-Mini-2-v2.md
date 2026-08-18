@@ -38,13 +38,13 @@ So what do the three departments actually look like beside each other? Have a lo
 
 ::widget chart-plotter {"data":[{"x":"Support","y":57200},{"x":"Support","y":62800},{"x":"Support","y":59400},{"x":"Support","y":64100},{"x":"Support","y":60300},{"x":"Support","y":56800},{"x":"Support","y":63500},{"x":"Support","y":61100},{"x":"Support","y":58200},{"x":"Support","y":65200},{"x":"Support","y":59900},{"x":"Support","y":62600},{"x":"Sales","y":63400},{"x":"Sales","y":57900},{"x":"Sales","y":65800},{"x":"Sales","y":60200},{"x":"Sales","y":61700},{"x":"Sales","y":66900},{"x":"Sales","y":58600},{"x":"Sales","y":64300},{"x":"Sales","y":59100},{"x":"Sales","y":62800},{"x":"Sales","y":57300},{"x":"Sales","y":63900},{"x":"Engineering","y":54800},{"x":"Engineering","y":61300},{"x":"Engineering","y":57600},{"x":"Engineering","y":63900},{"x":"Engineering","y":59200},{"x":"Engineering","y":86000},{"x":"Engineering","y":97000},{"x":"Engineering","y":108000}],"geoms":["boxplot"],"x":"dept","y":"salary"}
 
-That picture is a boxplot, and it takes ten seconds to learn. The thick line inside each box is the middle salary in that department, the box itself covers the middle half of the people, and the thin lines reach out towards the rest. So a short box means everybody in that department is paid roughly the same, and a tall box means they are not.
+That picture is called a boxplot, and here is how to read it. The thick line inside each box is the middle salary in that department, the box itself covers the middle half of the people, and the thin lines reach out towards the rest. So a short box means everybody in that department is paid roughly the same, and a tall box means they are not.
 
 Support and Sales are two short boxes, and Engineering is an enormously tall one.
 
-One more detail in that picture is worth pausing on, because it is the same story told another way. The thick line is the middle salary rather than the average, and for Support the two sit practically on top of each other, \$60,700 against \$60,925. For Engineering the middle salary is \$62,600 while the average is \$73,475, because three specialists are pulling the average up past almost everybody in the department.
+Look at one more thing in that picture, because it shows the same problem from a different angle. The thick line is the middle salary, not the average. For Support the two are almost the same number, \$60,700 against \$60,925. For Engineering the middle salary is \$62,600 while the average is \$73,475, because three specialists are pulling the average up past almost everybody in the department.
 
-The difference in box height is what today is about. The ordinary one-way ANOVA, which is the test almost everyone reaches for with three groups, quietly assumes those three boxes are about the same height. When they are not, it prints no warning and flags nothing unusual, and it can hand you a confident answer that is wrong.
+The difference in box height is what today is about. The ordinary one-way ANOVA, which is the test almost everyone uses for three groups, assumes those three boxes are about the same height. When they are not, it does not warn you. It simply gives you an answer, and that answer can be wrong.
 
 Part 1 of this course ended with five questions that pick your test, and question four left one thread hanging. When the groups scatter by very different amounts, it said, run the Welch version instead, and then it moved on. Today we pick that thread back up.
 
@@ -52,7 +52,7 @@ By the end you will be able to:
 
 - Spot unequal spread from a boxplot, from the group standard deviations, and from how well each average is pinned down
 - Say what the classic ANOVA pools together, and why one shared spread is the wrong yardstick for a payroll like Meera's
-- Measure how often each test cries wolf inside a company where you already know the truth
+- Measure how often each test raises a false alarm inside a company where you already know the truth
 - Run Welch's ANOVA, and rebuild both its weights and its odd fractional degrees of freedom by hand
 - Say what Welch costs when the spreads really are equal, and why testing for equal spread first is a poor way to choose
 - Follow a Welch result through the pairwise comparisons and report the whole thing so somebody else can check it
@@ -334,7 +334,7 @@ Every test in statistics ends the same way. It computes one number from your dat
 
 ::widget null-distribution {"tails":1,"start":2.0,"label":"observed statistic"}
 
-Drag the marker to the right and watch the shaded area shrink. That shaded area is the **p-value**: if the departments were genuinely identical and only ordinary randomness separated them, it is how often randomness alone would hand you a statistic at least as extreme as yours. A small p-value means randomness would rarely manage it, which makes "they are identical" an uncomfortable position to keep holding.
+Drag the marker to the right and watch the shaded area shrink. That shaded area is the **p-value**: if the departments were genuinely identical and only ordinary randomness separated them, it is how often randomness alone would produce a statistic at least as extreme as yours. A small p-value means randomness would rarely manage it, which makes "they are identical" an uncomfortable position to keep holding.
 
 Two things about that picture are worth flagging. The curve drawn there is the familiar bell you get comparing two groups, whereas an F statistic from three groups follows a differently shaped curve called an F curve. And an F test only ever reads the upper tail, because F is a ratio that can only get large when the gaps grow. The move is identical either way: one area, read off one curve.
 
@@ -440,7 +440,7 @@ mean(c(0.02, 0.30, 0.01) < 0.05)
 #> [1] 0.6666667
 ```
 
-Two of those three p-values are below 0.05, and `mean()` reports that as 0.667. That is the whole counting trick, and the helper below uses it on the last line.
+Two of those three p-values are below 0.05, and `mean()` reports that as 0.667. That is all the counting is, and the helper below does the same thing on its last line.
 
 Everything else in the helper you have already seen: build a payroll with `rnorm()`, run both tests on it, keep the two p-values, and do it two thousand times. This block takes a few seconds to finish.
 
@@ -522,7 +522,7 @@ Three numbers, one story. On payrolls shaped like Meera's, 5 percent of F values
 
 The p-value was read off the wrong curve, because the cutoff was computed from an assumption the payroll does not satisfy.
 
-That is the whole mechanism. Every number the classic test produced was computed correctly, and it was answering a question about a company Meera does not work for.
+So that is what went wrong. Every number the classic test produced was computed correctly, and it was answering a question about a company Meera does not work for.
 
 === step === tryit
 ::eyebrow Your turn
@@ -877,7 +877,7 @@ A colleague runs Bartlett's test on a different company, with nine people in eac
 ::eyebrow After the omnibus test
 ## Comparing the departments one pair at a time
 
-Welch's ANOVA answers one question: is there a difference somewhere among the three departments? It never says where. A test that works like that has a name, the **omnibus** test, and it is worth knowing because R's help pages use the word freely. If the answer is yes, the natural next move is to compare the departments two at a time, and that opens a second problem worth seeing before you run anything.
+Welch's ANOVA answers one question: is there a difference somewhere among the three departments? It never says where. A test that works like that is called an **omnibus** test, and you will see that word in R's help pages. If the answer is yes, the natural next move is to compare the departments two at a time, and that brings up a second problem you should know about before you run anything.
 
 ::widget multiplicity-sim {"kMax":10,"kStart":3,"alpha":0.05,"corrections":["none","holm","bonferroni"]}
 
@@ -1180,10 +1180,10 @@ Four sources sit behind everything on this page, and each one is worth the time.
 
 You started where Meera did: three departments, three averages, and a director wanting a yes or no. The classic ANOVA gave her p = 0.0275 and a difference to report. Welch gave her p = 0.2371 and nothing to report, from the same thirty two salaries.
 
-You now know which one to believe and, more importantly, why. The classic test melts every department's spread into one number, \$10,409, which was four times too big for Support and half of what Engineering deserved, and then it measures every gap against that. In a company where all three departments genuinely paid the same, that mistake made it cry wolf 17 times in 100 while promising 5. Welch keeps each department's own spread, hands out a weight of \( n_i / s_i^2 \), and pays for the honesty with fractional degrees of freedom: 14.19 where the classic test claimed 29.
+You now know which one to believe and, more importantly, why. The classic test melts every department's spread into one number, \$10,409, which was four times too big for Support and half of what Engineering deserved, and then it measures every gap against that. In a company where all three departments genuinely paid the same, that mistake made it raise a false alarm 17 times in 100 while promising 5. Welch keeps each department's own spread and gives each one a weight of \( n_i / s_i^2 \). The price of doing that is fractional degrees of freedom: 14.19 where the classic test claimed 29.
 
 You also picked up the parts most guides skip. Unequal spread is not always a safe error, and moving the big spread into the biggest department flipped it from too eager to too cautious. Equal group sizes, not equal spreads, are what cushion the classic test. Pre-testing with Bartlett or Levene is a worse gate than simply using Welch. And pairwise follow-ups need `pool.sd = FALSE`, or you have quietly pooled again.
 
 Meera's answer, in one sentence: with eight engineers spread over fifty thousand dollars, a difference in average pay is not established, and that is a finding rather than a failure.
 
-One thread is still loose. When Welch drifted under heavy skew, Kruskal-Wallis fired 21.8 times in 100, which is not the rescue everybody expects it to be, and the reason is that ranks answer a different question. Part 3 takes that question apart on the two-group version, the Mann-Whitney test, where it can be stated properly. The three-group version comes later in this course, once the logic underneath it is solid.
+There is one question we have not settled yet. When Welch drifted under heavy skew, Kruskal-Wallis raised a false alarm 21.8 times in 100, so it is not the fix that many people expect it to be, and the reason is that ranks answer a different question. Part 3 takes that question apart on the two-group version, the Mann-Whitney test, where it can be stated properly. The three-group version comes later in this course, once the logic underneath it is solid.
