@@ -1,6 +1,14 @@
 # Lesson Pedagogy (SSOT)
 
-The quality contract for every interactive lesson. The `/write-lesson` skill follows it; `Scripts/lesson_quality_check.py` (deterministic + LLM-judge + headless) enforces it. Companion: `_build/lesson-contract.md` (the DOM + authoring mechanics). Terse by design: a rule with no measure is not a rule.
+> **Where the rules live now (2026-08-18):** the three lesson skills
+> (`.claude/skills/write-lesson`, `check-lesson-plan`, `check-lesson`) are
+> SELF-CONTAINED and carry every rule below in plain English, plus the
+> owner's voice standard. Writers and reviewers read the skills, not this
+> file. This file is kept as the compact reference the quality-gate script
+> and the tutorial pedagogy point at. If it ever disagrees with a skill,
+> the skill wins; update this file to match.
+
+The quality contract for every interactive lesson. The `/write-lesson` skill follows it; `Scripts/lesson_quality_check.py` enforces the deterministic parts (structure, data, visuals, references, mathjax); the fresh `/check-lesson` session is the judge; there is no headless/Playwright stage today. Companion: `_build/lesson-contract.md` (the DOM + authoring mechanics). Terse by design: a rule with no measure is not a rule.
 
 **VOICE PRECEDENCE (binding for all lesson prose).** The controlling voice
 authority is `Plans/01_email_and_nurture/owner-voice-pack.md` - the owner's

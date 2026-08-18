@@ -1,5 +1,11 @@
 # Interactive Lesson contract (SSOT)
 
+> **Note (2026-08-18):** the authoring grammar in this file is reproduced
+> inside `.claude/skills/write-lesson/SKILL.md` (Part 6), which is what
+> writers read. This file remains the DOM contract that `md2lesson.py`,
+> `lesson-mode.js`, the widgets, and the exercise manifest builder keep in
+> sync with each other. Change the grammar here AND in the skill.
+
 The single source of truth for the lesson-mode pipeline. `md2lesson.py` PRODUCES this DOM, `www/lesson-mode.js` CONSUMES it, `www/lesson-widgets/*` mount into it, and `build_exercise_manifest.py` authorizes its gradable steps. Keep all four in sync with this file.
 
 ## Pipeline

@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
-"""Windowed-lesson factory driver (the --windowed mode batch_lessons.py
-could not carry, since windowed lessons never enter courses.json).
+"""Windowed-lesson factory driver.
 
-    python Scripts/batch_windowed.py            # build the frontier lesson
-    python Scripts/batch_windowed.py --max 3    # build up to 3, sequentially
-    python Scripts/batch_windowed.py --seq 2    # build one specific seq
+    python Scripts/batch_windowed.py                          # build the frontier lesson
+    python Scripts/batch_windowed.py --max 3                  # build up to 3, in sequence order
+    python Scripts/batch_windowed.py --seq 13                 # build one specific seq
+    python Scripts/batch_windowed.py --seq 13 --out-slug X-v2 # comparison build at an alternate slug
+    python Scripts/batch_windowed.py ... --resume             # skip stages whose artifact already exists
 
-Per lesson, the proven seq-1 pipeline: fresh Opus 5 writer session (full
-context pack, R1-R15) -> fresh Opus 5 check-lesson session (bounded fixes)
--> deterministic gate -> md2lesson -> build.py (windowed attrs + sitemap
-exclusion) -> exercise manifest -> registry update -> explicit-path commit
-and push. Any step failing stops that lesson and the batch; nothing is
-half-published. Widgets must already exist (the widget gate is a HUMAN step
-per the execution plan): the driver refuses a seq whose course has a
-NEEDS-BUILD note in Plans/01_email_and_nurture/lesson-factory-execution.md
-widget table unless --force-widgets is passed.
+What happens per lesson, each stage in its OWN fresh `claude -p` session so
+nothing carries over between them:
+
+  1. PLAN         /write-lesson --plan-only   -> post_plans/<slug>_lesson-plan.md
+  2. PLAN REVIEW  /check-lesson-plan          -> must stamp `status: approved`
+  3. BUILD        /write-lesson --build       -> lessons/<slug>.md, both gates green
+  4. REVIEW       /check-lesson               -> voice + clarity + gaps, bounded fixes
+  5. (comparison builds only) independence gate: every step diffed against the
+     canonical lesson; fails above 0.65 similarity
+  6. deterministic gate -> md2lesson -> build.py -> exercise manifest ->
+     registry (skipped for comparison builds)
+  7. asserts on the built page: windowed attr + noindex, NOT in the sitemap
+  8. explicit-path git add / commit / push
+
+All rules (voice, pedagogy, plan format, grammar, code, gates) live INSIDE the
+three skills; the prompts below carry only what is specific to this lesson.
+Any failing stage stops that lesson and the batch; nothing half-publishes.
+
+Robustness: a stage's verdict is read from its ARTIFACT (plan stamped
+approved, lesson exists, review-log line written), never from `claude -p`'s
+exit code alone, because the CLI can exit non-zero with empty output after a
+session that did its work. A reviewer session killed by an API error (error
+text or near-empty stdout, no review-log line) is retried once.
 """
 import argparse, io, json, os, re, subprocess, sys, time
 
@@ -33,153 +48,61 @@ PREFIX = {
     'time-series-toolkit': 'TS-Toolkit-Mini', 'foundations-extras': 'Foundations-Mini',
 }
 
-PLAN_PROMPT = """You are PLANNING one interactive step-player lesson for r-statistics.co: a
-windowed nurture lesson. Work from the project root; the repo is selva86.github.io/.
-This is the PLAN phase: you produce ONLY the plan artifact, no lesson prose.
+# The lesson-specific brief shared by every stage. Rules live in the skills.
+BRIEF = """LESSON: slug {slug}; title "{title}"; part {part} of {total} of the mini course
+"{course_title}" (course_id {course_id}); curriculum_id 0.0.{seq};
+lesson_access windowed; course_landing /dashboard.html{prev_next}.{siblings}
 
-READ FIRST, in order: (1) .claude/skills/write-lesson/SKILL.md (Pass 0 + Pass 1
-define the plan you must produce), (2)
-selva86.github.io/Plans/01_email_and_nurture/owner-voice-pack.md (step titles
-must sound like the owner), (3) selva86.github.io/_build/lesson-pedagogy.md
-(Gate 1 is your contract), (4) selva86.github.io/_build/lesson-visual-catalog.md
-(the only widgets you may plan), (5) selva86.github.io/Scripts/webr-package-compat.json
-(only `runnable` packages may appear in the code plan), (6)
-selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md.
-
-THE LESSON BEING PLANNED: slug {slug}, title "{title}", part {part} of {total}
-of "{course_title}".{siblings}
-
-THE PROMISE THIS LESSON MUST CASH (the daily email that unlocks it):
+THE PROMISE THIS LESSON MUST DELIVER: the daily email that unlocks it.
 Subject: "{subject}"
-Body:
 ---
 {email_body}
 ---
-The email's example and framing are the lesson's opening contract.
-
-SOURCE MATERIAL: selva86.github.io/_posts/{source}.html (raw material only;
-the lesson must exceed it).
-
-PRODUCE ONLY: selva86.github.io/post_plans/{slug}_lesson-plan.md containing,
-per the skill's Pass 1: a `status: draft` header line; the one-paragraph
-NARRATIVE SPINE; 3-6 objectives each mapped to a step and a check; the
-prerequisites (entry bar); the concept order; and the FULL STEP ARC where
-every step names its exact TITLE, its one new idea, its visual from the
-catalog (or `prose-only (why)`), its CODE PLAN (dataset/package + what each
-block demonstrates), its check, its BRIDGE line (`coming from -> leading
-to`), and where the running example stands.
-
-DO NOT write lessons/{slug}.md. DO NOT run gates. DO NOT touch git.
-"""
-
-PLAN_CHECK_PROMPT = """Read and follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the
-plan selva86.github.io/post_plans/{slug}_lesson-plan.md. This is a WINDOWED
-nurture lesson: part {part} of {total} of "{course_title}". The daily email
-below is the promise the lesson must cash; the plan's cover and arc must
-serve it:
----
-{email_body}
----
-Fix flow problems DIRECTLY in the plan (reordering is your job), then set
-`status: approved` and exit 0. Do not approve an unfixable plan. DO NOT
-write lesson prose or touch git.
-"""
-
-PROMPT = """You are writing ONE interactive step-player lesson for r-statistics.co: a
-windowed nurture lesson. Work from the project root; the repo is selva86.github.io/.
-
-READ FIRST, in order: (1) .claude/skills/write-lesson/SKILL.md (the process),
-(2) selva86.github.io/Plans/01_email_and_nurture/owner-voice-pack.md (THE
-VOICE LAW: 12 owner-written exemplars + extracted patterns; every sentence
-you write must sound like those exemplars), (3)
-selva86.github.io/_build/lesson-pedagogy.md (R1-R15 law), (4)
-selva86.github.io/_build/lesson-contract.md, (5)
-selva86.github.io/_build/lesson-visual-catalog.md, (6)
-selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md.
-
-THE PLAN IS APPROVED: selva86.github.io/post_plans/{slug}_lesson-plan.md
-carries `status: approved`. Build STRICTLY from it: exact step titles, order,
-visuals, and code plan. The plan is a floor, not a ceiling: add steps or
-depth wherever thoroughness demands it (R13), but never reorder or cut the
-approved arc, and never re-plan.
-
-OVERRIDES (windowed nurture lesson; skip Pass 0 derivation, use exactly):
-- Write to: selva86.github.io/lessons/{slug}.md
-- Frontmatter exactly: title: "{title}" / slug: "{slug}" / description: (write
-  a 150-160 char one from the subject) / keywords: (sensible) / date: today /
-  post_type: "LESSON" / lesson_access: "windowed" / course_id: "{course_id}" /
-  course_title: "{course_title}" / course_lesson: "{part}" / course_total:
-  "{total}" / course_landing: "/dashboard.html" / webr: true / mathjax:
-  (true only if you genuinely render formulas) / curriculum_id: "0.0.{seq}" /
-  catalog_blurb: (one plain-credible line){prev_next}
-
-THE PROMISE THIS LESSON MUST CASH (the daily email that unlocks it):
-Subject: "{subject}"
-Body:
----
-{email_body}
----
-The email's example and framing are the lesson's opening contract: the lesson
-must deliver exactly what this email promises, then go deeper.
-
-COURSE CONTEXT: this is part {part} of {total} of "{course_title}".{siblings}
-Open with a one-line bridge from the previous part where one exists (R4).
+The email's example and framing are the lesson's opening contract. Deliver
+exactly what it promises, then go deeper.
 
 SOURCE MATERIAL: selva86.github.io/_posts/{source}.html is the existing blog
 post. Raw material only; the lesson must exceed it, never summarize it.
-
-WIDGETS: select ONLY from _build/lesson-visual-catalog.md (built widgets).
-luck-simulator, null-distribution, bootstrap-sample, power-curve,
-process-flow, chart-plotter and the rest are available; NEVER hand-author
-simulation code, NEVER fake a widget. If an essential visual has no widget,
-put a NEEDS-BUILD note in the plan and carry the step with a static diagram.
-
-R CODE: deterministic (set.seed), every #> exactly real, plain readable R,
-never name the in-browser R technology.
-
-CURRENCY: when mathjax is true, NEVER write a raw $ before a number in
-prose (MathJax treats $...$ as inline math and eats the text between two
-amounts). Write \\$50,700 instead; the page renders it as $50,700. Raw $
-inside R code blocks is fine.
-
-VOICE (non-negotiable): the owner hand-wrote the 12 exemplar emails in
-Plans/01_email_and_nurture/owner-voice-pack.md and your prose must be
-indistinguishable from that voice. Before writing, study the exemplars AND
-the extracted patterns in that file: invite the reader in ("Let's say...",
-"Consider this:"), land big points as short standalone paragraphs, check in
-sparingly ("Right?", "Remember?"), cut every clever flourish in favor of the
-plain sincere version, restate hard ideas in plainer words ("In other
-words..."), name practical stakes earnestly (interviews, real work), warm
-word choices, and never over-polish into machine-smooth symmetry. NO em or
-en dashes anywhere, pure ASCII, ONE named numbered everyday example carried
-through (reuse the email's), reader inside the story, beginner entry bar:
-can read a simple R script, no statistics background. No length cap:
-thoroughness always wins (R13). After drafting, do one dedicated VOICE PASS
-over every step: read each paragraph aloud in your head and rewrite any
-sentence the owner would not say.
-
-GATES BEFORE FINISHING:
-python selva86.github.io/Scripts/lesson_quality_check.py selva86.github.io/lessons/{slug}.md
-node selva86.github.io/Scripts/verify_lesson_webr.mjs selva86.github.io/lessons/{slug}.md
-Fix and re-run until both pass. DO NOT publish, build, or touch git. Finish
-with a short summary: step count, widgets used, gate status, anything flagged.
+Windowed frontmatter beyond the identity above: post_type "LESSON", webr
+true, mathjax true only if formulas are rendered, description 150-160 chars,
+keywords sensible, catalog_blurb one plain credible line, date today.
 """
 
-CHECK_PROMPT = """Read and follow the skill at .claude/skills/check-lesson/SKILL.md for the
-lesson selva86.github.io/lessons/{slug}.md (plan:
-selva86.github.io/post_plans/{slug}_lesson-plan.md). This is a WINDOWED
-nurture lesson (rules: selva86.github.io/Plans/01_email_and_nurture/lesson-factory-execution.md).
-Judge especially: the owner's voice. Read
-selva86.github.io/Plans/01_email_and_nurture/owner-voice-pack.md first (12
-owner-written exemplars + patterns) and hunt for prose that would give away
-a machine author: clever compression, aphorisms, machine-smooth symmetric
-sentences, missing spoken-pause paragraphs, zero reader check-ins, em
-dashes. Rewrite offending passages into the exemplar voice. Also judge:
-beginner-clarity from a zero-stats entry bar, that the email's promised
-example carries the lesson, and code-output sanity. Apply bounded fixes, re-run
-python selva86.github.io/Scripts/lesson_quality_check.py selva86.github.io/lessons/{slug}.md
-after edits, and finish with a verdict. DO NOT publish, build, or touch git.
-"""
+PLAN_PROMPT = """Follow the skill at .claude/skills/write-lesson/SKILL.md in --plan-only
+mode. Work from the project root; the repo is selva86.github.io/. The lesson
+identity below replaces the skill's Part 3 derivation. Produce ONLY the plan
+file the skill's Part 4 describes. Do not write lesson prose. Do not run
+gates. Do not touch git.
+
+""" + BRIEF
+
+PLAN_CHECK_PROMPT = """Follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the plan
+selva86.github.io/post_plans/{slug}_lesson-plan.md. Work from the project
+root. This is a windowed nurture lesson; the email below is the promise its
+plan must serve. Fix flow directly in the plan, then set `status: approved`.
+Do not approve an unfixable plan. Do not write lesson prose. Do not touch git.
+
+""" + BRIEF
+
+PROMPT = """Follow the skill at .claude/skills/write-lesson/SKILL.md in --build mode.
+Work from the project root; the repo is selva86.github.io/. The plan at
+selva86.github.io/post_plans/{slug}_lesson-plan.md is stamped approved:
+build strictly from it (floor, not ceiling; never reorder or re-plan). Write
+selva86.github.io/lessons/{slug}.md, run both gates until green, and finish
+with the short summary the skill asks for. Do not publish, build, or touch
+git.
+
+""" + BRIEF
+
+CHECK_PROMPT = """Follow the skill at .claude/skills/check-lesson/SKILL.md for the lesson
+selva86.github.io/lessons/{slug}.md (its approved plan is at
+selva86.github.io/post_plans/{slug}_lesson-plan.md). Work from the project
+root. This is a windowed nurture lesson; the email below is the promise it
+must have delivered, and its example should carry the lesson. Apply bounded
+fixes, re-run both gates, and give the verdict the skill defines. Do not
+publish, build, or touch git.
+
+""" + BRIEF
 
 
 def sh(cmd, cwd=ROOT, timeout=None, stdin_text=None):
@@ -298,7 +221,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         log('writer done; reviewer starting' if attempt == 1 else 'reviewer retry (API death)')
         before = review_log_size()
         r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
-               cwd=PROJ, timeout=4000, stdin_text=CHECK_PROMPT.format(slug=slug) + indep)
+               cwd=PROJ, timeout=4000, stdin_text=CHECK_PROMPT.format(**fmt) + indep)
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-check.log'), 'w',
                 encoding='utf-8', newline='\n').write(r.stdout + '\n--- stderr ---\n' + r.stderr)
         if r.returncode == 0:

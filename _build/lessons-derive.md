@@ -1,5 +1,9 @@
 # Lessons Derivation (Pass 0 SSOT for /write-lesson)
 
+> **Note (2026-08-18):** the derivation rules here are reproduced inside
+> `.claude/skills/write-lesson/SKILL.md` (Part 3), which is what writers
+> read. Change a rule here AND in the skill.
+
 How `/write-lesson` computes a lesson's metadata + frontmatter from a course request with ZERO interaction. Mirrors `pseo-derive.md`. Curriculum SSOT = the roadmap (`www/roadmap-curriculum.js`, RM2); a "course" is a roadmap node turned into a multi-lesson interactive module. Built catalog = `courses.json` (from `Scripts/build_lessons_tracker.py`).
 
 ## Input

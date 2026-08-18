@@ -1,5 +1,13 @@
 # The windowed-lesson factory: execution plan + subagent context pack
 
+> **Superseded (2026-08-18):** the per-lesson pipeline in this file (single
+> writer session, human widget gate) is NOT what runs. The live pipeline is
+> plan -> plan-review -> build -> review in four fresh sessions, driven by
+> `Scripts/batch_windowed.py` (see its docstring), with all rules inside the
+> self-contained lesson skills. What remains useful below: the windowed
+> frontmatter law, the never-list (sidebar/courses.json/roadmaps/tracker),
+> the widget gap table, and the launch checklist.
+
 Phase D of the windowed-lessons build. This file is BOTH the plan and the
 context pack every lesson-writing run receives - it exists so a fresh
 subprocess has everything and guesses nothing. Owner directives baked in
