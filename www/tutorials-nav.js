@@ -98,9 +98,9 @@
     window.__tnBooks = FALLBACK_BOOKS;
     wrap.appendChild(drop);
 
-    fetch('/www/curricula.json?v=6').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+    fetch('/www/curricula.json?v=7').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
       if (!data || !data.books || !data.books.length) return;
-      var rows = data.books.map(function (b) {
+      var rows = data.books.filter(function (b) { return b.nav !== false; }).map(function (b) {
         return { href: b.index, name: b.title, meta: b.tagline || '' };
       });
       var lab = drop.querySelector('.tn-lab');

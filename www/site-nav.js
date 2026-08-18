@@ -82,9 +82,9 @@
         '<a class="snav-dlink snav-dash" href="/dashboard.html">Dashboard</a>' +
         '<a class="snav-dlink" href="/roadmap/">Courses <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
         '<a class="snav-dlink" href="/tutorials/">Tutorials <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
-        '<a class="snav-dlink" href="/exercises/">Exercises <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
+        '<a class="snav-dlink" href="/exercises/">Practice <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
         '<a class="snav-dlink" href="/tools/">Tools</a>' +
-        '<a class="snav-dcta" href="/pricing.html">Get certified</a>' +
+        '<a class="snav-dcta" href="/pricing.html">Get Certified</a>' +
         '<a class="snav-dsignin" href="/signin.html">Sign in</a>' +
         '</div>';
       document.body.appendChild(drawer);

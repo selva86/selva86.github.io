@@ -102,6 +102,16 @@
     steps.forEach(function (s) { stage.appendChild(s); });   // move steps into the player
     body.appendChild(app);
     body.classList.add('lesson-js-ready');
+    // The site navbar stays visible above the player: measure it so the fixed
+    // .lm-app starts right below it (0 when a page has no navbar).
+    function setNavH() {
+      var nav = document.querySelector('body > .container > .sitenav');
+      var h = nav ? nav.offsetHeight : 0;
+      document.documentElement.style.setProperty('--lm-nav-h', h + 'px');
+    }
+    setNavH();
+    window.addEventListener('resize', setNavH);
+    setTimeout(setNavH, 600);
     document.documentElement.style.overflow = 'hidden';   // the page scroll lives on <html>; locking body alone leaves a stray scrollbar behind the overlay
 
     var segEls = Array.prototype.slice.call(app.querySelectorAll('.lm-segs i'));

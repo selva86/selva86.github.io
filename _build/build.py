@@ -2049,6 +2049,13 @@ def build_post(
     page_html = page_html.replace('{{LESSON_BODY}}', make_lesson_body_block(_hrefs) if _is_lesson else '')
     page_html = page_html.replace('{{BODY_MODE_CLASS}}', ' class="lesson-mode"' if _is_lesson else '')
     if _is_lesson:
+        # Lesson pages keep the navbar visible; its CTA reads "Upgrade" there
+        # (owner order 2026-08-19), "Get Certified" everywhere else.
+        page_html = page_html.replace('href="/pricing.html">Get Certified <span class="a">&rarr;</span></a>',
+                                      'href="/pricing.html">Upgrade <span class="a">&rarr;</span></a>')
+        page_html = page_html.replace('class="mnav-link mnav-cta" href="/pricing.html">Get Certified</a>',
+                                      'class="mnav-link mnav-cta" href="/pricing.html">Upgrade</a>')
+    if _is_lesson:
         _acc = (meta.get('lesson_access') or '').strip().lower() or lesson_access_from_curriculum(meta.get('curriculum_id'))
         _attrs = [f'data-lesson-access="{_acc}"']
         for _attr, _key in (('data-course-id', 'course_id'), ('data-course-title', 'course_title'),
@@ -3215,7 +3222,7 @@ def patch_tool_pages(sections, asset_hrefs):
         '<div class="snav-links">'
         '<a href="/roadmap/">Roadmap <span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
         '<a href="/tutorials/">Tutorials</a>'
-        '<a href="/exercises/">Exercises '
+        '<a href="/exercises/">Practice '
         '<span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
         '<a href="/tools/" class="on">Tools</a>'
         '</div>'
@@ -3229,7 +3236,7 @@ def patch_tool_pages(sections, asset_hrefs):
         '<input type="search" name="q" placeholder="Search" aria-label="Search r-statistics.co"></form>'
         '<button class="snav-sbtn" data-snav-search type="button" aria-label="Search">'
         '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>'
-        '<a class="snav-btn" href="/pricing.html">Go Pro <span class="a">&rarr;</span></a>'
+        '<a class="snav-btn" href="/pricing.html">Get Certified <span class="a">&rarr;</span></a>'
         '<span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>'
         '<span class="auth-user"></span>'
         '</div>'
