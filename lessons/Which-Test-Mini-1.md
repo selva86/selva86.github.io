@@ -33,16 +33,17 @@ tests you could run, and you are not sure which one this exact situation
 needs. A t-test? ANOVA? Chi-square? One of the ones with two surnames in it?
 
 Here is the way out. Stop shopping for test names. Describe your data
-instead, and the test falls out on its own.
+instead, and you will have the right test standing in front of you.
 
 ::widget tree-diagram {"root": "Outcome a number?", "l": "Two groups?", "r": "Small counts?", "leaves": ["t test", "ANOVA", "Fisher exact", "chi-square"]}
 
-Five plain questions. What are you measuring. How many groups. Are the groups
-linked. What shape is the spread. Then read the answer off the map.
+There are five plain questions. What are you measuring? How many groups are
+you comparing? Are the groups linked? What shape is the spread? Then you read
+the answer off the map.
 
 We are going to build that map one question at a time, on one Saturday's worth
-of coffee shop tickets. By the end, the same numbers that a popular test calls
-a dead heat will turn out to hide a clear difference, and you will know why.
+of coffee shop tickets. The same numbers that a popular test calls a dead heat
+will turn out to hide a clear difference, and you will know exactly why.
 
 === step === concept
 
@@ -53,36 +54,36 @@ a dead heat will turn out to hide a clear difference, and you will know why.
 Here is what actually goes wrong in that moment.
 
 You are shopping by test name. You think: I remember a t-test, maybe that one.
-Or was it ANOVA? You are searching your memory for a label, and memory is a
-terrible index.
+Or was it ANOVA? You are searching your memory for a label, and your memory is
+not a reliable place to look.
 
-Turn it around. Do not ask which test to use. Describe your data out loud, in
-plain words, and let the test appear.
+So let us turn it around. Do not ask which test to use. Describe your data out
+loud, in plain words, and let the test appear.
 
 Say it like this. I am measuring order value, which is a number. I have three
 branches. The three groups are made of different customers. The values are
 lopsided, because a few big catering orders sit way out to the right.
 
-Read that sentence back. There is exactly one test that fits it. You did not
-remember it. You derived it.
+Now read that sentence back. There is exactly one test that fits it, and you
+did not remember it. You derived it.
 
-That is the whole trick. Five questions, asked in a fixed order, each one
-crossing off entire families of tests until one is left standing.
+That is the core idea. There are five questions, asked in a fixed order, and
+each one crosses off entire families of tests until one is left standing.
 
 === step === concept
 
 ## What are we actually comparing?
 
-Bean and Bun is a small coffee shop with three branches: Riverside, Hilltop
-and Market Street. Last Saturday they served 38 orders between them, and the
+Bean and Bun is a small coffee shop. Its three branches are Riverside, Hilltop
+and Market Street, and last Saturday they served 38 orders between them. The
 till recorded the value of every single one.
 
-Here they all are. Nothing rounded, nothing dropped.
+Here they all are, with nothing rounded and nothing dropped.
 
 These numbers are invented for teaching, but they behave the way real coffee
 shop tickets behave. Most people buy a coffee and something to eat for $5 to
-$13, and every so often somebody orders catering for an office and the ticket
-jumps to $24, $30, $41.
+$13, and every so often somebody orders catering for an office and a ticket
+lands at $24, $30 or $41.
 
 ```r
 # One Saturday at Bean and Bun. Every ticket, in dollars.
@@ -110,19 +111,20 @@ round(tapply(orders$order_value, orders$branch, mean), 2)
 #>         11.93         12.05          7.47
 ```
 
-Riverside averaged $11.93 a ticket. Hilltop $12.05. Market Street $7.47.
+Riverside averaged $11.93 a ticket. Hilltop came in at $12.05, and Market
+Street at $7.47.
 
-So Market Street looks about four and a half dollars a ticket worse than the
-other two. Is that gap real, or is it just what happens when 38 people wander
-into three shops on a Saturday?
+So Market Street looks about four and a half dollars a ticket worse than
+Riverside and Hilltop do. Is that gap real, or is it just what happens when 38
+people wander into three shops on a Saturday?
 
-That is the question. Now let us earn the answer.
+That is the question, and now let us earn the answer.
 
 === step === widget
 
 ## What are the five questions?
 
-Before we touch those tickets again, here is the entire method on one screen.
+Before we touch those tickets again, here is the whole method in one place.
 
 ::widget process-flow {"steps": [{"title": "What are you measuring?", "sub": "a number you measure, or a label you count"}, {"title": "How many groups?", "sub": "one, two, or three and more"}, {"title": "Are the groups linked?", "sub": "the same people twice, or two separate crowds"}, {"title": "What shape is the spread?", "sub": "even and bell shaped, or one long tail"}, {"title": "Read the map", "sub": "four answers point at exactly one test"}]}
 
@@ -142,20 +144,21 @@ Let us take them one at a time, on the Bean and Bun tickets.
 Every test was built for one particular kind of outcome. Use the wrong kind
 and the answer is not slightly off, it is meaningless.
 
-Your **outcome** is the thing you are measuring, the thing the question is
-really about. At Bean and Bun the outcome is the order value: how many dollars
-the customer spent.
+Your **outcome** is the thing you are measuring, the thing the question is really
+about. At Bean and Bun the outcome is the order value, which is how many
+dollars the customer spent.
 
 There are only two kinds of outcome in the world.
 
 A **number** is something you measure, on a scale where the gaps mean
 something. $12.30 really is $6.20 more than $6.10. Order value, minutes,
-grams, degrees.
+grams and degrees are all numbers.
 
 A **label** is something you count. It is a name that drops each observation
-into a bucket. Paid by card or by cash. Bought or did not buy. Riverside,
-Hilltop or Market Street. There is no such thing as halfway between card and
-cash.
+into a bucket and leaves it there. The ticket came from Riverside, Hilltop or
+Market Street, the customer paid by card or paid by cash, and the customer
+bought something or bought nothing. There is no such thing as halfway between
+card and cash, and no such thing as halfway between two branches.
 
 R will tell you which one you have.
 
@@ -174,9 +177,9 @@ str(orders)
 
 `numeric` means a number. `factor`, or `character`, means a label.
 
-Order value is numeric, so we are heading down the t-test and ANOVA side of
-the map. Branch is a factor, a label, but notice it is not the outcome here.
-It is the thing that cuts the outcome into groups.
+Order value is numeric, so we are heading down the t-test and ANOVA side of the
+map. Branch is a factor, which is a label, but notice that it is not the
+outcome here, it is the thing that cuts the outcome into groups.
 
 If the outcome itself had been a label, say whether each customer bought a
 pastry or not, that whole side of the map would be gone and we would be
@@ -191,8 +194,8 @@ averaged.
 
 ## Number or label?
 
-Four things a coffee shop could record about every ticket. Only one of them is
-a label.
+Here are four things a coffee shop could record about every ticket, and only
+one of them is a label.
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
 - The value of the order in dollars ::no Ask whether halfway between two values means anything. Halfway between 4 and 6 items is 5 items, and that makes sense, so it is a number. The label is the one where halfway is nonsense.
@@ -204,15 +207,17 @@ a label.
 
 ## Question 2: how many groups are you comparing?
 
-Question two just counts the things you are holding up against each other.
-Only three answers matter.
+Question two just counts the things you are holding up against each other, and
+only three answers matter.
 
-**One group against a fixed target.** Is our typical ticket different from the
-$10 we budgeted for?
+Sometimes you are holding up **one group against a fixed target**. Is our
+typical ticket different from the $10 we budgeted for?
 
-**Two groups.** Riverside against Hilltop.
+Sometimes you are holding up **two groups**, and that is Riverside against
+Hilltop.
 
-**Three or more groups.** Riverside against Hilltop against Market Street.
+And sometimes you are holding up **three or more groups**, which is where Bean
+and Bun sits, with Riverside against Hilltop against Market Street.
 
 Bean and Bun has three branches, so we land in the third bucket.
 
@@ -225,23 +230,25 @@ length(unique(orders$branch))
 #> [1] 3
 ```
 
-Three groups. That number matters far more than it looks.
+So we have three groups, and that number matters far more than it looks.
 
 === step === concept
 
 ## Why not just run three t-tests?
 
-Here is the idea everybody has, and the quiet way it ruins the answer.
+Here is the idea everybody has, and here is the way it ruins the answer while
+you are not looking.
 
-With three branches you could run three t-tests. Riverside against Hilltop.
-Riverside against Market Street. Hilltop against Market Street. Three simple
-tests instead of one unfamiliar one.
+With three branches you could just run three t-tests, one for each pair. You
+would test Riverside against Hilltop, then Riverside against Market Street,
+and then Hilltop against Market Street, which gives you three simple tests
+instead of one unfamiliar test.
 
-One word first, because every test in this lesson hands it back. A
+One word first, because every test we are about to run hands it back. A
 **p-value** answers a single question: if there were really no difference at
 all, how often would plain chance hand me a gap as big as the one I am looking
-at? Small means chance hardly ever does this. Large means chance does it all
-the time.
+at? A small p-value means chance hardly ever does this, and a large one means
+chance does it all the time.
 
 The trouble is what that p-value is promising you. When you run one test at
 the usual 5 percent cutoff, you are agreeing to a 5 percent chance of
@@ -262,14 +269,14 @@ round(1 - 0.95^n_pairs, 4)
 #> [1] 0.9006
 ```
 
-So three t-tests is not a 5 percent risk of a false alarm. It is 14 percent.
-Close to one in seven.
+So three t-tests is not a 5 percent risk of a false alarm. It is 14 percent,
+which is close to one in seven.
 
 And it runs away from you fast. Ten groups is 45 pairs, and by then you are 90
 percent likely to find at least one difference that does not exist. You would
 find something every single time, and you would believe it.
 
-That is why three or more groups get their own test. One test that looks at
+That is why three or more groups get their own test, one test that looks at
 every group in a single pass and keeps the false alarm rate where you set it.
 
 === step === quiz
@@ -277,7 +284,7 @@ every group in a single pass and keeps the false alarm rate where you set it.
 ## Three branches, how many tests?
 
 You want to know whether the typical ticket differs across Riverside, Hilltop
-and Market Street. What do you run?
+and Market Street, so what do you run?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
 - Three t-tests, one for each pair of branches ::no Every extra test is another roll of the dice on a false alarm, and picking the pair that looks biggest is the worst version of it, because you only picked it after seeing the data. Three or more groups get one test that handles all of them at once.
@@ -292,15 +299,16 @@ and Market Street. What do you run?
 Question three is the one people skip, and skipping it changes your answer.
 
 Two columns of numbers are **paired** when every row in one column has a named
-partner in the other. The same person, the same shop, the same machine,
-measured twice.
+partner in the other, and that partner is the same person, the same shop or
+the same machine, measured twice.
 
 They are **independent** when the two columns are simply two separate crowds
 that have nothing to do with each other.
 
-Here is a paired one, from Riverside. Twelve regulars, the ones the baristas
-know by name. Their average spend per visit for the month before the loyalty
-card launched, and again for the month after.
+Here is a paired example, from Riverside. Twelve regulars come in often enough
+that the baristas know them by name, and below is what each of them spent per
+visit on average in the month before the loyalty card launched, and what they
+spent in the month after.
 
 ```r
 regular <- c("Ana", "Ben", "Chandra", "Dee", "Eli", "Farah",
@@ -348,10 +356,11 @@ clean.
 
 ## Does pairing really change the answer?
 
-Same 24 numbers. Same question. Two answers, and they are nowhere near each
-other.
+These are the same 24 numbers and the same question, but you get two answers,
+and the two are nowhere near each other.
 
-First, treat them as what they are: twelve people, each measured twice.
+First, let us treat them as what they are, which is twelve people, each
+measured twice.
 
 ```r
 t.test(before, after, paired = TRUE)
@@ -368,8 +377,8 @@ t.test(before, after, paired = TRUE)
 #>              -1
 ```
 
-Now feed R exactly the same numbers, but tell it these are two unrelated
-crowds of people.
+Now let us feed R exactly the same numbers, but this time we tell it that the
+two columns come from two unrelated crowds of people.
 
 ```r
 t.test(before, after, paired = FALSE)
@@ -389,16 +398,16 @@ t.test(before, after, paired = FALSE)
 A p-value of 1.385e-05 is 0.00001385. That is a rock solid yes, the loyalty
 card moved spending.
 
-A p-value of 0.2341 is a shrug. Nothing to see here.
+A p-value of 0.2341 is a shrug, and it says there is nothing here to see.
 
-Twenty four numbers, unchanged. The only thing that changed is whether we told
-R that Ana-before and Ana-after are the same Ana.
+The twenty four numbers never changed. The only thing that changed is whether
+we told R that Ana-before and Ana-after are the same Ana.
 
-Here is why the paired version wins. The unpaired test has to fight through
-the fact that Kiran spends nearly twice what Hugo does. That person to person
-spread is noise it cannot explain away, and it drowns out a $1 signal. The
-paired test never sees that noise at all. It looks only at the twelve
-differences, and all twelve of them point the same way.
+Here is why the paired version wins. The unpaired comparison has to work
+around the fact that Kiran spends nearly twice what Hugo does. That person to
+person spread is noise, and it is more than big enough to bury a $1 rise. The
+paired comparison never has to deal with that noise, because it looks only at
+the twelve differences, and all twelve of them point the same way.
 
 [WARNING]
 Pairing is not something you pick because it gives a smaller p-value. It is a
@@ -409,11 +418,11 @@ must say so, and if they are not, saying so is cheating.
 
 ## Paired or independent?
 
-Your turn. Back to the Saturday tickets.
+Your turn now. Let us go back to the Saturday tickets.
 
-Riverside served 14 orders that day. Hilltop served 11. Different people,
-different queues, nobody standing in both, and no way on earth to say which
-Riverside ticket goes with which Hilltop ticket.
+Riverside served 14 orders that day and Hilltop served 11. They were different
+people in different queues, nobody stood in both, and there is no way on earth
+to say which Riverside ticket goes with which Hilltop ticket.
 
 So which design is that? Replace the placeholder below, then press Check.
 
@@ -436,7 +445,7 @@ design
 
 Here is a shortcut you can keep forever. If the two columns can have different
 lengths, they cannot possibly be paired. 14 tickets and 11 tickets do not pair
-up. Twelve regulars measured twice always will.
+up, and twelve regulars measured twice always do.
 
 === step === widget
 
@@ -444,12 +453,12 @@ up. Twelve regulars measured twice always will.
 
 Question four asks what your numbers look like once you line them all up.
 
-The classic tests, the t-test and ANOVA, are built on averages. An average is
-a fair summary when the values pile up around the middle and thin out evenly
-on both sides. Bell shaped, roughly symmetric.
+The classic tests, the t-test and ANOVA, are built on averages. An average is a
+fair summary when the values pile up around the middle and thin out evenly on
+both sides, and that even, roughly symmetric pile is what bell shaped means.
 
-An average is a bad summary when the values are lopsided: a crowd of small
-ones and a long tail of big ones. A single $41 catering order drags the
+An average is a bad summary when the values are lopsided, with a crowd of
+small ones and a long tail of big ones. A single $41 catering order drags the
 average away from where almost every real customer actually is.
 
 Here are the Bean and Bun tickets, one box per branch.
@@ -457,11 +466,11 @@ Here are the Bean and Bun tickets, one box per branch.
 ::widget chart-plotter {"x":"branch","y":"order_value","geoms":["boxplot"],"data":[{"x":"Riverside","y":5.9},{"x":"Riverside","y":6.4},{"x":"Riverside","y":6.6},{"x":"Riverside","y":6.9},{"x":"Riverside","y":7.1},{"x":"Riverside","y":7.3},{"x":"Riverside","y":7.5},{"x":"Riverside","y":7.9},{"x":"Riverside","y":8.4},{"x":"Riverside","y":9.1},{"x":"Riverside","y":10.6},{"x":"Riverside","y":12.3},{"x":"Riverside","y":30.0},{"x":"Riverside","y":41.0},{"x":"Hilltop","y":8.2},{"x":"Hilltop","y":8.6},{"x":"Hilltop","y":9.1},{"x":"Hilltop","y":9.6},{"x":"Hilltop","y":9.9},{"x":"Hilltop","y":10.4},{"x":"Hilltop","y":10.9},{"x":"Hilltop","y":11.6},{"x":"Hilltop","y":12.3},{"x":"Hilltop","y":14.2},{"x":"Hilltop","y":27.8},{"x":"Market Street","y":4.7},{"x":"Market Street","y":4.8},{"x":"Market Street","y":4.9},{"x":"Market Street","y":5.1},{"x":"Market Street","y":5.3},{"x":"Market Street","y":5.6},{"x":"Market Street","y":6.3},{"x":"Market Street","y":6.6},{"x":"Market Street","y":6.9},{"x":"Market Street","y":7.2},{"x":"Market Street","y":7.6},{"x":"Market Street","y":8.1},{"x":"Market Street","y":24.0}]}
 
 The box holds the middle half of that branch's tickets. The line inside it is
-the median, the typical ticket. The whiskers reach out to the smallest and the
-largest.
+the median, which is the typical ticket, and the whiskers reach out to the
+smallest and largest tickets the branch saw.
 
-Now put two sets of numbers side by side. The middle ticket of each branch,
-and the average of each branch.
+Now let us put two sets of numbers side by side. One is the middle ticket of
+each branch, and the other is the average of each branch.
 
 ```r
 # The typical ticket: half the branch is below this, half above.
@@ -475,23 +484,23 @@ round(tapply(orders$order_value, orders$branch, mean), 2)
 #>         11.93         12.05          7.47
 ```
 
-Every average sits well above its own median. That gap is the fingerprint of a
-long right tail.
+Every average sits well above its own median. That gap is the sign of a long
+right tail, and all three branches have one.
 
 Riverside's median customer spends $7.70. Riverside's average customer, on
-paper, spends $11.93. There is no such customer. That number is not a person,
-it is two catering orders in disguise.
+paper, spends $11.93. There is no such customer. That number is not a person
+at all, it is what two catering orders do to an average.
 
 === step === concept
 
 ## How do I check the shape without squinting?
 
 Eyeballing a chart is a real skill and you should keep doing it. But there is
-a formal check too, and it is one line.
+a formal check too, and it takes one line.
 
-The **Shapiro-Wilk test** asks one narrow question: could a bell shaped
-process plausibly have produced numbers this lopsided? It hands back a
-p-value. A small p-value, under 0.05 say, means no, this is not bell shaped.
+The **Shapiro-Wilk test** asks one narrow question. Could a bell shaped process
+plausibly have produced numbers this lopsided? It hands back a p-value, and a
+small one, under 0.05 say, means no, these numbers are not bell shaped.
 
 ```r
 shapiro.test(riverside)
@@ -508,22 +517,23 @@ sapply(list(Riverside = riverside, Hilltop = hilltop, MarketStreet = market),
 #>      3.2e-05      7.8e-05      1.3e-05
 ```
 
-Riverside 0.000032. Hilltop 0.000078. Market Street 0.000013. All three sit
-far under 0.05, so all three are lopsided. No surprise. We could see the tails.
+Riverside comes back at 0.000032, Hilltop at 0.000078 and Market Street at
+0.000013. All three sit far under 0.05, so all three are lopsided, and that is
+no surprise at all, because we could already see the tails.
 
-One warning, because this test is easy to over-trust. Shapiro-Wilk is
-sensitive to how much data you feed it. On 8 values it forgives almost
-anything. On 5000 values it will flag a wobble so small that no test would
-ever have cared about it.
+One warning, because this test is easy to over-trust. Shapiro-Wilk is very
+sensitive to the amount of data you give it. On 8 values it lets almost anything
+through, and on 5000 values it will flag a wobble so small that it would never
+have changed your answer.
 
 So treat it as evidence, not as a verdict, and pair it with the practical
-rule: once you have roughly 30 or more values per group, averages behave
-themselves even when the raw values are somewhat skewed, and the bell shaped
-tests hold up fine.
+rule. Once you have roughly 30 or more values per group, averages settle down
+even when the raw values are somewhat skewed, and the bell shaped tests keep
+working fine.
 
 Bean and Bun has 11 to 14 tickets per branch and tails that stretch out to
-$41. That is not a mild skew on a big pile of data. That is a small sample
-with a heavy tail, which is exactly the situation where question four decides
+$41. That is not a mild skew on a big pile of data, it is a small sample with
+a heavy tail, and that is exactly the situation where question four decides
 your test for you.
 
 === step === concept
@@ -532,7 +542,9 @@ your test for you.
 
 So the spread is lopsided. Does that mean you are stuck?
 
-Not at all. It means you move across to the other column of the map.
+No, you are not stuck at all. It just means you move across to the other
+column of the map, and that column has a test for every one of these
+situations.
 
 For every test built on averages there is a twin built on **ranks**. Instead
 of using the values themselves, the twin lines everything up from smallest to
@@ -549,11 +561,12 @@ rank(sort(market))
 ```
 
 As a value, $24.00 is three times the size of the next ticket down. As a rank
-it is 13, one single step above 12.
+it is 13, which is one single step above 12.
 
-The outlier stops shouting. It is still the biggest ticket of the day, it just
-no longer gets to be three times as loud as everything else. That is why the
-rank-based twins survive lopsided data.
+So the outlier stops pulling the answer around. It is still the biggest ticket
+of the day, it just counts as one step up rather than as three times
+everything else, and that is why the rank-based twins hold up on lopsided
+data.
 
 Here are the four pairs you will actually reach for.
 
@@ -573,15 +586,15 @@ twin_table
 #> 4 3+ measurements, same people repeated ANOVA             Friedman
 ```
 
-Same four situations down the left. Questions two and three pick your row.
-Question four picks your column.
+Those are the same four situations, down the left. Questions two and three
+pick your row, and question four picks your column.
 
 === step === concept
 
 ## Question 5: what does the map say?
 
 You have four answers now. Put them together and the fifth question is nothing
-more than a lookup.
+more than looking the answer up.
 
 Here is the whole flowchart, written out as eight rows.
 
@@ -618,17 +631,19 @@ Read a row left to right. Row 6 says: the outcome is a number, there are three
 or more groups, they are not paired, the shape is lopsided, so the test is
 Kruskal-Wallis and the R call is `kruskal.test()`.
 
-Two notes on the bottom two rows. When the outcome is a label you count how
-many fall into each bucket and compare the counts, which is chi-square. And
-when those counts get small, roughly under 5 in any cell of the table,
-chi-square becomes unreliable and Fisher's exact test takes over. That is what
-`sparse` means there.
+The bottom two rows need a word of explanation. When the outcome is a label
+you count how many fall into each bucket and compare the counts, and comparing
+counts is exactly what chi-square does. When those counts get small, roughly
+under 5 in any cell of the
+table, chi-square becomes unreliable and Fisher's exact test takes over, and
+that is what `sparse` means there.
 
 === step === concept
 
 ## So is the difference real?
 
-Time to answer the question we opened with. Walk Bean and Bun through the five.
+So let us walk Bean and Bun through the five questions and answer the one we
+opened with.
 
 1. **What are we measuring?** Order value in dollars. A number.
 2. **How many groups?** Three branches.
@@ -656,42 +671,44 @@ kruskal.test(order_value ~ branch, data = orders)
 #> Kruskal-Wallis chi-squared = 15.303, df = 2, p-value = 0.0004754
 ```
 
-ANOVA says p = 0.233. Nothing here. Go home, the branches are the same.
+ANOVA says p = 0.233, which reads as nothing to see here, so go home, the
+branches are all the same.
 
-Kruskal-Wallis says p = 0.00048. A clear, strong difference.
+Kruskal-Wallis says p = 0.00048, which is a clear, strong difference.
 
-Same 38 tickets. Opposite verdicts.
+Those are the same 38 tickets and two opposite verdicts.
 
-ANOVA compares averages, and those averages are being yanked around by a
-handful of catering orders. Riverside's two big tickets alone blow up its
-spread so much that the test cannot see past it. All that wobble becomes the yardstick
-ANOVA measures the branch gap against, and next to a yardstick that big, four
-and a half dollars a ticket looks like nothing. That is what the F value of
-1.5 in the output is saying: the spread between the branches is barely bigger
-than the spread inside them.
+ANOVA compares averages, and those averages are being dragged around by a
+handful of catering orders that landed that day. Riverside's two big tickets
+on their own blow its spread up so far that everything else disappears into
+it. That wobble becomes the yardstick ANOVA measures the branch gap against,
+and next to a yardstick that big, four and a half dollars a ticket looks like
+nothing. That is what the F value of 1.5 in the output is saying, that the
+spread between the branches is barely bigger than the spread inside them.
 
 Kruskal-Wallis compares ranks. Almost every Market Street ticket sits in the
 bottom half of all 38, and almost every Hilltop ticket sits in the top half.
 On ranks that pattern is impossible to miss, and out comes p = 0.00048.
 
-So yes. The difference is real. Market Street's typical ticket is genuinely
-smaller than the other two. And the only reason you know that is that you
-asked question four instead of reaching for the test you happened to remember.
+So yes, the difference is real. Market Street's typical ticket really is
+smaller than the typical ticket at the other two branches. And the only reason
+you know that is that you asked question four instead of reaching for the test
+you happened to remember.
 
 === step === tryit
 
 ## Name the test for a new question
 
-One more, and this one is yours from scratch.
+Here is one more, and this one is yours from scratch.
 
 Bean and Bun bought a new coffee machine. Nine baristas timed how long till
-close took them, in minutes, on the old machine, and then again on the new
-one. The same nine people both times.
+close took them, in minutes, on the old machine, and then timed it again on
+the new one, and it was the same nine people both times.
 
-Most nights land near 12 minutes. On two nights a delivery arrived late and
-till close ran past 40.
+Most nights land near 12 minutes, and on two nights a delivery arrived late
+and till close ran past 40.
 
-Walk the five questions and name the test.
+Now walk the five questions and name the test.
 
 ```r
 old_machine <- c(11.2, 12.4, 10.9, 13.1, 12.0, 11.6, 41.5, 12.8, 44.2)
@@ -725,9 +742,9 @@ the row appeared.
 
 ## One more from the floor
 
-Riverside and Market Street each ran a Saturday promotion. For every person who
-walked in, you wrote down which branch they were in and whether they bought
-anything at all. Which test?
+Riverside and Market Street each ran a Saturday promotion. For every person
+who walked in, you wrote down which branch they were in and whether they
+bought anything at all. Which test do you run?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
 - A t-test comparing the two branches ::no Go back to question one. The outcome here is bought or did not buy, which is a label, not a number. Every test in the t-test and ANOVA family needs a number to average, so none of them can touch this. Labels get counted, and counts get chi-square.
@@ -753,10 +770,11 @@ You arrived with a freeze and three branches. You are leaving with a method.
 
 ::widget process-flow {"steps": [{"title": "What are you measuring?", "sub": "number goes one way, label goes the other"}, {"title": "How many groups?", "sub": "two is the t-test family, three plus is ANOVA"}, {"title": "Are the groups linked?", "sub": "linked means paired, and paired is its own test"}, {"title": "What shape is the spread?", "sub": "lopsided sends you to the rank-based twin"}, {"title": "Read the map", "sub": "four answers, one row, one test"}]}
 
-Take those five to any dataset at all. Answer them in order, out loud if it
-helps, and the test names itself. When question four comes back lopsided,
-slide across to the rank-based twin and carry on.
+Take those five questions to any dataset at all. Answer them in order, out
+loud if it helps, and the test will name itself. When question four comes back
+lopsided, move across to the rank-based twin and carry on.
 
-And keep what Bean and Bun taught you. The popular test said no difference.
-The right test said a clear one. Same 38 tickets. Those five questions were
-the only thing standing between the two answers.
+And keep what Bean and Bun taught you. The popular test said there was no
+difference and the right test said there was a clear one, on the same 38
+tickets, and those five questions were the only thing standing between the two
+answers.
