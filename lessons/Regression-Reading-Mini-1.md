@@ -22,17 +22,17 @@ date: "2026-08-19"
 
 ## Interaction effects: test and interpret them
 
-An online store posts a discount coupon to some of its customers and not to
-others. A month later the finance team asks the obvious question. Did the
-coupon work?
+Let's say an online store posts a discount coupon to some of its customers and
+not to others, and a month later the finance team asks the obvious question.
+Did the coupon work?
 
 Somebody runs the numbers. Customers who got a coupon spent about $10 more
-than customers who did not. Ten dollars a head. The coupon works.
+than customers who did not, which is ten dollars a head, so the coupon works.
 
 Then somebody else splits that same crowd in two: customers who were new to
 the store, and long-time regulars who were going to shop there anyway.
 
-New customers spent about $19 more. Regulars spent about $1 more.
+New customers spent about $19 more, and regulars spent about $1 more.
 
 So the $10 is true of nobody. It is the average of a large effect and almost
 no effect, and it fits neither of the two kinds of people it was measured on.
@@ -40,33 +40,33 @@ The question "does the coupon work?" turns out to have no single answer,
 because the answer depends on who got it.
 
 Below are the four real averages from that store, the ones you are about to
-build and check yourself. Look at the gap between the first two bars, then at
-the gap between the last two.
+build and check yourself. Look at the gap between the first two bars, and then
+look at the gap between the last two bars.
 
 ::widget chart-plotter {"geoms": ["bar"], "x": "group", "y": "avg_spend", "data": [{"x": "new, no coupon", "y": 44.85}, {"x": "new, coupon", "y": 63.88}, {"x": "regular, no coupon", "y": 67.16}, {"x": "regular, coupon", "y": 68.07}]}
 
 That difference between the two gaps has a name. It is called an interaction,
-and by the end of this lesson you will be able to spot one, put it in a model,
-read every row the model prints, test whether it is real, and write it up in a
-sentence your finance team would understand.
+and you are about to spot one, put it in a model, read every row the model
+prints, test whether it is real, and write it up in a sentence your finance
+team would understand.
 
 === step === concept
 
 ## Who is in this data?
 
-Three hundred customers of one online store.
+The data covers three hundred customers of one online store.
 
-Half of them are new, meaning this was their first month buying anything. The
-other half are long-time regulars who have been ordering for over a year. That
-is the `type` column.
+Half of them are new, meaning this was their first month buying anything, and
+the other half are long-time regulars who have been ordering for over a year.
+That is the `type` column.
 
 Each customer was assigned a discount of 0, 5, 10, 15 or 20 percent off. A
-discount of 0 means no coupon arrived at all, and those customers are the
-comparison group. That is the `discount` column, and `coupon` is the same
-thing collapsed to a plain yes or no.
+discount of 0 means no coupon arrived at all, and those customers are the ones
+everybody else is compared against. That is the `discount` column, and the
+`coupon` column is the same thing collapsed to a plain yes or no.
 
-Then the store wrote down one more number per person: what they spent over the
-following month, in dollars. That is `spend`.
+Then the store wrote down one more number for each person, which is how much
+that person spent over the following month, in dollars. That is `spend`.
 
 Run the block. It builds the table and shows you the first six customers.
 
@@ -103,21 +103,21 @@ xtabs(~ type + coupon, data = shoppers)
 ```
 
 `set.seed(271)` fixes the random noise, so the numbers you get are the same
-numbers printed here, and the same numbers on the cover. Change the seed and
-every figure in this lesson moves, which is a fine thing to try once you have
-finished.
+numbers printed here, and the same numbers you saw in the bar chart. If you
+change the seed, every figure moves, and that is a fine thing to try once you
+have finished.
 
 The second table is the important one for what follows. Fifty new customers
-and fifty regulars got no coupon, a hundred of each got one. Both kinds of
-customer sit on both sides of the comparison, so nothing below is an accident
-of who happened to receive what.
+and fifty regulars got no coupon, and a hundred of each got one. Both kinds of
+customer sit on both sides of the comparison, so nothing that follows is an
+accident of who happened to receive what.
 
 === step === concept
 
 ## What did the coupon do, on average?
 
-Start with the comparison anyone would make first. Take everybody who got a
-coupon, take everybody who did not, and subtract one average from the other.
+Let's start with the comparison anyone would make first. Take everybody who got
+a coupon, take everybody who did not, and subtract one average from the other.
 
 ```r
 with_coupon <- mean(shoppers$spend[shoppers$coupon == "yes"])
@@ -133,16 +133,16 @@ round(c(no_coupon = no_coupon,
 Customers with no coupon spent $56.00 on average. Customers with a coupon
 spent $65.98. The coupon is worth $9.97 a head.
 
-That is a real number, honestly computed, and there is nothing wrong with the
-arithmetic. It is the interpretation that is about to fall apart.
+That number is real and the arithmetic behind it is correct. It is the way
+people then read it that is about to fall apart.
 
 === step === concept
 
 ## Does that one number describe anybody?
 
-Run the same comparison twice: once inside the new customers, once inside the
-regulars. `aggregate()` does it in one line. Read the formula as "average
-spend, broken down by coupon and by type".
+Now run that same comparison twice, once inside the new customers and once
+inside the regulars, and `aggregate()` will do it in one line. Read the formula
+as "average spend, broken down by coupon and by type".
 
 ```r
 cell_means <- aggregate(spend ~ coupon + type, data = shoppers, FUN = mean)
@@ -165,14 +165,14 @@ round(c(lift_new = lift_new, lift_regular = lift_regular), 2)
 ```
 
 There it is. A new customer who got a coupon spent $19.03 more than a new
-customer who did not. A regular who got a coupon spent $0.91 more than a
-regular who did not. Ninety-one cents.
+customer who did not, and a regular who got a coupon spent $0.91 more than a
+regular who did not. That is ninety-one cents.
 
 Now hold the pooled $9.97 up against those two numbers. It sits between them
 because it is their average: half the customers are new and half are regulars,
 so $9.97 is the midpoint of $19.03 and $0.91 and nothing more. No customer in
-this data experienced a $9.97 coupon. New customers got far more than that,
-and regulars got almost nothing.
+this data experienced a $9.97 coupon, because new customers got far more than
+that and regulars got almost nothing.
 
 [KEY INSIGHT]
 When the effect of something differs by group, the pooled average is not a
@@ -213,43 +213,43 @@ round(coef(summary(m_add)), 3)
 ```
 
 Look at the `couponyes` row. The model says the coupon is worth $9.98, with a
-standard error of $1.37 and a p-value too small to show at three decimals.
-Strongly significant, tightly estimated, and the same $10 you already know is
-wrong for both groups.
+standard error of $1.37 and a p-value too small to show at three decimals. It
+is strongly significant and tightly estimated, and it is the same $10 you
+already know is wrong for both groups.
 
 The model is not making a mistake. It is answering the question you asked. The
-`+` in `spend ~ coupon + type` is a promise you made to it: the coupon moves
-spending by some fixed amount, customer type moves spending by some other
-fixed amount, and neither of them is allowed to know what the other one is
-doing. Under that promise there is exactly one coupon effect to report, so one
-is what comes back.
+`+` in `spend ~ coupon + type` says one thing and only that: the coupon shifts
+spending by some fixed amount, customer type shifts spending by some other
+fixed amount, and the size of one shift has nothing to do with the other.
+Written that way, there is exactly one coupon effect to report, so one is what
+you get back.
 
 === step === widget
 
 ## Why can it only ever say one number?
 
-It helps to see what the `+` model is physically able to draw.
+It helps to see what a model with a `+` in it is able to draw at all.
 
 The picture below is not the store data. It is a deliberately extreme case,
 two groups whose effects run in opposite directions, so the shape of the
 problem is impossible to miss. The solid lines are what a model with an
-interaction fits. The dashed lines are what the additive model fits.
+interaction fits, and the dashed lines are what the additive model fits.
 
 ::widget wrong-family-fit {"mode": "interaction", "seed": 31}
 
 The two dashed lines are parallel, and they are not parallel by accident.
-There is no term anywhere in `y ~ x + g` whose job is to make one group's
-slope differ from the other's, so the fitted lines cannot come out any other
-way. The group term is allowed to shift a line up or down. Nothing is allowed
-to tilt it.
+There is no term anywhere in `y ~ x + g` that can make one group's slope differ
+from the other's, so the fitted lines cannot come out any other way. The group
+term can move a line up or down, and nothing in that formula can change how
+steeply a line rises.
 
 That is why the store model returned a single $9.98. Parallel lines have one
-slope between them, and the model reports it.
+slope between them, and that single slope is what the model reports.
 
 [NOTE]
-This is the honest way to think about a model that "found nothing". Before you
-conclude an effect is absent, check whether your formula was capable of
-expressing the effect you were looking for.
+This is the right way to think about a model that "found nothing". Before you
+conclude an effect is absent, check whether the formula you wrote was even
+able to express the effect you were looking for.
 
 === step === concept
 
@@ -260,8 +260,8 @@ Change one character. Write `coupon * type` instead of `coupon + type`.
 The `*` is shorthand. R expands it into three terms:
 `coupon + type + coupon:type`. The first two are the same main effects you
 already had. The third one, the one with the colon, is the new part. It is
-called the interaction term, or the cross term, and its whole job is to let
-the coupon effect come out differently for different customer types.
+called the interaction term, or the cross term, and it is what lets the coupon
+effect come out differently for different customer types.
 
 ```r
 m_int <- lm(spend ~ coupon * type, data = shoppers)
@@ -273,25 +273,25 @@ round(coef(summary(m_int)), 3)
 #> couponyes:typeregular  -18.123      2.532  -7.158        0
 ```
 
-Four rows instead of three. The $9.98 is gone, and a number you already
-computed by hand is suddenly staring back at you: 19.036, the new customers'
-lift.
+You get four rows now instead of three. The $9.98 is gone, and one of the
+numbers you worked out by hand has appeared in its place: 19.036, which is
+exactly the lift you measured for the new customers.
 
 [TIP]
-`coupon * type` and `coupon + type + coupon:type` are the same model, written
-two ways. Use the star. A colon on its own gives you the cross term without
-the main effects, which is almost never what you want.
+`coupon * type` and `coupon + type + coupon:type` are two ways of writing the
+same model, so use the star. A colon on its own gives you the cross term
+without the main effects, and that is almost never what you want.
 
 === step === concept
 
 ## How do I read those four rows?
 
-This is the part that ties people's brains in knots, so go slowly. Every row
-is a comparison, and each one is measured from the same starting point.
+This is the part that ties people's brains in knots, so let's go slowly. Every
+row is a comparison, and each one is measured from the same starting point.
 
 That starting point is a new customer who got no coupon, because `new` is the
 first level of `type` and `no` is the first level of `coupon`. R calls those
-the reference levels, and it quietly measures everything else from there.
+two the reference levels, and it measures everything else from there.
 
 ```r
 round(coef(m_int), 2)
@@ -308,9 +308,9 @@ round(coef(m_int), 2)
 | `typeregular` | 22.31 | How much more a regular spends than a new customer **when neither got a coupon**. |
 | `couponyes:typeregular` | -18.12 | How much the coupon effect **changes** when you move from a new customer to a regular. It shrinks by $18.12. |
 
-Check the first two against the group averages you computed by hand. The
-intercept 44.85 is exactly the new-and-no-coupon cell. The 19.04 is exactly
-the new customers' lift, give or take a cent of rounding.
+Now check the first two rows against the group averages you computed by hand.
+The intercept 44.85 is exactly the new-and-no-coupon cell, and the 19.04 is
+exactly the new customers' lift, give or take a cent of rounding.
 
 The last row is the one that is genuinely new. It is not an effect on
 spending. It is an effect on an effect: a number saying how much the coupon
@@ -322,9 +322,9 @@ what?
 
 ## What is the coupon worth to a regular customer?
 
-You already know the answer from the table of averages: $0.91. Now get it out
-of the model, because on real data you will often have the coefficients and
-not a tidy two-by-two table.
+You already know the answer from the table of averages: $0.91. Now let's get
+it out of the model, because on real data you will often have the coefficients
+in front of you and no tidy two-by-two table to check them against.
 
 The coupon effect for a new customer is the `couponyes` row. The interaction
 row says how much that effect changes when you move to a regular. So the
@@ -353,20 +353,21 @@ round(unname(regular_lift), 2)
 #> [1] 0.91
 ```
 
-The rule generalises. In a model with an interaction, a group's own effect is
-the main effect plus that group's cross term. The reference group is the only
-one whose effect you can read straight off a single row.
+That rule holds in general. In a model with an interaction, a group's own
+effect is the main effect plus that group's cross term, and the reference
+group is the only one whose effect you can read straight off a single row.
 
 === step === concept
 
 ## How do I get both effects without that arithmetic?
 
 Adding coefficients by hand works, and it stops being fun the moment you have
-three groups and two interactions. There is a way to make R do it for you.
+three groups and two interaction terms to keep straight. There is a way to
+make R do that work for you.
 
-Build a small grid of the combinations you care about, ask `predict()` what
-the model expects in each one, and subtract within each customer type. No
-coefficients, no addition, no sign errors.
+Build a small grid of the combinations you care about, ask `predict()` what the
+model expects in each one, and subtract within each customer type. You handle
+no coefficients, you add nothing up yourself, and you make no sign errors.
 
 ```r
 cell_grid <- expand.grid(coupon = factor(c("no", "yes"), levels = c("no", "yes")),
@@ -389,14 +390,14 @@ round(c(pred_lift_new = pred_lift_new, pred_lift_regular = pred_lift_regular), 2
 #>             19.03              0.91
 ```
 
-$19.03 and $0.91, straight out, with no arithmetic on your part.
+You get $19.03 and $0.91 straight out, with no arithmetic on your part.
 
 Now compare the four predicted values against the four averages in
-`cell_means`. They are identical. That is worth a pause: a model with an
-interaction between two grouping columns is not smoothing anything or
-borrowing strength between cells. It reproduces the group averages exactly,
-and the coefficients are simply a particular way of writing those four numbers
-down.
+`cell_means`. They are identical. That is worth a pause, because a model with
+an interaction between two grouping columns is not smoothing anything and it
+is not borrowing strength from one cell to another. It reproduces the group
+averages exactly, and the four coefficients are just another way of writing
+down the same four averages you computed earlier.
 
 === step === quiz
 
@@ -418,8 +419,8 @@ report now?
 
 ## How do I picture it?
 
-Four numbers, two lines. Put the coupon on the horizontal axis and average
-spending on the vertical, then draw one line per customer type.
+Those four numbers make two lines. Put the coupon on the horizontal axis and
+average spending on the vertical, then draw one line per customer type.
 
 ```r
 library(ggplot2)
@@ -433,23 +434,24 @@ ggplot(cell_means, aes(x = coupon, y = spend, colour = type, group = type)) +
   theme_minimal(base_size = 13)
 ```
 
-The new customers' line climbs steeply, 44.85 up to 63.88. The regulars' line
-is nearly flat, 67.16 to 68.07.
+The new customers' line climbs steeply, from 44.85 up to 63.88, while the
+regulars' line is nearly flat, from 67.16 to 68.07.
 
-Not parallel means an interaction. Parallel would have meant the coupon did
-the same thing to both groups, whatever their starting levels.
+Lines that are not parallel mean there is an interaction. Lines that are
+parallel would have meant the coupon did the same thing to both groups,
+whatever their starting levels.
 
-The shape also hands you the sentence. These two lines start far apart and
-finish close together, which is the store's real finding said without a single
-coefficient: the coupon does not lift regulars, it brings new customers up to
-where regulars already were.
+The shape gives you the sentence to write as well. These two lines start far
+apart and finish close together, which is the store's real finding said
+without a single coefficient: the coupon does not lift regulars, it brings new
+customers up to where regulars already were.
 
 === step === concept
 
 ## Are those two lines really not parallel?
 
 Your eyes say the lines are not parallel. Eyes will say that about any two
-lines drawn from any two samples, because averages wobble. So test it.
+lines drawn from any two samples, because averages wobble. So let's test it.
 
 The test compares the two models you have already fitted. The additive model
 is the interaction model with one term removed, which makes it a fair
@@ -469,38 +471,39 @@ anova(m_add, m_int)
 ```
 
 Read the second row. `Df = 1` is the one extra term. `Sum of Sq = 5474.1` is
-how much unexplained variation that term mopped up. `F = 51.244` weighs that
-improvement against the noise still left over, and `Pr(>F)` is about six in a
-trillion. If the coupon really did the same thing to both groups, a gap
-between the lines this large would essentially never turn up. So the gap is
-not wobble.
+how much unexplained variation that one term accounts for. `F = 51.244` sets
+that improvement against the noise still left over.
+And `Pr(>F)` works out at about six in a trillion.
+If the coupon really did the same thing to both groups, a gap between the
+lines this large would essentially never turn up. So the gap you are looking
+at is not wobble.
 
-One fair question here. Why run this test at all, when the
+There is one fair question to ask here. Why run this test at all, when the
 `couponyes:typeregular` row already came with its own p-value? For a single
 extra term the two say the same thing: square that row's t value of -7.158 and
 you get 51.2, the F above. The model comparison is the version that keeps
 working when the term you add is worth more than one row, which happens the
 moment your group column has three levels instead of two.
 
-And when the test comes back the other way, with a large p-value, that is
-useful too. It means the data cannot tell the two effects apart. The usual
-move then is to drop the cross term and report the single pooled number, which
-now means something, because you have checked that one number really does
-describe both groups.
+And when the test comes back the other way, with a large p-value, that result
+is useful as well. It means the data cannot tell the two effects apart. The
+usual move then is to drop the cross term and report the single pooled number,
+which now means something, because you have checked that one number really
+does describe both groups.
 
 === step === widget
 
 ## What if the thing that changes the effect is a number?
 
-So far the coupon has been a yes or a no. But the store did not send one
-coupon, it sent five sizes: 0, 5, 10, 15 and 20 percent off. The interesting
-question for next quarter is not whether to send a coupon at all. It is
-whether a deeper discount is worth more on one kind of customer than on the
-other.
+So far the coupon has been a yes or a no. However, the store did not send just
+one kind of coupon, it sent five sizes of it: 0, 5, 10, 15 and 20 percent off.
+The interesting question for next quarter is not whether to send a coupon at
+all. It is whether a deeper discount is worth more on one kind of customer than
+it is on the other.
 
-Plot spending against discount size and you can see the difficulty. Pooled
-into one chart, the two customer types sit on top of each other and the
-pattern is a smear. Split into one chart per type and the story separates.
+Plot spending against discount size and you can see the difficulty. Pooled into
+one chart, the two customer types sit on top of each other and the pattern is a
+smear. Split into one chart per type and the two stories come apart.
 
 Press the toggle.
 
@@ -508,13 +511,13 @@ Press the toggle.
 
 Those are real customers out of the same 300, every seventh one, so the panels
 are thin enough to see through. In the new customers' panel the cloud climbs
-from left to right. In the regulars' panel it drifts along flat. Same chart,
-two different stories, and pooling them would have averaged the climb and the
-drift into one lukewarm slope.
+from left to right, and in the regulars' panel it drifts along flat. It is the
+same chart in both panels telling two different stories, and pooling them would
+have averaged the climb and the drift into a single slope in between.
 
 Customer type is doing the same job here that it did with the yes-or-no
-coupon: it decides how big the discount's effect is. A column with that job
-has a name. It is called the moderator.
+coupon, because it decides how big the discount's effect is. A column with
+that job has a name. It is called the moderator.
 
 === step === concept
 
@@ -534,8 +537,8 @@ round(coef(summary(m_disc)), 3)
 ```
 
 The rows mean exactly what they meant before, with one phrase swapped in.
-Where you used to say "the effect of a coupon", now say "per extra percentage
-point of discount".
+Where you used to say "the effect of a coupon", you now say "per extra
+percentage point of discount".
 
 `discount` is 1.482, so for a new customer every extra percentage point off is
 worth another $1.48 of spending. `discount:typeregular` is -1.324, so that
@@ -555,8 +558,8 @@ often subtract the mean from a numeric predictor before fitting.
 The store has a budget question. If they deepen the discount by one percentage
 point, whose extra spending does that buy the most of?
 
-Same rule as before. The reference group's slope is the main effect; any other
-group's slope is the main effect plus that group's cross term.
+It is the same rule as before. The reference group's slope is the main effect,
+and any other group's slope is the main effect plus that group's cross term.
 
 Fill in both blanks.
 
@@ -585,9 +588,10 @@ round(c(slope_new = unname(slope_new),
 #>         1.482         0.158
 ```
 
-A percentage point of discount buys $1.48 of extra spending from a new
-customer and 16 cents from a regular. If the store has a fixed discount budget
-for next quarter, that one comparison tells them where to spend it.
+One percentage point of discount buys $1.48 of extra spending from a new
+customer, and it buys 16 cents from a regular. If the store has a fixed
+discount budget for next quarter, that one comparison tells them where to
+spend it.
 
 === step === concept
 
@@ -597,8 +601,8 @@ Someone who is never going to read a coefficient table needs three things from
 you: the effect inside each group, in the units of the thing being measured,
 and the test that says the difference between those effects is not noise.
 
-Here is the store result written that way. Every number in it came off your
-own screen in the last few steps.
+Here is the store result written that way, and every number in it came off
+your own screen while you were working through the code.
 
 > Sending a discount coupon raised average monthly spending by $19.03 among
 > new customers, from $44.85 to $63.88, and by $0.91 among long-time regulars,
@@ -643,22 +647,22 @@ team?
 - [R documentation for `formula`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html), which defines what `*` and `:` expand to.
 - [R documentation for `anova.lm`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/anova.lm.html), the F test used here to compare the two models.
 
-Aiken, L. S. and West, S. G. (1991), *Multiple Regression: Testing and
-Interpreting Interactions*, Sage, is the standard book-length treatment if you
-want to go further than this.
+If you want to go further than this, the standard book-length treatment is
+*Multiple Regression: Testing and Interpreting Interactions*, written by
+Aiken, L.S. and West, S.G. and published by Sage in 1991.
 
 === step === complete
 
 ## What you can do now
 
 You started with a $10 coupon effect that described nobody. Here is what to do
-with the next one.
+the next time one turns up.
 
 - **Spot it before modelling.** Compute the effect separately inside each
   group. If the two numbers differ a lot, as $19.03 and $0.91 do, there is an
   interaction and a pooled average will bury it.
-- **Put it in the model.** `spend ~ coupon * type`. The star expands to both
-  main effects plus the cross term.
+- **Put it in the model.** `spend ~ coupon * type`. The star gives you both
+  main effects and the cross term in one character.
 - **Read every row.** The intercept is the reference cell, a main effect is
   the reference group's effect, and the cross term is how much that effect
   changes for the other group.
@@ -670,7 +674,7 @@ with the next one.
 - **Report it.** Give both effects in real units, name the groups, add the
   test. Never send the cross-term coefficient on its own.
 
-The same five moves work when the moderator is a number instead of a group.
+The same moves work when the moderator is a number instead of a group.
 `spend ~ discount * type` told you a percentage point of discount is worth
 $1.48 to a new customer and 16 cents to a regular, which is the kind of
 sentence a budget meeting can actually use.
