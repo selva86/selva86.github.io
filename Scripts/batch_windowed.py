@@ -130,6 +130,9 @@ NEVER change: headings (## lines), any line starting with ::, code fences and
 everything inside them including #> output, quiz option lines and which one is
 correct, tables, the frontmatter, the order of steps. If a fix would need any of
 those to change, leave that sentence alone.
+If a step reads exactly like one of the owner's exemplars (the owner's own
+words, for example the Priya taste-test cover), leave it exactly as it is, loose
+grammar included.
 
 The linter flagged these sentences (fix these and everything like them):
 {flags}
