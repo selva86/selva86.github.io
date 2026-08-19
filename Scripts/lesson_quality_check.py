@@ -115,6 +115,15 @@ def check_lesson(path):
         return issues, slug
     types = [t for t, _ in steps]
 
+    # Voice tells (owner voice pack): hard tells fail, heuristic tells warn with the
+    # sentences listed. Rules live in Scripts/voice_lint.py (also runs standalone).
+    try:
+        import voice_lint
+        for _sev, _msg in voice_lint.lint_steps(steps, whole_text=body):
+            (fail if _sev == 'FAIL' else warn)(_msg)
+    except Exception as _e:
+        warn('voice lint unavailable: %s' % _e)
+
     # R13: NO step cap. Use as many steps as a beginner needs to fully understand in
     # detail; never compress or omit to hit a step budget. Split into multiple lessons
     # ONLY at a natural conceptual seam (a genuinely separate topic), judged by coherence,

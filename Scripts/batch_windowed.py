@@ -108,6 +108,93 @@ publish, build, or touch git.
 """ + BRIEF
 
 
+VOICE_PROMPT = """You are the VOICE PASS for one lesson: selva86.github.io/lessons/{slug}.md.
+Work from the project root. Your only job is how the prose sounds; the teaching,
+the structure and the code are already done and reviewed for pedagogy.
+
+READ FIRST, in this order:
+1. .claude/skills/write-lesson/SKILL.md, Part 2 only (the owner-written exemplars).
+2. selva86.github.io/_build/voice-pairs.md (the owner's own before -> after edits;
+   imitate the direction of every edit).
+{body_exemplar_line}Then read the lesson end to end.
+
+REWRITE prose sentence by sentence so every sentence sounds like the owner
+talking across a table: complete spoken sentences, even the short pauses, never
+a clipped fragment ("Two thousand shoppers, split evenly." becomes "Two thousand
+shoppers took part, split evenly between the two pages."); the plain sincere
+version instead of the clever one, no flourish words, no metaphors piled up, no
+personifying numbers or tests; no sentence about the lesson itself, no reference
+to another part or to a step number; keep every fact, every number and the
+meaning of every sentence; keep the running example.
+
+NEVER change: headings (## lines), any line starting with ::, code fences and
+everything inside them including #> output, quiz option lines and which one is
+correct, tables, the frontmatter, the order of steps. If a fix would need any of
+those to change, leave that sentence alone.
+
+The linter flagged these sentences (fix these and everything like them):
+{flags}
+
+Write the file in place. Then run
+  python selva86.github.io/Scripts/voice_lint.py selva86.github.io/lessons/{slug}.md
+and fix what it still lists that reads as machine prose (a short complete
+sentence it mislabels is fine to leave). Do not run other gates, do not publish,
+do not touch git. Finish with one line: how many sentences you changed.
+"""
+
+
+def frozen_parts(md):
+    """Everything the voice pass must not touch: frontmatter, step fences, headings,
+    :: directives, code fences with their content, quiz option lines, tables."""
+    out, in_code = [], False
+    fm_end = md.find('\n---', 4)
+    out.append(md[:fm_end])
+    for l in md.split('\n'):
+        t = l.rstrip()
+        if t.startswith('```'):
+            in_code = not in_code; out.append(t); continue
+        if in_code or t.startswith(('::', '## ', '=== step ===', '|')) or ('::ok' in t or '::no' in t):
+            out.append(t)
+    return '\n'.join(out)
+
+
+def voice_flags(slug):
+    r = sh([sys.executable, 'Scripts/voice_lint.py', f'lessons/{slug}.md'])
+    lines = [l for l in (r.stdout or '').splitlines() if l.strip()]
+    return '\n'.join(lines[:60]) + ('\n... (more; run the linter yourself)' if len(lines) > 60 else '') or '(none flagged; still read every sentence)'
+
+
+def body_exemplar_line():
+    p = os.path.join(ROOT, '_build', 'owner-body-exemplar.md')
+    if not os.path.exists(p):
+        return ''
+    txt = re.sub(r'<!--.*?-->', '', io.open(p, encoding='utf-8').read(), flags=re.S).strip()
+    return ('3. selva86.github.io/_build/owner-body-exemplar.md (the owner\'s own BODY prose: a code '
+            'block explained in their hand; this is what body prose must sound like).\n') if txt else ''
+
+
+def voice_pass(slug, fmt, indep):
+    """Fresh session rewrites prose only; frozen parts must be byte-identical after."""
+    lesson_md = os.path.join(ROOT, 'lessons', f'{slug}.md')
+    before = io.open(lesson_md, encoding='utf-8').read()
+    keep = frozen_parts(before)
+    for attempt in (1, 2):
+        prompt = VOICE_PROMPT.format(slug=slug, flags=voice_flags(slug),
+                                     body_exemplar_line=body_exemplar_line()) + indep
+        io.open(os.path.join(BRIEFS, f'windowed-{slug}-voice-prompt.md'), 'w',
+                encoding='utf-8', newline='\n').write(prompt)
+        log('voice pass (Opus 5) starting' if attempt == 1 else 'voice pass retry (frozen parts were altered)')
+        claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-voice.log'))
+        after = io.open(lesson_md, encoding='utf-8').read()
+        if frozen_parts(after) == keep:
+            n_before = len(voice_flags(slug).splitlines())
+            log(f'voice pass done; linter now lists {n_before} line(s)')
+            return True
+        io.open(lesson_md, 'w', encoding='utf-8', newline='\n').write(before)
+    log('FAIL: voice pass altered code/directives/headings twice; lesson restored to pre-voice text')
+    return False
+
+
 def sh(cmd, cwd=ROOT, timeout=None, stdin_text=None):
     return subprocess.run(cmd, cwd=cwd, timeout=timeout, capture_output=True,
                           text=True, encoding='utf-8', errors='replace',
@@ -148,7 +235,7 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
+def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, voice_only=False):
     seq = seq_item['seq']
     cid = seq_item['course']
     course = reg['courses'][cid]
@@ -242,7 +329,11 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
         log(f'rebuild: restored {n} archived artifact(s) after failure')
 
     # Stage 1: a fresh session PLANS only. (--resume: skip if a plan exists.)
-    if resume and os.path.exists(plan_path):
+    if voice_only:
+        if not os.path.exists(lesson_md):
+            log(f'FAIL: --voice-pass needs an existing lessons/{slug}.md'); return None
+        log(f'seq {seq} -> {slug}: voice-only run on the existing lesson')
+    elif resume and os.path.exists(plan_path):
         log(f'seq {seq} -> {slug}: resume, plan exists; skipping planner')
     else:
         prompt = PLAN_PROMPT.format(**fmt) + indep
@@ -258,8 +349,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     # (--resume: skip if the plan is already stamped approved.)
     def approved():
         return 'status: approved' in io.open(plan_path, encoding='utf-8').read()
-    if resume and approved():
-        log('resume, plan already approved; skipping plan reviewer')
+    if voice_only or (resume and approved()):
+        if not voice_only: log('resume, plan already approved; skipping plan reviewer')
     else:
         log('plan done; plan reviewer starting')
         r = claude(PLAN_CHECK_PROMPT.format(**fmt) + indep, 3600,
@@ -276,8 +367,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
 
     # Stage 3: a fresh session BUILDS strictly from the approved plan.
     # (--resume: skip if the lesson markdown already exists.)
-    if resume and os.path.exists(lesson_md):
-        log('resume, lesson exists; skipping builder')
+    if voice_only or (resume and os.path.exists(lesson_md)):
+        if not voice_only: log('resume, lesson exists; skipping builder')
     else:
         prompt = PROMPT.format(**fmt) + indep
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
@@ -294,8 +385,20 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     review_log = os.path.join(ROOT, 'Scripts', 'lesson-review.log')
     def review_log_size():
         return os.path.getsize(review_log) if os.path.exists(review_log) else 0
+    # Stage 3b: VOICE PASS. A fresh session that only rewrites prose (structure,
+    # code, directives byte-frozen), fed the owner's exemplars + before/after pairs
+    # + the linter's flagged sentences. Runs before the reviewer so the reviewer
+    # judges owner-sounding prose. --resume skips it once the voice log says done.
+    voice_log = os.path.join(BRIEFS, f'windowed-{slug}-voice.log')
+    if resume and os.path.exists(voice_log) and not voice_only:
+        log('resume, voice pass already ran; skipping')
+    elif not voice_pass(slug, fmt, indep):
+        restore_archive(); return None
+    if voice_only:
+        log('voice-only: skipping reviewer + independence, going to gates + publish')
+
     check_log = os.path.join(BRIEFS, f'windowed-{slug}-check.log')
-    reviewed = resume and os.path.exists(check_log) and 'PASS' in io.open(check_log, encoding='utf-8').read()[:400]
+    reviewed = voice_only or (resume and os.path.exists(check_log) and 'PASS' in io.open(check_log, encoding='utf-8').read()[:400])
     if reviewed:
         log('resume, reviewer already passed this lesson; skipping reviewer')
     for attempt in ((1, 2) if not reviewed else ()):
@@ -315,7 +418,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     # against the canonical lesson and hard-fail on copying (the seq-1 v2
     # attempt sailed through every instruction while reusing v1's prose at
     # up to 98% similarity - only measurement catches that).
-    if out_slug or rebuild:
+    if (out_slug or rebuild) and not voice_only:
         import difflib
         canon_md = os.path.join(ROOT, 'lessons', f"{PREFIX[cid]}-{part['part']}.md")
         if rebuild:
@@ -365,7 +468,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     msg = (f'Comparison build {slug} (from seq {seq}): {title}\n\n'
            f'Plan -> plan-review -> build pipeline; registry untouched; the\n'
            f'canonical lesson is unchanged.') if out_slug else (
-           ('Rebuild' if rebuild else 'Publish') + f' windowed lesson {slug} (seq {seq}): {title}\n\n'
+           ('Voice pass on' if voice_only else 'Rebuild' if rebuild else 'Publish') + f' windowed lesson {slug} (seq {seq}): {title}\n\n'
            f'Part {part["part"]} of {course["title"]}. Plan -> plan-review ->\n'
            f'build in fresh Opus 5 sessions + fresh reviewer, both gates green,\n'
            f'windowed attrs and sitemap exclusion asserted, registry updated.')
@@ -388,6 +491,8 @@ def main():
                     'alternate slug; registry and canonical lesson untouched')
     ap.add_argument('--resume', action='store_true',
                     help='skip stages whose artifact already exists (plan / approved plan / lesson)')
+    ap.add_argument('--voice-pass', dest='voice_pass', action='store_true',
+                    help='run ONLY the voice pass + gate + publish on already-built lessons (--seq/--seqs/--max select)')
     ap.add_argument('--rebuild', action='store_true',
                     help='rewrite ALREADY-BUILT lessons from scratch at their live slugs, in '
                          'sequence order (old versions archived out of reach; --max/--seq apply)')
@@ -403,9 +508,9 @@ def main():
             break
         if it['kind'] != 'lesson':
             continue
-        if a.rebuild:
+        if a.rebuild or a.voice_pass:
             if not it.get('slug'):
-                continue                      # rebuild only what exists
+                continue                      # rebuild / voice-pass only what exists
         elif it.get('slug') and not a.out_slug:
             continue
         if a.seq is not None and it['seq'] != a.seq:
@@ -415,7 +520,8 @@ def main():
         if str(it['seq']) not in copy:
             log(f"seq {it['seq']}: no email copy written; stopping (copy is the promise)")
             break
-        slug = build_one(it, reg, copy, out_slug=a.out_slug, resume=a.resume, rebuild=a.rebuild)
+        slug = build_one(it, reg, copy, out_slug=a.out_slug, resume=a.resume, rebuild=a.rebuild,
+                         voice_only=a.voice_pass)
         if not slug:
             sys.exit(1)
         reg = json.load(io.open(REG, encoding='utf-8'))  # reload after registry write
