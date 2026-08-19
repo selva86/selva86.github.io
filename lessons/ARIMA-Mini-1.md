@@ -22,19 +22,19 @@ date: "2026-08-19"
 
 ## ARIMA: what AR, I, and MA actually mean
 
-Meera runs a coffee shop two streets from a train station. At closing time she writes down one number: how many cups she sold that day.
+Let's consider Meera, who runs a coffee shop two streets from a train station. At closing time she writes down one number: how many cups she sold that day.
 
-Seven weeks of that is 48 numbers. No weather column, no footfall counter, no marketing spreadsheet. Just the shop, day after day.
+Seven weeks of that gives you 48 numbers. There is no weather column, there is no footfall counter, and there is no marketing spreadsheet. There is only the shop, day after day.
 
 Sit with those 48 numbers for a while and three things come out of them.
 
 Busy days come in runs. A rush that arrived out of nowhere is still felt a little the next day. And underneath both of those, the shop is slowly growing.
 
-That is the whole thing. Those three sentences are the AR, the I and the MA in ARIMA.
+That is the core idea. Those three sentences are the AR, the I and the MA in ARIMA.
 
 ::widget process-flow {"steps": [{"title": "Busy days come in runs", "sub": "a busy day is usually followed by another"}, {"title": "A rush leaves a mark", "sub": "the day after a rush is still not normal"}, {"title": "The shop keeps growing", "sub": "the everyday level creeps up week by week"}]}
 
-By the end of this lesson, ARIMA(2,1,1) will read like a sentence about this shop: today leans on the last two days, the growth was taken out once, and one day of surprise still echoes.
+Once you can see all three of them in her numbers, ARIMA(2,1,1) reads like a plain sentence about this shop: today leans on the last two days, the growth was taken out once, and one day of surprise still echoes.
 
 === step === concept
 
@@ -44,7 +44,7 @@ By the end of this lesson, ARIMA(2,1,1) will read like a sentence about this sho
 
 Here are Meera's numbers, one per day, day 1 to day 48.
 
-I made them up, and I would rather say that plainly than pretend otherwise. But I built them to move the way a small shop actually moves, so everything you are about to see in them is real arithmetic on real numbers, not a story told over the top of them.
+I made these numbers up, and I would rather say that plainly than pretend otherwise. But I built them to move the way a small shop actually moves, so everything you are about to see in them is real arithmetic on real numbers, and not a story told over the top of them.
 
 ```r
 cups <- c(126, 124, 126, 133, 147, 138, 139, 127, 129, 145,
@@ -66,7 +66,7 @@ plot(1:48, cups, type = "o", pch = 16, col = "#1f7a55",
 
 That is a **time series**: one column of numbers where the order is the point. Shuffle the 48 numbers and you have destroyed the thing you care about.
 
-And notice what you do not have. In most prediction problems there are other columns to lean on, price and size and colour and so on. Here there is one column. So whatever you use to predict tomorrow has to come out of the series itself, out of its own past. That single constraint is where the whole of ARIMA comes from.
+Now notice what you do not have. In most prediction problems there are other columns to lean on, price and size and colour and so on. Here there is one column. So whatever you use to predict tomorrow has to come out of the series itself, out of its own past. That single constraint is where the whole of ARIMA comes from.
 
 Two things already stand out in that chart. There is one wild day around day 22, and the line finishes higher than it started. Hold on to both.
 
@@ -96,9 +96,9 @@ One dot sits out on its own at the far right. That is the pair around the wild d
 
 ## What the AR part does
 
-A strong tilt on a chart is an invitation. If today follows yesterday, write down exactly how, and then use it.
+When the dots lean that strongly, the next move is to write down exactly how today follows yesterday, and then use it.
 
-The simplest honest version says: today is some baseline, plus a share of yesterday, plus whatever nobody could have seen coming.
+The simplest version of that goes like this. Today is some baseline, plus a share of yesterday, plus whatever nobody could have seen coming.
 
 ```r
 shop <- data.frame(
@@ -127,7 +127,7 @@ Read that as a rule Meera could use tomorrow morning:
 
 If she sold 160 cups yesterday, the rule expects 22.9 + 0.865 x 160, which is about 161 today. If she sold 200 yesterday, it expects about 196.
 
-That is autoregression, and the name is literal. A regression is the ordinary business of predicting one thing from another. Here the thing you predict from is the same series, earlier. Regressing the series on itself. Auto, meaning self.
+That is autoregression, and the name is literal. A regression is the ordinary business of predicting one thing from another. Here the thing you predict from is the same series, only earlier, so you are regressing the series on itself. Auto means self.
 
 In symbols it is written like this:
 
@@ -135,7 +135,7 @@ In symbols it is written like this:
 
 where \( y_t \) is today's value, \( y_{t-1} \) is yesterday's, \( c \) is the baseline (22.9 here), \( \phi \) is the share of yesterday that carries over (0.865 here), and \( e_t \) is today's surprise, the part the rule cannot reach.
 
-[KEY INSIGHT] The AR part predicts today from the actual past **values** of the series. Nothing else. That is the whole idea, and everything else about AR is bookkeeping over how many past values you allow.
+[KEY INSIGHT] The AR part predicts today from the actual past **values** of the series. It uses nothing else. That is the whole idea, and everything else about AR is bookkeeping over how many past values you allow.
 
 === step === quiz
 
@@ -157,7 +157,7 @@ Meera could record all sorts of things about her shop. The AR part of ARIMA uses
 
 ## What the p in ARIMA(p, d, q) counts
 
-The rule so far reaches back exactly one day. There is no law saying it has to stop there. Let it see two.
+The rule so far reaches back exactly one day. There is no law saying it has to stop there, so let it look back two days instead.
 
 ```r
 two_lag <- lm(today ~ yesterday + day_before, data = shop)
@@ -174,9 +174,9 @@ That count, how many days back the model is allowed to reach, is **p**. It is th
 - p = 1 means today leans on yesterday.
 - p = 2 means today leans on yesterday and the day before.
 
-And that is genuinely all p is. It is a dial, and you set it.
+And that is genuinely all p is. It is a number you choose.
 
-Notice what the data says about where to set it here. The share on the day before is 0.160, small next to yesterday's 0.716. Once yesterday is in the room, the day before yesterday has little left to add. That is worth saying out loud rather than glossing over: p is your choice, and the numbers that come back tell you whether the choice was worth making.
+Now look at what these numbers suggest about where to set it here. The share on the day before is 0.160, which is small next to yesterday's 0.716. Once yesterday is already in the rule, the day before yesterday has little left to add. And that is worth saying plainly rather than glossing over: p is your choice, and the numbers that come back tell you whether the choice was worth making.
 
 === step === concept
 
@@ -184,11 +184,11 @@ Notice what the data says about where to set it here. The share on the day befor
 
 ## What counts as an error here?
 
-Two of the three sentences are still waiting, and the next one is about the day the shop was slammed. To get at it you need one more idea, and it is a plain one.
+Two of the three sentences are still to come, and the next one is about the day the shop was slammed. Before you can get at it you need one more idea, and it is a plain one.
 
-Take the two-day rule from a moment ago and ask it to call every single day. Then, for each day, subtract what it said from what actually happened.
+Take the two-day rule from a moment ago and use it to predict every single day. Then, for each day, subtract what it predicted from what actually happened.
 
-That difference is a **forecast error**: one number per day, in cups. Positive means the shop beat the rule. Negative means the rule was too generous.
+That difference is a **forecast error**: one number per day, in cups. A positive number means the shop sold more than the rule expected. A negative number means it sold less.
 
 ```r
 shop$predicted <- round(predict(two_lag, newdata = shop), 1)
@@ -207,7 +207,7 @@ shop[20:26, c("day", "today", "predicted", "error")]
 
 There is the wild day. On day 22 the rule looked at the two unremarkable days before it and said 158 cups. Meera sold 212. The rule was 54 cups short.
 
-Something happened that day that is nowhere in the sales figures. A post about the shop went around locally, say. The rule had no way to know, and that is not a flaw in it. Nothing built only from past sales could have seen it coming.
+Something happened that day that is nowhere in the sales figures. Maybe a post about the shop went around locally that morning. The rule had no way to know that, and that is not a flaw in it. Nothing built only from past sales could have seen it coming.
 
 === step === concept
 
@@ -236,11 +236,11 @@ plot(shop$day, shop$error, type = "h", lwd = 3, col = "#1f7a55",
 abline(h = 0, col = "#677084")
 ```
 
-On a typical day the rule is off by about 5 cups. Now look at the three biggest misses in the whole seven weeks. They are day 22, day 23 and day 24. One surprise, three bad days in a row.
+On a typical day the rule is off by about 5 cups. Now look at the three biggest misses in the whole seven weeks. They are day 22, day 23 and day 24. One surprise left three bad days in a row.
 
-Day 23 is the one to sit with. The rule was 24 cups **over**. It had just watched a packed day, it leaned on that packed day, and it expected most of the crowd to come back. Some did. Most did not.
+Day 23 is the one to sit with. The rule was 24 cups **over**. It had just seen a packed day, it leaned on that packed day, and so it expected most of the crowd to come back. Some of them did come back. Most of them did not.
 
-So the misses are not independent little accidents scattered across the calendar. A big miss yesterday tells you something real about today's miss. And anything that carries information is worth putting into the model.
+So the misses are not separate little accidents scattered at random across the seven weeks. A big miss yesterday tells you something real about today's miss. And anything that carries information like that is worth putting into the model.
 
 That is the MA part. It adds a share of yesterday's error to today's forecast:
 
@@ -248,7 +248,7 @@ That is the MA part. It adds a share of yesterday's error to today's forecast:
 
 where \( e_{t-1} \) is yesterday's forecast error, an actual number you can work out once yesterday has happened, \( \theta \) is the share of it carried into today, and \( e_t \) is today's own surprise.
 
-\( \theta \) can come out positive or negative, and the sign tells you what kind of echo this is. For Meera it lands near -0.78 when the full label is fitted later on, which reads as: when the rule came in well under what the shop actually did yesterday, pull today back down, because that crowd is not all coming back.
+\( \theta \) can come out positive or negative, and the sign tells you which way the echo runs. For Meera it comes out near -0.78 once the full label is fitted, and that reads as: when the rule came in well under what the shop actually did yesterday, pull today back down, because that crowd is not all coming back.
 
 [KEY INSIGHT] AR looks at past **values**. MA looks at past **misses**. That is the entire difference between the two letters.
 
@@ -271,7 +271,7 @@ MA stands for moving average, which is a genuinely unhelpful name, because a mov
 
 ## Why a growing shop breaks both of those
 
-Everything so far has quietly assumed the shop has a normal level to come back to. The AR share only means something if there is a level to be above or below. The misses only mean something if they are measured against a target that stays put.
+Everything so far has assumed, without ever saying so, that the shop has a normal level to come back to. The AR share only means something if there is a level to be above or below, and the misses only mean something if they are measured against a target that stays put.
 
 Look at what the normal level actually did over these seven weeks.
 
@@ -289,11 +289,11 @@ segments(1, mean(cups[1:24]), 24, mean(cups[1:24]), col = "#1f7a55", lwd = 3)
 segments(25, mean(cups[25:48]), 48, mean(cups[25:48]), col = "#b04a52", lwd = 3)
 ```
 
-The first half averages 144 cups a day. The second half averages 175. The normal itself moved by 30 cups while we were busy talking about being above it and below it.
+Over the first half of the seven weeks Meera sold 144 cups a day on average, and over the second half she sold 175. So the normal level itself moved by 30 cups while we were busy talking about days sitting above it and below it.
 
-This is the third sentence from the start, "the shop keeps growing", and it is not a small detail sitting off to one side. It undermines the other two. A model built on "today is a share of yesterday" is chasing a target that will not stand still, and 180 cups is a good day in week one and a poor day in week seven.
+This is the third sentence from the start, "the shop keeps growing", and it is not a small detail sitting off to one side, because it breaks the other two. A model built on "today is a share of yesterday" is chasing a target that will not stand still, and 180 cups is a good day in week one but a poor day in week seven.
 
-So before anything else works properly, the growth has to go. And there is a beautifully simple way to take it out.
+So before anything else works properly, the growth has to go. And the way to take it out is very simple.
 
 === step === widget
 
@@ -340,7 +340,7 @@ plot(2:48, change, type = "h", lwd = 3, col = "#1f7a55",
 abline(h = 0, col = "#677084")
 ```
 
-Compare that with the first chart you drew. The raw sales wandered upward across the page. The changes hover around a line and stay there, up on some days, down on others, with the day-22 rush now showing as one spike up followed immediately by one spike down.
+Compare that with the first chart you drew, where the raw sales drifted upward across the page. The changes hover around a line and stay there, up on some days and down on others, with the day-22 rush now showing as one spike up followed immediately by one spike down.
 
 They hover around +1.4 rather than exactly 0, and that +1.4 is Meera's growth: about one and a half extra cups a day, every day. Differencing did not delete the growth. It turned it from a moving target into a single small number, which is a far easier thing for a model to carry.
 
@@ -392,7 +392,7 @@ You now have all three ideas, and each one arrived with a number attached. ARIMA
 
 The order never changes, so ARIMA(2,1,1) is always p = 2, d = 1, q = 1. And each number stands on its own. You can have p without q, as in ARIMA(1,0,0), or q without p, as in ARIMA(0,0,1), or neither of them.
 
-One detail worth being straight about. Once d = 1, the p and the q are working on the **changes**, not on the raw cups. So ARIMA(2,1,1) for Meera says: today's change leans on the last two days of changes, and carries one day of past miss, on a series that has been differenced once.
+There is one more detail worth being straight about. Once d = 1, the p and the q are working on the **changes**, not on the raw cups. So ARIMA(2,1,1) for Meera says: today's change leans on the last two days of changes, and carries one day of past miss, on a series that has been differenced once.
 
 === step === tryit
 
@@ -431,13 +431,13 @@ fit
 #> sigma^2 estimated as 126.1:  log likelihood = -180.45,  aic = 368.91
 ```
 
-Those three coefficients are the shares you have been meeting all lesson, now estimated properly rather than by eye.
+Those three coefficients are the same shares you have been meeting all along, now estimated properly rather than by eye.
 
-`ar1` is 0.51, so about half of yesterday's change carries into today's. `ar2` is 0.02, effectively nothing, which is the model saying the day before yesterday has nothing left to add here. `ma1` is -0.78, so a big share of yesterday's miss is carried into today, with a minus sign: a day the model badly underestimated pulls the next day's forecast back down.
+`ar1` is 0.51, so about half of yesterday's change carries into today's. `ar2` is 0.02, which is effectively nothing, and it means the day before yesterday has nothing left to add here. `ma1` is -0.78, so a big share of yesterday's miss is carried into today, with a minus sign: a day the model badly underestimated pulls the next day's forecast back down.
 
-The row marked `s.e.` under each one is its standard error, a measure of how firmly 48 days of data pin that number down. Notice that 0.0163 is much smaller than its own standard error of 0.1577. That is R telling you, without any drama, that the second AR term is not earning its place.
+The row marked `s.e.` under each one is its standard error, a measure of how firmly 48 days of data pin that number down. Notice that 0.0163 is much smaller than its own standard error of 0.1577. When a coefficient comes out that much smaller than its own standard error, 48 days of sales have not really pinned it down, and the second AR term is not doing any real work here.
 
-The bottom line is R scoring the fit rather than describing the shop. `sigma^2` measures how much surprise the model could not account for, and `aic` is a score whose only use is comparing one label against another on the same series.
+The bottom line of the output is R scoring the fit rather than describing the shop. `sigma^2` measures how much surprise the model could not account for, and `aic` is a score whose only use is comparing one label against another on the same series.
 
 === step === quiz
 
@@ -445,7 +445,7 @@ The bottom line is R scoring the fit rather than describing the shop. `sigma^2` 
 
 ## Read ARIMA(0,1,2) out loud
 
-Meera has a friend with a bakery down the road, and a model for the bakery comes back as ARIMA(0,1,2). Same three slots, same order.
+Meera has a friend with a bakery down the road, and a model for the bakery comes back as ARIMA(0,1,2). It has the same three slots in the same order.
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
 - Two past days, the growth taken out once, and no past misses carried
@@ -470,7 +470,7 @@ The shop and its numbers are mine. The ideas underneath are standard, and these 
 
 ## You can read the label now
 
-Three sentences about a coffee shop, and you have met all three.
+It all came from three sentences about a coffee shop, and you have now met all three of them.
 
 Busy days come in runs, so today leans on the days just before it. That is **AR**, and **p** counts how many days back it may reach.
 
@@ -480,4 +480,4 @@ A rush that came from nowhere still leaves a mark on the next day, so the model 
 
 Put them in order and ARIMA(2,1,1) stops being soup. Today leans on the last two days, the growth was taken out once, and one day of surprise still echoes. You can read any label you are handed the same way now, on Meera's shop or on your own data.
 
-Which leaves one honest gap, and it is the obvious one: those three numbers were handed to you. Working them out for yourself comes down to reading two plots that show how far back a series really remembers.
+That leaves one gap, and it is the obvious one: those three numbers were handed to you. Working them out for yourself comes down to reading two plots that show how far back the memory in a series actually goes.
