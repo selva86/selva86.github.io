@@ -1,13 +1,9 @@
 ---
 title: "Conditional probability: P(A given B), made concrete"
-slug: "Foundations-Mini-1"
-catalog_blurb: "Why a positive result from a 99% accurate test can still mean little."
-description: "A disease hits 1 person in 1,000, the test is 99% accurate, and your result is positive. Work out what that really means, and learn conditional probability."
-keywords: "conditional probability, P(A given B), base rate, false positives, Bayes theorem, medical test probability, R"
-date: "2026-08-15"
+description: "A positive result on a 99 percent accurate test for a 1-in-1,000 condition still leaves you about 9 percent likely to be ill. Count people and see why."
+keywords: "conditional probability, P(A given B), base rate, false positive, medical test probability, Bayes rule, probability in R"
+catalog_blurb: "How to work out what a positive test result really means."
 post_type: "LESSON"
-curriculum_id: "0.0.9"
-lesson_access: "windowed"
 course_id: "foundations-extras"
 course_title: "Probability Foundations"
 course_lesson: "1"
@@ -15,539 +11,434 @@ course_total: "6"
 course_landing: "/dashboard.html"
 course_prev: ""
 course_next: ""
-webr: true
+curriculum_id: "0.0.9"
+lesson_access: "windowed"
 mathjax: true
+webr: true
+date: "2026-08-19"
 ---
 
 === step === cover
-::eyebrow Part 1 of 6
+
 ## P(A given B), made concrete
 
-Meera is thirty-four, feels perfectly well, and takes a screening test because her employer pays for one every year. A week later a letter arrives saying her result is positive. The letter mentions two other things almost in passing: the test is 99% accurate, and the disease it looks for affects about 1 person in 1,000.
+You are standing outside a screening camp holding a slip of paper. It says positive.
 
-So how frightened should she be?
+The condition it screens for is rare. About 1 person in 1,000 has it. The test is good. It is right 99 times out of 100.
 
-Nearly everybody says very, and they point at the 99% to justify it, because that is the only number in the letter that looks like an answer. It is the wrong number, and it is not even in the right neighbourhood. Meera's actual chance of having the disease, given everything that letter says, is a little under 10%. The overwhelmingly likely explanation for her positive result is that she is perfectly healthy and the test slipped.
+Those two facts are all you know, and right now they feel like the worst news you have ever had.
 
-That gap between 99% and 9% is not a trick or a technicality, and it is exactly what conditional probability exists to sort out. Once you have seen where the 9% comes from you will start noticing the same shape underneath spam filters, fraud alerts, DNA evidence in court, and every Bayesian method you ever meet.
+So before you read on, take a guess. Given that slip in your hand, what is the chance you actually have the condition?
 
-Here is the whole answer in one picture. Imagine 10,000 people taking Meera's test on the same morning, split first by who genuinely has the disease and then by what the test said about each of them.
+Almost everybody guesses high. The honest answer is closer to 9%.
 
-By the end you will be able to:
+Here is the whole puzzle in one picture. Line up 100,000 people, send every one of them through the same test, and they end up in four groups. Fill in those four question marks and the answer falls straight out.
 
-- Say what the word "given" does to a probability, and work one out by hand
-- Get Meera's real answer three ways: by counting people, by formula, and by simulation
-- Tell apart the two questions everybody mixes up, how often the test is right and how often a positive result is right
-- Redo the whole calculation in R for any disease and any test, and say which number is doing the work
-- Spot the same arithmetic in a spam filter and a fraud alert, and name what has to be true for it to hold
+::widget tree-diagram {"root": "100,000 tested", "l": "100 have it", "r": "99,900 do not", "leaves": ["? test +", "? test -", "? test +", "? test -"]}
 
-**What you need first:** you can read a simple R script, so a variable, a function call and a comparison are familiar sights. No statistics is assumed at all. Everything else gets built here from nothing.
-
-::widget tree-diagram {"root":"has the disease?","l":"10 sick","r":"9,990 well","leaves":["10 flagged","0 missed","100 flagged","9,890 clear"]}
+Filling them in is all that conditional probability is. By the end of this you will be able to do it for any test, on paper or in your head, and you will recognise the same trick sitting inside spam filters, fraud alerts and every Bayesian method you ever meet.
 
 === step === concept
-::eyebrow Reading the letter
-## Two sentences, four numbers
 
-Before any arithmetic, notice that the letter has quietly handed Meera two completely different kinds of fact, and telling them apart is most of the battle.
+## 99% accurate, but 99% of whom?
 
-The first is how common the disease is: about 1 person in 1,000. That number has nothing to do with Meera, or with her result, or with any test at all. It describes the crowd she came from before anybody tested anything, and it is called the **base rate**, or sometimes the prevalence. Written as a probability it is 1/1000, which is 0.001. Probability here means nothing more exotic than a share of a group, so 0.001 is simply the fraction of the crowd that the sentence is true of.
+::prose-only the move here is a question about what a sentence means, not something that can be drawn; the two rival readings are set side by side in the callout
 
-The second fact is how good the test is, and this is where "99% accurate" gets sneaky, because a test can be wrong in two separate ways and a single number cannot describe both. It can miss somebody who really is ill, and it can raise the alarm on somebody who is perfectly fine. Those two mistakes are counted separately and they have their own names.
+Go back to the sentence that frightened you. The test is 99% accurate.
 
-| The number | What it promises | Value here |
-|---|---|---|
-| Base rate | of everyone tested, this share genuinely has the disease | 1 in 1,000 |
-| Sensitivity | of the people who DO have it, this share gets flagged | 99 in 100 |
-| Specificity | of the people who do NOT have it, this share gets cleared | 99 in 100 |
-| False alarm rate | of the people who do NOT have it, this share gets flagged anyway | 1 in 100 |
+Read it slowly and you will notice something missing. It never says what the 99% is a share **of**. Ninety nine percent of whom?
 
-That last row is not a fourth promise, it is specificity read backwards: if 99 in 100 healthy people are cleared, then the 1 in 100 left over is flagged by mistake. Keep your eye on it, because it turns out to be the villain of the whole story.
+There are two completely different groups it could mean.
 
-[NOTE]
-A letter that says "99% accurate" without saying which kind of accuracy it means is being careless, and it is fair to ask. Meera's is read here in the friendliest possible way, with both promises sitting at 99%, which only makes what happens next more surprising.
+It could mean: of the people who have the condition, 99 out of every 100 get a positive slip. That is a claim about sick people.
 
-=== step === concept
-::eyebrow The trick that makes it obvious
-## Turn the percentages into people
+Or it could mean: of the people holding a positive slip, 99 out of every 100 have the condition. That is a claim about people like you, standing outside the tent with a piece of paper.
 
-Percentages are slippery to reason with. People are not. So rather than juggling 0.001 and 0.99 in your head, picture a specific crowd: 10,000 people, all in Meera's situation, all taking the same test on the same morning.
-
-Why 10,000 rather than 1,000? Purely because it keeps the numbers tidy. A disease that hits 1 person in 1,000 hits 10 people in 10,000, and ten whole people are much easier to hold in your head than one tenth of a person.
-
-```r
-people <- 10000
-prevalence <- 1 / 1000
-
-sick    <- people * prevalence
-healthy <- people - sick
-
-c(sick = sick, healthy = healthy)
-#>    sick healthy 
-#>      10    9990 
-```
-
-If you have not met `c()` before, it glues values together into one labelled row so they print side by side, and writing `sick = sick` simply asks R to print the label `sick` above the value. Nothing statistical is happening yet. Ten people in this crowd have the disease and 9,990 do not.
-
-Now let the test loose on both groups. Sensitivity says 99 of every 100 sick people get flagged, so multiply the sick by 0.99. The false alarm rate says 1 of every 100 healthy people gets flagged anyway, so multiply the healthy by 0.01, which is `1 - specificity`.
-
-```r
-sensitivity <- 0.99   # of the sick, the share the test flags
-specificity <- 0.99   # of the well, the share the test clears
-
-true_positives  <- sick * sensitivity
-false_positives <- healthy * (1 - specificity)
-
-c(true_positives = true_positives, false_positives = false_positives)
-#>  true_positives false_positives 
-#>             9.9            99.9 
-```
-
-There it is, and it is worth staring at for a moment. The test does its job on the sick group almost perfectly, catching 9.9 of the 10 people who are genuinely ill. Meanwhile that harmless sounding 1% error rate, applied to a group of 9,990 healthy people, manufactures 99.9 false alarms.
-
-You cannot meet 9.9 people, of course. A decimal turns up because this is what happens on average across many mornings like this one, and keeping the decimals means nothing gets lost to rounding. The tree below rounds them to 10 and 100 so the picture stays readable, and the arithmetic from here on keeps the exact values.
-
-::widget tree-diagram {"root":"has the disease?","l":"10 sick","r":"9,990 well","leaves":["10 flagged","0 missed","100 flagged","9,890 clear"]}
-
-=== step === concept
-::eyebrow The answer
-## Meera is one of 109.8 flagged people
-
-Meera knows one thing about herself that morning: she got flagged. So the only people who are relevant to her question are the other people who also got flagged, and there are two very different groups of them.
-
-```r
-all_positives <- true_positives + false_positives
-all_positives
-#> [1] 109.8
-
-true_positives / all_positives
-#> [1] 0.09016393
-```
-
-The `[1]` at the start of each output line is only R keeping count for you, saying that the line begins with the first value, so read straight past it.
-
-About 110 people walk out of that clinic with a positive result. Not quite 10 of them are genuinely ill, and about 100 of them are healthy people who have just been handed a fright. Meera is somewhere in that group of 110 and has no way of knowing which part she is in, so her chance of being one of the sick ones is 9.9 out of 109.8, which comes to 0.0902, or a bit over 9%.
-
-The email that brought you here put it as a ratio, and now you can see exactly where that ratio comes from: for every one genuinely sick person the test finds, it frightens about ten healthy ones.
+The first one is what the manufacturer measures in a lab and prints on the box. The second one is the only thing you care about. They are two different numbers, and shortly you will see that one of them is 99% and the other is 9%.
 
 [KEY INSIGHT]
-The test is excellent at its job and the answer is still 9%, because a 1% mistake rate applied to a very large healthy group produces more false alarms than there are sick people in the entire crowd.
+A percentage on its own means nothing until you say which group it is a share of. "99% accurate" is measured on sick people and on healthy people, separately. Your question is about a third group entirely: the people in the positive queue.
+
+That is the whole lesson in one move. Name the group, then count it.
+
+=== step === concept
+
+## What does "given" actually mean?
+
+"Given" is the plainest word in statistics and it does exactly one thing. It throws people away.
+
+When somebody says "given you tested positive", they are telling you to walk back into that room of 100,000 people, send home everybody whose slip said negative, and look only at who is left standing. Whatever share of that smaller room has the condition, that is your answer.
+
+So this is not algebra. It is counting. Let us build the room.
+
+```r
+n_people    <- 100000   # everyone who walks through the camp
+prevalence  <- 0.001    # 1 person in 1,000 truly has the condition
+sensitivity <- 0.99     # of those who have it, 99 in 100 test positive
+specificity <- 0.99     # of those who do not, 99 in 100 test negative
+
+has_it   <- n_people * prevalence   # 100 people
+does_not <- n_people - has_it       # 99,900 people
+
+true_positive  <- has_it * sensitivity           # has it, slip says positive
+false_negative <- has_it - true_positive         # has it, slip says negative
+false_positive <- does_not * (1 - specificity)   # healthy, slip says positive
+true_negative  <- does_not - false_positive      # healthy, slip says negative
+
+town <- matrix(c(true_positive,  false_negative,
+                 false_positive, true_negative),
+               nrow = 2, byrow = TRUE,
+               dimnames = list(c("has it", "does not"),
+                               c("test +", "test -")))
+town
+#>          test + test -
+#> has it       99      1
+#> does not    999  98901
+```
+
+Four numbers went in and four groups of people came out. Nothing here is a probability yet. These are head counts of a hundred thousand bodies, and every one of them is a whole person.
+
+Read the table once, row by row. Of the 100 people who genuinely have the condition, 99 got a positive slip and 1 got a negative one. Of the 99,900 who are perfectly healthy, 999 got a positive slip anyway and 98,901 were correctly cleared.
+
+Your slip says positive. So the room you belong to is the first column, and only the first column.
+
+=== step === concept
+
+## How do you write that down?
+
+Nobody wants to keep writing "the share of the people in the positive queue who actually have the condition", so statisticians shortened it to this:
+
+\[ P(A \mid B) \]
+
+Say it out loud as "the probability of A, given B". That vertical bar is not doing anything clever. It is just the word "given".
+
+Two jobs, and they are not interchangeable:
+
+- **B is the group you are standing in.** It is the thing you already know is true. Here, B is "the slip says positive".
+- **A is the thing you want to know about yourself.** Here, A is "I have the condition".
+
+So your question, written down, is \(P(\text{has it} \mid \text{test} +)\). Both pieces are sitting in the table already.
+
+```r
+in_the_positive_queue <- sum(town[, "test +"])   # B: everyone whose slip says positive
+in_the_positive_queue
+#> [1] 1098
+
+sick_and_in_the_queue <- town["has it", "test +"]   # A and B together
+sick_and_in_the_queue
+#> [1] 99
+```
+
+One thousand and ninety eight people walked out of that tent holding the same slip you are holding. Ninety nine of them have the condition.
+
+You can probably already feel where this is going.
 
 === step === quiz
-::eyebrow Check yourself
-## Where the 9% comes from
 
-The test is right 99 times out of 100 in both directions, and yet a positive result still leaves Meera roughly 91% likely to be perfectly healthy. Which sentence explains that best?
+## Which probability does your slip actually ask for?
 
-::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
-- The test is not accurate enough to be worth taking
-- Almost everyone tested is healthy, so a small error rate applied to that huge group produces far more false alarms than there are sick people to find ::ok Exactly. The 1% is small, but 1% of 9,990 healthy people is 99.9 false alarms, while the entire sick group only had 10 people in it to begin with. Size beats accuracy here.
-- The 1% error rate gets applied twice, once to each group, so the errors double
-- The test misses nine out of every ten people who really are sick ::no Not quite, and it is worth being precise about why. The test is genuinely accurate, and it caught 9.9 of the 10 sick people rather than missing nine of them, so it is not failing on the sick group at all. Nothing gets doubled either. The whole effect comes from the two group sizes: 1% of a 9,990-person crowd is simply a bigger number than 99% of a 10-person one.
+You are outside the tent with a positive result in your hand and one question on your mind: how worried should I be?
 
-=== step === concept
-::eyebrow The move you just made
-## Conditioning means throwing rows away
+Four quantities are floating around this problem. Only one of them answers that question.
 
-Look back at what you actually did. You started with 10,000 people, you ignored everybody whose test came back negative, and then you asked what fraction of the people left over had the disease. That two step move, restrict the crowd and then re-count, is the whole of conditional probability.
-
-The words for it are "given". P(disease **given** a positive test) means: among only the people who tested positive, what share have the disease? The condition is not a fact about the disease and it does not change anybody's health. It changes who you are allowed to count.
-
-The counts you built fit in four rows, one for each combination of truth and test result. Press "Show what changed" to condition on a positive test and watch two of those rows get struck out, because those are the 9,890 people you have just stopped counting.
-
-::widget table-transform {"code":"df %>% filter(test == \"positive\")","caption":"Conditioning on a positive result keeps only the rows where the test said positive. The struck-out rows are the people you have stopped counting, and they never come back into the arithmetic.","before":{"cols":["disease","test","people"],"rows":[["yes","positive",10],["yes","negative",0],["no","positive",100],["no","negative",9890]]},"after":{"cols":["disease","test","people"],"rows":[["yes","positive",10],["no","positive",100]]}}
-
-The two rows that survive are the entire universe of Meera's question, and 10 out of the 110 people in them are ill. The rounded counts in the picture give 9.1%, and the exact ones you computed give 9.02%, which is the same story told to one more decimal place.
-
-[KEY INSIGHT]
-Conditioning does not change any probability. It changes the denominator, by shrinking the group you are counting inside.
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- P(test says positive, given you have the condition)
+- P(you have the condition, given the test says positive) ::ok Exactly. You already know B, that the slip says positive. A, whether you have the condition, is the unknown. So you want the share of the positive queue that is genuinely sick.
+- P(you have the condition)
+- P(the test gives the right answer) ::no Every one of these is a real number in this problem, but only one is a share of the group you are actually standing in. You already know your slip says positive, so that is your B. What you do not know is whether you have the condition, so that is your A. Anything conditioned the other way round, or not conditioned at all, is answering somebody else's question.
 
 === step === concept
-::eyebrow The formalism
-## The formula, symbol by symbol
 
-Everything so far has been counting, and counting is the honest version. The formula is just that counting written compactly, and it looks like this.
+## Who is actually standing in the positive queue?
+
+Now put the counts back into the picture and look at what happened.
+
+::widget tree-diagram {"root": "100,000 tested", "l": "100 have it", "r": "99,900 do not", "leaves": ["99 test +", "1 test -", "999 test +", "98,901 test -"]}
+
+Follow the left side first. Of the 100 people who have the condition, the test catches 99 and misses 1. That is the test doing its job well.
+
+Now follow the right side, because this is where the puzzle lives. Of the 99,900 healthy people, the test correctly clears 98,901 of them. But it wrongly alarms 999.
+
+Sit with that number for a second. Nine hundred and ninety nine perfectly healthy people were handed the same slip you are holding. They walked out of the same tent, just as frightened as you are, and there is nothing wrong with any of them.
+
+Hold those two numbers side by side. The test found 99 of the sick people, and it flagged 999 of the healthy ones. Both of those came out of the same test, the one that is right 99 times in 100, and it is worth a moment working out how before you read on.
+
+So the queue at the follow-up desk is roughly ten frightened healthy people for every one genuinely sick person the test found.
+
+=== step === concept
+
+## So how worried should you be?
+
+Everything is on the table now. You are one of the people in that first column, and you want to know what share of that column is genuinely ill.
+
+```r
+positive_slips <- sum(town[, "test +"])
+positive_slips
+#> [1] 1098
+
+chance_you_are_sick <- town["has it", "test +"] / positive_slips
+round(chance_you_are_sick, 4)
+#> [1] 0.0902
+```
+
+Nine percent.
+
+Not the 99% you were braced for. Out of every 100 people standing where you are standing, about 9 have the condition and about 91 are completely fine and will find that out at the follow-up appointment.
+
+That is not a reason to ignore the slip. Nine percent is roughly ninety times your starting risk of 0.1%, so of course you go back for a second test. It is a reason not to spend tonight assuming the worst.
+
+=== step === quiz
+
+## Why do the false positives win?
+
+The test gets 99 out of every 100 calls right, and yet nine tenths of the people it flags are healthy. Both of those are true at the same time.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- The test is simply a bad test.
+- Because 1% of a very large healthy group is more people than 99% of a very small sick group. ::ok That is it. 1% of 99,900 is 999 people; 99% of 100 is 99 people. The error rate is small, but it is charged against a group a thousand times bigger.
+- Because 1% is a rounding error and can be ignored.
+- Because the 99% and the 1% cancel each other out. ::no The two percentages are not applied to the same group, so they cannot be compared, cancelled or ignored. The 99% is charged against the 100 people who have the condition. The 1% is charged against the 99,900 who do not. What ends up in the queue is 99 people from one group and 999 from the other, and the size of those two groups is what decides the answer.
+
+=== step === concept
+
+## Is there a formula, and does it say the same thing?
+
+You have done the whole calculation without a formula. Now here is the formula, so that when you meet it in a textbook you recognise it as something you already know how to do:
 
 \[ P(A \mid B) = \frac{P(A \text{ and } B)}{P(B)} \]
 
-Read the pieces one at a time, because every symbol earns its place.
+In words: take the people who are both A and B, and divide by everybody who is B. The top is the sliver of the room you care about. The bottom is the room that is left after the condition threw everyone else out.
 
-`A` is the thing you want to know about, here "this person has the disease". `B` is the thing you already know, here "this person tested positive". The vertical bar is read as the word "given", so the left hand side says the probability of A given B. `P(A and B)` is the probability that both are true of somebody picked at random out of the original 10,000, so it is the sick-and-flagged group as a share of everybody. `P(B)` is the probability that a random person out of the 10,000 gets flagged at all, whether they are ill or not.
-
-Both of the pieces on the right are shares of the same original crowd, which is why the division works: dividing by `P(B)` is exactly the act of shrinking the world down to the people who tested positive.
+That is exactly the division you just did, only written as shares of the town instead of head counts.
 
 ```r
-p_disease_and_positive <- true_positives / people
-p_positive             <- all_positives / people
+p_sick_and_positive <- town["has it", "test +"] / n_people   # A and B
+p_positive          <- sum(town[, "test +"]) / n_people      # B
 
-c(p_disease_and_positive = p_disease_and_positive, p_positive = p_positive)
-#> p_disease_and_positive             p_positive 
-#>                0.00099                0.01098 
+c(p_sick_and_positive = p_sick_and_positive, p_positive = p_positive)
+#> p_sick_and_positive          p_positive
+#>             0.00099             0.01098
 
-p_disease_and_positive / p_positive
+p_sick_and_positive / p_positive
 #> [1] 0.09016393
 ```
 
-The same 0.09016393 as before, which is reassuring rather than surprising, since the formula is doing precisely what you did by hand. Notice how tiny both numbers on top and bottom are on their own. Roughly 1 person in 1,000 is both ill and flagged, and roughly 11 people in 1,000 are flagged at all. It is the ratio between two small numbers that carries the meaning, not either one alone.
+Same 9%. Dividing 99 by 1,098 and dividing 0.00099 by 0.01098 are the same sum, because the 100,000 cancels top and bottom. The formula is not a second method. It is the counting you already did, written short.
 
-=== step === tryit
-::eyebrow Your turn
-## What a negative result would have meant
-
-Meera got the frightening letter, but her colleague sitting two desks away took the same test and was cleared. How reassured should he be?
-
-Same move as before. Restrict the crowd to everyone who tested negative, then ask what share of them is nonetheless ill. Two groups end up in that crowd: the sick people the test missed, and the healthy people it correctly cleared. Both counts are already computed for you below, so the only thing left is the denominator, which has to be everybody who tested negative. Fill in the blank and press Check, keeping brackets around anything you add together.
+Since we are going to change the numbers a few times, let us wrap the whole thing in one small function.
 
 ```r
-false_negatives <- sick * (1 - sensitivity)   # sick people the test missed
-true_negatives  <- healthy * specificity      # well people the test cleared
-
-false_negatives / ____
-```
-::check {"regex":"\\(\\s*(false_negatives\\s*\\+\\s*true_negatives|true_negatives\\s*\\+\\s*false_negatives)\\s*\\)","gate":true,"difficulty":"beginner","ok":"That is it. The answer comes out at 0.0000101, which is about 1 in 100,000, so a negative result on this test is genuinely excellent news even though a positive one told you almost nothing.","no":"The denominator has to be everybody who tested negative, which is both groups added together. Keep the brackets around them, because without brackets R does the division first and adds afterwards, which gives a completely different number: (false_negatives + true_negatives)."}
-::solution
-```r
-false_negatives <- sick * (1 - sensitivity)
-true_negatives  <- healthy * specificity
-
-false_negatives / (false_negatives + true_negatives)
-#> [1] 1.011102e-05
-```
-
-That output is R's shorthand for a very small number: `1.011102e-05` means 1.011102 divided by 100,000, or 0.00001011102. Call it 1 in 100,000.
-
-Sit the two results side by side, because they are the same test on the same morning. A positive result moves Meera from 1 in 1,000 to about 1 in 11. A negative result moves her colleague from 1 in 1,000 down to about 1 in 100,000. The identical test is enormously informative in one direction and nearly useless in the other, purely because of how few sick people there were to find.
-
-=== step === concept
-::eyebrow The classic mistake
-## The two questions everybody swaps
-
-There are two sentences in play here, they differ by four words, and confusing them is probably the single most expensive mistake in applied probability.
-
-- P(flagged **given** sick) is 0.99. Of the people who have the disease, 99% get flagged. This is the test's promise, measured in a lab on people whose status was already known.
-- P(sick **given** flagged) is 0.09. Of the people who got flagged, 9% have the disease. This is Meera's question, and the answer depends on how many sick people there were in the crowd in the first place.
-
-Both are conditional probabilities. They condition on opposite things, and swapping one for the other is called the inverse fallacy, or in a courtroom, the prosecutor's fallacy. It is the exact move behind "the DNA match has a one in a million error rate, therefore there is only a one in a million chance the defendant is innocent", and it has put people in prison.
-
-The tree makes the difference visible if you read it in two directions. Going downwards, you start at "has the disease?", take the left branch to the 10 sick people, and see that essentially all of them get flagged, 9.9 before the picture rounds it. That is the 99%, and it lives entirely inside the left half of the tree. Going along the bottom instead, you gather up every flagged person wherever they came from, which means 10 from the left plus 100 from the right, and ask what share of that pile is sick. That is Meera's 9%, and it only exists because you allowed both halves of the tree to contribute.
-
-::widget tree-diagram {"root":"has the disease?","l":"10 sick","r":"9,990 well","leaves":["10 flagged","0 missed","100 flagged","9,890 clear"]}
-
-=== step === quiz
-::eyebrow Check yourself
-## Which sentence is the 99%?
-
-Meera's letter says the test is 99% accurate. Which of these does that 99% actually describe?
-
-::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- The chance that Meera has the disease, now that she has tested positive
-- The chance that a positive result from this test is correct, whoever takes it
-- Of the people who genuinely have the disease, the share that this test flags ::ok Right, and notice that the sentence never mentions Meera. It is a fact about the test measured on people whose status was already known, so it can be true no matter how rare or common the disease is. Her question runs the other way round and needs the base rate before it can be answered at all.
-- The share of all tests, positive and negative, that come back with the right answer ::no The first two turn the 99% into a claim about a result rather than about the test, and the last one is a different measure altogether: an overall right-answer rate blends the sick and the healthy into a single figure, which hides which of the two mistakes it is talking about. The 99% was measured on people already known to be ill, so it says what the test does to them. What a positive result means for the person holding it depends on how many healthy people were tested alongside them, which is why the same 99% test gives 9% here and would give something completely different in a hospital ward full of symptomatic patients.
-
-=== step === concept
-::eyebrow The famous formula
-## Bayes' theorem is these two sentences rearranged
-
-You now have everything needed to derive Bayes' theorem, and it takes two lines, because the theorem is not a new idea. It is the definition you already have, written twice and set equal to itself.
-
-The definition of conditioning, rearranged so the joint probability is on its own, says the chance of both A and B is the chance of B times the chance of A once B has happened.
-
-\[ P(A \text{ and } B) = P(A \mid B) \, P(B) \]
-
-Nothing stops you telling the same story in the other order, since "both happened" does not care which one you mention first.
-
-\[ P(A \text{ and } B) = P(B \mid A) \, P(A) \]
-
-Two expressions for the same quantity have to be equal, so set them equal and divide both sides by `P(B)`. That is Bayes' theorem.
-
-\[ P(A \mid B) = \frac{P(B \mid A) \, P(A)}{P(B)} \]
-
-Every piece has a name worth knowing, because you will meet these words everywhere. `P(A)` is the **prior**, what you believed before the evidence arrived, which here is the base rate of 0.001. `P(B given A)` is the **likelihood**, how readily the evidence appears when A is true, which here is the sensitivity of 0.99. `P(B)` is the **evidence**, how often the evidence appears at all, counting every way it can happen. And `P(A given B)` is the **posterior**, your updated belief.
-
-The only piece that takes any work is the evidence on the bottom, because a positive test can arrive by two different routes: from a sick person the test caught, or from a healthy person it flagged by mistake. Add both routes.
-
-```r
-prior      <- 1 / 1000
-likelihood <- sensitivity
-evidence   <- sensitivity * prior + (1 - specificity) * (1 - prior)
-
-c(prior = prior, likelihood = likelihood, evidence = evidence)
-#>      prior likelihood   evidence 
-#>    0.00100    0.99000    0.01098 
-
-(likelihood * prior) / evidence
-#> [1] 0.09016393
-```
-
-The same 0.09016393 for the third time. If the formula feels abstract, remember that `evidence` is 0.01098, which is 109.8 people out of 10,000, and you have already met all 109.8 of them.
-
-=== step === concept
-::eyebrow Make it reusable
-## One function, any disease, any test
-
-Meera's numbers are not special, so it is worth packaging the calculation once and then feeding it anything.
-
-Written out in full, with a line per idea and nothing clever going on, it looks like this. It works with shares of one crowd rather than counts of people, so a prevalence of 0.001 means the sick share is 0.001 and the healthy share is the remaining 0.999.
-
-```r
-chance_it_is_real <- function(prevalence, sensitivity, specificity) {
-  share_sick    <- prevalence
-  share_healthy <- 1 - prevalence
-
-  true_positive_share  <- share_sick * sensitivity
-  false_positive_share <- share_healthy * (1 - specificity)
-
-  true_positive_share / (true_positive_share + false_positive_share)
+chance_given_positive <- function(prevalence, sensitivity, specificity) {
+  sick_and_positive    <- prevalence * sensitivity
+  healthy_and_positive <- (1 - prevalence) * (1 - specificity)
+  sick_and_positive / (sick_and_positive + healthy_and_positive)
 }
 
-chance_it_is_real(1 / 1000, 0.99, 0.99)
+chance_given_positive(0.001, 0.99, 0.99)
 #> [1] 0.09016393
 ```
 
-The body is the same four lines you have run three times already, with `people <- 10000` dropped because the crowd size cancels out of the division. Ten people out of 10,000 and one person out of 1,000 give the same answer, which is why the choice of 10,000 earlier was purely for readability.
-
-Now that it takes arguments you can ask it questions the letter never answered. What if the lab tightened the test so that only 1 healthy person in 1,000 is flagged by mistake, rather than 1 in 100?
-
-```r
-chance_it_is_real(1 / 1000, 0.99, 0.999)
-#> [1] 0.4977376
-```
-
-A positive result now means roughly a coin flip rather than a 9% worry, and notice what changed to buy that. The sensitivity stayed at 0.99 throughout, so the improvement came entirely from making fewer mistakes on healthy people. When the disease is rare, the specificity is the number that matters and the sensitivity is nearly a spectator.
-
-=== step === concept
-::eyebrow The thing that really decides it
-## The base rate does almost all the work
-
-Since the function takes any prevalence, feed it a range of them and watch what the same 99% test does across different crowds. `sapply()` here just means "run this function once for every value in the vector and collect the answers".
-
-```r
-sick_per_1000 <- c(1, 2, 5, 10, 20, 50, 100)
-chances <- sapply(sick_per_1000 / 1000, chance_it_is_real,
-                  sensitivity = 0.99, specificity = 0.99)
-
-data.frame(sick_per_1000, chance_percent = round(100 * chances, 1))
-#>   sick_per_1000 chance_percent
-#> 1             1            9.0
-#> 2             2           16.6
-#> 3             5           33.2
-#> 4            10           50.0
-#> 5            20           66.9
-#> 6            50           83.9
-#> 7           100           91.7
-```
-
-One test, one accuracy, and the meaning of a positive result runs all the way from 9% to 92% depending on nothing but who was in the room. Look at the row where 10 people in 1,000 are sick, which is a 1% base rate: with a 99% test that lands on exactly 50.0%, a perfect coin flip, and it is a handy landmark to carry around. Whenever a test is equally good in both directions and its error rate matches the base rate, a positive result is worth precisely one coin toss, whatever that shared number happens to be.
-
-This is also why the same test can be honest in one place and useless in another. Used on a ward full of people with symptoms, where perhaps 10% genuinely have the disease, a positive result means 91.7% and doctors act on it. Used on 10,000 people who feel fine, the identical test means 9% and mostly generates frightening letters.
-
-::widget chart-plotter {"data":[{"x":1,"y":9},{"x":2,"y":16.6},{"x":5,"y":33.2},{"x":10,"y":50},{"x":20,"y":66.9},{"x":50,"y":83.9},{"x":100,"y":91.7}],"geoms":["line","point"],"x":"sick_per_1000","y":"chance_percent"}
-
 === step === tryit
-::eyebrow Your turn
-## A different clinic, different numbers
 
-Somewhere else entirely, a clinic screens for a condition that affects 1 person in 200, using a test that is right 95 times in 100 in both directions. Somebody has just tested positive.
+## What if the condition were ten times commoner?
 
-Before you run anything, guess. The disease is five times commoner than Meera's, but the test is a lot sloppier, so which effect wins? Fill in the prevalence and press Check to find out.
+Keep the exact same test, with its 99% both ways. Change only how common the condition is: instead of 1 person in 1,000, make it 1 person in 100.
+
+Before you run it, guess. Ten times more sick people in the town, so does the answer go up roughly ten times too, to about 90%?
+
+Edit the prevalence in the line below from 0.001 to 0.01 and press Check.
 
 ```r
-chance_it_is_real(____, 0.95, 0.95)
+round(chance_given_positive(0.001, 0.99, 0.99), 4)
 ```
-::check {"regex":"(1\\s*/\\s*200|0\\.005)","gate":true,"difficulty":"intermediate","ok":"About 0.087, so roughly 9% again, which is almost exactly where Meera landed. A commoner disease pushed the answer up and a sloppier test pulled it back down by about the same amount, and the two effects happened to cancel.","no":"A rate of 1 person in 200 written as a number for R is 1 / 200, which you could also type as 0.005."}
+
+::check {"regex": "chance_given_positive\\s*[(]\\s*0\\.01\\s*,", "gate": true, "difficulty": "beginner", "ok": "Right. It lands on exactly 0.5. Ten times commoner, and the answer went from 9% to a coin flip.", "no": "Change only the first number inside the brackets, the prevalence, from 0.001 to 0.01. Leave the two 0.99s alone, because the test itself has not changed."}
+
 ::solution
+
 ```r
-chance_it_is_real(1 / 200, 0.95, 0.95)
-#> [1] 0.08715596
+round(chance_given_positive(0.01, 0.99, 0.99), 4)
+#> [1] 0.5
 ```
 
-Worth noticing how easily that would have been misread in the room. The disease being five times commoner sounds like it ought to make a positive result far more believable, and the test losing four percentage points of accuracy sounds minor. In fact the second effect quietly swallowed the first, because with 199 healthy people for every sick one, moving the false alarm rate from 1 in 100 to 5 in 100 lets through five times as many frightened healthy people.
+Exactly 0.5. Out of 100,000 people there are now 1,000 sick ones, of whom the test catches 990, and 99,000 healthy ones, of whom it wrongly alarms 990. Nine hundred and ninety against nine hundred and ninety. A positive slip has become a pure coin flip.
+
+Nothing about the test changed. Only the crowd it was pointed at.
 
 === step === concept
-::eyebrow Do not take my word for it
-## Simulate 200,000 people and count
 
-Every number so far came out of arithmetic, and arithmetic can be done wrong. So build the crowd for real, one simulated person at a time, and count what actually happens to them.
+## What happens if you turn the bar around?
 
-`set.seed(2026)` pins R's random number generator to a fixed starting point, so everything below is random but repeatable: run it yourself and you will get this exact table rather than something slightly different. `runif(n)` draws n random numbers spread evenly between 0 and 1, so `runif(n) < 1/1000` is TRUE for about one draw in a thousand, which is exactly how you toss a very lopsided coin 200,000 times. The `ifelse()` line then applies the right rule to each person: if they are sick, they get flagged with probability 0.99, and if they are well, they get flagged with probability 0.01.
+Both of these are true about the same test on the same day, and they are the two readings you separated right at the start:
 
 ```r
-set.seed(2026)
-n <- 200000
+p_positive_given_sick <- town["has it", "test +"] / sum(town["has it", ])
+p_sick_given_positive <- town["has it", "test +"] / sum(town[, "test +"])
 
-has_disease    <- runif(n) < 1 / 1000
-tests_positive <- ifelse(has_disease, runif(n) < 0.99, runif(n) < 0.01)
-
-table(has_disease, tests_positive)
-#>            tests_positive
-#> has_disease  FALSE   TRUE
-#>       FALSE 197854   1956
-#>       TRUE       2    188
+cat("P(test positive given you have it) =", round(p_positive_given_sick, 4), "\n")
+#> P(test positive given you have it) = 0.99
+cat("P(you have it given test positive) =", round(p_sick_given_positive, 4), "\n")
+#> P(you have it given test positive) = 0.0902
 ```
 
-That table is the four rows from earlier, built by simulation rather than by multiplication. Out of 200,000 simulated people, 190 turned out to be ill and 188 of them were flagged, while 1,956 perfectly healthy people were flagged as well. Now condition, which in code is a single pair of square brackets.
+Same table, same 99 people on top, and the answers are 99% and 9%.
 
-```r
-mean(has_disease[tests_positive])
-#> [1] 0.08768657
-```
+The only thing that changed is what sits underneath. In the first line we divided by the 100 people who have the condition. In the second we divided by the 1,098 people in the positive queue. Different group underneath, different answer.
 
-`has_disease[tests_positive]` keeps only the entries where `tests_positive` is TRUE, so it is the same "throw the other rows away" move as the struck-out table, done to a vector. Taking the `mean()` of TRUE and FALSE values gives the fraction that are TRUE, because R counts every TRUE as 1 and every FALSE as 0.
+Swapping the two sides of the bar is the most common mistake in all of statistics. It has a name, the confusion of the inverse, and the name is worth knowing because you will catch yourself doing it.
 
-The simulation says 8.77% and the exact arithmetic says 9.02%. The small gap is just the roughness of 200,000 people, since only about 2,100 of them ended up in the flagged group and small groups wobble. Run it with a different seed and it will wobble somewhere else, always around 9%.
+=== step === quiz
+
+## Which sentence has flipped the conditional?
+
+All four sentences below are about the screening programme you have been counting. Three of them are true. One has quietly swapped the two groups around.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- Of the people who have the condition, 99 in 100 will test positive.
+- Of the people who test positive, 99 in 100 have the condition. ::ok Caught it. That sentence takes the 99%, which is measured on the 100 people who have the condition, and quietly re-applies it to the 1,098 people in the positive queue. The true figure for that queue is about 9 in 100.
+- Of the people who do not have the condition, 1 in 100 will still test positive.
+- Of the people who test positive, about 9 in 100 have the condition. ::no Read each sentence as "of the people who are X, what share are Y", then check the group X against the table. Three of these describe a group you can point at in the counts and a share that really does match it. One takes a share measured on one group and pins it on a completely different group.
 
 === step === concept
-::eyebrow A word you will need next
-## Independence: when conditioning changes nothing
 
-Every conditional probability so far has moved. Knowing the test was positive dragged Meera's chance from 0.001 up to 0.09, and knowing it was negative dragged her colleague's down to 0.00001. Sometimes conditioning moves nothing at all, and that case has a name you will need in a moment.
+## What does a negative result tell you?
 
-Two events are **independent** when knowing one tells you nothing whatsoever about the other, which in symbols is
-
-\[ P(A \mid B) = P(A) \]
-
-and in words says the condition made no difference: restricting to the cases where B happened left the share of A exactly where it started.
-
-Dice make it obvious. Roll two of them a hundred thousand times, ask how often the first die shows a six, then ask the identical question again but only among the rolls where the second die showed a six.
+We have been hard on this test. So let us give it a fair hearing and ask the other question: what if your slip had said negative?
 
 ```r
-set.seed(42)
-die1 <- sample(1:6, 100000, replace = TRUE)
-die2 <- sample(1:6, 100000, replace = TRUE)
+negative_slips <- sum(town[, "test -"])
+negative_slips
+#> [1] 98902
 
-mean(die1 == 6)
-#> [1] 0.16458
+town["does not", "test -"]
+#> [1] 98901
 
-mean(die1[die2 == 6] == 6)
-#> [1] 0.1609477
+p_clear_given_negative <- town["does not", "test -"] / negative_slips
+round(p_clear_given_negative * 100, 3)
+#> [1] 99.999
 ```
 
-Both come out near 0.167, which is 1/6, and the sliver between them is the wobble of a finite number of rolls rather than a real effect. `die1[die2 == 6]` conditioned on the second die, threw away five sixths of the rolls, and the answer refused to budge. That is independence.
+Of the 98,902 people who got a negative slip, 98,901 are genuinely healthy. Exactly one person in that whole crowd was missed.
+
+So a negative result here is very close to a guarantee, at 99.999%.
 
 [NOTE]
-Independent is not the same as mutually exclusive, and the two get confused constantly. Rolling a 2 and rolling a 5 on one die cannot both happen, which makes them as dependent as two events can possibly be: learning that one occurred tells you the other definitely did not. Independent events happily happen together, they just carry no information about each other.
+This is the honest verdict on the test. It is not a bad test at all. It is a lopsided one. It is superb at ruling the condition out and poor at ruling it in, and that is exactly what you want from a first round screen: catch nearly everybody, then send the small flagged group on for something slower and more accurate.
 
 === step === concept
-::eyebrow The obvious next move
-## What a second positive test would do
 
-Meera does the sensible thing and asks for a retest. It comes back positive again. What now?
+## What is really driving the answer?
 
-Bayes handles this without any new machinery, because a posterior is just a belief, and a belief is what a prior is. Yesterday's answer becomes today's starting point: she walked into the first test as a 1-in-1,000 person and walked out as a 9%-chance person, so she walks into the second test as a 9%-chance person.
+Something in the try-it should be nagging at you. The test never changed. Its 99% and its 1% stayed exactly where they were. Yet the answer moved from 9% to 50%.
+
+So the answer was never really a property of the test. It was mostly a property of the crowd the test was pointed at, and that starting rate has a name: the base rate.
+
+Let us watch it move. Hold the test fixed and slide the base rate from very rare to fairly common.
 
 ```r
-after_one <- chance_it_is_real(1 / 1000, 0.99, 0.99)
-after_two <- chance_it_is_real(after_one, 0.99, 0.99)
+prevalence_grid <- seq(0.0001, 0.2, length.out = 400)
+posterior_curve <- chance_given_positive(prevalence_grid, 0.99, 0.99)
 
-round(c(after_one = after_one, after_two = after_two), 4)
-#> after_one after_two 
-#>    0.0902    0.9075 
+plot(prevalence_grid, posterior_curve, type = "l", lwd = 2, col = "#2563a8",
+     xlab = "how common the condition is",
+     ylab = "chance you have it, given a positive slip",
+     main = "One fixed 99% test, pointed at different crowds")
+abline(h = 0.5, lty = 2, col = "#677084")
+abline(v = 0.01, lty = 2, col = "#b5631a")
 ```
 
-From 9% to 91% on the strength of one more result, which is a bigger jump than most people expect. It happens because the second test is no longer working against a crowd of 9,990 healthy people. It is working against a crowd where roughly one person in eleven is genuinely ill, and in that crowd a 1% false alarm rate simply cannot manufacture enough noise to drown out the signal. The base rate did the damage the first time, and having been dragged upwards, it now works in her favour.
+The line climbs steeply out of the bottom left corner and then flattens off near the top. Where it crosses the halfway mark is worth remembering: that happens at a base rate of exactly 1%, which is this test's own false alarm rate.
 
-[WARNING]
-That 91% is only honest if the two tests can fail independently of each other, and often they cannot. If the retest ran on the same blood sample, or the same substance in her body cross-reacts with the test both times, then the second positive is partly a copy of the first rather than fresh evidence, and multiplying the belief up as if it were new information overstates the case. This is exactly why a good clinician retests with a different kind of test rather than the same one twice.
-
-=== step === quiz
-::eyebrow Check yourself
-## What the retest assumes
-
-Meera's second positive test lifted her from 9% to 91%. What has to be true for that 91% to be trustworthy?
-
-::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Nothing extra, since the arithmetic is the same as the first time
-- The second test has to be able to go wrong independently of the first, so its result is fresh evidence rather than a repeat of the same mistake ::ok Exactly. The calculation treats the second result as new information, and it only is new if whatever made the first test wrong does not automatically make the second one wrong too. Same sample, same cross-reaction, same faulty batch, and the second positive is mostly an echo.
-- The base rate has to be recalculated, because Meera is now known to be a positive tester
-- The two tests have to come back within a short time of each other ::no The arithmetic is not the issue and the timing is not either. The base rate genuinely does change, and correctly so, since her 9% is now the right starting point for the second test. What the calculation quietly assumes is independence between the two failures, and that assumption is doing real work: without it, a second positive from the same sample tells you far less than the numbers claim.
+That gives you a rule of thumb for tests built like this one. If the condition is rarer than the test's false alarm rate, a positive slip is more likely to be a false alarm than a real finding. Rarer than 1% here means most positives are noise. Commoner than 1% means most positives are real.
 
 === step === concept
-::eyebrow Somewhere with no doctors in it
-## The same arithmetic, wearing different clothes
 
-None of this reasoning is about medicine. Take an imaginary inbox of 1,000 emails where 300 are spam and 700 are genuine, and a spam filter with exactly one rule: does the email contain the word "invoice"?
+## When does knowing B change nothing at all?
 
-Made-up counts, chosen to be readable, but the arithmetic on them is the real thing.
+One more question to finish the idea off. Everything so far has been about a condition that moves the answer a lot. What about one that moves it not at all?
+
+Suppose we also note down the day of the week each person was tested. That day was decided by which morning they happened to be free, and a person's body knows nothing about the camp timetable. So knowing somebody was tested on a Monday should tell us precisely nothing about whether they are ill.
 
 ```r
-inbox <- data.frame(
-  kind         = c("spam", "spam", "real", "real"),
-  says_invoice = c("yes", "no", "yes", "no"),
-  emails       = c(180, 120, 40, 660)
-)
+set.seed(11)
+person_has_it <- c(rep(TRUE, 100), rep(FALSE, 99900))
+test_day <- sample(c("Mon", "Tue", "Wed", "Thu", "Fri"), 100000, replace = TRUE)
 
-inbox
-#>   kind says_invoice emails
-#> 1 spam          yes    180
-#> 2 spam           no    120
-#> 3 real          yes     40
-#> 4 real           no    660
+# how many in every 1,000, across everybody
+round(mean(person_has_it) * 1000, 2)
+#> [1] 1
+
+# how many in every 1,000, day by day
+round(tapply(person_has_it, test_day, mean) * 1000, 2)
+#>  Fri  Mon  Thu  Tue  Wed
+#> 1.00 0.99 1.11 0.80 1.10
 ```
 
-The base rate here is the share of the inbox that is spam before you read a single word, which is 300 out of 1,000, or 0.3. Now condition on the word, which is the same restrict-and-recount move you have made all lesson, this time written with square brackets on a data frame.
+One in a thousand overall, and about one in a thousand on every single day. The days wobble a little, because only 100 sick people are being split five ways and small counts are jumpy, but they wobble around the same place rather than moving to a new one.
+
+When knowing B leaves the answer where it already was, so that \(P(A \mid B) = P(A)\), we say A and B are **independent**. The day of your test is independent of your health. Your test result is emphatically not: it dragged the answer from 1 in 1,000 up to 90 in 1,000.
+
+That contrast is the whole point of conditioning. Some facts are worth knowing and some are not, and this is how you tell which is which.
+
+=== step === tryit
+
+## The second test is positive too. Now what?
+
+You go back for a second test. It is a genuinely fresh test, not a rerun of the same sample, and it is just as accurate: 99% both ways.
+
+It also comes back positive.
+
+Here is the move that makes this easy. You are no longer a random person off the street with a 1-in-1,000 risk. You are a person who has already tested positive once, so your starting rate going into the second test is 9%, not 0.1%. Today's answer becomes tomorrow's base rate.
+
+Feed first_answer in where the prevalence used to be, then press Check.
 
 ```r
-with_invoice <- inbox[inbox$says_invoice == "yes", ]
-with_invoice
-#>   kind says_invoice emails
-#> 1 spam          yes    180
-#> 3 real          yes     40
+first_answer <- chance_given_positive(0.001, 0.99, 0.99)
+round(first_answer, 4)
+#> [1] 0.0902
 
-sum(with_invoice$emails[with_invoice$kind == "spam"]) / sum(with_invoice$emails)
-#> [1] 0.8181818
+round(chance_given_positive(0.001, 0.99, 0.99), 4)
 ```
 
-`inbox[inbox$says_invoice == "yes", ]` keeps the rows where the word appears and drops the rest, and the comma with nothing after it says "keep all the columns". The row numbers 1 and 3 that R prints are a small giveaway that rows 2 and 4 have been thrown away, which is conditioning leaving its fingerprints.
+::check {"regex": "chance_given_positive\\s*[(]\\s*first_answer\\s*,", "gate": true, "difficulty": "intermediate", "ok": "That is it. 0.9075, so about 91%. Two positives on a 99% test take you from 0.1% to 9% to 91%.", "no": "In the last line, replace the prevalence 0.001 with first_answer, and leave the two 0.99s alone. You are pointing the same test at a new crowd: people who have already tested positive once."}
 
-Seeing the word "invoice" takes an email from a 30% chance of being spam to an 82% chance. Meera's letter did the same job starting from far lower down, taking her from 0.1% to 9%, and both are the same calculation: a prior, a piece of evidence, and a posterior that lands wherever the two of them together put it.
+::solution
 
-::widget table-transform {"code":"df %>% filter(says_invoice == \"yes\")","caption":"The filter keeps the emails containing the word and strikes out the rest, which is the same conditioning move as the medical table, on a completely different subject.","before":{"cols":["kind","says_invoice","emails"],"rows":[["spam","yes",180],["spam","no",120],["real","yes",40],["real","no",660]]},"after":{"cols":["kind","says_invoice","emails"],"rows":[["spam","yes",180],["real","yes",40]]}}
+```r
+first_answer <- chance_given_positive(0.001, 0.99, 0.99)
+round(chance_given_positive(first_answer, 0.99, 0.99), 4)
+#> [1] 0.9075
+```
 
-=== step === concept
-::eyebrow Honesty
-## Where this calculation quietly breaks
+About 91%. Now the slip means what you originally feared it meant.
 
-Everything above rests on assumptions that are easy to hold and easy to lose. Four are worth carrying with you.
-
-- **The base rate has to be the right one for this person.** 1 in 1,000 is the rate among everybody screened. If Meera had symptoms, or a family history, or belonged to a group where the disease is commoner, her honest starting point would be higher than 1 in 1,000 and the answer would climb accordingly, exactly as the table of prevalences showed. Choosing the base rate is a judgement, not a lookup, and it is where most real arguments happen.
-- **Sensitivity and specificity are estimates, and often flattering ones.** They come from studies, and those studies frequently measure the test on people who are clearly ill and people who are clearly well, which is the easiest possible exam. Out in a screening clinic, with early or borderline cases, real accuracy tends to be lower than the brochure.
-- **Repeated tests are rarely independent.** The 91% from a second positive assumed two genuinely separate chances to be wrong, and same-sample retests do not deliver that.
-- **A single accuracy figure hides which mistake it describes.** When a rare disease is involved, the specificity is the number you want, because it is the one multiplied by the enormous healthy group.
-
-[WARNING]
-There is a bigger, quieter version of all this. Screening people who feel perfectly fine is the situation where false alarms are at their most damaging, because the base rate is at its lowest exactly when the crowd is at its largest. That is not an argument against screening, but it is why screening programmes come with follow-up tests attached, and why "the test is 99% accurate" is never a complete answer to the question anyone is actually asking.
-
-=== step === quiz
-::eyebrow One last one
-## A fraud alert, from scratch
-
-A bank flags card transactions it believes are fraudulent. About 1 transaction in 500 really is fraud. The alarm catches 99% of genuine fraud, and it also fires on 2% of perfectly ordinary transactions. Your card has just been flagged.
-
-Roughly what is the chance the flagged transaction really is fraud?
-
-::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- About 99%, since that is what the alarm catches
-- About 50%, because the alarm is good but not perfect
-- About 9%, because the 2% false alarm rate applies to a vastly larger group of ordinary transactions ::ok Right, and you can do this one in your head now. Out of 10,000 transactions, 20 are fraud and about 20 of those get caught, while 2% of the other 9,980 gives roughly 200 false alarms. So about 20 real out of 220 flagged, which is a bit over 9%. Running chance_it_is_real(1 / 500, 0.99, 0.98) gives 0.0902.
-- Impossible to say without knowing how many transactions the bank processes ::no The 99% describes what the alarm does to fraud, not what a flag means to you, and the total number of transactions cancels out of the calculation entirely. What decides it is the collision between a 1-in-500 base rate and a 2% false alarm rate on everything else: roughly 20 real frauds caught against roughly 200 false alarms, so a flag is right about 9% of the time. It is Meera's letter with a card reader instead of a clinic.
+Notice that nothing mystical happened. The second test was pointed at a crowd where roughly 9 in 100 are genuinely ill instead of 1 in 1,000, and against that crowd its 1% false alarm rate can no longer drown out the true positives. Stacking one result on top of another like this is the engine underneath every Bayesian method you will ever use.
 
 === step === concept
-::eyebrow Go deeper
+
 ## References
 
-Four places worth an hour if you want to push past this lesson.
+Everything above is arithmetic you can check yourself. If you want to read further, these are the sources worth your time.
 
-- [Gigerenzer and Edwards (2003), Simple tools for understanding risks, BMJ](https://pmc.ncbi.nlm.nih.gov/articles/PMC200816/) - the paper behind the counting-people trick, including evidence that doctors get the screening question right far more often when the numbers are put as frequencies rather than percentages.
-- [Seeing Theory, compound probability, Brown University](https://seeing-theory.brown.edu/compound-probability/index.html) - animated conditional probability, if watching the sample space shrink helps it stick.
-- [OpenIntro Statistics, chapter 3 (free PDF)](https://www.openintro.org/book/os/) - a patient textbook treatment of conditioning, independence and Bayes, with the exercises this lesson does not have room for.
-- [The base rate fallacy](https://en.wikipedia.org/wiki/Base_rate_fallacy) - the name for the mistake, with the court cases and the psychology experiments that made it famous.
+- Gigerenzer, G. and Hoffrage, U. (1995). [How to improve Bayesian reasoning without instruction: frequency formats](https://doi.org/10.1037/0033-295X.102.4.684). *Psychological Review*, 102(4). The experiments showing that counting people, exactly as we did here, beats teaching the formula.
+- Diez, D., Cetinkaya-Rundel, M. and Barr, C. [OpenIntro Statistics](https://www.openintro.org/book/os/), chapter 3. Conditional probability and tree diagrams, free and beginner friendly.
+- Pishro-Nik, H. [Introduction to Probability, Statistics and Random Processes](https://www.probabilitycourse.com/chapter1/1_4_0_conditional_probability.php), section 1.4. The formal definition with many worked examples.
+- Elmore, J. et al. (1998). [Ten-year risk of false positive screening mammograms](https://doi.org/10.1056/NEJM199804163381601). *New England Journal of Medicine*, 338(16). The same arithmetic measured in a real screening programme rather than a made-up one.
 
 === step === complete
-## Part 1 complete
 
-You started with a frightening letter and you now have an answer that most people, including plenty of professionals, get wrong: a positive result from a 99% accurate test for a 1-in-1,000 disease leaves Meera about 9% likely to be ill, because the test's small mistake rate is being applied to an enormous healthy crowd.
+## You can now read any test result
 
-More usefully, you have the move that produced it. Restrict the world to the cases where the condition actually happened, count what is left, and divide. That is conditioning, that is what the bar in P(A given B) means, and Bayes' theorem is just the same idea written so you can run it in the direction you care about.
+You came in with a slip that looked like a death sentence and you leave knowing it means about a 9% chance, because you counted the people instead of trusting the percentage.
 
-Part 2 is about expected value and variance, which answer a different pair of questions: not how likely something is, but what it is worth on average and how wildly it swings around that average. You will meet the same habit there of turning an abstract formula back into a crowd of concrete cases and counting them.
+Three moves get you there every time.
+
+1. **Name the queue.** Write down what you already know. That is B, the group you are standing in.
+2. **Count who is in it.** Build the whole crowd, sort it into the four groups, and see how many of each kind ended up in your queue.
+3. **Take the share.** Divide the people who are both A and B by everybody in B. That is P(A given B).
+
+Those same three moves are running inside a spam filter deciding whether the word "invoice" means you have been hacked, a bank deciding whether your card was stolen, and every Bayesian model that updates a belief when fresh evidence turns up. All of them are asking what share of the flagged group is genuinely guilty.
+
+And keep the base rate lesson close. When somebody quotes you an accuracy figure, the first question is never how accurate. It is: accurate on whom, and how common is the thing in the crowd you are pointing it at.
+
+Next time we put a single number on what a random thing is worth, and on how much it wobbles: expected value and variance.
