@@ -34,19 +34,19 @@ So let's check it. Take 60 of her trading days. For each one, put yesterday's cu
 
 It leans. The `r` in the corner is the correlation between the two columns, about 0.6 for the days on this chart, and that is a firm tilt for real sales data.
 
-So today does look like yesterday. Hunch confirmed.
+So today does look like yesterday, and Meera's hunch was right all along.
 
 That was the easy question though. The harder one is the one Meera actually needs answered: how far back does the echo reach? Does a packed Monday still push Thursday, or has it worn off by Tuesday?
 
-Two plots answer that. They are called the ACF and the PACF, and by the end of this you will be able to look at a pair of them and say out loud how many terms your model needs.
+Two plots answer that. They are called the ACF and the PACF, and once you can read a pair of them you will be able to say out loud how many terms your model needs.
 
 === step === concept
 
 ## What are we actually looking at?
 
-Meera's till exports one number per trading day: cups sold. That is the whole dataset. No prices, no weather, no promotions. Just a count, once a day, 180 days in a row.
+Meera's till exports one number per trading day, and that number is cups sold. That is the whole dataset. There are no prices in there, no weather and no promotions. It is just a count, taken once a day, for 180 days in a row.
 
-We are going to build those 180 days right here rather than load a file, and for a good reason. When you make the data yourself you know the rule it came from, so later, when the plots tell you something, you can check whether they are right.
+We are going to build those 180 days right here rather than load a file, and there is a good reason for that. When you make the data yourself you know the rule it came from, so later, when the plots tell you something, you can check whether they are right.
 
 ```r
 library(forecast)
@@ -63,7 +63,7 @@ range(cups)
 #> [1] 170 310
 ```
 
-Line by line. `set.seed(11)` fixes the random numbers, so your 180 days are identical to mine. `arima.sim()` generates a series that obeys a rule you choose, and the rule here, `ar = 0.7`, says each day starts from 0.7 of the day before and then gets a random nudge. That is Meera's hunch written as arithmetic. The next line shifts and stretches the result into something that looks like real cup counts, centred near 230, and `ts()` tells R that the order of these numbers matters.
+Let's go through it line by line. `set.seed(11)` fixes the random numbers, so your 180 days are identical to mine. `arima.sim()` generates a series that obeys a rule you choose, and the rule here, `ar = 0.7`, says each day starts from 0.7 of the day before and then gets a random nudge. That is Meera's hunch written as arithmetic. The next line shifts and stretches the result into something that looks like real cup counts, centred near 230, and `ts()` tells R that the order of these numbers matters.
 
 She sells between 170 and 310 cups a day. Now look at them.
 
@@ -73,13 +73,13 @@ autoplot(cups) +
        x = "Trading day", y = "Cups sold")
 ```
 
-The line drifts up for a stretch, drifts down for a stretch, and keeps coming back to the middle. It never runs away and it never flattens out. That wandering-but-anchored shape is what we are about to measure.
+The line drifts up for a stretch, then drifts down for a stretch, and it keeps coming back to the middle. It never runs away and it never flattens out. That wandering around a fixed level is the shape we are about to measure.
 
 === step === concept
 
 ## What does "today looks like yesterday" measure?
 
-Nothing exotic. It is ordinary correlation, applied to the series and a copy of itself slid back by one day.
+There is nothing exotic about it. It is ordinary correlation, applied to the series and a copy of itself slid back by one day.
 
 Slide it by hand and you can see there is no trick to it.
 
@@ -107,7 +107,7 @@ Acf(cups, plot = FALSE, lag.max = 1)
 #> 1.000 0.675
 ```
 
-A whisker away from the by-hand number, and worth knowing why. `cor()` divides by the 179 pairs it actually kept; `Acf()` divides by all 180 days. Same idea, one denominator apart, and nobody makes a decision on the third decimal.
+That lands a whisker away from the by-hand number, and it is worth knowing why. `cor()` divides by the 179 pairs it actually kept, while `Acf()` divides by all 180 days. It is the same idea with a different denominator, and nobody makes a decision on the third decimal anyway.
 
 Lag 0 is the series against an unshifted copy of itself, so it is always exactly 1.000 and carries no information.
 
@@ -134,9 +134,9 @@ Acf(cups, plot = FALSE, lag.max = 10)
 #>  1.000  0.675  0.486  0.383  0.258  0.175  0.135  0.044  0.029 -0.002  0.001
 ```
 
-The bars slide downhill. But before you read anything into the small ones, there is a trap to know about.
+The bars come down steadily as the lag grows. But before you read anything into the small ones, there is a trap you should know about.
 
-A series with no memory whatsoever, pure coin-flip noise, will not hand you exactly zero at every lag. It hands you small numbers that wobble around zero. So the real question is never "is this bar bigger than zero?" It is "is this bar bigger than the wobble?"
+A series with no memory whatsoever, pure coin-flip noise, does not come out at exactly zero for every lag. You get small numbers that wobble around zero instead. So the real question is never "is this bar bigger than zero?" It is "is this bar bigger than the wobble?"
 
 The wobble has a size, and it depends only on how many observations you have. For a series of \(n\) points, a bar counts as noise if it sits between
 
@@ -156,7 +156,7 @@ ggAcf(cups, lag.max = 10) +
   labs(title = "ACF of Meera's daily cups")
 ```
 
-The two blue dashed lines are that band. Bars poking past them count; bars inside them do not, no matter how tempting the pattern looks.
+The two blue dashed lines are that band. Bars poking past them count, and bars inside them do not, no matter how tempting the pattern looks.
 
 [WARNING]
 Always read a plot against its own band, never against a number you remember. The band moves with the length of the series: 180 days gives 0.146, but 40 days gives 0.310, more than twice as tall. The same bar can be real on a long series and pure noise on a short one.
@@ -165,7 +165,7 @@ Always read a plot against its own band, never against a number you remember. Th
 
 ## Which bars are real?
 
-Meera's ACF, as numbers, with her band at **0.146**.
+Here is Meera's ACF written out as numbers, with her band at **0.146**.
 
 | lag | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
@@ -198,7 +198,7 @@ round(0.675 * 0.675, 3)                # yesterday's link, handed down one more 
 #> [1] 0.456
 ```
 
-Look at those two numbers together. Today leans on yesterday by 0.675, and yesterday leans on the day before it by the same 0.675. So even if two days back had no direct effect on today at all, today would still inherit roughly 0.675 times 0.675, which is 0.456, of a connection to it, purely passed down the chain.
+Look at those two numbers together. Today leans on yesterday by 0.675, and yesterday leans on the day before it by the same 0.675. So even if two days back had no direct effect on today at all, today would still carry roughly 0.675 times 0.675, which is 0.456, of a connection to it, purely passed down the chain.
 
 The measured lag-2 correlation is 0.503. Almost all of it is secondhand.
 
@@ -206,7 +206,7 @@ The measured lag-2 correlation is 0.503. Almost all of it is secondhand.
 
 Every pair of days the same distance apart carries the same correlation, which is why the grid comes out striped. Read the top row: today against yesterday 0.68, against two days back 0.49, against three days back 0.38. Those numbers shrink as you go, but they shrink because the chain gets longer, not because three separate forces are at work.
 
-Which leaves the obvious question hanging. Is there any *direct* link past yesterday at all? To answer that, we need a way to hold the days in between still.
+That leaves the obvious question hanging. Is there any *direct* link past yesterday at all? To answer that, we need a way to hold the days in between still.
 
 === step === concept
 
@@ -216,7 +216,7 @@ That is exactly the job of the partial autocorrelation.
 
 The **partial autocorrelation at lag k** is the correlation between today and k days ago after the days in between have been held fixed. Held fixed means: whatever those middle days already explain about today, take it out first, and measure only what is left over.
 
-Think of heights in a family. Grandparents and grandchildren are correlated, but most of that runs through the parents. Once you already know how tall the parents are, how much does knowing the grandparents add? Usually very little. Same question, different data.
+Think of heights in a family. Grandparents and grandchildren are correlated, but most of that runs through the parents. Once you already know how tall the parents are, how much does knowing the grandparents add? Usually it adds very little. We are asking the same question here, only about days instead of people.
 
 ```r
 Pacf(cups, plot = FALSE, lag.max = 8)
@@ -227,7 +227,7 @@ Pacf(cups, plot = FALSE, lag.max = 8)
 #>  0.675  0.056  0.066 -0.066 -0.005  0.023 -0.101  0.051
 ```
 
-One tall bar at lag 1, and then nothing. Every value from lag 2 onward sits inside the 0.146 band. Draw it and the contrast with the ACF is hard to miss.
+There is one tall bar at lag 1 and then nothing after it. Every value from lag 2 onward sits inside the 0.146 band. Draw it and the contrast with the ACF is hard to miss.
 
 ```r
 ggPacf(cups, lag.max = 10) +
@@ -257,9 +257,9 @@ round(cor(lagged$today, lagged$two_back), 3)
 #> [1] 0.501
 ```
 
-Each row is one day with the three days before it. The first three days of the series get dropped, because they do not have three days in front of them, which leaves 177 rows.
+Each row is one day with the three days before it. The first three days of the series get dropped, because they do not have three days before them, which leaves 177 rows.
 
-Taken on its own, `two_back` looks strong: a correlation of 0.501 with today. Now ask the sharper question. Given yesterday, does two days back add anything?
+Taken on its own, `two_back` looks strong, with a correlation of 0.501 with today. Now ask the sharper question. Given yesterday, does two days back add anything?
 
 ```r
 two_lag_fit <- lm(today ~ yest + two_back, data = lagged)
@@ -270,17 +270,17 @@ round(coef(summary(two_lag_fit)), 3)
 #> two_back       0.083      0.078   1.068    0.287
 ```
 
-Read the `two_back` row. The estimate is 0.083 with a standard error of 0.078, so it is barely one standard error away from zero, and the p-value of 0.287 says a coefficient that size turns up easily by chance. Once yesterday is in the model, two days back adds nothing you could tell apart from noise.
+Read the `two_back` row. The estimate is 0.083 with a standard error of 0.078, so it is barely one standard error away from zero, and the p-value of 0.287 means a coefficient that size turns up easily by chance. Once yesterday is in the model, two days back adds nothing you could tell apart from noise.
 
-A correlation of 0.501, collapsed to 0.083, by nothing more than putting yesterday in the room.
+A correlation of 0.501 collapsed to 0.083, and all it took was putting yesterday into the model beside it.
 
-That is the PACF, done the long way. R's `Pacf()` reported 0.056 at lag 2 while this regression reports 0.083. The two follow slightly different recipes (`Pacf()` works from the autocorrelations, the regression works from the rows), so on 180 days they land a few hundredths apart. Both are far inside the 0.146 band, and that is the part that decides anything.
+That is the PACF, done the long way. R's `Pacf()` reported 0.056 at lag 2 while this regression reports 0.083. The two follow slightly different recipes (`Pacf()` works from the autocorrelations, the regression works from the rows), so on 180 days they land a few hundredths apart. Both are far inside the 0.146 band, and that is the part that decides the answer.
 
 === step === tryit
 
 ## Does Monday still reach Thursday?
 
-Meera's question, now in code.
+Here is Meera's question again, this time in code.
 
 The `lagged` frame already carries a `three_back` column, sitting unused. Put it in the model. If Monday really does reach Thursday directly, the `three_back` row will show a coefficient that stands clear of its own standard error.
 
@@ -303,7 +303,7 @@ round(coef(summary(three_lag_fit)), 3)
 #> three_back     0.082      0.078   1.057    0.292
 ```
 
-Both `two_back` (0.034) and `three_back` (0.082) are swamped by their own standard errors, and `yest` barely flinched, moving from 0.620 to 0.614. Yesterday is doing all the work.
+Neither `two_back` (0.034) nor `three_back` (0.082) stands clear of its own standard error, and `yest` hardly moved at all, going from 0.620 to 0.614. Yesterday is doing all the work.
 
 That is the same verdict the PACF gave in one line, and it is why nobody runs these regressions by hand in practice. You read the plot instead.
 
@@ -315,11 +315,11 @@ Meera's shop has a name for its behaviour. It is **autoregressive**, usually wri
 
 \[ y_t = c + \phi_1 y_{t-1} + \phi_2 y_{t-2} + \cdots + \phi_p y_{t-p} + \varepsilon_t \]
 
-Every symbol in plain words. \(y_t\) is today's cups and \(y_{t-1}\) is yesterday's. \(c\) is a constant that sets the level the shop hovers around. Each \(\phi\) (phi) is the weight on one past day. \(\varepsilon_t\) (epsilon) is today's random surprise, the part no past day could have told you. And \(p\) is simply how many past days appear in the recipe.
+Let's put every symbol into plain words. \(y_t\) is today's cups and \(y_{t-1}\) is yesterday's. \(c\) is a constant that sets the level the shop hovers around. Each \(\phi\) (phi) is the weight on one past day. \(\varepsilon_t\) (epsilon) is today's random surprise, the part no past day could have told you. And \(p\) is simply how many past days appear in the recipe.
 
 Meera's series was built with \(p = 1\) and \(\phi_1 = 0.7\), which is the `ar = 0.7` you typed at the start.
 
-Now the useful part. An AR process leaves a fixed fingerprint on the two plots, and both halves of it follow from what you have already seen.
+Now comes the useful part. An AR process leaves a fixed fingerprint on the two plots, and both halves of it follow from what you have already seen.
 
 - **The PACF cuts off at lag p.** The recipe only reaches back p days, so past that point there are no direct links left to find. Every bar after p is measuring a connection that does not exist.
 - **The ACF tails off.** The indirect chain keeps running. Today leans on yesterday, yesterday leans on the day before, so a shrinking echo reaches every lag.
@@ -330,13 +330,13 @@ Put both panels on one screen and you can see the whole fingerprint at once.
 ggtsdisplay(cups, main = "Meera's shop: series, ACF, PACF")
 ```
 
-The series is on top, the ACF is bottom left, the PACF is bottom right. One fades, the other stops dead after a single bar. Identical data, opposite shapes.
+The series is on top, the ACF is bottom left, the PACF is bottom right. One fades, the other stops dead after a single bar. It is the same data in both panels, and the two shapes are opposites.
 
 === step === quiz
 
 ## What is p here?
 
-Meera's PACF, as numbers, with her band still at **0.146**.
+Here is Meera's PACF written out as numbers, with her band still at **0.146**.
 
 | lag | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
@@ -354,15 +354,15 @@ What is p?
 
 ## What if the shop runs on one-off events instead?
 
-Same street, same shop, different machinery. Imagine Meera's cups are not driven by yesterday's number at all. They are driven by events: a downpour that keeps everyone indoors, a campus fest that empties the street, a free-samples morning that packs it. Each event is a one-off surprise, and its effect lingers for a couple of days before dying out.
+It is the same street and the same shop, but what drives the sales is completely different. Imagine Meera's cups are not driven by yesterday's number at all. They are driven by events: a downpour that keeps everyone indoors, a campus fest that empties the street, a free-samples morning that packs it. Each event is a one-off surprise, and its effect lingers for a couple of days before dying out.
 
 That is a **moving-average** process, written MA(q). Today's cups are the usual level, plus today's surprise, plus a share of the last q surprises.
 
 \[ y_t = c + \varepsilon_t + \theta_1 \varepsilon_{t-1} + \theta_2 \varepsilon_{t-2} + \cdots + \theta_q \varepsilon_{t-q} \]
 
-Again in plain words. Each \(\varepsilon\) is the surprise on one particular day. Each \(\theta\) (theta) says how much of an old surprise is still hanging around. \(q\) is how many days back the surprises reach.
+Again, let's put it in plain words. Each \(\varepsilon\) is the surprise on one particular day. Each \(\theta\) (theta) says how much of an old surprise is still hanging around. \(q\) is how many days back the surprises reach.
 
-Notice the difference from before, because it is the whole distinction. An AR recipe reaches back to past **values** of cups. An MA recipe reaches back to past **surprises**. Meera never gets to see the surprises. She only ever sees the cups.
+Notice the difference from before, because it is the whole distinction. An AR recipe reaches back to past **values** of cups. An MA recipe reaches back to past **surprises** instead. Meera never gets to see the surprises. She only ever sees the cups.
 
 ```r
 set.seed(14)
@@ -377,9 +377,9 @@ autoplot(shock_cups) +
        x = "Trading day", y = "Cups sold")
 ```
 
-Built with \(q = 2\): today carries today's event, 0.7 of yesterday's, and 0.4 of the one before that. Between 169 and 303 cups a day, a wandering line, roughly the same level as before. To the naked eye it could be the same shop.
+This one was built with \(q = 2\), so today carries today's event, 0.7 of yesterday's, and 0.4 of the one before that. She sells between 169 and 303 cups a day, the line wanders, and the level sits roughly where it did before. To the naked eye it could be the same shop.
 
-The plots will not be fooled.
+The two plots will show you the difference.
 
 === step === concept
 
@@ -398,11 +398,11 @@ Acf(shock_cups, plot = FALSE, lag.max = 8)
 
 0.598, then 0.292, then 0.008. That is not a fade. That is a cliff.
 
-The reason is worth a moment, because it is the cleanest piece of logic in this whole lesson. Two days can only be correlated if they share a surprise. Today carries the surprises from today, yesterday, and the day before. Three days ago carries the surprises from three, four and five days ago. Those two lists have nothing in common at all. No shared surprise means no correlation, and not merely a small one: zero, by construction.
+The reason is worth a moment, because it is a clean piece of logic. Two days can only be correlated if they share a surprise. Today carries the surprises from today, yesterday, and the day before. Three days ago carries the surprises from three, four and five days ago. Those two lists have nothing in common at all. No shared surprise means no correlation, and not merely a small correlation but zero, by construction.
 
 That is what **cuts off** means, and it happens at exactly q.
 
-Now the PACF of the very same series.
+Now let's look at the PACF of the very same series.
 
 ```r
 Pacf(shock_cups, plot = FALSE, lag.max = 8)
@@ -413,20 +413,20 @@ Pacf(shock_cups, plot = FALSE, lag.max = 8)
 #>  0.598 -0.102 -0.195  0.139 -0.032 -0.063  0.055  0.049
 ```
 
-0.598, then -0.102, then -0.195, then 0.139. No clean stop anywhere. It dwindles, flipping sign as it goes, and the bar at lag 3 is still outside the 0.146 band. That fading, alternating pattern is how a moving-average process shows up on a PACF, and it is exactly why you must not count bars on it.
+0.598, then -0.102, then -0.195, then 0.139. There is no clean stop anywhere. It dwindles, flipping sign as it goes, and the bar at lag 3 is still outside the 0.146 band. That fading, alternating pattern is how a moving-average process shows up on a PACF, and it is exactly why you must not count bars on it.
 
 ```r
 ggtsdisplay(shock_cups, main = "Event-driven shop: series, ACF, PACF")
 ```
 
 [KEY INSIGHT]
-The two plots are one fingerprint, not two separate readings. The plot that cuts off names the order; the plot that only fades is confirming it. For an AR series the PACF cuts and the ACF fades. For an MA series it is the other way round. Look at both before you count anything on either.
+The two plots are one fingerprint, not two separate readings. The plot that cuts off gives you the order, and the plot that only fades confirms it. For an AR series the PACF cuts and the ACF fades. For an MA series it is the other way round. Look at both before you count anything on either.
 
 === step === tryit
 
 ## What is q here?
 
-Two decisions here, in order. Which plot, then how many bars.
+There are two decisions to make here, and they come in order. First which plot, then how many bars.
 
 The block below prints the wrong plot on purpose. Fix it, keep `lag.max = 8`, and read q off the result. The band is the same 0.146 as before, since this series is 180 days too.
 
@@ -467,9 +467,9 @@ both_cups <- ts(round(230 + 20 * as.numeric(mixed)))
 ggtsdisplay(both_cups, main = "Both forces at once: neither plot cuts off")
 ```
 
-Neither panel snaps shut. Both just fade away. And that shape is itself a message: you need both kinds of term, and the plots are not going to tell you how many of each.
+Neither panel snaps shut this time. Both of them simply fade away, and that is itself the answer: you need both kinds of term, and the plots are not going to tell you how many of each.
 
-So stop counting bars and let a few fitted candidates decide instead.
+So stop counting bars, fit a few candidates instead, and compare them.
 
 ```r
 fit_arma11 <- Arima(both_cups, order = c(1, 0, 1))
@@ -487,13 +487,13 @@ The `order` argument is always `c(p, d, q)`: AR terms, differences, MA terms, in
 
 AICc is a score that rewards fit and charges a fee for every extra term, so the lowest number wins. Here that is the one-of-each model at 3589.24, which is what we built.
 
-Be honest about the size of that win, though. Ten points of AICc is a preference, not a proof. On mixed series several orders often fit almost equally well, and the winner can flip on a different stretch of data. Which is precisely why the residual check coming up exists.
+Do not read too much into the size of that win, though. Ten points of AICc is a preference, not a proof. On mixed series several orders often fit almost equally well, and the winner can flip on a different stretch of data. That is precisely why you always check the residuals before you trust an order.
 
 === step === concept
 
 ## The one shape that means "do not read this yet"
 
-Everything so far quietly assumed the series settles: it wanders, but it keeps returning to a stable level. When it does not, every rule above breaks, and the ACF is what warns you.
+Everything so far has assumed that the series settles, which means it wanders but keeps returning to a stable level. When it does not, every rule above breaks down, and the ACF is what warns you.
 
 Picture Meera's very first year, when the shop was still being discovered and sales climbed month after month.
 
@@ -509,7 +509,7 @@ autoplot(trend_cups) +
        x = "Trading day", y = "Cups sold")
 ```
 
-From about 150 cups a day to about 250. There is no fixed level for this series to come back to, and its ACF says so loudly.
+She went from about 150 cups a day to about 250. There is no fixed level for this series to come back to, and the ACF shows that plainly.
 
 ```r
 Acf(trend_cups, plot = FALSE, lag.max = 6)
@@ -520,7 +520,7 @@ Acf(trend_cups, plot = FALSE, lag.max = 6)
 #> 1.000 0.965 0.933 0.901 0.872 0.844 0.815
 ```
 
-0.965, 0.933, 0.901, 0.872. A long, slow, almost straight slide. Nothing cuts off and nothing really fades, because a day six weeks ago is still a good guide to where the level sits now. That shape means one thing only: this series has not settled, so do not try to read p and q off it yet.
+The numbers go 0.965, then 0.933, then 0.901, then 0.872, which is a long, slow, almost straight slide. Nothing cuts off and nothing really fades, because a day six weeks ago is still a good guide to where the level sits now. That shape means one thing only: this series has not settled, so do not try to read p and q off it yet.
 
 The fix is to **difference** it, which means replacing each day with the change from the day before. `diff()` does that in one word.
 
@@ -545,7 +545,7 @@ Acf(diff(trend_cups), plot = FALSE, lag.max = 6)
 
 Every bar from lag 1 on is now inside the band, the largest being 0.061. The day-to-day change has no memory at all, which for a steadily growing series is exactly right. One difference was enough, and that count, the number of times you differenced, is the **d** in ARIMA(p, d, q). From there you read the ACF and PACF of the differenced series for p and q.
 
-Then know when to stop.
+You also need to know when to stop.
 
 ```r
 Acf(diff(diff(trend_cups)), plot = FALSE, lag.max = 3)
@@ -572,7 +572,7 @@ You have now met all four shapes, so here they are together.
 | Both fade, neither cuts off | both forces at once | try ARIMA(1, 0, 1) and its neighbours, compare AICc |
 | ACF slides down slowly and stays high | not settled yet | difference once, then read it again |
 
-And here are the four series from this lesson side by side, with the first four bars of each plot and each series' own band.
+And here are the four series side by side, with the first four bars of each plot and each series' own band.
 
 ```r
 fingerprint <- function(x) {
@@ -598,10 +598,10 @@ readings
 
 Read it row by row and every fingerprint is visible in the numbers.
 
-- `cups`: the ACF fades from 0.67 down to 0.26 with every bar above the band, while the PACF has one bar at 0.67 and then 0.06, 0.07, -0.07. Autoregressive, p = 1.
-- `shock_cups`: the ACF gives 0.60 and 0.29 and then 0.01, a dead stop, while the PACF dwindles and flips sign. Moving average, q = 2.
-- `both_cups`: the ACF fades from 0.78 to 0.31 with every bar still above its 0.10 band, and the PACF dwindles while flipping sign rather than dropping dead. Neither one stops. Both forces at once.
-- `trend_cups`: the ACF is still at 0.87 by lag 4 and barely moving. Not settled. Difference it first.
+- `cups`: the ACF fades from 0.67 down to 0.26 with every bar above the band, while the PACF has one bar at 0.67 and then 0.06, 0.07, -0.07. That one is autoregressive, and p = 1.
+- `shock_cups`: the ACF gives 0.60 and 0.29 and then 0.01, a dead stop, while the PACF dwindles and flips sign. That one is a moving average, and q = 2.
+- `both_cups`: the ACF fades from 0.78 to 0.31 with every bar still above its 0.10 band, and the PACF dwindles while flipping sign rather than dropping dead. Neither one stops, so both forces are running at once.
+- `trend_cups`: the ACF is still at 0.87 by lag 4 and barely moving. It has not settled, so difference it first.
 
 The band column is worth one more look. It reads 0.15 for the three 180-day series and 0.10 for the 400-day one, which is the earlier point in one line: the longer the series, the tighter the band, and the smaller a bar can be and still count. (Those are the same bands as before, just rounded to two places by this table.)
 
@@ -623,15 +623,15 @@ What should you fit?
 
 ## The loop, on data nobody simulated
 
-Every series so far was one we built, so we always had the answer in our pocket. Time to do it once on data where nobody has the answer.
+Every series so far was one we built ourselves, so we always had the answer in our pocket. Now let's do it once on data where nobody has the answer.
 
 Here is the whole reading, written down as a loop.
 
 ::widget process-flow {"steps":[{"title":"Plot the series","sub":"does it keep returning to a level, or does it wander off"},{"title":"Difference if it drifts","sub":"a slow, near-straight ACF means difference once, then look again"},{"title":"Read the PACF for p","sub":"count the bars outside the band before it cuts off"},{"title":"Read the ACF for q","sub":"count the bars outside the band before it cuts off"},{"title":"Fit it, then check the leftovers","sub":"if the residuals are noise, the order is right"}]}
 
-`LakeHuron` ships with R: the water level of Lake Huron in feet, measured once a year from 1875 to 1972. Ninety-eight numbers, nobody's rule, no simulation.
+`LakeHuron` ships with R: the water level of Lake Huron in feet, measured once a year from 1875 to 1972. That gives you ninety-eight numbers, with nobody's rule behind them and nothing simulated.
 
-Steps one and two first. Plot it, and ask whether it settles.
+Let's take the first two moves of that loop. Plot the series, and ask whether it settles.
 
 ```r
 ggtsdisplay(LakeHuron, main = "Lake Huron water level, 1875 to 1972")
@@ -685,9 +685,9 @@ lake_fit
 #> AIC=215.27   AICc=215.7   BIC=225.61
 ```
 
-Both AR terms are earning their keep: `ar1` is 1.0436 against a standard error of 0.0983, and `ar2` is -0.2495 against 0.1008, so each one is several standard errors clear of zero. The `mean` of 579.05 is the level the lake keeps returning to.
+Both AR terms are worth having. `ar1` is 1.0436 against a standard error of 0.0983, and `ar2` is -0.2495 against 0.1008, so each one is several standard errors clear of zero. The `mean` of 579.05 is the level the lake keeps returning to.
 
-Now the real test, and it is the same idea as everything else here. If the model captured all the structure, whatever is left over should have no pattern in it at all. So run the ACF on the leftovers.
+Now comes the real test, and it rests on the same idea as everything else here. If the model captured all the structure, whatever is left over should have no pattern in it at all. So run the ACF on the leftovers.
 
 ```r
 checkresiduals(lake_fit)
@@ -702,18 +702,18 @@ checkresiduals(lake_fit)
 
 Three panels appear: the residuals over time, their ACF, and their spread. The residual ACF is the one that matters, and every bar sitting inside the band means there is no structure left to model.
 
-The printed test is the **Ljung-Box test**, which asks a single question: taken all together, could those residual correlations just be chance? The p-value is 0.6533, comfortably above 0.05, so the answer is yes, they easily could. A large p-value is the good outcome here, which catches people out the first time they see it.
+The printed test is the **Ljung-Box test**, and the question behind it is a single one: taken all together, could those residual correlations just be chance? The p-value is 0.6533, comfortably above 0.05, so the answer is yes, they easily could. A large p-value is the good outcome here, which catches people out the first time they see it.
 
-ARIMA(2, 0, 0), read straight off the PACF of a series nobody simulated, and now confirmed.
+So the answer is ARIMA(2, 0, 0), read straight off the PACF of a series nobody simulated, and now confirmed.
 
 [KEY INSIGHT]
-The plots hand you a candidate, fast. The residuals hand you the verdict. If the residual ACF still has bars outside the band, or the Ljung-Box p-value is small, raise p or q by one and fit again.
+The plots give you a candidate quickly, and the residuals give you the verdict on it. If the residual ACF still has bars outside the band, or the Ljung-Box p-value is small, raise p or q by one and fit again.
 
 === step === concept
 
 ## References
 
-Where these rules come from, if you want to read further.
+Here is where these rules come from, if you want to read further.
 
 - [Forecasting: Principles and Practice, 3rd edition, section 9.5, Non-seasonal ARIMA models](https://otexts.com/fpp3/non-seasonal-arima.html) by Rob Hyndman and George Athanasopoulos: the ACF and PACF order rules, and their limits.
 - [Forecasting: Principles and Practice, 3rd edition, section 2.8, Autocorrelation](https://otexts.com/fpp3/acf.html): what the bars measure, before any modelling.
@@ -727,7 +727,7 @@ Where these rules come from, if you want to read further.
 
 You started with a shop owner's hunch and finished with a fitted model on a real lake.
 
-Along the way you picked up these, and each one works on its own:
+Along the way you picked up a handful of skills, and each one works on its own:
 
 - Say what a single ACF bar measures: the correlation between the series and a copy of itself slid back k days.
 - Judge any bar against its own band, \(1.96/\sqrt{n}\), instead of against a number you remember.
