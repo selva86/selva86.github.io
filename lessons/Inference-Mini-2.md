@@ -25,13 +25,13 @@ catalog_blurb: "What a p-value actually tells you, and the readings that are wro
 
 Let's say you test a new checkout page on your store.
 
-A thousand shoppers land on the old page and 300 of them buy something. Another thousand land on the new page and 346 buy. That is 30.0% against 34.6%, so the new design is ahead by 4.6 percentage points. You run the test and it hands back p = 0.03.
+A thousand shoppers land on the old page and 300 of them buy something. Another thousand land on the new page and 346 of them buy. That is 30.0% against 34.6%, so the new design is ahead by 4.6 percentage points. You run the test and the p-value comes out at 0.03.
 
 You take the result to the team, and someone says the obvious thing: so there is a 3% chance the improvement was a fluke.
 
 It does not mean that.
 
-And that is not a beginner's slip. People who use p-values every week read them exactly that way. The real meaning is quieter and stranger: if the new page changed nothing at all, results this good would show up only 3% of the time by luck.
+And that is not a beginner's slip. People who use p-values every week read them exactly that way. The real meaning is subtler than that: if the new page changed nothing at all, results this good would show up only 3% of the time by luck.
 
 Little mind bending right? I know.
 
@@ -39,14 +39,14 @@ So we are not going to memorise that sentence. We are going to build the number 
 
 ::widget process-flow {"steps":[{"title":"Assume nothing changed","sub":"the new page is exactly as good as the old one"},{"title":"Replay on luck alone","sub":"shuffle the page labels 10,000 times, gap each time"},{"title":"Count the matches","sub":"how many luck-only gaps reached 4.6 points"}]}
 
-That is the whole idea. Everything after this is just doing it, and then finding out what the number can and cannot say once you have it.
+That is the core idea. From here we just do it, and then we find out what the number can and cannot say once you have it.
 
 === step === concept
 ## What did the checkout test actually measure?
 
-Before anything clever, let's get the real numbers on the table, because every claim in this lesson gets checked against them.
+Let's start by getting the real numbers on the table, because every claim we make from here gets checked against them.
 
-Two thousand shoppers, split evenly. A thousand saw the old checkout page, a thousand saw the new one. Whether a person bought is recorded as a 1, and walking away is a 0.
+Two thousand shoppers took part, split evenly between the two pages. A thousand of them saw the old checkout page and a thousand saw the new one. If a person bought something we record that as a 1, and if they walked away we record a 0.
 
 Press Run.
 
@@ -71,7 +71,7 @@ c(old = old_rate, new = new_rate, gap = obs_gap)
 So `obs_gap` is 4.6, and from here on that means 4.6 percentage points: the new page's rate minus the old page's rate. That one number is what the whole argument is about.
 
 [NOTE]
-4.6 percentage points is not the same thing as 4.6%. Going from 30.0% to 34.6% is a rise of 4.6 points, which is a 15% jump in purchases. Percentage points are the plain subtraction, and they are what we work in for the rest of this lesson.
+4.6 percentage points is not the same thing as 4.6%. Going from 30.0% to 34.6% is a rise of 4.6 points, which is a 15% jump in purchases. Percentage points are the plain subtraction, and points are what we work in from here on.
 
 === step === concept
 ## What would have to be true for that gap to mean nothing?
@@ -80,11 +80,11 @@ Here is the move that makes p-values work, and it feels backwards the first time
 
 To argue the new page helped, you do not start by assuming it helped. You start by assuming the opposite, the most boring story anyone on that team could tell:
 
-The new checkout page changed nothing. Not one shopper behaved differently because of it. The people who bought were always going to buy, and which page they happened to see is just a sticker somebody slapped on them afterwards.
+The new checkout page changed nothing. Not one shopper behaved differently because of it. The people who bought were always going to buy, and which page they happened to see is just a sticker somebody stuck on them afterwards.
 
 That boring story has a name. It is the null hypothesis, written H0 and said out loud as "H nought". It is not what you believe. It is the story you are going to try to make look ridiculous.
 
-Look at the raw counts it has to explain.
+Now let's look at the raw counts that story has to account for.
 
 ```r
 table(page = checkout$page, bought = checkout$bought)
@@ -94,9 +94,9 @@ table(page = checkout$page, bought = checkout$bought)
 #>   old 700 300
 ```
 
-646 purchases in total, 346 sitting under the new label and 300 under the old. The boring story says that 346 against 300 split is nothing but the way the stickers happened to fall.
+There are 646 purchases in total, with 346 of them sitting under the new label and 300 under the old. The boring story says that 346 against 300 split is nothing but the way the stickers happened to fall.
 
-Fine. Then let's make the stickers fall again and see what they do.
+All right, then let's make the stickers fall again and see what they do.
 
 === step === concept
 ## What if we peel the stickers off and stick them back at random?
@@ -117,9 +117,9 @@ round(shuffled_gap, 3)
 
 `set.seed(1)` just fixes which shuffle you get, so your number matches mine.
 
-Now look at what came back. Minus 2.4 points. In a world we built by hand, where the labels are meaningless by construction, the old page still came out 2.4 points ahead.
+Now look at what came back. The gap is minus 2.4 points. In a world we built by hand, where the labels are meaningless by construction, the old page still came out 2.4 points ahead.
 
-That is the whole reason p-values have to exist. Luck does not hand you zero. Luck hands you a gap, sometimes a big one, and you cannot judge 4.6 points until you know how big luck's gaps usually get.
+That is the whole reason p-values have to exist. Luck does not give you a gap of zero. It gives you a gap, sometimes a large one, and you cannot judge 4.6 points until you know how large the gaps from luck alone usually get.
 
 === step === quiz
 ## Quick check: what does shuffling the labels do?
@@ -133,7 +133,7 @@ That is the whole reason p-values have to exist. Luck does not hand you zero. Lu
 === step === concept
 ## What do 10,000 luck-only worlds look like?
 
-One shuffle is one world, and it told us luck can reach 2.4 points. To learn what luck usually does we need thousands of worlds, not one.
+One shuffle gives us one world, and that one showed us luck can reach 2.4 points. To learn what luck usually does, we need thousands of worlds and not just one.
 
 `replicate()` runs the same shuffle over and over and keeps the gap from each one. Ten thousand is plenty. It takes a few seconds.
 
@@ -151,16 +151,16 @@ hist(null_gaps, breaks = 40, col = "grey85", border = "white",
 abline(v = obs_gap, col = "red", lwd = 3)
 ```
 
-That grey pile is the boring story drawn in full. Every bar is a batch of worlds where the new page did nothing whatsoever, and the height says how often luck produced a gap that size. Most of the pile sits near zero, which is what you would hope. The tails stretch out to about 8 points in either direction, and that is the part people underestimate.
+That grey pile is the boring story drawn in full. Every bar is a batch of worlds where the new page did nothing whatsoever, and the height of it tells you how often luck produced a gap that size. Most of the pile sits near zero, which is what you would hope. The tails stretch out to about 8 points in either direction, and that is the part people underestimate.
 
-The red line is our real result, 4.6 points. It is not off the chart. It sits out in the thin part of the pile, in territory luck reaches but does not visit often.
+The red line is our real result, 4.6 points. It is not off the chart. It sits out in the thin part of the pile, somewhere luck does reach sometimes, but not often.
 
-How often, exactly? That is now just a counting job.
+How often, exactly? Answering that is now just a matter of counting.
 
 === step === concept
 ## So what is the p-value?
 
-Count the luck-only worlds that did as well as the real test or better. The new page could have landed ahead or behind by chance, so we count gaps of 4.6 points or more in either direction, which is what `abs()` is there for.
+So let's count the luck-only worlds that did as well as the real test or better. The new page could have landed ahead or behind by chance, so we count gaps of 4.6 points or more in either direction, which is what `abs()` is there for.
 
 ```r
 sum(abs(null_gaps) >= obs_gap)     # luck-only worlds that matched or beat 4.6 points
@@ -169,29 +169,29 @@ mean(abs(null_gaps) >= obs_gap)    # the same count as a share of all 10,000
 #> [1] 0.0307
 ```
 
-307 out of 10,000. As a share, 0.0307.
+That is 307 worlds out of 10,000, which as a share comes to 0.0307.
 
-That is the p-value. No formula, no table in the back of a textbook. A count of luck-only worlds, divided by how many worlds you ran.
+That is the p-value. There is no formula behind it and no table in the back of a textbook. It is a count of luck-only worlds, divided by how many worlds you ran.
 
 [KEY INSIGHT]
-A p-value is the share of results, in a world where your change did nothing, that match or beat the result you actually got. Here: if the new checkout page changed nothing, a gap of 4.6 points or bigger would still turn up about 3 times in every 100 tests.
+A p-value is the share of results, in a world where your change did nothing, that match or beat the result you actually got. In our case, if the new checkout page changed nothing, a gap of 4.6 points or bigger would still turn up about 3 times in every 100 tests.
 
-Read that sentence again and notice what it never says. It says nothing about how likely the new page is to be better. Every word of it lives inside the made-up world where the page did nothing.
+Read that sentence again and notice what is missing from it. It does not tell you how likely the new page is to be better. The whole of it is set inside the made-up world where the page did nothing.
 
 === step === widget
 ## What if the new page had won by more?
 
-Take the grey pile from a moment ago and smooth it into a curve. Same shape: luck's gaps stacked around zero, thinning out as you move away in either direction.
+Let's take the grey pile we just built and smooth it into a curve. The shape is the same one: gaps from luck stacked up around zero, thinning out as you move away in either direction.
 
-The slider moves your real result away from zero. Its scale is not percentage points, it is noise widths: how many of luck's typical wobbles your gap sits from zero. Our 4.6-point gap works out at about 2.15 of them, which is where the slider starts.
+The slider moves your real result away from zero. Its scale is not percentage points, it is noise widths, meaning how many of luck's typical wobbles your gap sits away from zero. Our 4.6-point gap works out at about 2.15 of them, and that is where the slider starts.
 
 ::widget null-distribution {"tails": 2, "start": 2.15, "label": "how far the real gap sits from zero"}
 
 The shaded orange area is the p-value: the share of luck-only results that reach out at least as far as yours, counted on both sides. At the starting position it reads about 0.03, the number we counted by hand.
 
-Now drag it. Push your result further out, as if the new page had won by much more, and the shaded slice shrinks fast. Pull it back toward zero and the slice swells until nearly every luck-only world matches you.
+Now go ahead and drag the slider. Push your result further out, as if the new page had won by much more, and the shaded slice shrinks fast. Pull it back toward zero and the slice grows until nearly every luck-only world matches you.
 
-So a result further from zero leaves a smaller slice, and a smaller slice is a smaller p-value. Hold on to that, because in a few minutes we are going to find out that "further from zero" is not the same thing as "a bigger win".
+So a result further from zero leaves a smaller slice, and a smaller slice means a smaller p-value. Hold on to that, because "further from zero" turns out not to be the same thing as "a bigger win".
 
 === step === tryit
 ## Your turn: how often does luck reach 8 points?
@@ -219,7 +219,7 @@ R prints that share as `1e-04`, which is its shorthand for 0.0001.
 === step === concept
 ## Is there a one-line shortcut?
 
-Shuffling 10,000 times is the honest way to see what a p-value is. It is not how anyone computes one at their desk. For a two-page comparison like this, `prop.test()` does the job in one line with a formula instead of a bowl of stickers.
+Shuffling 10,000 times is the clearest way to see what a p-value really is, but it is not how anyone computes one at their desk. For a two-page comparison like this, `prop.test()` does the job in one line, with a formula instead of a bowl of stickers.
 
 ```r
 prop.test(c(346, 300), c(1000, 1000))
@@ -238,27 +238,27 @@ prop.test(c(346, 300), c(1000, 1000))
 
 Read the two arguments as "346 purchases and 300 purchases, out of 1,000 shoppers each".
 
-The line to find is `p-value = 0.03141`. Our shuffling gave 0.0307. Two completely different roads, the same answer to two decimal places, and neither one is more correct than the other. The formula is faster. The shuffle is the one that shows you what the number actually is.
+The line to look for is `p-value = 0.03141`. Our shuffling gave 0.0307. Those are two completely different roads to the same answer to two decimal places, and neither one of them is more correct than the other. The formula is faster, and the shuffle is the one that shows you what the number actually is.
 
-That `95 percent confidence interval` line matters more than the p-value does, and we come back to it at the end.
+That `95 percent confidence interval` line matters more than the p-value does, and we will come back to it.
 
 === step === concept
 ## Why is the popular reading a different question?
 ::prose-only the point is a distinction between two probabilities read in opposite directions; the picture that carries it is the histogram already built two steps back
 
-We have the number. Now the part that trips everyone.
+We have the number now. Next comes the part that trips everyone up.
 
-Our p-value answers this question: if the page changed nothing, how often would luck hand us a gap of 4.6 points or more? Answer, about 3 times in 100.
+Our p-value answers this question: if the page changed nothing, how often would luck hand us a gap of 4.6 points or more? The answer is about 3 times in 100.
 
-The question people think it answers is this one: given the gap we saw, what is the chance the page changed nothing? That would be a wonderful thing to know. It is also a different question, and the p-value does not answer it.
+The question people think it answers is this one: given the gap we saw, what is the chance the page changed nothing? That would be a wonderful thing to know. It is also a completely different question, and the p-value does not answer it.
 
 Here is the same swap in a setting where your instincts are already good.
 
-If it is raining, the pavement is almost certainly wet. Call it 100%. Now turn it around. If the pavement is wet, is it almost certainly raining? Not at all. Someone washed a car, a sprinkler ran, a pipe burst.
+If it is raining, the pavement is almost certainly wet. Let's call that 100%. Now turn the question around. If the pavement is wet, is it almost certainly raining? It certainly is not. Maybe someone washed a car, or a sprinkler ran, or a pipe burst.
 
-Two facts, two orders, two completely different numbers. "How likely is this evidence if the boring story is true" and "how likely is the boring story given this evidence" are not the same question, and flipping them is the single most common mistake made with p-values.
+Those are the same two facts read in two different orders, and they give you two completely different numbers. "How likely is this evidence if the boring story is true" and "how likely is the boring story given this evidence" are not the same question, and flipping them is the single most common mistake made with p-values.
 
-To answer the second one you would have to bring in something the test never asked you for: how plausible the change was before you ran it. Most checkout redesigns do nothing at all. A few help a lot. Your p-value has no idea which kind yours is, and it never claimed to.
+To answer the second one, you would have to supply something the calculation never used: how plausible the change was to begin with, before you ran the test. Most checkout redesigns do nothing at all. A few of them make a real difference. The p-value is computed without any of that information, so it cannot tell you which kind yours is.
 
 === step === concept
 ## So how do you say it correctly?
@@ -267,7 +267,7 @@ You do not need to memorise a definition. You need one sentence you can say in a
 
 "If the new page had changed nothing, a gap of 4.6 points or more would still show up in about 3% of tests. We saw one."
 
-Notice the shape of it. It starts by assuming nothing changed, then talks about how often data like ours would appear inside that assumption. It never talks about the chance the page works.
+Look at how that sentence is built. It starts by assuming nothing changed, and then it says how often data like ours would show up inside that assumption. It never says anything about the chance the page works.
 
 Now put it next to what people actually say.
 
@@ -277,7 +277,7 @@ Now put it next to what people actually say.
 | "There is a 97% chance the new page is better." | The same flip, dressed up. 1 minus the p-value is not the chance you are right. |
 | "The new page lifts purchases by about 3%." | Confuses the p-value with the size of the win. The win is 4.6 points. 0.03 is how ordinary a win that size would be under luck alone. |
 
-Keep the first sentence. Every one of the three is a version of asking a p-value a question it was never built to answer.
+Keep the first sentence. Each of the other three asks a question that a p-value simply does not answer.
 
 === step === quiz
 ## Quick check: which reading of p = 0.03 is right?
@@ -293,11 +293,11 @@ The checkout test came back with a 4.6-point gap and p = 0.03. Which sentence re
 === step === concept
 ## Do two identical pages ever come back significant?
 
-Suppose the store gets careless and ships the same page twice, painted two different colours. Both convert at exactly 32%. There is nothing to find, by construction.
+Suppose the store gets careless and ships the very same page twice, painted in two different colours. Both versions convert at exactly 32%, so there is nothing at all to find here, by construction.
 
-One convention first, because the store is about to lean on it. Almost everybody draws a line at 0.05. A p-value under that line gets called statistically significant and the change gets shipped, and a p-value over it does not. Nothing in the arithmetic picks 0.05. It is a habit somebody started and everybody kept.
+There is one convention we need first, because the store is about to lean on it. Almost everybody draws a line at 0.05. A p-value under that line gets called statistically significant and the change gets shipped, and a p-value over it does not. Nothing in the arithmetic picks 0.05. It is a habit somebody started and everybody kept.
 
-Now run that test 2,000 times, 1,000 shoppers a page each time, and look at the p-values that come back. `rbinom(1, 1000, 0.32)` is a quick way of saying "out of 1,000 shoppers who each buy with probability 0.32, how many bought this time".
+Now let's run that test 2,000 times, 1,000 shoppers a page each time, and look at the p-values that come back. `rbinom(1, 1000, 0.32)` is a quick way of saying "out of 1,000 shoppers who each buy with probability 0.32, how many bought this time".
 
 ```r
 set.seed(9)
@@ -316,13 +316,13 @@ sum(many_p < 0.05)
 #> [1] 92
 ```
 
-Two things to notice.
+There are two things to notice here.
 
-The histogram is flat. When nothing is going on, p-values do not bunch up near 1. They spread evenly across the whole range, so 0.02 turns up about as often as 0.72.
+The first is that the histogram is flat. When nothing is going on, p-values do not bunch up near 1. They spread out evenly across the whole range, so 0.02 turns up about as often as 0.72.
 
-And 92 of the 2,000 tests came in under 0.05. Ninety-two announcements of a winning page, in a world where the two pages were identical every single time.
+The second is that 92 of the 2,000 tests came in under 0.05. That is ninety-two announcements of a winning page, in a world where the two pages were identical every single time.
 
-That is not a bug. That is the 0.05 line doing exactly what it was set up to do, which is to let a false alarm through about 5 times in 100. Here it let through 92 out of 2,000, which is 4.6%.
+None of that is a bug. That is the 0.05 line doing exactly what it was set up to do, which is to let a false alarm through about 5 times in 100. Here it let through 92 out of 2,000, which is 4.6%.
 
 [WARNING]
 A p-value under 0.05 cannot mean "the change worked", because here the change did nothing 2,000 times out of 2,000 and still cleared the bar 92 times. The threshold is a false-alarm rate you choose, not a fact about your page.
@@ -348,14 +348,14 @@ mean(many_p < 0.01)
 #> [1] 0.006
 ```
 
-Whatever bar you choose becomes your false-alarm rate: 0.05 lets through about 5 in 100, and 0.01 about 1 in 100. Stricter is not free, though. A tighter bar also makes it harder to notice a change that really is there, which is the next thing worth seeing.
+Whatever bar you choose becomes your false-alarm rate, so 0.05 lets through about 5 in 100 and 0.01 lets through about 1 in 100. A stricter bar is not free, though. It also makes it harder to notice a change that really is there.
 
 === step === concept
 ## Does a smaller p-value mean a bigger win?
 
-This one costs companies real money. A tiny p-value feels like a big win. It is not.
+This one costs companies real money. A tiny p-value feels like a big win. It is not one.
 
-Watch what happens when the win never changes and only the traffic grows. The lift below is nailed at 0.6 percentage points, from 30.0% to 30.6%, far too small for the store to care about. The only thing that changes down the rows is how many shoppers saw each page.
+Let's watch what happens when the win never changes and only the traffic grows. The lift below is fixed at 0.6 percentage points, a move from 30.0% to 30.6%, which is far too small for the store to care about. The only thing that changes as you go down the rows is how many shoppers saw each page.
 
 ```r
 p_for_n <- function(n) {
@@ -379,23 +379,23 @@ data.frame(
 #> 4           200,000            0.6 0.000037
 ```
 
-Read the middle column first. It never moves. The same feeble 0.6-point lift all the way down.
+Read the middle column first. It never moves. It is the same feeble 0.6-point lift all the way down.
 
 Now read the p-value column. At 500 shoppers a page it is 0.89, a number nobody would look at twice. At 200,000 a page it is 0.000037, the kind of number that gets a slide of its own.
 
 Nothing about the win improved. The store just bought more traffic.
 
 [KEY INSIGHT]
-A p-value answers "can we see this at all", not "is this worth having". Given enough shoppers, a lift too small to matter will produce a p-value small enough to impress. How big the win is, is a separate question, and you have to ask it separately.
+A p-value answers "can we see this at all", not "is this worth having". Given enough shoppers, a lift too small to matter will produce a p-value small enough to impress. How big the win is remains a separate question, and you have to ask it separately.
 
 === step === concept
 ## Would the same test say the same thing next week?
 
-One habit left to break. It is natural to think of a p-value as a property of the change you made, so that running the test again would hand you roughly the same number.
+There is one more habit to break. It is natural to think of a p-value as a property of the change you made, so that running the test again would give you roughly the same number.
 
 It would not.
 
-Here is the same store with the same real 4.6-point lift, genuinely present in every single run. The only thing that changes is which 200 shoppers a page happened to walk in. Twelve reruns:
+Here is the same store with the same real 4.6-point lift, genuinely present in every single run. The only thing that changes is which 200 shoppers a page happened to walk in. Here are twelve reruns of it:
 
 ```r
 one_test <- function() {
@@ -409,11 +409,11 @@ round(replicate(12, one_test()), 3)
 #>  [1] 0.001 0.915 0.392 0.672 0.832 0.512 0.743 1.000 0.009 0.534 0.054 0.529
 ```
 
-Stare at those twelve numbers for a second. 0.001 in the first run. 1.000 in the eighth. The lift was identical in both.
+Stare at those twelve numbers for a second. The first run gave 0.001 and the eighth gave 1.000. The lift was identical in both of them.
 
-Had the store run this once and seen 0.001, it would ship the new page and call the redesign a triumph. Run it once and see 1.000, and it would scrap the design as useless. Same truth, opposite decisions, settled entirely by which 200 shoppers turned up.
+Had the store run this once and seen 0.001, it would ship the new page and call the redesign a triumph. Had it run once and seen 1.000, it would scrap the design as useless. The truth was the same in both cases, the decisions were opposite, and the whole thing was settled by which 200 shoppers happened to turn up.
 
-Only two of the twelve cleared 0.05. A real, worthwhile lift, missed ten times out of twelve, because 200 shoppers a page is not enough traffic to see a 4.6-point difference reliably.
+Only two of the twelve cleared 0.05. A real and worthwhile lift was missed ten times out of twelve, because 200 shoppers a page is not enough traffic to see a 4.6-point difference reliably.
 
 [WARNING]
 One p-value is a single draw from a wide spread, not a stable property of your change. A small p-value today is no promise that the next test will agree, and 1 minus the p-value is not the chance your result will repeat.
@@ -446,12 +446,12 @@ cat("p-value    :", round(ab_test$p.value, 4), "\n")
 
 The gap, 4.6 points, is the size of the win in this test. That is the number the business cares about.
 
-The range, 0.4 to 8.8 points, is the honest version of that win. It is the set of true lifts that sit comfortably with the data we collected. Ship the new page and the long-run gain could be as feeble as 0.4 points or as good as 8.8. That range is what tells you whether 2,000 shoppers was enough to bet on, and here it is telling you the answer is still pretty loose.
+The range, 0.4 to 8.8 points, is the fuller version of that win. It is the set of true lifts that sit comfortably with the data we collected. Ship the new page and the long-run gain could be as small as 0.4 points or as large as 8.8. That range is what tells you whether 2,000 shoppers was enough to bet on, and here it is telling you the answer is still pretty loose.
 
 The p-value, 0.0314, comes last, and now you know exactly what it is. If the page changed nothing, we would see a gap this big about 3 times in 100.
 
 [TIP]
-Report the gap and the range first, the p-value last. A bare p-value hides the two things a decision actually needs: how big the win looks, and how much that answer could still move.
+Report the gap and the range first, and the p-value last. A bare p-value leaves out the two things a decision actually needs, which are how big the win looks and how much that answer could still move.
 
 === step === concept
 ## References
@@ -465,13 +465,13 @@ Report the gap and the range first, the p-value last. A bare p-value hides the t
 === step === complete
 ## What you can now say out loud
 
-You built a p-value out of nothing but a shuffle and a count, and then watched every popular reading of it come apart. Five lines worth keeping:
+You built a p-value out of nothing but a shuffle and a count, and then you watched every popular reading of it come apart. Here are five lines worth keeping:
 
 - A p-value is the share of luck-only worlds that match or beat your result. You counted yours: 307 out of 10,000.
 - It assumes your change did nothing. Every p-value lives inside that made-up world.
-- It is not the chance you are wrong. That question runs the other way, and the test never asked for what it would need to answer it.
+- It is not the chance you are wrong. That question runs the other way round, and answering it would need information the test never used.
 - A smaller p-value is not a bigger win. Freeze a 0.6-point lift, buy more traffic, and p slides from 0.89 to 0.000037.
-- One p-value is not a forecast. The same real lift handed back 0.001 and 1.000.
+- One p-value is not a forecast. The same real lift gave 0.001 in one run and 1.000 in another.
 
 And the sentence to reuse, whenever someone asks what p = 0.03 means:
 
