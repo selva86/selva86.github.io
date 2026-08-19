@@ -6,6 +6,8 @@
     python Scripts/batch_windowed.py --seq 13                 # build one specific seq
     python Scripts/batch_windowed.py --seq 13 --out-slug X-v2 # comparison build at an alternate slug
     python Scripts/batch_windowed.py ... --resume             # skip stages whose artifact already exists
+    python Scripts/batch_windowed.py --rebuild --max 10      # REBUILD the first 10 built lessons from scratch at
+                                                            # their live slugs (old versions archived out of reach)
 
 What happens per lesson, each stage in its OWN fresh `claude -p` session so
 nothing carries over between them:
@@ -146,7 +148,7 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_one(seq_item, reg, copy, out_slug=None, resume=False):
+def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False):
     seq = seq_item['seq']
     cid = seq_item['course']
     course = reg['courses'][cid]
@@ -185,6 +187,60 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     plan_path = os.path.join(ROOT, 'post_plans', f'{slug}_lesson-plan.md')
     lesson_md = os.path.join(ROOT, 'lessons', f'{slug}.md')
 
+    # --rebuild: the lesson at this slug is being rewritten from scratch. Every
+    # earlier artifact (lesson md, plan, fragment, built page, and any -vN
+    # comparison variants) is MOVED out of the repo tree before the first
+    # session starts, so no stage can read it; the brief forbids git history
+    # too; the independence gate measures the new lesson against the archived
+    # one. On any failure the archive is restored so the working tree is left
+    # exactly as it was.
+    archive = None
+    owner_cover_used = False
+    if rebuild:
+        import glob, shutil
+        archive = os.path.join(BRIEFS, 'rebuild-archive', slug)
+        os.makedirs(archive, exist_ok=True)
+        moved = []
+        cands = [lesson_md, plan_path,
+                 os.path.join(ROOT, '_lessons', f'{slug}.html'),
+                 os.path.join(ROOT, f'{slug}.html')]
+        cands += glob.glob(os.path.join(ROOT, 'lessons', f'{slug}-v*.md'))
+        cands += glob.glob(os.path.join(ROOT, 'post_plans', f'{slug}-v*_lesson-plan.md'))
+        for src in cands:
+            if os.path.exists(src):
+                dst = os.path.join(archive, os.path.relpath(src, ROOT).replace(os.sep, '__'))
+                if os.path.exists(dst):
+                    continue          # already archived (a --resume): the file in the tree is the NEW one
+                shutil.move(src, dst)
+                moved.append((src, dst))
+        log(f'rebuild: archived {len(moved)} earlier artifact(s) of {slug} to briefs/rebuild-archive/{slug}/')
+        indep = ("\nINDEPENDENCE (rebuild): this lesson is being written again from scratch. "
+                 "Earlier versions of it exist in git history and in comparison "
+                 "variants. Do NOT open, read, quote, git-show, git-log, or reuse ANY "
+                 "earlier version of this lesson, any file whose name starts with "
+                 f"{slug}, or any other lesson under lessons/. Plan and build from the "
+                 "email promise, the source post, and the skill alone, as if no lesson "
+                 "had ever been written for it.\n")
+        owner_cover = os.path.join(BRIEFS, f'owner-cover-{slug}.md')
+        owner_cover_used = os.path.exists(owner_cover)
+        if owner_cover_used:
+            indep += ("\nOWNER-WRITTEN COVER (verbatim, untouchable): the owner hand-wrote the "
+                      "cover prose for this lesson. Use it word for word as the cover step's "
+                      "prose (widget and objectives follow it), and never edit it:\n---\n"
+                      + io.open(owner_cover, encoding='utf-8').read().strip() + "\n---\n")
+
+    def restore_archive():
+        if not archive:
+            return
+        import shutil
+        n = 0
+        for name in os.listdir(archive):
+            dst = os.path.join(ROOT, name.replace('__', os.sep))
+            if not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.move(os.path.join(archive, name), dst); n += 1
+        log(f'rebuild: restored {n} archived artifact(s) after failure')
+
     # Stage 1: a fresh session PLANS only. (--resume: skip if a plan exists.)
     if resume and os.path.exists(plan_path):
         log(f'seq {seq} -> {slug}: resume, plan exists; skipping planner')
@@ -196,7 +252,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         r = claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-plan.log'))
         if not os.path.exists(plan_path):
             log(f'FAIL: planner produced no plan (see briefs/windowed-{slug}-plan.log)')
-            return None
+            restore_archive(); return None
 
     # Stage 2: a fresh session reviews the PLAN for flow and must approve it.
     # (--resume: skip if the plan is already stamped approved.)
@@ -214,7 +270,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         # non-zero). The approval stamp on disk is the verdict.
         if not approved():
             log('FAIL: plan review did not approve; stopping this lesson')
-            return None
+            restore_archive(); return None
         if r.returncode != 0:
             log('WARN: plan reviewer exited non-zero but the plan is stamped approved; continuing')
 
@@ -230,7 +286,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         r = claude(prompt, 6000, os.path.join(BRIEFS, f'windowed-{slug}-run.log'))
         if not os.path.exists(lesson_md):
             log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
-            return None
+            restore_archive(); return None
     # Stage 4: a fresh session reviews the LESSON. A genuine refusal writes a
     # line to Scripts/lesson-review.log; a transient API death (server error
     # mid-response, empty/short stdout) does not, and is retried once rather
@@ -238,7 +294,11 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     review_log = os.path.join(ROOT, 'Scripts', 'lesson-review.log')
     def review_log_size():
         return os.path.getsize(review_log) if os.path.exists(review_log) else 0
-    for attempt in (1, 2):
+    check_log = os.path.join(BRIEFS, f'windowed-{slug}-check.log')
+    reviewed = resume and os.path.exists(check_log) and 'PASS' in io.open(check_log, encoding='utf-8').read()[:400]
+    if reviewed:
+        log('resume, reviewer already passed this lesson; skipping reviewer')
+    for attempt in ((1, 2) if not reviewed else ()):
         log('writer done; reviewer starting' if attempt == 1 else 'reviewer retry (API death)')
         before = review_log_size()
         r = claude(CHECK_PROMPT.format(**fmt) + indep, 4000,
@@ -249,18 +309,22 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         api_death = ('API Error' in r.stdout) or (len(r.stdout.strip()) < 400 and not refused)
         if refused or not api_death or attempt == 2:
             log('FAIL: reviewer flagged manual_review; stopping this lesson')
-            return None
+            restore_archive(); return None
 
     # Comparison builds: PROVE independence, never trust it. Diff every step
     # against the canonical lesson and hard-fail on copying (the seq-1 v2
     # attempt sailed through every instruction while reusing v1's prose at
     # up to 98% similarity - only measurement catches that).
-    if out_slug:
+    if out_slug or rebuild:
         import difflib
         canon_md = os.path.join(ROOT, 'lessons', f"{PREFIX[cid]}-{part['part']}.md")
+        if rebuild:
+            canon_md = os.path.join(archive, f'lessons__{slug}.md')
         if os.path.exists(canon_md):
             split = lambda p: re.split(r'^=== step ===.*$', io.open(p, encoding='utf-8').read(), flags=re.M)[1:]
             new_steps, old_steps = split(lesson_md), split(canon_md)
+            if owner_cover_used and new_steps:
+                new_steps = new_steps[1:]   # the cover is the owner's verbatim text by design
             worst = 0.0
             for ns in new_steps:
                 for os_ in old_steps:
@@ -269,13 +333,13 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
             log(f'independence check: worst step similarity vs canonical = {worst:.2f}')
             if worst > 0.65:
                 log('FAIL: comparison build copied the canonical lesson (similarity > 0.65)')
-                return None
+                restore_archive(); return None
 
     log('gates + publish steps')
     g = sh([sys.executable, 'Scripts/lesson_quality_check.py', f'lessons/{slug}.md'])
     if g.returncode != 0:
         log('FAIL: final gate\n' + g.stdout[-800:])
-        return None
+        restore_archive(); return None
     publish_cmds = [[sys.executable, '_build/md2lesson.py', f'lessons/{slug}.md'],
                     [sys.executable, '_build/build.py'],
                     [sys.executable, '_build/build_exercise_manifest.py']]
@@ -286,7 +350,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
         r = sh(cmd)
         if r.returncode != 0:
             log(f'FAIL: {" ".join(cmd[1:])}\n' + (r.stdout + r.stderr)[-600:])
-            return None
+            restore_archive(); return None
 
     page = io.open(os.path.join(ROOT, f'{slug}.html'), encoding='utf-8').read()
     assert 'data-lesson-access="windowed"' in page and 'noindex' in page, 'windowed attrs missing'
@@ -301,7 +365,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
     msg = (f'Comparison build {slug} (from seq {seq}): {title}\n\n'
            f'Plan -> plan-review -> build pipeline; registry untouched; the\n'
            f'canonical lesson is unchanged.') if out_slug else (
-           f'Publish windowed lesson {slug} (seq {seq}): {title}\n\n'
+           ('Rebuild' if rebuild else 'Publish') + f' windowed lesson {slug} (seq {seq}): {title}\n\n'
            f'Part {part["part"]} of {course["title"]}. Plan -> plan-review ->\n'
            f'build in fresh Opus 5 sessions + fresh reviewer, both gates green,\n'
            f'windowed attrs and sitemap exclusion asserted, registry updated.')
@@ -318,11 +382,15 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--seq', type=int)
+    ap.add_argument('--seqs', help='comma-separated list of seqs to process, in sequence order')
     ap.add_argument('--max', type=int, default=1)
     ap.add_argument('--out-slug', help='comparison mode: build --seq N at this '
                     'alternate slug; registry and canonical lesson untouched')
     ap.add_argument('--resume', action='store_true',
                     help='skip stages whose artifact already exists (plan / approved plan / lesson)')
+    ap.add_argument('--rebuild', action='store_true',
+                    help='rewrite ALREADY-BUILT lessons from scratch at their live slugs, in '
+                         'sequence order (old versions archived out of reach; --max/--seq apply)')
     a = ap.parse_args()
     if a.out_slug and a.seq is None:
         log('--out-slug requires --seq')
@@ -335,14 +403,19 @@ def main():
             break
         if it['kind'] != 'lesson':
             continue
-        if it.get('slug') and not a.out_slug:
+        if a.rebuild:
+            if not it.get('slug'):
+                continue                      # rebuild only what exists
+        elif it.get('slug') and not a.out_slug:
             continue
         if a.seq is not None and it['seq'] != a.seq:
+            continue
+        if a.seqs and str(it['seq']) not in [x.strip() for x in a.seqs.split(',')]:
             continue
         if str(it['seq']) not in copy:
             log(f"seq {it['seq']}: no email copy written; stopping (copy is the promise)")
             break
-        slug = build_one(it, reg, copy, out_slug=a.out_slug, resume=a.resume)
+        slug = build_one(it, reg, copy, out_slug=a.out_slug, resume=a.resume, rebuild=a.rebuild)
         if not slug:
             sys.exit(1)
         reg = json.load(io.open(REG, encoding='utf-8'))  # reload after registry write
