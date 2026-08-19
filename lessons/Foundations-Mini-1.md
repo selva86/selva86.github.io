@@ -24,19 +24,19 @@ date: "2026-08-19"
 
 You are standing outside a screening camp holding a slip of paper. It says positive.
 
-The condition it screens for is rare. About 1 person in 1,000 has it. The test is good. It is right 99 times out of 100.
+The condition it screens for is rare, and about 1 person in 1,000 has it. The test is a good one, and it is right 99 times out of 100.
 
 Those two facts are all you know, and right now they feel like the worst news you have ever had.
 
 So before you read on, take a guess. Given that slip in your hand, what is the chance you actually have the condition?
 
-Almost everybody guesses high. The honest answer is closer to 9%.
+Almost everybody guesses high. The real answer is closer to 9%.
 
-Here is the whole puzzle in one picture. Line up 100,000 people, send every one of them through the same test, and they end up in four groups. Fill in those four question marks and the answer falls straight out.
+Here is the whole puzzle in one picture. Line up 100,000 people, send every one of them through the same test, and they end up in four groups. Fill in those four question marks and you have your answer.
 
 ::widget tree-diagram {"root": "100,000 tested", "l": "100 have it", "r": "99,900 do not", "leaves": ["? test +", "? test -", "? test +", "? test -"]}
 
-Filling them in is all that conditional probability is. By the end of this you will be able to do it for any test, on paper or in your head, and you will recognise the same trick sitting inside spam filters, fraud alerts and every Bayesian method you ever meet.
+Filling them in is all that conditional probability is. Once you can do it for one test you can do it for any test, on paper or in your head, and you will start to see the same counting inside spam filters, fraud alerts and every Bayesian method you ever meet.
 
 === step === concept
 
@@ -54,22 +54,22 @@ It could mean: of the people who have the condition, 99 out of every 100 get a p
 
 Or it could mean: of the people holding a positive slip, 99 out of every 100 have the condition. That is a claim about people like you, standing outside the tent with a piece of paper.
 
-The first one is what the manufacturer measures in a lab and prints on the box. The second one is the only thing you care about. They are two different numbers, and shortly you will see that one of them is 99% and the other is 9%.
+The first one is what the manufacturer measures in a lab and prints on the box. The second one is the only thing you care about. They are two different numbers, and once we have counted everybody, one of them turns out to be 99% and the other 9%.
 
 [KEY INSIGHT]
 A percentage on its own means nothing until you say which group it is a share of. "99% accurate" is measured on sick people and on healthy people, separately. Your question is about a third group entirely: the people in the positive queue.
 
-That is the whole lesson in one move. Name the group, then count it.
+That is the core idea. Name the group, then count it.
 
 === step === concept
 
 ## What does "given" actually mean?
 
-"Given" is the plainest word in statistics and it does exactly one thing. It throws people away.
+"Given" is the plainest word in statistics and it does exactly one thing. It tells you to throw people away.
 
 When somebody says "given you tested positive", they are telling you to walk back into that room of 100,000 people, send home everybody whose slip said negative, and look only at who is left standing. Whatever share of that smaller room has the condition, that is your answer.
 
-So this is not algebra. It is counting. Let us build the room.
+So this is not algebra, it is counting. Let's build the room.
 
 ```r
 n_people    <- 100000   # everyone who walks through the camp
@@ -96,7 +96,7 @@ town
 #> does not    999  98901
 ```
 
-Four numbers went in and four groups of people came out. Nothing here is a probability yet. These are head counts of a hundred thousand bodies, and every one of them is a whole person.
+Four numbers went in and four groups of people came out. Nothing here is a probability yet. These are plain head counts, a hundred thousand people sorted into four boxes.
 
 Read the table once, row by row. Of the 100 people who genuinely have the condition, 99 got a positive slip and 1 got a negative one. Of the 99,900 who are perfectly healthy, 999 got a positive slip anyway and 98,901 were correctly cleared.
 
@@ -112,7 +112,7 @@ Nobody wants to keep writing "the share of the people in the positive queue who 
 
 Say it out loud as "the probability of A, given B". That vertical bar is not doing anything clever. It is just the word "given".
 
-Two jobs, and they are not interchangeable:
+The two letters do different jobs, and you cannot swap them over:
 
 - **B is the group you are standing in.** It is the thing you already know is true. Here, B is "the slip says positive".
 - **A is the thing you want to know about yourself.** Here, A is "I have the condition".
@@ -139,7 +139,7 @@ You can probably already feel where this is going.
 
 You are outside the tent with a positive result in your hand and one question on your mind: how worried should I be?
 
-Four quantities are floating around this problem. Only one of them answers that question.
+There are four different quantities in this problem, and only one of them answers that question.
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
 - P(test says positive, given you have the condition)
@@ -157,11 +157,11 @@ Now put the counts back into the picture and look at what happened.
 
 Follow the left side first. Of the 100 people who have the condition, the test catches 99 and misses 1. That is the test doing its job well.
 
-Now follow the right side, because this is where the puzzle lives. Of the 99,900 healthy people, the test correctly clears 98,901 of them. But it wrongly alarms 999.
+Now follow the right side, because this is where the surprise is. Of the 99,900 healthy people, the test correctly clears 98,901 of them. But it wrongly gives a positive slip to the other 999.
 
 Sit with that number for a second. Nine hundred and ninety nine perfectly healthy people were handed the same slip you are holding. They walked out of the same tent, just as frightened as you are, and there is nothing wrong with any of them.
 
-Hold those two numbers side by side. The test found 99 of the sick people, and it flagged 999 of the healthy ones. Both of those came out of the same test, the one that is right 99 times in 100, and it is worth a moment working out how before you read on.
+Hold those two numbers side by side. The test found 99 of the sick people, and it flagged 999 of the healthy ones. Both of those came out of the same test, the one that is right 99 times in 100, and it is worth working out how that happens before you read on.
 
 So the queue at the follow-up desk is roughly ten frightened healthy people for every one genuinely sick person the test found.
 
@@ -181,9 +181,9 @@ round(chance_you_are_sick, 4)
 #> [1] 0.0902
 ```
 
-Nine percent.
+So the answer is nine percent.
 
-Not the 99% you were braced for. Out of every 100 people standing where you are standing, about 9 have the condition and about 91 are completely fine and will find that out at the follow-up appointment.
+That is not the 99% you were braced for. Out of every 100 people standing where you are standing, about 9 have the condition and about 91 are completely fine and will find that out at the follow-up appointment.
 
 That is not a reason to ignore the slip. Nine percent is roughly ninety times your starting risk of 0.1%, so of course you go back for a second test. It is a reason not to spend tonight assuming the worst.
 
@@ -207,7 +207,7 @@ You have done the whole calculation without a formula. Now here is the formula, 
 
 \[ P(A \mid B) = \frac{P(A \text{ and } B)}{P(B)} \]
 
-In words: take the people who are both A and B, and divide by everybody who is B. The top is the sliver of the room you care about. The bottom is the room that is left after the condition threw everyone else out.
+In words: take the people who are both A and B, and divide by everybody who is B. The top is the part of the room you care about. The bottom is everybody still standing in the room once everyone with a negative slip has gone home.
 
 That is exactly the division you just did, only written as shares of the town instead of head counts.
 
@@ -223,9 +223,9 @@ p_sick_and_positive / p_positive
 #> [1] 0.09016393
 ```
 
-Same 9%. Dividing 99 by 1,098 and dividing 0.00099 by 0.01098 are the same sum, because the 100,000 cancels top and bottom. The formula is not a second method. It is the counting you already did, written short.
+It is the same 9%. Dividing 99 by 1,098 and dividing 0.00099 by 0.01098 are the same sum, because the 100,000 cancels top and bottom. The formula is not a second method. It is the counting you already did, written short.
 
-Since we are going to change the numbers a few times, let us wrap the whole thing in one small function.
+Since we are going to change the numbers a few times, let's wrap the whole thing in one small function.
 
 ```r
 chance_given_positive <- function(prevalence, sensitivity, specificity) {
@@ -261,15 +261,15 @@ round(chance_given_positive(0.01, 0.99, 0.99), 4)
 #> [1] 0.5
 ```
 
-Exactly 0.5. Out of 100,000 people there are now 1,000 sick ones, of whom the test catches 990, and 99,000 healthy ones, of whom it wrongly alarms 990. Nine hundred and ninety against nine hundred and ninety. A positive slip has become a pure coin flip.
+It lands on exactly 0.5. Out of 100,000 people there are now 1,000 sick ones, of whom the test catches 990, and 99,000 healthy ones, of whom it wrongly flags 990. That is nine hundred and ninety against nine hundred and ninety. A positive slip has become a pure coin flip.
 
-Nothing about the test changed. Only the crowd it was pointed at.
+Nothing about the test changed. The only thing that changed is the crowd it was pointed at.
 
 === step === concept
 
 ## What happens if you turn the bar around?
 
-Both of these are true about the same test on the same day, and they are the two readings you separated right at the start:
+Both of these are true about the same test on the same day, and they are the two readings of "99% accurate" that we pulled apart:
 
 ```r
 p_positive_given_sick <- town["has it", "test +"] / sum(town["has it", ])
@@ -281,9 +281,9 @@ cat("P(you have it given test positive) =", round(p_sick_given_positive, 4), "\n
 #> P(you have it given test positive) = 0.0902
 ```
 
-Same table, same 99 people on top, and the answers are 99% and 9%.
+It is the same table with the same 99 people on top, and the answers come out as 99% and 9%.
 
-The only thing that changed is what sits underneath. In the first line we divided by the 100 people who have the condition. In the second we divided by the 1,098 people in the positive queue. Different group underneath, different answer.
+The only thing that changed is what sits underneath. In the first line we divided by the 100 people who have the condition. In the second we divided by the 1,098 people in the positive queue. A different group underneath gives you a different answer.
 
 Swapping the two sides of the bar is the most common mistake in all of statistics. It has a name, the confusion of the inverse, and the name is worth knowing because you will catch yourself doing it.
 
@@ -291,7 +291,7 @@ Swapping the two sides of the bar is the most common mistake in all of statistic
 
 ## Which sentence has flipped the conditional?
 
-All four sentences below are about the screening programme you have been counting. Three of them are true. One has quietly swapped the two groups around.
+All four sentences below are about the screening programme you have been counting. Three of them are true. One of them has swapped the two groups around.
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
 - Of the people who have the condition, 99 in 100 will test positive.
@@ -303,7 +303,7 @@ All four sentences below are about the screening programme you have been countin
 
 ## What does a negative result tell you?
 
-We have been hard on this test. So let us give it a fair hearing and ask the other question: what if your slip had said negative?
+We have been hard on this test, so let's ask the other question too. What if your slip had said negative?
 
 ```r
 negative_slips <- sum(town[, "test -"])
@@ -323,17 +323,17 @@ Of the 98,902 people who got a negative slip, 98,901 are genuinely healthy. Exac
 So a negative result here is very close to a guarantee, at 99.999%.
 
 [NOTE]
-This is the honest verdict on the test. It is not a bad test at all. It is a lopsided one. It is superb at ruling the condition out and poor at ruling it in, and that is exactly what you want from a first round screen: catch nearly everybody, then send the small flagged group on for something slower and more accurate.
+This is not a bad test at all, it is a lopsided one. It is very good at ruling the condition out and poor at ruling it in, and that is exactly what you want from a first round screen: catch nearly everybody, then send the small flagged group on for something slower and more accurate.
 
 === step === concept
 
 ## What is really driving the answer?
 
-Something in the try-it should be nagging at you. The test never changed. Its 99% and its 1% stayed exactly where they were. Yet the answer moved from 9% to 50%.
+Something about that coin flip should be nagging at you. The test never changed, its 99% and its 1% stayed exactly where they were, and yet the answer moved from 9% to 50%.
 
 So the answer was never really a property of the test. It was mostly a property of the crowd the test was pointed at, and that starting rate has a name: the base rate.
 
-Let us watch it move. Hold the test fixed and slide the base rate from very rare to fairly common.
+Let's watch it move. Hold the test fixed and slide the base rate from very rare to fairly common.
 
 ```r
 prevalence_grid <- seq(0.0001, 0.2, length.out = 400)
@@ -355,9 +355,9 @@ That gives you a rule of thumb for tests built like this one. If the condition i
 
 ## When does knowing B change nothing at all?
 
-One more question to finish the idea off. Everything so far has been about a condition that moves the answer a lot. What about one that moves it not at all?
+Now let's ask one more question. Everything so far has been about knowing something that moves the answer a lot, so what about knowing something that moves it not at all?
 
-Suppose we also note down the day of the week each person was tested. That day was decided by which morning they happened to be free, and a person's body knows nothing about the camp timetable. So knowing somebody was tested on a Monday should tell us precisely nothing about whether they are ill.
+Suppose we also note down the day of the week each person was tested. That day was decided by which morning they happened to be free, which has nothing to do with their health. So knowing somebody was tested on a Monday should tell us precisely nothing about whether they are ill.
 
 ```r
 set.seed(11)
@@ -374,9 +374,9 @@ round(tapply(person_has_it, test_day, mean) * 1000, 2)
 #> 1.00 0.99 1.11 0.80 1.10
 ```
 
-One in a thousand overall, and about one in a thousand on every single day. The days wobble a little, because only 100 sick people are being split five ways and small counts are jumpy, but they wobble around the same place rather than moving to a new one.
+It is one in a thousand overall, and about one in a thousand on every single day. The days wobble a little, because only 100 sick people are being split five ways and small counts are jumpy, but they wobble around the same place rather than moving to a new one.
 
-When knowing B leaves the answer where it already was, so that \(P(A \mid B) = P(A)\), we say A and B are **independent**. The day of your test is independent of your health. Your test result is emphatically not: it dragged the answer from 1 in 1,000 up to 90 in 1,000.
+When knowing B leaves the answer where it already was, so that \(P(A \mid B) = P(A)\), we say A and B are **independent**. The day of your test is independent of your health. Your test result is certainly not, because it moved the answer from 1 in 1,000 up to 90 in 1,000.
 
 That contrast is the whole point of conditioning. Some facts are worth knowing and some are not, and this is how you tell which is which.
 
@@ -410,9 +410,9 @@ round(chance_given_positive(first_answer, 0.99, 0.99), 4)
 #> [1] 0.9075
 ```
 
-About 91%. Now the slip means what you originally feared it meant.
+That is about 91%. Now the slip means what you originally feared it meant.
 
-Notice that nothing mystical happened. The second test was pointed at a crowd where roughly 9 in 100 are genuinely ill instead of 1 in 1,000, and against that crowd its 1% false alarm rate can no longer drown out the true positives. Stacking one result on top of another like this is the engine underneath every Bayesian method you will ever use.
+Notice that nothing mystical happened. The second test was pointed at a crowd where roughly 9 in 100 are genuinely ill instead of 1 in 1,000, and against that crowd its 1% false alarm rate no longer outnumbers the true positives. Stacking one result on top of another like this is what every Bayesian method you will ever use is doing.
 
 === step === concept
 
@@ -439,6 +439,6 @@ Three moves get you there every time.
 
 Those same three moves are running inside a spam filter deciding whether the word "invoice" means you have been hacked, a bank deciding whether your card was stolen, and every Bayesian model that updates a belief when fresh evidence turns up. All of them are asking what share of the flagged group is genuinely guilty.
 
-And keep the base rate lesson close. When somebody quotes you an accuracy figure, the first question is never how accurate. It is: accurate on whom, and how common is the thing in the crowd you are pointing it at.
+And keep the base rate in mind. When somebody quotes you an accuracy figure, the first question is never how accurate. It is: accurate on whom, and how common is the thing in the crowd you are pointing it at.
 
 Next time we put a single number on what a random thing is worth, and on how much it wobbles: expected value and variance.
