@@ -59,11 +59,11 @@ By the end you will be able to:
 
 We cannot run tonight again. Priya has tasted the ten cups, the answer is on the table, and that is that.
 
-But there is one version of tonight we can run as many times as we like: the boring version. The one where Priya has no ability at all and is calling the cups at random.
+But there is one version of tonight we can run as many times as we like, and that is the boring version, the one where Priya has no ability at all and is calling every cup at random.
 
 That is the world we need. Watch a pure guesser play this exact game over and over, and you learn what luck alone is capable of. Then you can hold Priya's nine up against it.
 
-So how does a pure guesser actually behave? On any one cup she has two answers to pick from, Coke or Pepsi, and nothing to pick with. So she is right about half the time and wrong about half the time, which is exactly what a tossed coin does. That is why we can build her out of one: let a coin call all ten cups.
+So how does a pure guesser actually behave? On any one cup she has two answers to pick from, Coke or Pepsi, and nothing to help her choose between them. So she is right about half the time and wrong about half the time, which is exactly what a tossed coin does. That is why we can build her out of a coin, and let that coin call all ten cups.
 
 ```r
 set.seed(101)
@@ -84,15 +84,15 @@ sum(one_round == "right")
 
 `one_round == "right"` compares each of the ten calls to the word right and hands back ten TRUEs and FALSEs. `sum()` counts the TRUEs.
 
-Seven. From something that knows nothing about Coke, Pepsi, or taste.
+That is seven out of ten, from something that knows nothing about Coke, Pepsi, or taste.
 
 === step === concept
 
 ## Why is one round not enough?
 
-Seven out of ten from a pure guesser is already a bit unsettling. But do not read anything into it yet, because that seven is itself a random number. Run the same guesser again and it moves.
+Seven out of ten from a pure guesser is already a bit surprising. But do not read anything into it yet, because that seven is itself a random number. Run the same guesser again and the number moves.
 
-Here are three more rounds. Same guesser, same coin, and no new seed this time, so the randomness simply carries on from where it was.
+Here are three more rounds, with the same guesser and the same coin. There is no new seed this time, so the randomness simply carries on from where it was.
 
 ```r
 round_two   <- sample(c("right", "wrong"), size = 10, replace = TRUE)
@@ -106,7 +106,7 @@ c(round_two = sum(round_two == "right"),
 #>           6           5           4
 ```
 
-Six, then five, then four.
+The guesser got six, then five, then four.
 
 So one round tells you nothing about what luck usually does. It only tells you what luck did that one time. If we want to know what a guesser is capable of, we have to watch a lot of guessers.
 
@@ -114,7 +114,7 @@ So one round tells you nothing about what luck usually does. It only tells you w
 
 ## What does luck usually manage?
 
-So let us play the guessing world ten thousand times. Each round is a fresh guesser calling ten fresh cups, and we write the score down.
+So let's play the guessing world ten thousand times. Each round is a fresh guesser calling ten fresh cups, and we write the score down.
 
 Ten thousand is not a magic number. It is just big enough that the answer stops wobbling when you run the whole thing again.
 
@@ -139,7 +139,7 @@ Read the bottom row as counts. Five came up 2,460 times, more than any other sco
 
 ## The shape of pure luck
 
-Those counts have a shape, and the shape is the whole point. Let us draw it, with Priya's score and anything better in orange.
+Those counts have a shape, and the shape is the whole point. So let's draw it, with Priya's score and anything better in orange.
 
 ```r
 bar_colour <- ifelse(0:10 >= 9, "#d97706", "#cfe0f3")
@@ -153,11 +153,11 @@ hist(many_rounds,
      ylab   = "Number of rounds")
 ```
 
-Only two lines in there are fussy. `breaks` forces one bar per score, so 0 through 10 each get their own bar instead of being lumped together, and `bar_colour` hands `hist()` a colour per bar, orange for 9 and 10 and pale blue for the rest.
+Only two lines in there need explaining. `breaks` forces one bar per score, so 0 through 10 each get their own bar instead of being lumped together, and `bar_colour` hands `hist()` a colour per bar, orange for 9 and 10 and pale blue for the rest.
 
-Luck piles up in the middle and thins out towards both ends. It never quite runs out, though. The two orange bars are the rounds where a guesser did as well as Priya or better, and they are small, but they are there.
+The rounds pile up in the middle and thin out towards both ends, and they never quite run out at either end. The two orange bars are the rounds where a guesser did as well as Priya or better, and they are small, but they are there.
 
-That last part is the bit people skip. Nine out of ten is not impossible for a guesser. It is uncommon. All of statistical inference lives in the gap between those two words.
+That last part is the bit people skip. Nine out of ten is not impossible for a guesser. It is only uncommon. And the difference between those two words, impossible and uncommon, is what all of statistical inference is built on.
 
 === step === quiz
 
@@ -177,7 +177,7 @@ Before we put a number on any of this, make sure you are reading that picture th
 
 Now we can answer the question the table was actually arguing about. Across those ten thousand pure-guess rounds, what share did as well as Priya or better?
 
-The words or better are doing real work there. We count the nines and the tens together, because a guesser who called all ten did at least as well as Priya did, and what we want to know is how often luck produces a night this impressive or more so.
+The words or better matter a great deal here. We count the nines and the tens together, because a guesser who called all ten did at least as well as Priya did, and what we want to know is how often luck produces a night this impressive or more so.
 
 ```r
 luck_rate_9 <- mean(many_rounds >= 9)
@@ -187,7 +187,7 @@ luck_rate_9
 
 `many_rounds >= 9` turns the ten thousand scores into ten thousand TRUEs and FALSEs. Taking the mean of TRUEs and FALSEs gives you the share that are TRUE, because R counts every TRUE as 1 and every FALSE as 0.
 
-So 0.0127. Pure guessing produced a night as good as Priya's, or better, in 1.3 percent of ten thousand attempts.
+So the answer is 0.0127. Pure guessing produced a night as good as Priya's, or better, in 1.3 percent of ten thousand attempts.
 
 === step === tryit
 
@@ -212,13 +212,13 @@ mean(many_rounds >= 8)
 #> [1] 0.0537
 ```
 
-Nine and eight sound like nearly the same result. Out at the thin edge of that picture they are not, and that is worth remembering the next time a number lands just short of a line somebody drew.
+Nine and eight sound like nearly the same result. Out at the thin edge of that picture they are not, and that is worth remembering the next time a number lands just short of a cutoff.
 
 === step === concept
 
 ## So what do we say about Priya?
 
-We have everything we need now. Let us put that rate into the plainest form there is: one night in how many?
+We have everything we need now. So let's put that rate into the plainest form there is, which is one night in how many.
 
 ```r
 round(1 / luck_rate_9)
@@ -229,18 +229,18 @@ Here is the whole evening in one sentence.
 
 If Priya cannot taste the difference at all, a night this good turns up about once in every 79 attempts. Tonight it turned up on the first attempt.
 
-Which leaves you two ways to explain your kitchen. Either something that happens roughly once in 79 tries happened tonight, first go, in front of you. Or she is not guessing.
+That leaves you two ways to explain what happened in your kitchen. Either something that happens roughly once in 79 tries happened tonight, on the first go, right in front of you. Or she is not guessing at all.
 
-Neither one is impossible. But one of them is a great deal easier to believe than the other, and saying so out loud is the entire act of statistical inference. You have not proved anything about Priya. You have worked out which explanation the evening strains less.
+Neither one is impossible. But one of them is a great deal easier to believe than the other, and saying so out loud is the entire act of statistical inference. You have not proved anything about Priya. You have only worked out which of the two explanations is easier to believe.
 
 [KEY INSIGHT]
-Inference never tells you what is true. It tells you how uncomfortable the boring explanation has become.
+Inference never tells you what is true. It tells you how hard the boring explanation has become to believe.
 
 === step === quiz
 
 ## What does that 1.3 percent actually mean?
 
-This is the step where almost everybody slips, and it is worth going slowly. The number is 1.3 percent. Which of these does it actually say?
+This is where almost everybody slips, so it is worth going slowly. The number is 1.3 percent. Which of these does it actually say?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
 - There is a 1.3 percent chance that Priya was guessing. ::no Look at where the number came from.
@@ -254,15 +254,15 @@ This is the step where almost everybody slips, and it is worth going slowly. The
 
 ::prose-only the rate was computed, drawn and read correctly already; this step only attaches the label to it
 
-You have computed one, drawn it, and read it correctly. So you have earned the word.
+You have computed one, you have drawn it, and you have read it correctly. So now it is time to give it its name.
 
 That rate, the share of pure-luck rounds that did as well as the real result or better, is called a p-value.
 
-That is all it is. Not the probability that a claim is true. Not a measure of how big or how important anything is. A p-value answers one narrow question, and only that question: if nothing but luck were at work, how often would luck alone produce a result this good?
+That is all it is. It is not the probability that a claim is true, and it is not a measure of how big or how important anything is. A p-value answers one narrow question, and only that question: if nothing but luck were at work, how often would luck alone produce a result this good?
 
 You will also run into a line drawn at 0.05, and results called significant when they fall under it. Priya's 0.0127 falls under it comfortably.
 
-It is worth knowing where that line came from. Fisher floated one in twenty as a convenient rule of thumb in the 1920s, and it stuck. It is a convention people found handy, not a boundary in nature, and nothing whatsoever changes about the evidence as a number slides from 0.051 to 0.049.
+It is worth knowing where that line came from. Fisher suggested one in twenty as a convenient rule of thumb in the 1920s, and it stuck. It is a convention people found handy rather than a boundary in nature, and nothing about the evidence really changes when a number moves from 0.051 to 0.049.
 
 === step === widget
 
@@ -272,15 +272,15 @@ Look back at what you actually did tonight. Take out the Coke, the cups and the 
 
 ::widget process-flow {"steps": [{"title": "Assume pure luck", "sub": "suppose Priya has no ability and is guessing every cup"}, {"title": "Play that world", "sub": "run 10,000 rounds of ten calls and record every score"}, {"title": "Count as good or better", "sub": "how many of those rounds reached 9 right or more"}, {"title": "Judge", "sub": "rare under pure luck makes luck a poor explanation"}]}
 
-Move one is where the honesty lives, because you have to be willing to describe the boring world precisely enough to build it. Move two we did by brute force, by literally playing that world ten thousand times.
+Move one is the move that asks the most of you, because you have to be willing to describe the boring world precisely enough to build it. Move two we did by brute force, by literally playing that world ten thousand times.
 
-And move two is the only part that changes when you meet the tests that have names. A t-test, a chi-squared test, an ANOVA: each of them swaps our ten thousand rounds for a formula that works out the same answer without any playing. Different arithmetic, identical question. How often would luck alone do this well?
+And move two is the only part that changes when you meet the tests that have names. A t-test, a chi-squared test, an ANOVA: each of them swaps our ten thousand rounds for a formula that works out the same answer without any playing. The arithmetic is different and the question is identical. How often would luck alone do this well?
 
 === step === concept
 
 ## Does this work anywhere but a dinner table?
 
-Priya is fun, but nobody is paying you to referee taste tests. So here is the same evening, at work.
+Priya is fun, but nobody is paying you to referee taste tests. So let's take the same evening to work.
 
 An online shop rewrites its checkout page. The old page converts about half of the visitors who reach it, which is unusually good for a checkout and makes the arithmetic clean. They show the new page to the next 40 visitors. 25 of them buy.
 
@@ -296,7 +296,7 @@ Press the buttons and watch it happen.
 
 ## How often does luck give 25 out of 40?
 
-Now run it properly. Same four moves, new numbers. The code below is Priya's simulation, untouched, and exactly two numbers need to move: ten cups become 40 visitors, and nine right becomes 25 buyers.
+Now let's run it properly. It is the same four moves with new numbers. The code below is Priya's simulation, untouched, and exactly two numbers need to move: ten cups become 40 visitors, and nine right becomes 25 buyers.
 
 ```r
 set.seed(404)
@@ -343,14 +343,14 @@ round(c(priya = luck_rate_9, checkout = luck_rate_25), 4)
 #>   0.0127   0.0752
 ```
 
-Same four moves, same code, an answer six times larger. One test in how many?
+It is the same four moves and the same code, and the answer is six times larger. So how often is that, one test in how many?
 
 ```r
 round(1 / luck_rate_25)
 #> [1] 13
 ```
 
-About one in 13. Run this experiment on a checkout page that changed absolutely nothing, thirteen times over, and one of those runs would hand you a 25 out of 40 and a room full of people wanting to ship it.
+That is about one in 13. Run this experiment on a checkout page that changed absolutely nothing, thirteen times over, and one of those runs would hand you a 25 out of 40 and a room full of people wanting to ship it.
 
 Priya's night was rare enough to need explaining. The shop's night is not.
 
@@ -358,7 +358,7 @@ Priya's night was rare enough to need explaining. The shop's night is not.
 
 ## What should the shop do?
 
-The number is on the table. 25 buyers out of 40, and luck alone reaches that about one test in 13. So what do you tell the room?
+The number is on the table. There are 25 buyers out of 40, and luck alone reaches that about one test in 13. So what do you tell the room?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
 - Ship the new page. 25 out of 40 beats the 20 you would have expected from the old one. ::no Read the 7.5 percent again.
@@ -370,13 +370,13 @@ The number is on the table. 25 buyers out of 40, and luck alone reaches that abo
 
 ## What this method does not tell you
 
-Three limits, and they matter more than anything else on this page.
+There are three limits to all of this, and they matter more than anything else you have seen so far.
 
-The first: it never proves skill. Priya's night was rare under guessing, so guessing got hard to believe, and that is as far as it goes. Rare things do happen. Run the taste test on 200 confident dinner guests who are all guessing, and two or three of them will hand you a nine out of ten and a story to go with it. Evidence is not proof.
+The first limit is that it never proves skill. Priya's night was rare under guessing, so guessing got hard to believe, and that is as far as it goes. Rare things do happen. Run the taste test on 200 confident dinner guests who are all guessing, and two or three of them will hand you a nine out of ten and a story to go with it. Evidence is not proof.
 
-The second: it says nothing about how good she is. Nine out of ten sits just as comfortably with a taster who is right 80 percent of the time as with one who is right 95 percent. All this method does is rule luck in or out. How big the effect is, is a separate question, and in most real work it is the more useful one.
+The second limit is that it says nothing about how good she is. Nine out of ten fits a taster who is right 80 percent of the time just as well as it fits one who is right 95 percent. All this method does is rule luck in or out. How big the effect is, that is a separate question, and in most real work it is the more useful one.
 
-The third is the cheapest mistake of the lot, so catch it now. The whole argument rests on the size of the test. Give Priya four cups instead of ten, and let her get all four right.
+The third limit is the easiest mistake to make, so let's catch it now. The whole argument rests on the size of the test. Give Priya four cups instead of ten, and let her get all four right.
 
 ```r
 set.seed(7)
@@ -389,7 +389,7 @@ mean(tiny_test >= 4)
 #> [1] 0.0585
 ```
 
-A perfect score, and it means almost nothing. Pure guessing gets four out of four about 6 percent of the time, roughly one guesser in 17. Ten cups was doing real work, and no amount of careful arithmetic afterwards can rescue a test that was too small to start with.
+She gets a perfect score, and it means almost nothing. Pure guessing gets four out of four about 6 percent of the time, roughly one guesser in 17. Ten cups was doing real work, and no amount of careful arithmetic afterwards can rescue a test that was too small to start with.
 
 === step === concept
 
@@ -407,13 +407,13 @@ The dinner-table experiment is not ours. It is nearly a hundred years old, and i
 
 ## You just did statistical inference
 
-No formulas anywhere. You built the world where nothing interesting is happening, played it ten thousand times, counted how often blind luck did as well as the real result, and then judged.
+You did all of that without a single formula. You built the world where nothing interesting is happening, you played it ten thousand times, you counted how often blind luck did as well as the real result, and then you judged.
 
-That is the engine. Three turns of it on one page:
+That is the engine, and you have turned it three times already:
 
-- Priya, 9 of 10. Luck manages that about once in 79 nights, so guessing became hard to believe.
-- The checkout page, 25 of 40. Luck manages that about once in 13 tests, so there is nothing here to act on yet.
-- Four cups, a perfect score. Luck manages that about once in 17, so the test was never big enough to say anything at all.
+- Priya called 9 of 10, and luck manages that about once in 79 nights, so guessing became hard to believe.
+- The checkout page got 25 of 40, and luck manages that about once in 13 tests, so there is nothing here to act on yet.
+- Four cups gave a perfect score, and luck manages that about once in 17, so the test was never big enough to say anything at all.
 
 Every test with a name is running those same four moves. The t-test, the chi-squared test, the ANOVA sitting behind somebody's dashboard: each one carries a formula that works out how often luck alone would do this well, so that nobody has to sit and play ten thousand rounds by hand. The formula is the shortcut. The question underneath it is the one you just answered yourself.
 
