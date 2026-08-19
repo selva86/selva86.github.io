@@ -26,19 +26,19 @@ Tony runs the pizza place at the end of your street, and there is a small printe
 
 *We are 95% confident the average delivery takes between 22 and 30 minutes.*
 
-It sounds precise. It sounds like a promise. But what is the 95% actually promising?
+It sounds precise, and it sounds like a promise. But what is the 95% actually promising?
 
-Ask around and you get two answers. The first one: 95% of pizzas arrive between 22 and 30 minutes. The second one: there is a 95% chance the true average sits inside 22 to 30.
+Ask around and you will get two answers. The first one says that 95% of pizzas arrive between 22 and 30 minutes. The second one says there is a 95% chance the true average sits somewhere inside 22 to 30.
 
 Neither of those is right.
 
-Both are so reasonable that almost everybody who uses these intervals picks one and quietly moves on without asking. Today we are not going to move on.
+Both of those answers sound so reasonable that most people who use these intervals pick one of them and never ask any further. Today we are going to ask.
 
 Here is what we will do instead. We are going to build Tony's shop ourselves, so that we know the true average delivery time and nobody in the story does. Then we time a day of deliveries, build the interval, and check whether it caught the truth. Then we do that a hundred times over and count.
 
 ::widget process-flow {"steps":[{"title":"Time one day","sub":"twelve deliveries, one average"},{"title":"Add a margin","sub":"the average plus and minus a margin makes a range"},{"title":"Catch or miss","sub":"the range either holds the true average or it does not"}]}
 
-That loop, run over and over, is the entire meaning of the 95%. By the end of this you will be able to say it in one sentence to anybody who asks.
+Running that loop over and over is the whole meaning of the 95%. By the end of this you will be able to say it in one sentence to anybody who asks.
 
 === step === concept
 
@@ -46,11 +46,11 @@ That loop, run over and over, is the entire meaning of the 95%. By the end of th
 
 Tony's card talks about "the average delivery time". Before we can check whether an interval catches anything, we have to be clear about which average that is, because there are two of them and they are not the same number.
 
-The first is the **true average**: what you would get if you timed every delivery Tony will ever make. Every Tuesday lunch, every rainy Friday night, all of it. That number is real and nobody can ever see it.
+The first one is the **true average**, which is what you would get if you timed every delivery Tony will ever make. That means every Tuesday lunch and every rainy Friday night, all of them counted. That number is real, and nobody can ever see it.
 
-The second is the average of the deliveries you actually timed. Sit in the shop one Tuesday, time twelve orders, add them up and divide by twelve. That number you can compute. It is not the true average. It is your one look at it.
+The second one is the average of the deliveries you actually timed. You sit in the shop one Tuesday, time twelve orders, add them up and divide by twelve. That number you can compute, and it is not the true average. It is your one look at it.
 
-Everything in this lesson is about the gap between those two.
+The gap between those two numbers is the thing we have to understand.
 
 In real life you only ever hold the second one, which is exactly what makes this hard to learn. So we are going to cheat. We will build the shop ourselves with the true average set to 26 minutes, and then walk into it as though we knew nothing.
 
@@ -72,17 +72,17 @@ mean(day1)
 #> [1] 26.29167
 ```
 
-`rnorm(12, mean = 26, sd = 6.5)` draws twelve numbers that scatter around 26, where 6.5 is the typical size of the scatter. `set.seed(7476)` fixes which twelve, so your numbers on screen match the ones written here exactly.
+`rnorm(12, mean = 26, sd = 6.5)` draws twelve numbers that scatter around 26, where 6.5 is the typical size of the scatter. `set.seed(7476)` fixes which twelve you get, so your numbers on screen match the ones written here exactly.
 
-Tuesday's average came out at 26.29 minutes. The truth is 26. We were off by about a third of a minute, and the only reason we know we were off is that we built the shop.
+Tuesday's average came out at 26.29 minutes, and the true average is 26. So we were off by about a third of a minute, and the only reason we know we were off is that we built the shop.
 
 === step === concept
 
 ## Why does the answer change every day?
 
-Tuesday gave us 26.29 minutes. Fine. Now go back on Wednesday and time twelve more orders, and again on Thursday.
+Tuesday gave us 26.29 minutes. Now let us go back on Wednesday and time twelve more orders, and then do the same again on Thursday.
 
-Same shop. Same kitchen. Same oven, same bikes, same true average of 26 minutes sitting behind all of it. Different twelve pizzas.
+It is the same shop and the same kitchen, with the same oven, the same bikes and the same true average of 26 minutes sitting behind all of it. What changes is that we are timing a different twelve pizzas.
 
 ```r
 set.seed(944)
@@ -94,11 +94,11 @@ c(day1 = mean(day1), day2 = mean(day2), day3 = mean(day3))
 #> 26.29167 23.95000 27.82500
 ```
 
-26.29, then 23.95, then 27.83. Nothing about the shop changed. The only thing that changed is which twelve pizzas happened to get timed.
+The three averages came out at 26.29, then 23.95, then 27.83. Nothing about the shop changed between them. The only thing that changed is which twelve pizzas happened to get timed.
 
 That wobble is not sloppiness, and no amount of care with the stopwatch removes it. It is simply what you pay for looking at twelve deliveries instead of all of them.
 
-Which means that reporting "26.29 minutes" on its own is a small lie by omission. It is one draw from something that jumps around by several minutes. An honest answer has to carry that jumping with it, and a range is how you carry it.
+So reporting "26.29 minutes" on its own leaves out something important. That number is one draw from something that jumps around by several minutes, and a fair answer has to show that jumping instead of hiding it. A range is how you show it.
 
 === step === concept
 
@@ -106,11 +106,11 @@ Which means that reporting "26.29 minutes" on its own is a small lie by omission
 
 Our three days landed at 26.29, 23.95 and 27.83. If we can put a number on how far apart daily averages tend to be, we can turn that number into a range.
 
-Two things drive it.
+Two things decide how much it wobbles.
 
-First, how spread out the individual deliveries are. A kitchen where every pizza takes roughly the same time gives you steady daily averages. A chaotic one does not.
+The first one is how spread out the individual deliveries are. A kitchen where every pizza takes roughly the same time gives you steady daily averages, and a chaotic kitchen does not.
 
-Second, how many deliveries you time. With twelve pizzas, one long bike ride across town drags the whole average up. With two hundred, that same ride barely moves it.
+The second one is how many deliveries you time. With twelve pizzas, one long bike ride across town drags the whole average up, and with two hundred that same ride barely moves it.
 
 Put those two together and you get the **standard error**: the spread of the deliveries you timed, divided by the square root of how many you timed.
 
@@ -128,7 +128,7 @@ se_day1
 #> [1] 1.893388
 ```
 
-About 1.89 minutes. That is the claim: a Tuesday-sized average usually sits somewhere around 1.9 minutes away from the true 26.
+That comes to about 1.89 minutes. What it claims is that a Tuesday-sized average usually sits somewhere around 1.9 minutes away from the true 26.
 
 Notice that we got that estimate out of one Tuesday, without ever seeing another day. Because we built this shop, we can go and check it. Run two thousand days, take each day's average, and measure how far apart those averages actually spread.
 
@@ -139,7 +139,7 @@ sd(many_days)
 #> [1] 1.914487
 ```
 
-1.91 against the 1.89 we guessed from a single day. The standard error does what it says.
+That comes to 1.91, against the 1.89 we guessed from a single day. So the standard error does what it says it does.
 
 === step === concept
 
@@ -153,7 +153,7 @@ The interval is your average, plus and minus a margin:
 
 \[ \text{interval} = \bar{x} \pm t^{*} \times \frac{s}{\sqrt{n}} \]
 
-Reading that left to right. \(\bar{x}\) is the average of your twelve times. The \(s/\sqrt{n}\) part is the standard error we just built, 1.89 minutes. And \(t^{*}\) is a multiplier that decides how many standard errors wide to go. R hands it to you from `qt()`.
+Let us read that from left to right. \(\bar{x}\) is the average of your twelve times. The \(s/\sqrt{n}\) part is the standard error we just built, 1.89 minutes. And \(t^{*}\) is a multiplier that decides how many standard errors wide to go. You get that multiplier from `qt()` in R.
 
 ```r
 avg  <- mean(day1)
@@ -172,15 +172,15 @@ c(lower = avg - margin, upper = avg + margin)
 #> 22.12435 30.45899
 ```
 
-Two things in that `qt()` call look arbitrary and are not.
+Two things in that `qt()` call look arbitrary, and neither of them is.
 
 The `0.975` is there because a 95% interval leaves 5% out, split evenly between the two ends. So 2.5% falls off the bottom, 2.5% off the top, and 97.5% sits below the upper edge.
 
-The `df = n_day - 1` is 12 minus 1. With only twelve times you had to estimate the spread from the very same twelve numbers, and the multiplier pays for that borrowed information by being a bit larger than it would be on a big day of data.
+The `df = n_day - 1` is simply 12 minus 1. With only twelve times you had to estimate the spread from those very same twelve numbers, and that borrowed information costs you a slightly larger multiplier than a big day of data would need.
 
-So: 22.12 to 30.46 minutes. That is where the card on Tony's counter comes from, rounded off to 22 and 30.
+So Tuesday's interval runs from 22.12 to 30.46 minutes. That is where the card on Tony's counter comes from, rounded off to 22 and 30.
 
-That range has a name. It is the **95% confidence interval** for the average delivery time, and the 95% is called the confidence level, the number you picked when you asked `qt()` for 0.975. What that 95% is actually counting is the rest of this lesson.
+That range has a name. It is the **95% confidence interval** for the average delivery time, and the 95% is called the confidence level, the number you picked when you asked `qt()` for 0.975. So what exactly is that 95% counting?
 
 === step === concept
 
@@ -203,7 +203,7 @@ t.test(day1)
 #>  26.29167
 ```
 
-Ignore the top half of that. `t.test()` always throws in a check of whether the average could be zero, which for delivery times is a silly question and gets a silly answer. The two lines we came for are under `95 percent confidence interval`: 22.12435 and 30.45899. Exactly the numbers we built by hand, to the last digit.
+Ignore the top half of that. `t.test()` always throws in a check of whether the average could be zero, which for delivery times is a silly question and gets a silly answer. The two lines we came for are under `95 percent confidence interval`, and they read 22.12435 and 30.45899. Those are exactly the numbers we built by hand, down to the last digit.
 
 If you want only those two numbers, ask for them directly.
 
@@ -251,7 +251,7 @@ c(lower = avg2 - margin2, upper = avg2 + margin2)
 #> 19.93463 27.96537
 ```
 
-Tuesday said 22.12 to 30.46. Wednesday says 19.93 to 27.97. Same shop, same true 26 minutes underneath, two noticeably different answers. Both of them happen to contain 26, and again, we only know that because we built the shop.
+Tuesday said 22.12 to 30.46, and Wednesday says 19.93 to 27.97. It is the same shop with the same true 26 minutes underneath, and yet the two answers are noticeably different. Both of them happen to contain 26, and again, we only know that because we built the shop.
 
 === step === concept
 
@@ -259,11 +259,11 @@ Tuesday said 22.12 to 30.46. Wednesday says 19.93 to 27.97. Same shop, same true
 
 Here is the question nobody in real life gets to ask. Tuesday's interval was 22.12 to 30.46. Did it catch the true average?
 
-We know it did, because we set the truth to 26 ourselves. Tony cannot check this. Neither can any analyst, ever, on any real data, because checking would mean already knowing the answer you were trying to estimate.
+We know it did, because we set the truth to 26 ourselves. Tony cannot check this, and neither can any analyst on any real data, because checking would mean already knowing the answer you were trying to estimate.
 
-So the honest way to judge an interval is not to ask about that one interval at all. It is to ask about the recipe that produced it. Run the recipe a hundred times and watch how it behaves.
+The fair way to judge an interval is not to ask about that one interval at all. It is to ask about the recipe that produced it. We can run that recipe a hundred times and watch how it behaves.
 
-A hundred days. Twelve deliveries each. One interval per day, all from the same shop with the same true average of 26 minutes. Then count how many of the hundred contain 26.
+So we take a hundred days with twelve deliveries each, and we build one interval per day, all from the same shop with the same true average of 26 minutes. Then we count how many of the hundred contain 26.
 
 ```r
 set.seed(42)
@@ -278,9 +278,9 @@ intervals[, 1:3]      # first three days: row 1 is the lower edge, row 2 the upp
 #> [2,] 34.71985 27.99638 30.2788
 ```
 
-Look hard at the first of those three: 27.10 to 34.72. It does not contain 26. That day's owner would have collected twelve honest delivery times, run the same code as everybody else, made no mistake anywhere, and printed an interval that simply misses. And he would have had no way on earth to know.
+Look hard at the first of those three, which runs from 27.10 to 34.72. It does not contain 26. Whoever ran the shop that day would have timed twelve deliveries carefully, run the same code as everybody else, made no mistake anywhere, and still printed an interval that misses. And they would have had no way of knowing.
 
-Now count all hundred.
+Now let us count all hundred.
 
 ```r
 catches <- intervals[1, ] <= true_mean & intervals[2, ] >= true_mean
@@ -296,13 +296,13 @@ coverage
 #> [1] 0.95
 ```
 
-Ninety five of the hundred caught 26. Five missed. That number, 0.95, is the 95%.
+Ninety five of the hundred intervals caught 26, and five of them missed. That number, 0.95, is the 95%.
 
 === step === concept
 
 ## Watch the catches and the misses
 
-Counting is one thing. Drawing it is what makes it stick.
+Counting is one thing, but seeing it drawn is what makes it clear.
 
 Every day gets one vertical line, running from its lower edge up to its upper edge. The dashed line straight across is the true average, 26 minutes, which in real life is invisible. A line that crosses the dashed line caught the truth. A line sitting entirely above it or entirely below it missed, and those are drawn in red.
 
@@ -317,15 +317,15 @@ segments(x0 = 1:100, y0 = intervals[1, ], y1 = intervals[2, ],
 abline(h = true_mean, lty = 2, lwd = 2)
 ```
 
-Notice what the five red lines have in common: nothing. They are not shorter or wider than the rest, not built from worse data, not the result of a bad day in the kitchen. They are ordinary days where the twelve pizzas that happened to get timed all ran a little fast together, or a little slow together.
+Now look at what the five red lines have in common, which is nothing at all. They are not shorter or wider than the rest, they are not built from worse data, and they are not the result of a bad day in the kitchen. They are ordinary days where the twelve pizzas that happened to get timed all ran a little fast together, or all ran a little slow together.
 
-And notice what the picture refuses to give you. Standing on any one of those days, holding only your own twelve numbers, there is nothing that tells you what colour your line is.
+There is also one thing this picture cannot give you. If you are standing on any one of those days holding only your own twelve numbers, nothing tells you what colour your line is.
 
 === step === quiz
 
 ## What is the 95% counting?
 
-You have now watched the thing happen a hundred times. So, precisely: when Tony's card says 95%, what is being counted?
+You have now watched this happen a hundred times. So when Tony's card says 95%, what exactly is being counted?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
 - 95% of Tony's deliveries land inside 22 to 30 minutes. ::no Look again at how the hundred lines were counted.
@@ -337,7 +337,7 @@ You have now watched the thing happen a hundred times. So, precisely: when Tony'
 
 ## Why not "a 95% chance the truth is in here"?
 
-That second option is the tempting one, so let us take it apart properly instead of just calling it wrong.
+The idea that there is a 95% chance the truth sits inside Tuesday's interval is the tempting one, so let us take it apart properly instead of just calling it wrong.
 
 Take Tuesday's interval, 22.12 to 30.46, and the true average, 26.
 
@@ -351,11 +351,11 @@ ci1[1] <= true_mean & ci1[2] >= true_mean
 #> [1] TRUE
 ```
 
-TRUE. Not 95% TRUE. Just TRUE.
+The answer comes back TRUE. It is not 95% TRUE. It is simply TRUE.
 
-The true average is a fixed number, 26. Tuesday's interval is a fixed pair of numbers, 22.12 and 30.46. Once both are fixed there is no coin left in the air, so there is nothing for a probability to be about. Every one of those hundred lines was already a plain yes or a plain no before anybody counted them.
+The true average is a fixed number, 26. Tuesday's interval is a fixed pair of numbers, 22.12 and 30.46. Once both of those are fixed, nothing is left to chance, so there is nothing for a probability to be about. Every one of those hundred lines was already a plain yes or a plain no before anybody counted them.
 
-The randomness lives one step earlier, in which twelve pizzas happened to get timed. That is what the 95% describes, and by the time you are holding your twelve numbers, the 95% has already done its work.
+The randomness sits earlier than that, in which twelve pizzas happened to get timed. That is what the 95% describes, and by the time you are holding your twelve numbers, the 95% has already done its work.
 
 [NOTE]
 If you genuinely want to say "there is a 95% probability the true average is between 22 and 30", that sentence is not nonsense. It is a different tool with a different name. It is called a credible interval, and it comes from Bayesian statistics, which starts by writing down what you believed about delivery times before you timed any. What `t.test()` hands you is not that.
@@ -364,7 +364,7 @@ If you genuinely want to say "there is a 95% probability the true average is bet
 
 ## Why not "95% of pizzas arrive in that window"?
 
-Now the other misreading, which is the more common one in an actual workplace, because it is what a customer hears when they read the card on the counter.
+Now let us take the other misreading, which is the more common one in an actual workplace, because it is what a customer hears when they read the card on the counter.
 
 Tuesday's interval is a statement about the average delivery. It says nothing whatsoever about your pizza. Single pizzas scatter much more than an average of twelve does, and we can just go and look.
 
@@ -380,7 +380,7 @@ range(day1)               # the fastest and the slowest of the twelve
 #> [1] 19.8 41.6
 ```
 
-Four. Out of twelve. A window carrying the label "95%" caught a third of Tuesday's actual pizzas, while the day itself ran from 19.8 minutes to 41.6.
+Only four of the twelve landed inside it. A window carrying the label "95%" caught a third of Tuesday's actual pizzas, while the day itself ran from 19.8 minutes all the way to 41.6.
 
 Nothing is broken there. It is a correct answer to a different question. An average of twelve deliveries is far steadier than the twelve deliveries themselves, so a range built around the average is far narrower than the pizzas are.
 
@@ -390,7 +390,7 @@ If what you actually want is a range covering most individual orders, that exist
 
 ## Which sentence is safe to write?
 
-Tuesday's numbers again: the twelve deliveries averaged 26.3 minutes, and the 95% interval ran from 22.1 to 30.5. You have to put one line in a report. Which one is safe?
+Here are Tuesday's numbers once more. The twelve deliveries averaged 26.3 minutes, and the 95% interval ran from 22.1 to 30.5. You have to put one line about that in a report, so which one is safe?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
 - 95% of our deliveries take between 22.1 and 30.5 minutes. ::no That is a claim about single pizzas, and only four of the twelve were in there.
@@ -401,7 +401,7 @@ Tuesday's numbers again: the twelve deliveries averaged 26.3 minutes, and the 95
 
 ## What makes an interval narrower?
 
-Tuesday's interval is 8.3 minutes wide. Honest, but not much use for planning a delivery promise. So what actually moves that width?
+Tuesday's interval is 8.3 minutes wide. That is a fair answer, but it is not much use for planning a delivery promise. So what actually moves that width?
 
 Look back at the margin, \(t^{*} \times s / \sqrt{n}\). There are only three things in it, and two of them belong to the shop rather than to you. The small function below rebuilds the width from those two. It takes the kitchen's typical spread as a round 6.5 minutes rather than Tuesday's exact 6.558888, so its widths land near Tuesday's 8.33 without matching it to the decimal.
 
@@ -416,9 +416,9 @@ c(n12 = ci_width(12, 6.5), n48 = ci_width(48, 6.5), n192 = ci_width(192, 6.5))
 #> 8.259806 3.774807 1.850552
 ```
 
-Twelve deliveries buys you about 8.3 minutes of width. Four times as many, 48, roughly halves it. Four times again, 192, halves it once more.
+Twelve deliveries buys you about 8.3 minutes of width. Timing four times as many, which is 48, roughly halves that width. Timing four times as many again, which is 192, halves it once more.
 
-That is the square root doing its work, and it is bad news for anyone hoping to buy precision cheaply. To cut your width in half you need four times the data. To cut it to a tenth, a hundred times.
+That is the square root at work, and it is bad news for anyone hoping to buy precision cheaply. To cut your width in half you need four times the data, and to cut it to a tenth you need a hundred times the data.
 
 The other knob is the kitchen itself.
 
@@ -429,7 +429,7 @@ c(busy_kitchen = ci_width(12, 6.5), calm_kitchen = ci_width(12, 3.25))
 #>     8.259806     4.129903
 ```
 
-Halve how much the deliveries vary and the width halves straight away, with no square root standing in the way. Which is why making a chaotic process calmer usually beats measuring a chaotic process harder.
+Halve how much the deliveries vary and the width halves straight away, with no square root standing in the way. That is why making a chaotic process calmer usually beats measuring a chaotic process harder.
 
 [TIP]
 Those two knobs belong to the shop: how many orders you can time, and how consistent the kitchen is. There is a third knob, and it is entirely yours.
@@ -440,7 +440,7 @@ Those two knobs belong to the shop: how many orders you can time, and how consis
 
 Everything so far has been at 95%, which is a convention and nothing deeper than that. You are allowed to ask to be right more often.
 
-`t.test()` takes a `conf.level` argument, and it quietly defaults to 0.95. Ask it for a 99% interval on Tuesday's twelve deliveries instead, then compare the two widths.
+`t.test()` takes a `conf.level` argument, and if you do not set it yourself, it defaults to 0.95. Ask for a 99% interval on Tuesday's twelve deliveries instead, then compare the two widths.
 
 Before you run it, make a guess: does asking for 99% make the interval wider or narrower?
 
@@ -470,15 +470,15 @@ c(width95 = ci95[2] - ci95[1], width99 = ci99[2] - ci99[1])
 #>  8.334638 11.760993
 ```
 
-It got wider, and that is the trade in its plainest form. The same twelve pizzas, the same shop, not one scrap of new information anywhere. The only thing that changed is how often you are willing to be wrong: about five days in a hundred at 95%, about one in a hundred at 99%. Being wrong less often costs you about three and a half extra minutes of vagueness.
+It got wider, and that is the trade in its plainest form. You are still holding the same twelve pizzas from the same shop, with not one scrap of new information anywhere. The only thing that changed is how often you are willing to be wrong, which is about five days in a hundred at 95% and about one day in a hundred at 99%. Being wrong less often costs you about three and a half extra minutes of vagueness.
 
-Follow it to the end and the joke tells itself. Ask for 100% confidence and R hands you an interval running from minus infinity to plus infinity. Always right. Completely useless.
+Push that all the way and you can see where it ends. Ask for 100% confidence and R gives you an interval running from minus infinity to plus infinity. That interval is always right, and it is completely useless.
 
 === step === quiz
 
 ## An interval that missed: did the method break?
 
-Go back to the five red lines. Pick one: a day whose interval ran from 27.1 to 34.7 minutes and never came near the true 26. What went wrong on that day?
+Think about the five red lines once more, and pick one of them. It is a day whose interval ran from 27.1 to 34.7 minutes and never came near the true 26. So what went wrong on that day?
 
 ::quiz {"correct": 4, "gate": true, "difficulty": "intermediate"}
 - That day's twelve deliveries must have been timed badly. ::no The data was collected exactly like every other day.
@@ -499,13 +499,13 @@ Here is the wording that survives a careful reader, and the wording that does no
 | The method used here catches the true average about 95 times out of 100. | This particular interval is 95% likely to be right. |
 | A wider interval means less data, or a more variable kitchen. | A wider interval means a worse estimate. |
 
-Note the first column never says anything about a single pizza, and never puts odds on the one interval in front of you.
+Notice that the first column never says anything about a single pizza, and never puts odds on the one interval in front of you.
 
 And if somebody stops you and asks what the 95% actually means, this is the whole answer:
 
 > If I kept collecting fresh days and building an interval from each one the same way, about 95 out of every 100 of those intervals would contain the true average. This is one of them, and I cannot tell you which kind.
 
-That last clause is the part people leave out, and it is the honest part.
+That last sentence is the part people leave out, and it is the part that matters most.
 
 === step === concept
 
@@ -521,7 +521,7 @@ That last clause is the part people leave out, and it is the honest part.
 
 ## You can explain the 95% now
 
-We built Tony's shop so the true average, 26 minutes, was ours to check against. Then we did what he cannot.
+We built Tony's shop so the true average, 26 minutes, was ours to check against. Then we did what Tony cannot do.
 
 We timed one Tuesday and got 26.29 minutes, then two more days and got 23.95 and 27.83, which is why a single number is never the whole answer. We measured that wobble with the standard error, stretched it into a range with a multiplier from `qt()`, and got the same two numbers out of `t.test()` in one line.
 
