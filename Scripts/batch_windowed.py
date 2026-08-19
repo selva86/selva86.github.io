@@ -112,11 +112,10 @@ VOICE_PROMPT = """You are the VOICE PASS for one lesson: selva86.github.io/lesso
 Work from the project root. Your only job is how the prose sounds; the teaching,
 the structure and the code are already done and reviewed for pedagogy.
 
-READ FIRST, in this order:
-1. .claude/skills/write-lesson/SKILL.md, Part 2 only (the owner-written exemplars).
-2. selva86.github.io/_build/voice-pairs.md (the owner's own before -> after edits;
-   imitate the direction of every edit).
-{body_exemplar_line}Then read the lesson end to end.
+READ FIRST: .claude/skills/write-lesson/SKILL.md, Part 2 only. It holds the
+owner-written exemplars, the owner's own before -> after edits of machine
+prose (imitate the direction of every edit), and the owner's body prose once
+it is there. Then read the lesson end to end.
 
 REWRITE prose sentence by sentence so every sentence sounds like the owner
 talking across a table: complete spoken sentences, even the short pauses, never
@@ -164,14 +163,6 @@ def voice_flags(slug):
     return '\n'.join(lines[:60]) + ('\n... (more; run the linter yourself)' if len(lines) > 60 else '') or '(none flagged; still read every sentence)'
 
 
-def body_exemplar_line():
-    p = os.path.join(ROOT, '_build', 'owner-body-exemplar.md')
-    if not os.path.exists(p):
-        return ''
-    txt = re.sub(r'<!--.*?-->', '', io.open(p, encoding='utf-8').read(), flags=re.S).strip()
-    return ('3. selva86.github.io/_build/owner-body-exemplar.md (the owner\'s own BODY prose: a code '
-            'block explained in their hand; this is what body prose must sound like).\n') if txt else ''
-
 
 def voice_pass(slug, fmt, indep):
     """Fresh session rewrites prose only; frozen parts must be byte-identical after."""
@@ -179,8 +170,7 @@ def voice_pass(slug, fmt, indep):
     before = io.open(lesson_md, encoding='utf-8').read()
     keep = frozen_parts(before)
     for attempt in (1, 2):
-        prompt = VOICE_PROMPT.format(slug=slug, flags=voice_flags(slug),
-                                     body_exemplar_line=body_exemplar_line()) + indep
+        prompt = VOICE_PROMPT.format(slug=slug, flags=voice_flags(slug)) + indep
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-voice-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
         log('voice pass (Opus 5) starting' if attempt == 1 else 'voice pass retry (frozen parts were altered)')
