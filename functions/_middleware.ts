@@ -236,10 +236,6 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   // blocked here, never the directory or its generated HTML. Same treatment for
   // /lessons/ (interactive lesson markdown source) and the _lessons/ fragment
   // dir: source must 404 while the built /<slug>.html lesson pages serve 200.
-  // TEMP PROBE (never merges): proves _routes.json exclusions on the preview.
-  if (new URL(context.request.url).searchParams.has("mwprobe")) {
-    return new Response("mw", { status: 418 });
-  }
   const path = new URL(context.request.url).pathname;
   const BLOCK_DIRS = /^\/(?:_posts|_lessons|_build|Scripts|Plan|Plans|_archive|_mocks|post_plans|workers)(?:\/|$)/i;
   const BLOCK_FILES = /^\/(?:wrangler\.toml|schema\.sql|package\.json|package-lock\.json|tsconfig\.json|BUILD-PHASE-0\.md|post_queue\.json|curriculum-status\.json|pseo-status\.json|lessons-status\.json|\.dev\.vars(?:\.example)?|\.gitignore|\.claudecodeignore|CNAME)$/i;
