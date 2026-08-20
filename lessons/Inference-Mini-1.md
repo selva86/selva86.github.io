@@ -250,7 +250,7 @@ At one in ten and at one in twenty, luck looks like a poor way to explain Priya.
 The bar is a decision, not a fact the data hands you. Pick it before the tasting starts and say out loud which one you picked. Choosing it afterwards, once you can see which side of the line you landed on, is how perfectly honest people end up talking themselves into the answer they were hoping for.
 
 === step === widget
-## What is the shape of the move you just made?
+## The five moves of every statistical test
 
 Everything that happened in that kitchen was five moves, and they came in a fixed order. It is worth naming them, because the order is what makes the final number mean anything.
 
@@ -263,7 +263,7 @@ So why is it built backwards? Because there is exactly one way to be guessing, s
 The fifth move is the only one that is not arithmetic. The first four hand you a number. The last one is you deciding what that number is worth.
 
 === step === concept
-## Where else does this same move turn up?
+## One recipe behind every test you will meet
 
 ::prose-only the five moves already have their diagram directly above, and this maps familiar test names onto that same diagram rather than drawing a new one
 
@@ -379,7 +379,7 @@ Twelve rounds in fifty thousand. Put that next to the ten-cup answer, where 120 
 One in a hundred was interesting. Two in ten thousand is the sort of number that ends an argument at a dinner table. Same claim, same accuracy, twice the cups.
 
 === step === concept
-## What would have wrecked this test before it started?
+## Random pours, blind tasting, a bar set in advance
 
 ::prose-only this is a procedure to follow before any data exists rather than an object to draw, and the five moves it protects already have their diagram
 
