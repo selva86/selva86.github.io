@@ -294,7 +294,16 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
             if os.path.exists(src):
                 dst = os.path.join(archive, os.path.relpath(src, ROOT).replace(os.sep, '__'))
                 if os.path.exists(dst):
-                    continue          # already archived (a --resume): the file in the tree is the NEW one
+                    if resume:
+                        continue      # already archived this run: the file in the tree is the NEW one
+                    # a SECOND rebuild of this slug: rotate the older archive copy
+                    # aside so the CURRENT live version becomes the archive (it is
+                    # what the independence gate must compare against, and what a
+                    # failure must restore).
+                    k = 1
+                    while os.path.exists(f'{dst}.prev{k}'):
+                        k += 1
+                    os.replace(dst, f'{dst}.prev{k}')
                 shutil.move(src, dst)
                 moved.append((src, dst))
         log(f'rebuild: archived {len(moved)} earlier artifact(s) of {slug} to briefs/rebuild-archive/{slug}/')
@@ -319,6 +328,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         import shutil
         n = 0
         for name in os.listdir(archive):
+            if '.prev' in name:
+                continue              # rotated older copies, never restored to the tree
             dst = os.path.join(ROOT, name.replace('__', os.sep))
             if not os.path.exists(dst):
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
