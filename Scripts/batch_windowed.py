@@ -288,7 +288,13 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         cands = [lesson_md, plan_path,
                  os.path.join(ROOT, '_lessons', f'{slug}.html'),
                  os.path.join(ROOT, f'{slug}.html')]
-        cands += glob.glob(os.path.join(ROOT, 'lessons', f'{slug}-v*.md'))
+        # The owner's hand-written exemplar sources live at lessons/<slug>-v2*.md
+        # for Inference-Mini-2 and are pasted into the write-lesson skill; they
+        # are the calibration, never rebuild debris. Everything else -v* is a
+        # retired comparison build and belongs in the archive.
+        EXEMPLAR_SOURCES = {'Inference-Mini-2-v2.md', 'Inference-Mini-2-v2-orig.md'}
+        cands += [c for c in glob.glob(os.path.join(ROOT, 'lessons', f'{slug}-v*.md'))
+                  if os.path.basename(c) not in EXEMPLAR_SOURCES]
         cands += glob.glob(os.path.join(ROOT, 'post_plans', f'{slug}-v*_lesson-plan.md'))
         for src in cands:
             if os.path.exists(src):
