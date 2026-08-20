@@ -124,6 +124,19 @@ def check_lesson(path):
     except Exception as _e:
         warn('voice lint unavailable: %s' % _e)
 
+    # Every code block opens with a one-line comment saying what the block
+    # achieves (owner rule 2026-08-21). Applies to runnable, try-it, solution
+    # and static blocks alike.
+    import re as _re
+    for _i, (_lang, _body) in enumerate(_re.findall(r'```(r(?:-static)?)[^
+]*
+(.*?)```', body, flags=_re.S), 1):
+        _first = next((l for l in _body.split('
+') if l.strip()), '')
+        if not _first.lstrip().startswith('#'):
+            fail('code block %d (```%s) does not open with a what-this-achieves comment '
+                 '(first line: %r)' % (_i, _lang, _first.strip()[:60]))
+
     # R13: NO step cap. Use as many steps as a beginner needs to fully understand in
     # detail; never compress or omit to hit a step budget. Split into multiple lessons
     # ONLY at a natural conceptual seam (a genuinely separate topic), judged by coherence,
