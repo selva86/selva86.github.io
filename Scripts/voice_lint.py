@@ -141,16 +141,13 @@ def lint_steps(steps, whole_text=None):
                     narr.append((i, s))
     if whole_text is not None and DASH_RE.search(whole_text):
         issues.append(('FAIL', 'em/en dash present (%d); use a comma, a full stop, or "to"' % len(DASH_RE.findall(whole_text))))
-    def listing(items, k=6):
-        return '; '.join('step %d: "%s"' % (i, s[:90]) for i, s in items[:k]) + (' ...' if len(items) > k else '')
-    if frags:
-        issues.append(('WARN', 'voice: %d fragment-like sentence(s) (no verb, 2-8 words), write full spoken sentences: %s' % (len(frags), listing(frags))))
-    if writerly:
-        issues.append(('WARN', 'voice: %d writerly flourish(es): %s' % (len(writerly), listing(writerly))))
-    if person:
-        issues.append(('WARN', 'voice: %d personification(s): %s' % (len(person), listing(person))))
-    if narr:
-        issues.append(('WARN', 'voice: %d sentence(s) about the lesson instead of the topic: %s' % (len(narr), listing(narr))))
+    # Heuristic categories (fragments, flourish words, personification, soft
+    # narration) were RETIRED 2026-08-21: the owner's hand-written exemplar
+    # lesson (write-lesson SKILL.md Part 2) uses short spoken pauses, the word
+    # "honest", and light personification deliberately, so those detectors
+    # flagged the owner's own voice. The exemplar is the calibration now; only
+    # the objective hard tells above gate.
+    _ = (frags, writerly, person, narr)
     return issues
 
 
@@ -161,10 +158,7 @@ def flagged_sentences(steps):
     for i, (typ, md) in enumerate(steps, 1):
         for line in prose_lines(md):
             for s in sentences(line):
-                if is_fragment(s): out.append(('fragment', i, s))
-                if WRITERLY.search(s): out.append(('flourish', i, s))
-                if PERSON.search(s): out.append(('personification', i, s))
-                if META_RE.search(s) or META_SOFT_RE.search(s): out.append(('narration', i, s))
+                if META_RE.search(s): out.append(('narration', i, s))
                 if STEPREF_RE.search(s): out.append(('step-reference', i, s))
                 if i != n and XPART_RE.search(s): out.append(('cross-part', i, s))
     return out

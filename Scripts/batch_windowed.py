@@ -113,18 +113,19 @@ Work from the project root. Your only job is how the prose sounds; the teaching,
 the structure and the code are already done and reviewed for pedagogy.
 
 READ FIRST: .claude/skills/write-lesson/SKILL.md, Part 2 only. It holds the
-owner-written exemplars, the owner's own before -> after edits of machine
-prose (imitate the direction of every edit), and the owner's body prose once
-it is there. Then read the lesson end to end.
+owner-written exemplars and, at its end, ONE COMPLETE LESSON in the owner's
+own hand between BEGIN/END EXEMPLAR markers. That lesson is the standard.
+Then read the lesson you are editing end to end.
 
-REWRITE prose sentence by sentence so every sentence sounds like the owner
-talking across a table: complete spoken sentences, even the short pauses, never
-a clipped fragment ("Two thousand shoppers, split evenly." becomes "Two thousand
-shoppers took part, split evenly between the two pages."); the plain sincere
-version instead of the clever one, no flourish words, no metaphors piled up, no
-personifying numbers or tests; no sentence about the lesson itself, no reference
-to another part or to a step number; keep every fact, every number and the
-meaning of every sentence; keep the running example.
+REWRITE prose sentence by sentence so it reads as if the owner of the
+exemplar lesson wrote it: same register, same pacing, same way of setting up
+a scene in full sentences and landing a point with a short spoken pause;
+setup facts are never clipped fragments ("Two thousand shoppers, split
+evenly." becomes "Two thousand shoppers took part, split evenly between the
+two pages."); no sentence about the lesson itself, no reference to another
+part or to a step number; keep every fact, every number and the meaning of
+every sentence; keep the running example. Never copy the exemplar's topic
+material into this lesson; imitate its manner only.
 
 NEVER change: headings (## lines), any line starting with ::, code fences and
 everything inside them including #> output, quiz option lines and which one is
