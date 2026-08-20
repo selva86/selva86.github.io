@@ -276,7 +276,10 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
     # one. On any failure the archive is restored so the working tree is left
     # exactly as it was.
     archive = None
-    owner_cover_used = False
+    # The owner-written cover (briefs/owner-cover-<slug>.md) is verbatim by
+    # design in BOTH versions, so every mode exempts it from the independence
+    # measurement, not just --rebuild.
+    owner_cover_used = os.path.exists(os.path.join(BRIEFS, f"owner-cover-{PREFIX[cid]}-{part['part']}.md"))
     if rebuild:
         import glob, shutil
         archive = os.path.join(BRIEFS, 'rebuild-archive', slug)
@@ -422,11 +425,14 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
             new_steps, old_steps = split(lesson_md), split(canon_md)
             if owner_cover_used and new_steps:
                 new_steps = new_steps[1:]   # the cover is the owner's verbatim text by design
+            # autojunk=False + whitespace-normalized: with autojunk on (the
+            # default) long steps that share big verbatim chunks measured as
+            # low as 0.21 when the honest figure was 0.71.
+            norm = lambda t: ' '.join(t.split())
             worst = 0.0
             for ns in new_steps:
                 for os_ in old_steps:
-                    worst = max(worst, difflib.SequenceMatcher(None, ns, os_).quick_ratio()
-                                and difflib.SequenceMatcher(None, ns, os_).ratio())
+                    worst = max(worst, difflib.SequenceMatcher(None, norm(ns), norm(os_), autojunk=False).ratio())
             log(f'independence check: worst step similarity vs canonical = {worst:.2f}')
             if worst > 0.65:
                 log('FAIL: comparison build copied the canonical lesson (similarity > 0.65)')
