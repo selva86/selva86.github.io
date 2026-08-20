@@ -236,6 +236,10 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   // blocked here, never the directory or its generated HTML. Same treatment for
   // /lessons/ (interactive lesson markdown source) and the _lessons/ fragment
   // dir: source must 404 while the built /<slug>.html lesson pages serve 200.
+  // TEMP PROBE (never merges): proves _routes.json exclusions on the preview.
+  if (new URL(context.request.url).searchParams.has("mwprobe")) {
+    return new Response("mw", { status: 418 });
+  }
   const path = new URL(context.request.url).pathname;
   const BLOCK_DIRS = /^\/(?:_posts|_lessons|_build|Scripts|Plan|Plans|_archive|_mocks|post_plans|workers)(?:\/|$)/i;
   const BLOCK_FILES = /^\/(?:wrangler\.toml|schema\.sql|package\.json|package-lock\.json|tsconfig\.json|BUILD-PHASE-0\.md|post_queue\.json|curriculum-status\.json|pseo-status\.json|lessons-status\.json|\.dev\.vars(?:\.example)?|\.gitignore|\.claudecodeignore|CNAME)$/i;
@@ -250,7 +254,7 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   // send it on every same-origin request), and before this line each such
   // request paid JWT verification plus three KV reads. Runs AFTER the block
   // lists above so /_build/foo.css and friends still 404.
-  const ASSET_EXT = /\.(?:css|js|mjs|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|otf|txt|xml|json|csv|pdf|webmanifest|mp4|webm)$/i;
+  const ASSET_EXT = /\.(?:css|js|mjs|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|otf|txt|xml|json|csv|pdf|webmanifest|mp4|webm|wasm|pf_meta|pf_index|pf_fragment|pf_filter)$/i;
   if (context.request.method === "GET" && ASSET_EXT.test(path)) {
     // Routed .json endpoints (badge.json, did.json) still execute via next();
     // give them the same anonymous defaults the auth block would have set.
