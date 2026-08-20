@@ -212,12 +212,30 @@ export async function revokeAllSessions(
     .bind(now, userId)
     .run();
   await Promise.all(ids.map(id => kv.put(`revoked:${id}`, "1", { expirationTtl: 7200 }).catch(() => {})));
+  ids.forEach(id => REVOKED_MEM.set(id, { revoked: true, at: Date.now() }));
   return ids.length;
 }
 
+// 60s in-isolate cache: turns one KV read per authenticated request into at
+// most one per minute per session per isolate. A freshly revoked session can
+// therefore live up to 60s longer on a warm isolate, which is acceptable
+// (revocation already tolerates the JWT's natural expiry). Bounded size so a
+// scan of many session ids cannot grow the map without limit.
+const REVOKED_MEM = new Map<string, { revoked: boolean; at: number }>();
+const REVOKED_MEM_TTL_MS = 60_000;
+const REVOKED_MEM_MAX = 2_000;
+
 export async function isSessionRevoked(kv: KVNamespace, sessionId: string): Promise<boolean> {
+  const hit = REVOKED_MEM.get(sessionId);
+  if (hit && Date.now() - hit.at < REVOKED_MEM_TTL_MS) return hit.revoked;
   const v = await kv.get(`revoked:${sessionId}`);
-  return v === "1";
+  const revoked = v === "1";
+  if (REVOKED_MEM.size >= REVOKED_MEM_MAX) {
+    const first = REVOKED_MEM.keys().next().value;
+    if (first !== undefined) REVOKED_MEM.delete(first);
+  }
+  REVOKED_MEM.set(sessionId, { revoked, at: Date.now() });
+  return revoked;
 }
 
 // ===== Reading progress (Phase 2) =====

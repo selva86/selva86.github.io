@@ -63,12 +63,23 @@ function b64urlDecodeJson<T = unknown>(input: string): T {
 // If cache is fresh, return immediately. KV gets a 7d hard TTL so a long
 // outage doesn't permanently break auth.
 
+// In-isolate cache in front of KV: a warm isolate verifies JWTs with zero KV
+// reads. Key rotation latency is bounded by JWKS_MEM_TTL_S; the KV layer
+// below is unchanged and still shared across isolates.
+const JWKS_MEM_TTL_S = 600;
+let jwksMem: { keys: JwksKey[]; fetched_at: number } | null = null;
+
 async function getJwks(env: AuthEnv): Promise<JwksKey[]> {
+  const nowMem = Math.floor(Date.now() / 1000);
+  if (jwksMem && nowMem - jwksMem.fetched_at < JWKS_MEM_TTL_S) {
+    return jwksMem.keys;
+  }
   const cached = await env.KV.get<{ keys: JwksKey[]; fetched_at: number }>(
     JWKS_KV_KEY, "json"
   );
   const now = Math.floor(Date.now() / 1000);
   if (cached && now - cached.fetched_at < JWKS_CACHE_TTL_S) {
+    jwksMem = { keys: cached.keys, fetched_at: now };
     return cached.keys;
   }
 
@@ -87,6 +98,7 @@ async function getJwks(env: AuthEnv): Promise<JwksKey[]> {
       JSON.stringify({ keys: doc.keys, fetched_at: now }),
       { expirationTtl: 7 * 24 * 60 * 60 },
     );
+    jwksMem = { keys: doc.keys, fetched_at: now };
     return doc.keys;
   } catch (e) {
     if (cached) {

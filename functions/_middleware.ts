@@ -225,7 +225,7 @@ export interface RequestData {
   [key: string]: unknown;
 }
 
-const TOUCH_THROTTLE_SEC = 60; // skip session upsert if we touched it < 60s ago
+const TOUCH_THROTTLE_SEC = 600; // skip session upsert if we touched it < 10 min ago (KV write budget)
 
 export const onRequest: PagesFunction<Env, string, RequestData> = async (context) => {
   // --- Phase 8: block source/config files from being served ---
@@ -242,6 +242,22 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   const BLOCK_SOURCE_MD = /^\/(?:posts|lessons)\/.+\.md$/i;
   if (BLOCK_DIRS.test(path) || BLOCK_FILES.test(path) || BLOCK_SOURCE_MD.test(path)) {
     return new Response("Not Found", { status: 404 });
+  }
+
+  // --- Static assets: no user context needed ---
+  // Belt to _routes.json's braces: any asset request that still reaches the
+  // Function skips auth entirely. Assets carry the session cookie (browsers
+  // send it on every same-origin request), and before this line each such
+  // request paid JWT verification plus three KV reads. Runs AFTER the block
+  // lists above so /_build/foo.css and friends still 404.
+  const ASSET_EXT = /\.(?:css|js|mjs|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|otf|txt|xml|json|csv|pdf|webmanifest|mp4|webm)$/i;
+  if (context.request.method === "GET" && ASSET_EXT.test(path)) {
+    // Routed .json endpoints (badge.json, did.json) still execute via next();
+    // give them the same anonymous defaults the auth block would have set.
+    context.data.user = null;
+    context.data.payload = null;
+    context.data.session_id = null;
+    return context.next();
   }
 
   // --- 301 renamed pages to their new slug ---
