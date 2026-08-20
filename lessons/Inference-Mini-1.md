@@ -50,7 +50,7 @@ Press the buttons below and watch. Each press plays that many rounds of ten pure
 Whatever you just talked yourself into while those bars piled up, that was statistical inference. Everything from here is the same move, done slowly and done properly.
 
 === step === concept
-## What exactly are we deciding between?
+## Either Priya can taste the difference, or she got lucky
 
 Let's start by getting the evening written down as data, because every count we make from here on comes out of it.
 
@@ -280,7 +280,7 @@ Claim, boring explanation, luck world, count, bar. That is the shape every time.
 And that is why doing it the slow way is worth the hour. Learn one test as a recipe and you have learned exactly one test. Learn this move and the rest are variations you can reason your way through, including the ones you have never run.
 
 === step === concept
-## Does R already know this shortcut?
+## Can R skip the ten thousand rounds?
 
 Simulating ten thousand rounds is the honest way to see what the number really is. However, it is not how anybody computes it at work.
 
@@ -413,7 +413,7 @@ And it does not say there is a one in a hundred chance she was guessing. Read th
 So the honest sentence, the one you can say out loud at the table without being wrong, is this. If Priya had no ability at all, an evening this good would turn up about once in a hundred tries, and we just watched one.
 
 === step === quiz
-## Quick check: which conclusion is fair to draw?
+## Quick check: what can you fairly say about Priya's nine?
 
 Priya called nine of ten, and blind guessing reaches nine or better about 12 times in every 1,000 rounds. Which sentence is fair?
 
