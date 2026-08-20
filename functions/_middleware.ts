@@ -251,7 +251,11 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   // request paid JWT verification plus three KV reads. Runs AFTER the block
   // lists above so /_build/foo.css and friends still 404.
   const ASSET_EXT = /\.(?:css|js|mjs|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|otf|txt|xml|json|csv|pdf|webmanifest|mp4|webm|wasm|pf_meta|pf_index|pf_fragment|pf_filter)$/i;
-  if (context.request.method === "GET" && ASSET_EXT.test(path)) {
+  // /api/* and /.well-known/* are function routes even when their URL ends in
+  // an asset extension (badge.json, did.json, a future export.csv): they must
+  // keep full middleware context, so only true asset paths short-circuit.
+  if (context.request.method === "GET" && ASSET_EXT.test(path)
+      && !path.startsWith("/api/") && !path.startsWith("/.well-known/")) {
     // Routed .json endpoints (badge.json, did.json) still execute via next();
     // give them the same anonymous defaults the auth block would have set.
     context.data.user = null;
