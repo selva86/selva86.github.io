@@ -127,12 +127,8 @@ def check_lesson(path):
     # Every code block opens with a one-line comment saying what the block
     # achieves (owner rule 2026-08-21). Applies to runnable, try-it, solution
     # and static blocks alike.
-    import re as _re
-    for _i, (_lang, _body) in enumerate(_re.findall(r'```(r(?:-static)?)[^
-]*
-(.*?)```', body, flags=_re.S), 1):
-        _first = next((l for l in _body.split('
-') if l.strip()), '')
+    for _i, (_lang, _body) in enumerate(re.findall(r'```(r(?:-static)?)[^\n]*\n(.*?)```', body, flags=re.S), 1):
+        _first = next((l for l in _body.split('\n') if l.strip()), '')
         if not _first.lstrip().startswith('#'):
             fail('code block %d (```%s) does not open with a what-this-achieves comment '
                  '(first line: %r)' % (_i, _lang, _first.strip()[:60]))
