@@ -125,7 +125,9 @@ evenly." becomes "Two thousand shoppers took part, split evenly between the
 two pages."); no sentence about the lesson itself, no reference to another
 part or to a step number; keep every fact, every number and the meaning of
 every sentence; keep the running example. Never copy the exemplar's topic
-material into this lesson; imitate its manner only.
+material into this lesson; imitate its manner only. The pass may tighten but
+never lengthen: when fewer words carry the same meaning in the owner's
+register, use fewer.
 
 NEVER change: headings (## lines), any line starting with ::, code fences and
 everything inside them including #> output, quiz option lines and which one is
