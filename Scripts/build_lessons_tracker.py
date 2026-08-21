@@ -104,6 +104,7 @@ LESSON_CATALOG_TITLE = {
     'ARIMA-Mini-4': 'ARIMA diagnostics: the two checks before you trust a forecast',
     'Regression-Reading-Mini-1': 'Interaction effects: test and interpret them',
     'Regression-Health-Mini-1': 'Multicollinearity: why your coefficients look wrong, and the fix',
+    'Regression-Health-Mini-2': 'Autocorrelation in residuals: how to test and fix it',
     'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
     'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v2': "Welch's ANOVA: the test for unequal group variances",
