@@ -101,6 +101,7 @@ LESSON_CATALOG_TITLE = {
     'ARIMA-Mini-1': 'ARIMA: what AR, I, and MA actually mean',
     'ARIMA-Mini-2': 'ACF and PACF: how to read the plots for ARIMA orders',
     'ARIMA-Mini-3': 'How to choose ARIMA order (p, d, q): a practical guide',
+    'ARIMA-Mini-4': 'ARIMA diagnostics: the two checks before you trust a forecast',
     'Regression-Reading-Mini-1': 'Interaction effects: test and interpret them',
     'Regression-Health-Mini-1': 'Multicollinearity: why your coefficients look wrong, and the fix',
     'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
