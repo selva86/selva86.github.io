@@ -1,11 +1,12 @@
 ---
 title: "Which statistical test to use? A 5-question decision flowchart"
-description: "Answer five plain questions about your data and the right statistical test names itself. Three coffee shop branches, one flowchart, real R code you run."
-keywords: "which statistical test to use, choosing a statistical test, statistical test flowchart, t-test or ANOVA, Kruskal-Wallis in R, paired vs independent, normality check in R"
+slug: "Which-Test-Mini-1"
+description: "Three branches of a store, one question: is the difference real? Answer five plain questions about your data and the right R test walks out on its own."
+keywords: "which statistical test to use, statistical test decision flowchart, choosing a statistical test in R, t-test vs ANOVA, paired t-test, kruskal wallis test, chi-square test in R, effect size"
 mathjax: false
 webr: true
+date: "2026-08-21"
 post_type: "LESSON"
-curriculum_id: "0.0.8"
 course_id: "which-test"
 course_title: "Which Test Do I Run?"
 course_lesson: "1"
@@ -13,768 +14,687 @@ course_total: "11"
 course_landing: "/dashboard.html"
 course_prev: ""
 course_next: ""
+curriculum_id: "0.0.8"
 lesson_access: "windowed"
-catalog_blurb: "Five plain questions about your data that name the right test."
-date: "2026-08-19"
+catalog_blurb: "Five plain questions that lead you to the right test for your data."
 ---
 
 === step === cover
-
+::eyebrow Which Test Do I Run?
 ## Which statistical test to use? A 5-question decision flowchart
 
-You have the average order values from three branches of a coffee shop, and
-someone asks the obvious question. Is the difference real? Does one branch
-actually do better than the others?
+Consider this. You have average order values from three branches of a store, and someone asks whether the difference is real. Does one branch actually do better than the others?
 
 And you freeze.
 
-Not because the maths is hard. You freeze because you know there are a dozen
-tests you could run, and you are not sure which one this exact situation
-needs. A t-test? ANOVA? Chi-square? One of the ones with two surnames in it?
+Because you know there are a dozen tests you could possibly run, and you are not sure which one this situation precisely needs.
 
-Here is the way out. Stop shopping for test names. Describe your data
-instead, and you will have the right test standing in front of you.
+The way out of that is not to memorise a table of test names. It is to answer five plain questions about your data, one at a time. Each answer you give knocks out a whole branch of wrong tests, and by the time you have answered the fifth one there is a single test left standing in front of you.
 
-::widget tree-diagram {"root": "Outcome a number?", "l": "Two groups?", "r": "Small counts?", "leaves": ["t test", "ANOVA", "Fisher exact", "chi-square"]}
+Here are the five questions.
 
-There are five plain questions. What are you measuring? How many groups are
-you comparing? Are the groups linked? What shape is the spread? Then you read
-the answer off the map.
+::widget process-flow {"steps":[{"title":"What are you measuring","sub":"a number you can average, or a label you can count"},{"title":"How many groups","sub":"two branches, or three and more"},{"title":"Are the numbers linked","sub":"the same customers measured twice, or different people"},{"title":"What shape is the data","sub":"roughly normal, or badly skewed by a few huge orders"},{"title":"How big is the gap","sub":"the size of the difference, not only whether it is there"}]}
 
-We are going to build that map one question at a time, on one Saturday's worth
-of coffee shop tickets. The same numbers that a popular test calls a dead heat
-will turn out to hide a clear difference, and you will know exactly why.
+So we are going to take the store's three branches through all five of them, and put a few other shapes of data through them as well, until answering these questions feels like second nature.
 
 === step === concept
+## What each branch takes on an average order
 
-## Why does the freeze happen?
+Let's put the store's actual numbers on the table first, because every decision from here on is made about them.
 
-::prose-only names the wrong habit before any data exists to draw
+The store has three branches: Anna Nagar, Velachery and Adyar. We pulled the last 30 orders from each one and recorded the order value in dollars. That is 90 orders in total.
 
-Here is what actually goes wrong in that moment.
-
-You are shopping by test name. You think: I remember a t-test, maybe that one.
-Or was it ANOVA? You are searching your memory for a label, and your memory is
-not a reliable place to look.
-
-So let us turn it around. Do not ask which test to use. Describe your data out
-loud, in plain words, and let the test appear.
-
-Say it like this. I am measuring order value, which is a number. I have three
-branches. The three groups are made of different customers. The values are
-lopsided, because a few big catering orders sit way out to the right.
-
-Now read that sentence back. There is exactly one test that fits it, and you
-did not remember it. You derived it.
-
-That is the core idea. There are five questions, asked in a fixed order, and
-each one crosses off entire families of tests until one is left standing.
-
-=== step === concept
-
-## What are we actually comparing?
-
-Bean and Bun is a small coffee shop. Its three branches are Riverside, Hilltop
-and Market Street, and last Saturday they served 38 orders between them. The
-till recorded the value of every single one.
-
-Here they all are, with nothing rounded and nothing dropped.
-
-These numbers are invented for teaching, but they behave the way real coffee
-shop tickets behave. Most people buy a coffee and something to eat for $5 to
-$13, and every so often somebody orders catering for an office and a ticket
-lands at $24, $30 or $41.
+Press Run to build the data and see what each branch takes on an average order.
 
 ```r
-# One Saturday at Bean and Bun. Every ticket, in dollars.
-riverside <- c(5.90, 6.40, 6.60, 6.90, 7.10, 7.30, 7.50,
-               7.90, 8.40, 9.10, 10.60, 12.30, 30.00, 41.00)
-hilltop   <- c(8.20, 8.60, 9.10, 9.60, 9.90, 10.40,
-               10.90, 11.60, 12.30, 14.20, 27.80)
-market    <- c(4.70, 4.80, 4.90, 5.10, 5.30, 5.60, 6.30,
-               6.60, 6.90, 7.20, 7.60, 8.10, 24.00)
-
-# One long table: which branch the ticket came from, and what it was worth.
+# Build the store's 90 orders and show the average order value per branch
+set.seed(36)
 orders <- data.frame(
-  branch = factor(rep(c("Riverside", "Hilltop", "Market Street"),
-                      c(14, 11, 13)),
-                  levels = c("Riverside", "Hilltop", "Market Street")),
-  order_value = c(riverside, hilltop, market)
+  branch = factor(rep(c("Anna Nagar", "Velachery", "Adyar"), each = 30),
+                  levels = c("Anna Nagar", "Velachery", "Adyar")),
+  value  = round(c(rnorm(30, 48, 9), rnorm(30, 51, 9), rnorm(30, 61, 9)), 2)
 )
 
-table(orders$branch)
-#>     Riverside       Hilltop Market Street
-#>            14            11            13
-
-round(tapply(orders$order_value, orders$branch, mean), 2)
-#>     Riverside       Hilltop Market Street
-#>         11.93         12.05          7.47
+round(tapply(orders$value, orders$branch, mean), 2)
+#> Anna Nagar  Velachery      Adyar 
+#>      49.03      51.56      61.84 
 ```
 
-Riverside averaged $11.93 a ticket. Hilltop came in at $12.05, and Market
-Street at $7.47.
+`set.seed(36)` fixes the random draw so your 90 orders come out exactly the same as mine. `tapply()` splits the value column by branch and takes the mean of each piece.
 
-So Market Street looks about four and a half dollars a ticket worse than
-Riverside and Hilltop do. Is that gap real, or is it just what happens when 38
-people wander into three shops on a Saturday?
+So Velachery is ahead of Anna Nagar by $2.53 an order, and Adyar is ahead of Anna Nagar by nearly $13.
 
-That is the question, and now let us earn the answer.
-
-=== step === widget
-
-## What are the five questions?
-
-Before we touch those tickets again, here is the whole method in one place.
-
-::widget process-flow {"steps": [{"title": "What are you measuring?", "sub": "a number you measure, or a label you count"}, {"title": "How many groups?", "sub": "one, two, or three and more"}, {"title": "Are the groups linked?", "sub": "the same people twice, or two separate crowds"}, {"title": "What shape is the spread?", "sub": "even and bell shaped, or one long tail"}, {"title": "Read the map", "sub": "four answers point at exactly one test"}]}
-
-Read it top to bottom. Every question is about your data, not about
-statistics. You could answer all five for a dataset you have never seen
-before, in about a minute, without opening R.
-
-And each answer does real work. Question one alone splits every test ever
-written into two piles and throws one pile away.
-
-Let us take them one at a time, on the Bean and Bun tickets.
-
-=== step === concept
-
-## Question 1: what are you measuring?
-
-Every test was built for one particular kind of outcome. Use the wrong kind
-and the answer is not slightly off, it is meaningless.
-
-Your **outcome** is the thing you are measuring, the thing the question is really
-about. At Bean and Bun the outcome is the order value, which is how many
-dollars the customer spent.
-
-There are only two kinds of outcome in the world.
-
-A **number** is something you measure, on a scale where the gaps mean
-something. $12.30 really is $6.20 more than $6.10. Order value, minutes,
-grams and degrees are all numbers.
-
-A **label** is something you count. It is a name that drops each observation
-into a bucket and leaves it there. The ticket came from Riverside, Hilltop or
-Market Street, the customer paid by card or paid by cash, and the customer
-bought something or bought nothing. There is no such thing as halfway between
-card and cash, and no such thing as halfway between two branches.
-
-R will tell you which one you have.
+Three averages on their own tell you nothing about how spread out the orders behind them are, so let's draw all 90 of them.
 
 ```r
-class(orders$order_value)
+# Draw all 90 orders by branch, with the three branch averages marked in red
+boxplot(value ~ branch, data = orders,
+        col = "grey90", border = "grey30",
+        main = "Order value by branch, 30 orders each",
+        xlab = "", ylab = "Order value in dollars")
+points(1:3, tapply(orders$value, orders$branch, mean),
+       pch = 19, col = "red", cex = 1.3)
+```
+
+Each grey box holds the middle half of that branch's orders, and the line inside it marks that branch's middle order, the median. The red dot is the branch average.
+
+Look at how much the boxes overlap. Plenty of Anna Nagar orders are bigger than plenty of Velachery orders, even though Velachery has the higher average. That overlap is the whole reason you cannot answer the question by eye.
+
+=== step === widget
+## How a test decides a gap is too big for luck
+
+Before we get to the five questions, it is worth knowing what all of these tests have in common, because underneath they are all doing the same thing.
+
+A test takes the gap you actually measured, works out how big a gap pure luck tends to produce when nothing is really different, and then asks how often luck reaches as far as you did.
+
+The gap that luck typically hands out has a size of its own, and you can compute it. Take how spread out Anna Nagar's orders are, take how spread out Velachery's are, and combine the two into a single yardstick. If the two branches were truly identical, the gap between their averages would still wobble around zero by roughly one yardstick at a time. Call one of those a noise width.
+
+```r
+# Measure the Anna Nagar to Velachery gap in noise widths
+anna <- orders$value[orders$branch == "Anna Nagar"]
+vela <- orders$value[orders$branch == "Velachery"]
+
+gap         <- mean(vela) - mean(anna)
+noise_width <- sqrt(var(anna) / 30 + var(vela) / 30)
+
+round(c(gap = gap, noise_width = noise_width,
+        in_noise_widths = gap / noise_width), 2)
+#>             gap     noise_width in_noise_widths 
+#>            2.53            2.24            1.13 
+```
+
+The gap is $2.53 and one noise width is $2.24, so the gap measures 1.13 noise widths. That is barely more than the wobble luck hands out for free.
+
+Now watch what a test makes of that. The curve below is what the gap does across thousands of imaginary months in which the two branches are genuinely identical, and it is drawn in noise widths so that it sits on the same scale as our 1.13.
+
+::widget null-distribution {"tails": 2, "start": 1.13, "label": "the branch gap, in noise widths"}
+
+Most of those luck-only months land near zero, and a few wander out to either side. The orange line sits at 1.13, where our real gap is, and the shaded orange area is the share of luck-only months that reach at least that far out. It reads about 0.26. The readout puts it the textbook way, fail to reject H0, which is the formal phrasing for luck explains this comfortably.
+
+So roughly a quarter of months would show a gap this big between two branches that are actually the same. That is not rare at all, and it is why nobody should be promoted over $2.53.
+
+Now drag the slider. Push the gap further from zero, as if Velachery had pulled properly ahead, and the shaded slice shrinks fast. Pull it back toward zero and the slice swells.
+
+[KEY INSIGHT]
+That shaded slice is the p-value, and every test on this map computes one of them. The five questions never change what a test is doing. They only decide which curve is the right one to draw, and how the gap should be measured.
+
+=== step === concept
+## Order value is a number, branch is a label
+
+Question one is the one that costs you the most when you get it wrong, because it decides which half of the whole map you are standing on.
+
+Look at what you are measuring. Some things are numbers you can take an average of, and that average is still the same kind of thing you started with. Order value is one of those: the average of two order values is an order value. Other things are labels you can only count, like which branch an order came from, or whether the customer used a loyalty card.
+
+Let's ask R what it thinks our two columns are.
+
+```r
+# Ask R what type each column of the store data is
+str(orders)
+#> 'data.frame':	90 obs. of  2 variables:
+#>  $ branch: Factor w/ 3 levels "Anna Nagar","Velachery",..: 1 1 1 1 1 1 1 1 1 1 ...
+#>  $ value : num  50.8 55.6 54.4 63.3 35.9 ...
+
+class(orders$value)
 #> [1] "numeric"
 
 class(orders$branch)
 #> [1] "factor"
-
-str(orders)
-#> 'data.frame':	38 obs. of  2 variables:
-#>  $ branch     : Factor w/ 3 levels "Riverside","Hilltop",..: 1 1 1 1 1 1 1 1 1 1 ...
-#>  $ order_value: num  5.9 6.4 6.6 6.9 7.1 7.3 7.5 7.9 8.4 9.1 ...
 ```
 
-`numeric` means a number. `factor`, or `character`, means a label.
+`str()` gives you every column's type in one look, and `class()` gives you one column at a time. Here `value` is numeric, so it is a number you can average, and `branch` is a factor, which is R's way of storing labels.
 
-Order value is numeric, so we are heading down the t-test and ANOVA side of the
-map. Branch is a factor, which is a label, but notice that it is not the
-outcome here, it is the thing that cuts the outcome into groups.
-
-If the outcome itself had been a label, say whether each customer bought a
-pastry or not, that whole side of the map would be gone and we would be
-looking at chi-square instead.
-
-[KEY INSIGHT]
-Settle question one before anything else. Get it wrong and every other choice
-you make is irrelevant, because you will be averaging things that cannot be
-averaged.
-
-=== step === quiz
-
-## Number or label?
-
-Here are four things a coffee shop could record about every ticket, and only
-one of them is a label.
-
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- The value of the order in dollars ::no Ask whether halfway between two values means anything. Halfway between 4 and 6 items is 5 items, and that makes sense, so it is a number. The label is the one where halfway is nonsense.
-- The number of items in the bag ::no Ask whether halfway between two values means anything. Halfway between 4 and 6 items is 5 items, and that makes sense, so it is a number. The label is the one where halfway is nonsense.
-- Whether the customer used the loyalty card ::ok Yes. Card or no card is a bucket, not a quantity, and there is no halfway. The other three are all measured on a scale where the gaps carry meaning.
-- The minutes between ordering and collecting ::no Ask whether halfway between two values means anything. Halfway between 4 and 6 items is 5 items, and that makes sense, so it is a number. The label is the one where halfway is nonsense.
-
-=== step === concept
-
-## Question 2: how many groups are you comparing?
-
-Question two just counts the things you are holding up against each other, and
-only three answers matter.
-
-Sometimes you are holding up **one group against a fixed target**. Is our
-typical ticket different from the $10 we budgeted for?
-
-Sometimes you are holding up **two groups**, and that is Riverside against
-Hilltop.
-
-And sometimes you are holding up **three or more groups**, which is where Bean
-and Bun sits, with Riverside against Hilltop against Market Street.
-
-Bean and Bun has three branches, so we land in the third bucket.
-
-```r
-unique(orders$branch)
-#> [1] Riverside     Hilltop       Market Street
-#> Levels: Riverside Hilltop Market Street
-
-length(unique(orders$branch))
-#> [1] 3
-```
-
-So we have three groups, and that number matters far more than it looks.
-
-=== step === concept
-
-## Why not just run three t-tests?
-
-Here is the idea everybody has, and here is the way it ruins the answer while
-you are not looking.
-
-With three branches you could just run three t-tests, one for each pair. You
-would test Riverside against Hilltop, then Riverside against Market Street,
-and then Hilltop against Market Street, which gives you three simple tests
-instead of one unfamiliar test.
-
-One word first, because every test we are about to run hands it back. A
-**p-value** answers a single question: if there were really no difference at
-all, how often would plain chance hand me a gap as big as the one I am looking
-at? A small p-value means chance hardly ever does this, and a large one means
-chance does it all the time.
-
-The trouble is what that p-value is promising you. When you run one test at
-the usual 5 percent cutoff, you are agreeing to a 5 percent chance of
-announcing a difference that is not there. Run that gamble three times and
-the chance that at least one of them fires a false alarm stacks up.
-
-```r
-# Three branches means three pairs, so three separate 5 percent gambles.
-round(1 - 0.95^3, 4)
-#> [1] 0.1426
-
-# Ten groups would mean this many pairs.
-n_pairs <- choose(10, 2)
-n_pairs
-#> [1] 45
-
-round(1 - 0.95^n_pairs, 4)
-#> [1] 0.9006
-```
-
-So three t-tests is not a 5 percent risk of a false alarm. It is 14 percent,
-which is close to one in seven.
-
-And it runs away from you fast. Ten groups is 45 pairs, and by then you are 90
-percent likely to find at least one difference that does not exist. You would
-find something every single time, and you would believe it.
-
-That is why three or more groups get their own test, one test that looks at
-every group in a single pass and keeps the false alarm rate where you set it.
-
-=== step === quiz
-
-## Three branches, how many tests?
-
-You want to know whether the typical ticket differs across Riverside, Hilltop
-and Market Street, so what do you run?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- Three t-tests, one for each pair of branches ::no Every extra test is another roll of the dice on a false alarm, and picking the pair that looks biggest is the worst version of it, because you only picked it after seeing the data. Three or more groups get one test that handles all of them at once.
-- One test that takes all three branches together ::ok Right. One test, one 5 percent risk. Three pairwise tests would stack three separate 5 percent gambles into roughly 14 percent, and you would start believing differences that were never there.
-- A t-test on the highest branch against the lowest ::no Every extra test is another roll of the dice on a false alarm, and picking the pair that looks biggest is the worst version of it, because you only picked it after seeing the data. Three or more groups get one test that handles all of them at once.
-- A t-test on Riverside against the other two combined ::no Every extra test is another roll of the dice on a false alarm, and picking the pair that looks biggest is the worst version of it, because you only picked it after seeing the data. Three or more groups get one test that handles all of them at once.
-
-=== step === concept
-
-## Question 3: are the two columns linked?
-
-Question three is the one people skip, and skipping it changes your answer.
-
-Two columns of numbers are **paired** when every row in one column has a named
-partner in the other, and that partner is the same person, the same shop or
-the same machine, measured twice.
-
-They are **independent** when the two columns are simply two separate crowds
-that have nothing to do with each other.
-
-Here is a paired example, from Riverside. Twelve regulars come in often enough
-that the baristas know them by name, and below is what each of them spent per
-visit on average in the month before the loyalty card launched, and what they
-spent in the month after.
-
-```r
-regular <- c("Ana", "Ben", "Chandra", "Dee", "Eli", "Farah",
-             "Gita", "Hugo", "Ivy", "Jonas", "Kiran", "Lena")
-
-before <- c(6.20, 7.80, 5.90, 9.10, 6.90, 10.40,
-            8.40, 5.60, 9.70, 7.40, 10.90, 6.50)
-
-after  <- c(7.10, 9.00, 6.50, 10.60, 7.70, 12.30,
-            9.50, 6.00, 10.40, 7.90, 12.50, 7.30)
-
-loyalty <- data.frame(regular, before, after,
-                      change = round(after - before, 2))
-loyalty
-#>    regular before after change
-#> 1      Ana    6.2   7.1    0.9
-#> 2      Ben    7.8   9.0    1.2
-#> 3  Chandra    5.9   6.5    0.6
-#> 4      Dee    9.1  10.6    1.5
-#> 5      Eli    6.9   7.7    0.8
-#> 6    Farah   10.4  12.3    1.9
-#> 7     Gita    8.4   9.5    1.1
-#> 8     Hugo    5.6   6.0    0.4
-#> 9      Ivy    9.7  10.4    0.7
-#> 10   Jonas    7.4   7.9    0.5
-#> 11   Kiran   10.9  12.5    1.6
-#> 12    Lena    6.5   7.3    0.8
-
-round(mean(loyalty$change), 2)
-#> [1] 1
-```
-
-Look at the change column. Every single regular spent more, somewhere between
-40 cents and $1.90, and the average rise was exactly $1.00.
-
-Now look at the before column on its own. It runs from $5.60 to $10.90. Kiran
-simply spends nearly twice what Hugo does, and that has nothing whatsoever to
-do with the loyalty card.
-
-That is why pairing matters. Kiran and Hugo are miles apart, but Kiran-before
-and Kiran-after are the same Kiran, so the difference between those two is
-clean.
-
-=== step === concept
-
-## Does pairing really change the answer?
-
-These are the same 24 numbers and the same question, but you get two answers,
-and the two are nowhere near each other.
-
-First, let us treat them as what they are, which is twelve people, each
-measured twice.
-
-```r
-t.test(before, after, paired = TRUE)
-#>
-#> 	Paired t-test
-#>
-#> data:  before and after
-#> t = -7.3855, df = 11, p-value = 1.385e-05
-#> alternative hypothesis: true mean difference is not equal to 0
-#> 95 percent confidence interval:
-#>  -1.2980148 -0.7019852
-#> sample estimates:
-#> mean difference
-#>              -1
-```
-
-Now let us feed R exactly the same numbers, but this time we tell it that the
-two columns come from two unrelated crowds of people.
-
-```r
-t.test(before, after, paired = FALSE)
-#>
-#> 	Welch Two Sample t-test
-#>
-#> data:  before and after
-#> t = -1.2246, df = 21.221, p-value = 0.2341
-#> alternative hypothesis: true difference in means is not equal to 0
-#> 95 percent confidence interval:
-#>  -2.6971125  0.6971125
-#> sample estimates:
-#> mean of x mean of y
-#>       7.9       8.9
-```
-
-A p-value of 1.385e-05 is 0.00001385. That is a rock solid yes, the loyalty
-card moved spending.
-
-A p-value of 0.2341 is a shrug, and it says there is nothing here to see.
-
-The twenty four numbers never changed. The only thing that changed is whether
-we told R that Ana-before and Ana-after are the same Ana.
-
-Here is why the paired version wins. The unpaired comparison has to work
-around the fact that Kiran spends nearly twice what Hugo does. That person to
-person spread is noise, and it is more than big enough to bury a $1 rise. The
-paired comparison never has to deal with that noise, because it looks only at
-the twelve differences, and all twelve of them point the same way.
+A number you can average sends you toward the t-test and ANOVA family. A label you can only count sends you toward the chi-square family instead. Those two families never mix, and we will come round to the counting side in a little while.
 
 [WARNING]
-Pairing is not something you pick because it gives a smaller p-value. It is a
-fact about how the data was collected. If the rows are genuinely linked you
-must say so, and if they are not, saying so is cheating.
-
-=== step === tryit
-
-## Paired or independent?
-
-Your turn now. Let us go back to the Saturday tickets.
-
-Riverside served 14 orders that day and Hilltop served 11. They were different
-people in different queues, nobody stood in both, and there is no way on earth
-to say which Riverside ticket goes with which Hilltop ticket.
-
-So which design is that? Replace the placeholder below, then press Check.
-
-```r
-# 14 Riverside tickets and 11 Hilltop tickets, from two separate crowds.
-# Nobody appears in both lists.
-design <- "write your answer here"
-design
-```
-
-::check {"regex": "[Ii]ndependent", "gate": true, "difficulty": "beginner", "ok": "Independent. There is no row that ties a Riverside ticket to a Hilltop ticket, so nothing is paired.", "no": "Not yet. Ask whether every ticket on one side has a named partner on the other. It does not, so these two crowds are not linked. The word we are after is independent."}
-
-::solution
-
-```r
-design <- "independent"
-design
-#> [1] "independent"
-```
-
-Here is a shortcut you can keep forever. If the two columns can have different
-lengths, they cannot possibly be paired. 14 tickets and 11 tickets do not pair
-up, and twelve regulars measured twice always do.
-
-=== step === widget
-
-## Question 4: what shape is the spread?
-
-Question four asks what your numbers look like once you line them all up.
-
-The classic tests, the t-test and ANOVA, are built on averages. An average is a
-fair summary when the values pile up around the middle and thin out evenly on
-both sides, and that even, roughly symmetric pile is what bell shaped means.
-
-An average is a bad summary when the values are lopsided, with a crowd of
-small ones and a long tail of big ones. A single $41 catering order drags the
-average away from where almost every real customer actually is.
-
-Here are the Bean and Bun tickets, one box per branch.
-
-::widget chart-plotter {"x":"branch","y":"order_value","geoms":["boxplot"],"data":[{"x":"Riverside","y":5.9},{"x":"Riverside","y":6.4},{"x":"Riverside","y":6.6},{"x":"Riverside","y":6.9},{"x":"Riverside","y":7.1},{"x":"Riverside","y":7.3},{"x":"Riverside","y":7.5},{"x":"Riverside","y":7.9},{"x":"Riverside","y":8.4},{"x":"Riverside","y":9.1},{"x":"Riverside","y":10.6},{"x":"Riverside","y":12.3},{"x":"Riverside","y":30.0},{"x":"Riverside","y":41.0},{"x":"Hilltop","y":8.2},{"x":"Hilltop","y":8.6},{"x":"Hilltop","y":9.1},{"x":"Hilltop","y":9.6},{"x":"Hilltop","y":9.9},{"x":"Hilltop","y":10.4},{"x":"Hilltop","y":10.9},{"x":"Hilltop","y":11.6},{"x":"Hilltop","y":12.3},{"x":"Hilltop","y":14.2},{"x":"Hilltop","y":27.8},{"x":"Market Street","y":4.7},{"x":"Market Street","y":4.8},{"x":"Market Street","y":4.9},{"x":"Market Street","y":5.1},{"x":"Market Street","y":5.3},{"x":"Market Street","y":5.6},{"x":"Market Street","y":6.3},{"x":"Market Street","y":6.6},{"x":"Market Street","y":6.9},{"x":"Market Street","y":7.2},{"x":"Market Street","y":7.6},{"x":"Market Street","y":8.1},{"x":"Market Street","y":24.0}]}
-
-The box holds the middle half of that branch's tickets. The line inside it is
-the median, which is the typical ticket, and the whiskers reach out to the
-smallest and largest tickets the branch saw.
-
-Now let us put two sets of numbers side by side. One is the middle ticket of
-each branch, and the other is the average of each branch.
-
-```r
-# The typical ticket: half the branch is below this, half above.
-round(tapply(orders$order_value, orders$branch, median), 2)
-#>     Riverside       Hilltop Market Street
-#>           7.7          10.4           6.3
-
-# The average, from earlier.
-round(tapply(orders$order_value, orders$branch, mean), 2)
-#>     Riverside       Hilltop Market Street
-#>         11.93         12.05          7.47
-```
-
-Every average sits well above its own median. That gap is the sign of a long
-right tail, and all three branches have one.
-
-Riverside's median customer spends $7.70. Riverside's average customer, on
-paper, spends $11.93. There is no such customer. That number is not a person
-at all, it is what two catering orders do to an average.
-
-=== step === concept
-
-## How do I check the shape without squinting?
-
-Eyeballing a chart is a real skill and you should keep doing it. But there is
-a formal check too, and it takes one line.
-
-The **Shapiro-Wilk test** asks one narrow question. Could a bell shaped process
-plausibly have produced numbers this lopsided? It hands back a p-value, and a
-small one, under 0.05 say, means no, these numbers are not bell shaped.
-
-```r
-shapiro.test(riverside)
-#>
-#> 	Shapiro-Wilk normality test
-#>
-#> data:  riverside
-#> W = 0.58908, p-value = 3.247e-05
-
-# All three branches at once, p-values only.
-sapply(list(Riverside = riverside, Hilltop = hilltop, MarketStreet = market),
-       function(x) round(shapiro.test(x)$p.value, 6))
-#>    Riverside      Hilltop MarketStreet
-#>      3.2e-05      7.8e-05      1.3e-05
-```
-
-Riverside comes back at 0.000032, Hilltop at 0.000078 and Market Street at
-0.000013. All three sit far under 0.05, so all three are lopsided, and that is
-no surprise at all, because we could already see the tails.
-
-One warning, because this test is easy to over-trust. Shapiro-Wilk is very
-sensitive to the amount of data you give it. On 8 values it lets almost anything
-through, and on 5000 values it will flag a wobble so small that it would never
-have changed your answer.
-
-So treat it as evidence, not as a verdict, and pair it with the practical
-rule. Once you have roughly 30 or more values per group, averages settle down
-even when the raw values are somewhat skewed, and the bell shaped tests keep
-working fine.
-
-Bean and Bun has 11 to 14 tickets per branch and tails that stretch out to
-$41. That is not a mild skew on a big pile of data, it is a small sample with
-a heavy tail, and that is exactly the situation where question four decides
-your test for you.
-
-=== step === concept
-
-## Every test has a rank-based twin
-
-So the spread is lopsided. Does that mean you are stuck?
-
-No, you are not stuck at all. It just means you move across to the other
-column of the map, and that column has a test for every one of these
-situations.
-
-For every test built on averages there is a twin built on **ranks**. Instead
-of using the values themselves, the twin lines everything up from smallest to
-largest and uses the positions.
-
-Watch what that does to Market Street's catering ticket.
-
-```r
-sort(market)
-#>  [1]  4.7  4.8  4.9  5.1  5.3  5.6  6.3  6.6  6.9  7.2  7.6  8.1 24.0
-
-rank(sort(market))
-#>  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13
-```
-
-As a value, $24.00 is three times the size of the next ticket down. As a rank
-it is 13, which is one single step above 12.
-
-So the outlier stops pulling the answer around. It is still the biggest ticket
-of the day, it just counts as one step up rather than as three times
-everything else, and that is why the rank-based twins hold up on lopsided
-data.
-
-Here are the four pairs you will actually reach for.
-
-```r
-twin_table <- data.frame(
-  situation   = c("2 groups, separate people", "2 measurements, same people",
-                  "3+ groups, separate people", "3+ measurements, same people"),
-  if_bell     = c("t-test", "paired t-test", "ANOVA", "repeated ANOVA"),
-  if_lopsided = c("Wilcoxon rank sum", "Wilcoxon signed rank",
-                  "Kruskal-Wallis", "Friedman")
-)
-twin_table
-#>                      situation        if_bell          if_lopsided
-#> 1    2 groups, separate people         t-test    Wilcoxon rank sum
-#> 2  2 measurements, same people  paired t-test Wilcoxon signed rank
-#> 3   3+ groups, separate people          ANOVA       Kruskal-Wallis
-#> 4 3+ measurements, same people repeated ANOVA             Friedman
-```
-
-Those are the same four situations, down the left. Questions two and three
-pick your row, and question four picks your column.
-
-=== step === concept
-
-## Question 5: what does the map say?
-
-You have four answers now. Put them together and the fifth question is nothing
-more than looking the answer up.
-
-Here is the whole flowchart, written out as eight rows.
-
-```r
-decision_map <- data.frame(
-  outcome    = c("number", "number", "number", "number", "number", "number",
-                 "label", "label"),
-  groups     = c("2", "2", "2", "2", "3+", "3+", "2+", "2+"),
-  paired     = c("no", "no", "yes", "yes", "no", "no", "no", "no"),
-  shape      = c("bell", "lopsided", "bell", "lopsided", "bell", "lopsided",
-                 "any", "sparse"),
-  test       = c("t-test", "Wilcoxon rank sum", "paired t-test",
-                 "Wilcoxon signed rank", "ANOVA", "Kruskal-Wallis",
-                 "chi-square", "Fisher exact"),
-  r_function = c("t.test()", "wilcox.test()", "t.test()", "wilcox.test()",
-                 "aov()", "kruskal.test()", "chisq.test()", "fisher.test()")
-)
-decision_map
-#>   outcome groups paired    shape                 test     r_function
-#> 1  number      2     no     bell               t-test       t.test()
-#> 2  number      2     no lopsided    Wilcoxon rank sum  wilcox.test()
-#> 3  number      2    yes     bell        paired t-test       t.test()
-#> 4  number      2    yes lopsided Wilcoxon signed rank  wilcox.test()
-#> 5  number     3+     no     bell                ANOVA          aov()
-#> 6  number     3+     no lopsided       Kruskal-Wallis kruskal.test()
-#> 7   label     2+     no      any           chi-square   chisq.test()
-#> 8   label     2+     no   sparse         Fisher exact  fisher.test()
-```
-
-That is the entire flowchart. You are not meant to memorise it. You are meant
-to look things up in it.
-
-Read a row left to right. Row 6 says: the outcome is a number, there are three
-or more groups, they are not paired, the shape is lopsided, so the test is
-Kruskal-Wallis and the R call is `kruskal.test()`.
-
-The bottom two rows need a word of explanation. When the outcome is a label
-you count how many fall into each bucket and compare the counts, and comparing
-counts is exactly what chi-square does. When those counts get small, roughly
-under 5 in any cell of the
-table, chi-square becomes unreliable and Fisher's exact test takes over, and
-that is what `sparse` means there.
-
-=== step === concept
-
-## So is the difference real?
-
-So let us walk Bean and Bun through the five questions and answer the one we
-opened with.
-
-1. **What are we measuring?** Order value in dollars. A number.
-2. **How many groups?** Three branches.
-3. **Are they linked?** No. Three separate crowds, different sizes, no partners.
-4. **What shape?** Lopsided. Long right tail on all three, and Shapiro-Wilk agreed.
-5. **Read the map.** Number, three or more, not paired, lopsided. Row 6. Kruskal-Wallis.
-
-Now, here is why any of that mattered. Almost everybody reaches for ANOVA at
-this point, because three groups and a numeric outcome is the ANOVA reflex.
-Let us run both and put them side by side.
-
-```r
-# The reflex answer.
-summary(aov(order_value ~ branch, data = orders))
-#>             Df Sum Sq Mean Sq F value Pr(>F)
-#> branch       2  174.4   87.21   1.519  0.233
-#> Residuals   35 2009.7   57.42
-
-# The answer the five questions gave us.
-kruskal.test(order_value ~ branch, data = orders)
-#>
-#> 	Kruskal-Wallis rank sum test
-#>
-#> data:  order_value by branch
-#> Kruskal-Wallis chi-squared = 15.303, df = 2, p-value = 0.0004754
-```
-
-ANOVA says p = 0.233, which reads as nothing to see here, so go home, the
-branches are all the same.
-
-Kruskal-Wallis says p = 0.00048, which is a clear, strong difference.
-
-Those are the same 38 tickets and two opposite verdicts.
-
-ANOVA compares averages, and those averages are being dragged around by a
-handful of catering orders that landed that day. Riverside's two big tickets
-on their own blow its spread up so far that everything else disappears into
-it. That wobble becomes the yardstick ANOVA measures the branch gap against,
-and next to a yardstick that big, four and a half dollars a ticket looks like
-nothing. That is what the F value of 1.5 in the output is saying, that the
-spread between the branches is barely bigger than the spread inside them.
-
-Kruskal-Wallis compares ranks. Almost every Market Street ticket sits in the
-bottom half of all 38, and almost every Hilltop ticket sits in the top half.
-On ranks that pattern is impossible to miss, and out comes p = 0.00048.
-
-So yes, the difference is real. Market Street's typical ticket really is
-smaller than the typical ticket at the other two branches. And the only reason
-you know that is that you asked question four instead of reaching for the test
-you happened to remember.
-
-=== step === tryit
-
-## Name the test for a new question
-
-Here is one more, and this one is yours from scratch.
-
-Bean and Bun bought a new coffee machine. Nine baristas timed how long till
-close took them, in minutes, on the old machine, and then timed it again on
-the new one, and it was the same nine people both times.
-
-Most nights land near 12 minutes, and on two nights a delivery arrived late
-and till close ran past 40.
-
-Now walk the five questions and name the test.
-
-```r
-old_machine <- c(11.2, 12.4, 10.9, 13.1, 12.0, 11.6, 41.5, 12.8, 44.2)
-new_machine <- c(10.4, 11.1,  9.8, 12.2, 10.7, 10.9, 36.0, 11.5, 39.4)
-
-# The same nine baristas, timed on both machines.
-test_name <- "write your answer here"
-test_name
-```
-
-::check {"regex": "[Ss]igned[ -]?[Rr]ank", "gate": true, "difficulty": "intermediate", "ok": "Wilcoxon signed rank. A number, two measurements, the same nine people so it is paired, and two 40 minute nights make it lopsided. That is row 4 of the map.", "no": "Not yet. Work the five in order. The outcome is minutes, so a number. There are two measurements. They come from the same nine baristas, so this is paired. And those two 40 minute nights make the spread lopsided. Now read row 4."}
-
-::solution
-
-```r
-# Number, two measurements, same nine people, lopsided. Row 4 of the map.
-test_name <- "Wilcoxon signed rank"
-wilcox.test(old_machine, new_machine, paired = TRUE)
-#>
-#> 	Wilcoxon signed rank exact test
-#>
-#> data:  old_machine and new_machine
-#> V = 45, p-value = 0.003906
-#> alternative hypothesis: true location shift is not equal to 0
-```
-
-Notice that you never had to remember anything. You described the data, and
-the row appeared.
+Do not read the answer off how the data happens to be stored. If someone had numbered the branches 1, 2 and 3, `class()` would say numeric, and the average branch would come out at 2, which means nothing at all. Ask what the thing IS, not what R calls it.
 
 === step === quiz
+## Quick check: which of these is a number you can average?
 
-## One more from the floor
+A colleague hands you the store's order table with four columns. Which one is a number you can average?
 
-Riverside and Market Street each ran a Saturday promotion. For every person
-who walked in, you wrote down which branch they were in and whether they
-bought anything at all. Which test do you run?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- A t-test comparing the two branches ::no Go back to question one. The outcome here is bought or did not buy, which is a label, not a number. Every test in the t-test and ANOVA family needs a number to average, so none of them can touch this. Labels get counted, and counts get chi-square.
-- ANOVA across the branches ::no Go back to question one. The outcome here is bought or did not buy, which is a label, not a number. Every test in the t-test and ANOVA family needs a number to average, so none of them can touch this. Labels get counted, and counts get chi-square.
-- A chi-square test on the table of branch against bought or not ::ok Yes. The outcome is bought or did not buy, and that is a label. Labels get counted into a table and compared with chi-square. If any cell of that table came out under about 5, you would switch to Fisher's exact test.
-- A paired t-test on the two branches ::no Go back to question one. The outcome here is bought or did not buy, which is a label, not a number. Every test in the t-test and ANOVA family needs a number to average, so none of them can touch this. Labels get counted, and counts get chi-square.
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- Branch, stored in the file as 1, 2 and 3, because R reports it as numeric. ::no
+- Order value in dollars, because the average of two order values is itself an order value. ::ok That is the one. It is measured on a scale where the halfway point between two values is a real, meaningful value, which is exactly what averaging needs.
+- Whether the customer used a loyalty card, stored as yes and no. ::no
+- The payment method, recorded as cash, card or wallet. ::no Three of these four are labels wearing different clothes. Loyalty card and payment method are obviously labels, and branch is a label too, even when it is stored as 1, 2 and 3. Averaging those numbers gives you branch 2.1, which is not a place. Ask what the thing is, never what R calls it.
 
 === step === concept
+## Three branches, not three separate comparisons
 
+Question two simply counts your groups, and the answer to it picks the test before anything else about your data gets a say.
+
+With two groups you compare one against the other and you are done. With three branches you might think the natural move is three comparisons: Anna Nagar against Velachery, Anna Nagar against Adyar, and Velachery against Adyar. It does feel thorough. It is also how people end up manufacturing findings without meaning to.
+
+Here is why. A single test set at 0.05 promises to raise a false alarm about 5 times in 100 when nothing is really different. Run three of them and you have given yourself three chances to trip that alarm, so the promise no longer holds for the set.
+
+Let's watch it happen. The code below builds three groups of 30 orders that all come from the exact same population, so any difference it finds is a false alarm by construction, and it repeats that 1,000 times.
+
+```r
+# Count how often three t-tests raise a false alarm when nothing is different
+set.seed(101)
+runs <- replicate(1000, {
+  anna <- rnorm(30, 50, 9)
+  vela <- rnorm(30, 50, 9)
+  adya <- rnorm(30, 50, 9)
+
+  p_anna_vela <- t.test(anna, vela)$p.value
+  p_anna_adya <- t.test(anna, adya)$p.value
+  p_vela_adya <- t.test(vela, adya)$p.value
+
+  c(one_test_alone   = p_anna_vela < 0.05,
+    any_of_the_three = min(p_anna_vela, p_anna_adya, p_vela_adya) < 0.05)
+})
+
+round(rowMeans(runs), 3)
+#>   one_test_alone any_of_the_three 
+#>            0.044            0.122 
+```
+
+`replicate()` runs the block inside it 1,000 times and keeps both answers from every run, and `rowMeans()` turns those into two rates.
+
+Read the two numbers side by side. One t-test on its own cried wolf 44 times in 1,000, which is the 5 in 100 it promised. Ask whether ANY of the three cried wolf and the rate climbs to 122 in 1,000.
+
+Nothing was different in a single one of those 1,000 months. And yet the alarm still went off in one month out of eight, purely because we gave it three chances to go off.
+
+So three or more groups get ONE test that looks at all of them together, which is what a one-way ANOVA does. Only after that test says something is going on do you go back and ask which branch is the odd one out.
+
+=== step === quiz
+## Quick check: three branches to compare, what do you run?
+
+You have order values from all three branches and you want to know whether any branch differs from the others.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- Three t-tests, one for each pair of branches, and report whichever ones come in under 0.05. ::no
+- One test across all three branches at once, then a follow-up that says which branch is the odd one out. ::ok Exactly. One test asks the whole question once and keeps its false-alarm promise, and the pair-by-pair comparison is only made after that test has earned it.
+- A single t-test on the highest branch against the lowest, since that is the comparison that matters. ::no
+- Three t-tests, but only report the smallest of the three p-values. ::no All three of these run more comparisons than they admit to, or pick the winner out of them afterwards, and both moves push the false-alarm rate well past 5 in 100. Highest against lowest is the sneakiest of them, because you chose that pair by looking at the answer first.
+
+=== step === concept
+## The same 30 customers, before and after the promo
+
+Question three asks whether your two sets of numbers are linked, and the store has a case where they clearly are.
+
+The store ran a promo on its 30 loyalty customers. Every one of them has an order value from before the promo and an order value from after it. Customer 7's before number and customer 7's after number belong together, and that link between them is real information.
+
+Let's build those 30 customers.
+
+```r
+# Build 30 loyalty customers measured once before the promo and once after
+set.seed(7)
+promo <- data.frame(customer = 1:30,
+                    before = round(rnorm(30, 50, 12), 2))
+promo$after <- round(promo$before + rnorm(30, 3.2, 2.5), 2)
+
+head(promo, 4)
+#>   customer before after
+#> 1        1  77.45 78.47
+#> 2        2  35.64 40.64
+#> 3        3  41.67 45.15
+#> 4        4  45.05 48.05
+```
+
+Now let's draw each customer as a line running from their before value to their after value, so the pairing is something you can see.
+
+```r
+# Draw one line per customer, from their before value to their after value
+plot(c(0.8, 2.2), range(c(promo$before, promo$after)), type = "n",
+     xaxt = "n", xlab = "", ylab = "Order value in dollars",
+     main = "The same 30 customers, before and after the promo")
+axis(1, at = c(1, 2), labels = c("before", "after"))
+segments(1, promo$before, 2, promo$after, col = "grey70")
+points(rep(1, 30), promo$before, pch = 19, col = "steelblue")
+points(rep(2, 30), promo$after,  pch = 19, col = "darkorange")
+```
+
+Notice two things in that picture. The customers are spread all over the place, from the low thirties to the low eighties. And almost every single line tilts upward by a small, similar amount.
+
+Those two facts sitting side by side are exactly where the pairing pays off, and we can put numbers on it.
+
+```r
+# Test the same 30 customers two ways, and see what the pairing is worth
+promo$change <- promo$after - promo$before
+
+round(c(spread_of_values = sd(promo$before),
+        spread_of_change = sd(promo$change),
+        customers_who_rose = sum(promo$change > 0)), 2)
+#>   spread_of_values   spread_of_change customers_who_rose 
+#>              13.52               2.00              28.00 
+
+paired_p      <- t.test(promo$after, promo$before, paired = TRUE)$p.value
+independent_p <- t.test(promo$after, promo$before)$p.value
+
+signif(c(paired = paired_p, independent = independent_p), 3)
+#>      paired independent 
+#>    6.41e-10    3.43e-01 
+```
+
+Order values are spread by about $13.52 from customer to customer, but each customer's own change is spread by only $2.00, and 28 of the 30 went up.
+
+Now look at the two p-values. When the test is told about the pairing it comes back with 0.000000000641. When it is not told, those very same 60 numbers come back with 0.343, which is a shrug.
+
+Same 60 numbers, two completely different answers.
+
+The independent test has to spot the promo through all that customer-to-customer spread. The paired test throws that spread away by working on each customer's own change, and what is left is a small, consistent rise it can see easily.
+
+[WARNING]
+Running the independent test on paired data does not just lose you a little power. It can turn a real and obvious effect into nothing at all, which is exactly what happened above. If each number in one group has a specific partner in the other, say so.
+
+=== step === tryit
+## Your turn: run the promo test the right way
+
+The `promo` data frame is still here, with a `before` column and an `after` column for each of the 30 loyalty customers. Run the t-test that knows those two columns are linked, one pair per customer.
+
+One argument does all the work.
+
+```r
+# promo holds 30 loyalty customers, each with a before value and an after value.
+# Run a t-test on promo$after against promo$before that treats them as
+# 30 linked pairs rather than two unrelated groups.
+# One line. Press Check when you have it.
+```
+::check {"regex": "paired\\s*=\\s*TRUE", "gate": true, "difficulty": "beginner", "ok": "That is it. The p-value comes back at 6.4e-10 and the mean difference at $3.29 an order. All of the pairing is carried by that one argument.", "no": "The test itself is `t.test(promo$after, promo$before, ...)`. Add the argument that tells it the two columns are 30 linked pairs."}
+::solution
+```r
+# Test the promo the right way, treating the two columns as 30 linked pairs
+t.test(promo$after, promo$before, paired = TRUE)
+#> 
+#> 	Paired t-test
+#> 
+#> data:  promo$after and promo$before
+#> t = 9.025, df = 29, p-value = 6.414e-10
+#> alternative hypothesis: true mean difference is not equal to 0
+#> 95 percent confidence interval:
+#>  2.545196 4.036804
+#> sample estimates:
+#> mean difference 
+#>           3.291 
+```
+
+The two numbers above the estimate are worth a glance too. They say the promo is worth somewhere between $2.55 and $4.04 an order, and that range, called a confidence interval, is the honest version of the $3.29.
+
+=== step === concept
+## What roughly normal looks like on our branch data
+
+Question four asks about the shape of your numbers, and shape is something you can simply go and look at.
+
+Roughly normal means most values pile up near the middle, fewer and fewer appear as you move away in either direction, and the two sides look about the same. It is the shape a t-test and an ANOVA quietly assume when they draw that luck-only curve.
+
+Two pictures tell you almost everything. A histogram shows you the pile directly, and a QQ plot lines your values up against the values a perfectly normal batch would have produced. On a QQ plot, close to the straight line means close to normal.
+
+```r
+# Look at the shape of the Adyar orders two ways, as a pile and against normal
+adyar <- orders$value[orders$branch == "Adyar"]
+
+par(mfrow = c(1, 2))
+hist(adyar, breaks = 10, col = "grey85", border = "white",
+     main = "Adyar order values", xlab = "Order value in dollars")
+qqnorm(adyar, main = "Adyar against a normal shape")
+qqline(adyar, col = "red", lwd = 2)
+par(mfrow = c(1, 1))
+```
+
+`par(mfrow = c(1, 2))` puts the two plots side by side, and the last line puts the drawing area back to a single plot so later charts are not squeezed.
+
+The pile is lumpy, which 30 orders always are, but it has a middle and two tails and no runaway values. On the right, the dots track the red line closely, with only the usual wobble at the two ends.
+
+There is also a test for this, and it reports a p-value that works the way you would hope: small means the shape is unlikely to have come from a normal population.
+
+```r
+# Test each branch's order values for a normal shape
+sapply(split(orders$value, orders$branch),
+       function(v) signif(shapiro.test(v)$p.value, 2))
+#> Anna Nagar  Velachery      Adyar 
+#>       0.51       0.72       0.91 
+```
+
+`split()` cuts the value column into three pieces by branch and `sapply()` runs `shapiro.test()` on each piece.
+
+All three land far above 0.05, so there is no evidence against a normal shape anywhere in the store's data. The picture and the test agree, which is the comfortable case.
+
+=== step === concept
+## When the shape actually changes your answer
+
+A failed shape check is not automatically a change of test, and this is where most people over-correct.
+
+The month after that promo, a few corporate customers placed enormous orders. Same three branches, same 30 orders each, but the shape is now nothing like the last picture.
+
+```r
+# Build the month the huge corporate orders came in, and look at its shape
+set.seed(11)
+big_month <- data.frame(
+  branch = factor(rep(c("Anna Nagar", "Velachery", "Adyar"), each = 30),
+                  levels = c("Anna Nagar", "Velachery", "Adyar")),
+  value  = round(c(rlnorm(30, 3.6, 0.75), rlnorm(30, 3.75, 0.8),
+                   rlnorm(30, 4.25, 0.85)), 2)
+)
+
+hist(big_month$value, breaks = 25, col = "grey85", border = "white",
+     main = "The month the big corporate orders came in",
+     xlab = "Order value in dollars")
+```
+
+That is a long right tail. Seventy-nine of the 90 orders sit under $100, and two of them stretch past $450, which drags every average upward and makes it a poor summary of a typical order.
+
+```r
+# Test each branch of the big month for a normal shape
+sapply(split(big_month$value, big_month$branch),
+       function(v) signif(shapiro.test(v)$p.value, 2))
+#> Anna Nagar  Velachery      Adyar 
+#>    7.2e-05    8.0e-03    1.6e-07 
+```
+
+All three are far below 0.05, so all three shapes are a long way from normal.
+
+When that happens, every test we have met has a partner that works on ranks instead of the raw values. A rank-based test throws away the exact size of each order and keeps only the running order, which is why one enormous corporate order can no longer drag the answer around.
+
+| What you have | The usual test | Its rank-based partner |
+|---|---|---|
+| Two independent groups | t-test | Wilcoxon rank-sum test |
+| Two linked measurements | paired t-test | Wilcoxon signed-rank test |
+| Three or more groups | one-way ANOVA | Kruskal-Wallis test |
+
+Now here is the part people get wrong. Shape matters most when you have few values, and it matters less and less as you collect more of them.
+
+With 30 orders and a tail like the one above, two orders out of 90 are setting Adyar's average, and the luck curve a t-test or an ANOVA draws is the wrong shape for the data, so move to the partner column and report medians. With a few hundred orders and a mild lean to one side, a t-test and an ANOVA hold up fine, and swapping to ranks buys you very little.
+
+[NOTE]
+A shape test is not the decision maker, because it does what all tests do and gets more sensitive as the data grows. Feed it 5,000 orders and a lean too small to matter will still come back under 0.05. Look at the histogram, count how many values you have, then decide.
+
+=== step === quiz
+## Quick check: 200 orders and a slight lean to the right
+
+You have 200 orders from each of two checkout flows. The histograms lean slightly to the right, nothing dramatic, and `shapiro.test()` comes back at 0.02 for one of them. What do you run?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The rank-based partner, because the shape test came in under 0.05 and that rules the t-test out. ::no
+- The ordinary t-test, because with 200 orders a side a slight lean barely moves the answer. ::ok Right. The shape test is picking up a real but tiny lean, because 200 values give it the sensitivity to. Look at the size of the lean and the size of the sample together, and here both point the same way.
+- Drop the orders in the right tail until the shape test clears 0.05, then run the t-test. ::no
+- Neither test can be used, because the data is not normal. ::no Two of these treat 0.05 on a shape test as a verdict rather than a reading, and dropping the tail is worse still: those orders are real, and removing them to pass a test is choosing your data to fit your method. Non-normal data always has a test that fits it, so nothing is ever untestable.
+
+=== step === concept
+## How big is the gap, not just whether it is there
+
+Question five is the one that gets skipped, and it is the one your manager actually cares about.
+
+A p-value only ever answers whether a gap is bigger than luck can comfortably explain. It says nothing about whether the gap is worth acting on. For that you want an effect size, which is a number that says how much.
+
+For a comparison across three or more groups the usual one is called eta squared, and it is a share. Take the swing in order value that the branch labels account for, and divide it by the total swing in order value across all 90 orders.
+
+```r
+# Work out what share of the swing in order value the branch accounts for
+branch_fit <- aov(value ~ branch, data = orders)
+sums <- summary(branch_fit)[[1]][["Sum Sq"]]
+
+eta_squared <- sums[1] / sum(sums)
+round(c(between_branches = sums[1], leftover = sums[2],
+        eta_squared = eta_squared), 3)
+#> between_branches         leftover      eta_squared 
+#>         2759.137         6026.525            0.314 
+```
+
+`aov()` fits the comparison and `summary()` hands back its two sums of squares: how much of the swing travels with the branch labels, and how much is left over inside the branches.
+
+So 2,759 of the 8,786 total belongs to the branch, which is 0.314, or about 31 percent. Roughly a third of the variation in order value at this store goes with which branch the order came from, and the other two thirds is customers being customers.
+
+Cohen's rough benchmarks for eta squared are worth carrying around:
+
+- 0.01 is a small effect
+- 0.06 is a medium effect
+- 0.14 is a large effect
+
+At 0.314 the store's branch difference is large by any of those, and that is a sentence you can take to a manager. A p-value of 0.00000008 is not.
+
+[KEY INSIGHT]
+Report both, always. The p-value says whether the gap survives luck, and the effect size says whether the gap is worth a meeting. Either one on its own can talk you into a bad decision.
+
+=== step === concept
+## The answer for the store, and which branch is different
+
+We now have all five answers for the store's original question, so let's lay them out and see what falls out.
+
+1. Order value is a number you can average.
+2. There are three branches, not two.
+3. The orders come from different customers, so nothing is linked.
+4. All three branches passed the shape check comfortably.
+5. We want the size of the difference, not only whether it exists.
+
+Answers one to four leave exactly one test standing: a one-way ANOVA. Let's run it.
+
+```r
+# Run the one test that compares all three branches at once
+summary(branch_fit)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)    
+#> branch       2   2759  1379.6   19.92 7.56e-08 ***
+#> Residuals   87   6027    69.3                     
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+The `F value` is the noise-width idea from earlier, done across three groups at once: how far apart the three branch averages sit, measured against how much the orders wobble inside each branch. At 19.92 the three branches differ from one another far more than the orders wobble inside any one branch.
+
+The line that turns that into an answer is `Pr(>F)`, which is 0.0000000756. If the three branches were genuinely identical, a spread of averages this wide would turn up less than once in ten million months. Something is going on.
+
+But notice what that line does not tell you. It says the three branches are not all the same. It does not say which one is different, and it is perfectly possible that two of them are twins.
+
+That is what the follow-up comparison is for. `TukeyHSD()` compares every pair, and, this is the important bit, it adjusts for the fact that it is making three comparisons rather than one.
+
+```r
+# Ask which branch is actually the odd one out, all three pairs at once
+TukeyHSD(branch_fit)
+#>   Tukey multiple comparisons of means
+#>     95% family-wise confidence level
+#> 
+#> Fit: aov(formula = value ~ branch, data = orders)
+#> 
+#> $branch
+#>                          diff       lwr      upr     p adj
+#> Velachery-Anna Nagar  2.53100 -2.593150  7.65515 0.4695583
+#> Adyar-Anna Nagar     12.80467  7.680517 17.92882 0.0000002
+#> Adyar-Velachery      10.27367  5.149517 15.39782 0.0000209
+```
+
+Read the `p adj` column. Velachery against Anna Nagar comes in at 0.47, so those two branches are twins as far as this data can tell, and their $2.53 gap is the one we watched drown in noise earlier.
+
+Adyar against each of the other two comes in tiny, and the `diff` column tells you by how much: about $12.80 an order above Anna Nagar and $10.27 above Velachery.
+
+So the store's answer is one sentence. Adyar takes about $11 more per order than the other two branches, which are indistinguishable from each other, and branch accounts for roughly a third of all the variation in order value.
+
+[NOTE]
+A one-way ANOVA also assumes the three branches spread out by about the same amount, and here they do: the spread of the three branches works out at $9.01, $8.33 and $7.57. When one group is far more scattered than the others, that is the assumption that breaks first.
+
+=== step === tryit
+## Your turn: the month the big orders came in
+
+Someone asks the same question about the month the corporate orders landed. Same three branches, same 30 orders each, but you saw what that shape looks like, and all three branches failed the shape check badly.
+
+So the one-way ANOVA is out and its partner is in. Compare the three branches of `big_month` with the test that works on ranks, using `value` explained by `branch`.
+
+```r
+# big_month holds 90 orders from the month the huge corporate orders came in,
+# with the same branch column and value column as before.
+# The shape is badly skewed, so the usual three-group test is out.
+# Run its rank-based partner instead, on value explained by branch.
+# One line. Press Check when you have it.
+```
+::check {"regex": "kruskal\\.test", "gate": true, "difficulty": "intermediate", "ok": "Yes, and the p-value comes back at 0.0004. The branches still differ, and now that verdict does not rest on a normal shape the data plainly does not have.", "no": "The three-group partner in the rank column is the Kruskal-Wallis test. The call takes the same formula shape the ANOVA did: `kruskal.test(value ~ branch, data = big_month)`."}
+::solution
+```r
+# Compare the three branches without assuming anything about the shape
+kruskal.test(value ~ branch, data = big_month)
+#> 
+#> 	Kruskal-Wallis rank sum test
+#> 
+#> data:  value by branch
+#> Kruskal-Wallis chi-squared = 15.629, df = 2, p-value = 0.0004039
+```
+
+Because this test works on ranks, the natural summary to report beside it is the median rather than the mean: $29.20, $43.90 and $63.20 for the three branches. Those sit far below the averages, which the corporate orders had dragged upward.
+
+=== step === concept
+## Counting customers instead of averaging money
+
+Question one had two sides to it, and everything so far has been on the side where the outcome is a number. So let's take the other side now.
+
+Suppose the store stops asking about money and asks about loyalty cards instead. Out of 100 customers at each branch, how many used their card? The outcome for one customer is now yes or no, a label, and the only thing you can do with labels is count them.
+
+For counts the comparison is a table, and the test is a chi-square test.
+
+```r
+# Count loyalty card use per branch and test whether the branches differ
+loyalty <- matrix(c(58, 42, 51, 49, 74, 26), nrow = 2,
+                  dimnames = list(card = c("used", "not used"),
+                                  branch = c("Anna Nagar", "Velachery", "Adyar")))
+loyalty
+#>           branch
+#> card       Anna Nagar Velachery Adyar
+#>   used             58        51    74
+#>   not used         42        49    26
+
+chisq.test(loyalty)
+#> 
+#> 	Pearson's Chi-squared test
+#> 
+#> data:  loyalty
+#> X-squared = 11.686, df = 2, p-value = 0.002901
+```
+
+A p-value of 0.0029 says that if card use were identical across the three branches, a table this lopsided would show up about 3 times in 1,000. Adyar is the outlier again, with 74 card users against 51 and 58.
+
+The chi-square test works by comparing what you counted against what you would have counted if the branches behaved identically, and R will show you those expected counts.
+
+```r
+# Show the counts you would expect if card use were identical at all three branches
+round(chisq.test(loyalty)$expected, 1)
+#>           branch
+#> card       Anna Nagar Velachery Adyar
+#>   used             61        61    61
+#>   not used         39        39    39
+```
+
+Those expected counts are worth more than a passing look. The chi-square test leans on an approximation that holds up while the expected counts stay reasonably large, and it starts to wobble once any of them drops below about 5.
+
+When that happens, `fisher.test()` does the same job by counting every possible table exactly instead of approximating. It is the right call for small counts, and R warns you when you need it.
+
+=== step === concept
+## Where each answer lands you
+
+You now have an answer to all five questions and you have seen both sides of the map, so let's read the whole thing as one path through one picture.
+
+The picture below shows the first fork and one fork on each side of it, which is enough to get you to a family of tests.
+
+::widget tree-diagram {"root": "Outcome a number?", "l": "Two groups only?", "r": "Counts under 5?", "leaves": ["t-test", "ANOVA", "fisher.test", "chisq.test"]}
+
+Going left from the top is the money side of the store, where the outcome is a number you can average. Going right is the loyalty card side, where the outcome is a label you count, and the fork there is about how small the expected counts get.
+
+The picture stops short of the pairing and shape questions, so here is the same map written out in full. Find your row, read off the test.
+
+| What you are measuring | Groups | Linked? | Shape | The test |
+|---|---|---|---|---|
+| A number | two | no | roughly normal | t-test |
+| A number | two | no | badly skewed | Wilcoxon rank-sum test |
+| A number | two | yes | roughly normal | paired t-test |
+| A number | two | yes | badly skewed | Wilcoxon signed-rank test |
+| A number | three or more | no | roughly normal | one-way ANOVA, then Tukey |
+| A number | three or more | no | badly skewed | Kruskal-Wallis test |
+| Labels you count | any | no | expected counts 5 or more | chi-square test |
+| Labels you count | any | no | any expected count under 5 | Fisher's exact test |
+
+One combination has no row on purpose. Three or more measurements that are all linked, the same customers tracked month after month, is a repeated-measures problem, and it has a family of tests of its own. If your answers land you there, stop rather than borrow the nearest row.
+
+Question five does not get a row of its own because it applies to every row. Whichever test you land on, report how big the difference is beside whether it is real.
+
+=== step === quiz
+## Practice: before and after, and the numbers are skewed
+
+A gym measures the weekly visits of 25 members in the month before a new class timetable and in the month after. Most members shift by one or two visits, but four of them jump by more than fifteen, so the differences have a long right tail and the shape check comes back at 0.001.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- A paired t-test, because the two numbers belong to the same member. ::no
+- A Wilcoxon signed-rank test, because the numbers are linked AND the shape is badly skewed with only 25 members. ::ok Both questions answered, and both change the answer. Linked moves you to the paired column, badly skewed with a small sample moves you across to ranks, and the signed-rank test is where those two meet.
+- A Wilcoxon rank-sum test, because the shape is badly skewed. ::no
+- A Kruskal-Wallis test, because it makes no assumption about shape. ::no Each of these gets one question right and drops another. The paired t-test respects the pairing and ignores the tail. The rank-sum test respects the tail and throws the pairing away, which is the mistake that turned a real promo effect into 0.343 earlier. Kruskal-Wallis is the three-or-more-groups test, and there are two measurements here, not three groups.
+
+=== step === quiz
+## Practice: 40,000 orders and a two-cent difference
+
+The store tests two checkout flows on 40,000 orders each. Average order value comes out two cents higher on the new flow, and the test returns p = 0.004. The team wants to rebuild the checkout on the strength of that number.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- Rebuild it. p = 0.004 clears the bar, so the two-cent gain is established. ::no
+- The gap is very likely real and far too small to act on, and only an effect size can say that second part. ::ok That is the honest read. A p-value shrinks as the data grows, so with 40,000 orders a side even a two-cent gap sits well outside what luck produces. Real and worth doing are separate questions, and only the second one pays for a rebuild.
+- p = 0.004 means the difference is large, so the rebuild is justified. ::no
+- The test must be wrong, because a two-cent difference cannot be significant. ::no A p-value never measures the size of a difference. It measures how far your gap sits from what luck alone produces, and collecting 40,000 orders shrinks luck's wobble until even a two-cent gap sticks out of it. That makes the tiny gap detectable, not important, and it is exactly why the fifth question exists.
+
+=== step === tryit
+## Practice: a 20-customer coupon pilot
+
+The store tried a coupon on 20 customers. Ten of them were offered a coupon and 9 of those ten bought something, and the other ten were offered nothing and 3 of them bought something. The outcome for each customer is bought or did not buy, so this one belongs on the counting side of the map.
+
+Build the two by two count table from the two columns, then run the test that these small counts demand. The expected counts here come out at 4, 6, 4 and 6.
+
+```r
+# The 20-customer coupon pilot: who was offered a coupon, and who bought
+coupon_pilot <- data.frame(
+  offer  = rep(c("with coupon", "without"), each = 10),
+  bought = c(rep("yes", 9), "no", rep("yes", 3), rep("no", 7))
+)
+
+head(coupon_pilot, 3)
+
+# Build the 2 by 2 count table from coupon_pilot$offer and coupon_pilot$bought,
+# then run the test that small expected counts demand.
+# Two lines. Press Check when you have them.
+```
+::check {"regex": "fisher\\.test", "gate": true, "difficulty": "intermediate", "ok": "Correct: p = 0.0198, so the coupon did something. With two expected counts under 5, the exact test is the one whose p-value you can trust here.", "no": "Build the table with `table(coupon_pilot$offer, coupon_pilot$bought)` first. Then, because two expected counts sit under 5, reach for the exact test rather than chi-square."}
+::solution
+```r
+# Build the count table, then run the exact test the small counts demand
+pilot_table <- table(coupon_pilot$offer, coupon_pilot$bought)
+pilot_table
+#>              
+#>               no yes
+#>   with coupon  1   9
+#>   without      7   3
+
+fisher.test(pilot_table)
+#> 
+#> 	Fisher's Exact Test for Count Data
+#> 
+#> data:  pilot_table
+#> p-value = 0.01977
+#> alternative hypothesis: true odds ratio is not equal to 1
+#> 95 percent confidence interval:
+#>  0.0009621944 0.7209145117
+#> sample estimates:
+#> odds ratio 
+#> 0.05788421 
+```
+
+The `odds ratio` line underneath is a separate measure of how far the coupon shifted buying, and the p-value above it is the answer to the question we actually asked.
+
+Run `chisq.test(pilot_table)` on the same table and R prints a warning that the approximation may be incorrect, which is R telling you the counts are too small for it. That warning is your cue to switch, and here the two answers differ enough to matter: 0.0225 from chi-square against 0.0198 from the exact test.
+
+=== step === concept
 ## References
 
-- [t.test, the stats package reference, R 4.6.0](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
-- [kruskal.test, the stats package reference, R 4.6.0](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html)
-- [Kruskal, W. H. and Wallis, W. A. (1952), Use of ranks in one-criterion variance analysis, JASA 47(260), 583-621](https://doi.org/10.1080/01621459.1952.10483441)
-- [Shapiro, S. S. and Wilk, M. B. (1965), An analysis of variance test for normality, Biometrika 52(3-4), 591-611](https://doi.org/10.1093/biomet/52.3-4.591)
-- [Navarro, D., Learning Statistics with R, the chapters on comparing two means and comparing several means](https://learningstatisticswithr.com/)
+- [The stats package index](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html) - R Core Team. The manual pages for `t.test`, `aov`, `wilcox.test`, `kruskal.test`, `chisq.test` and `fisher.test` all live here, each one spelling out its exact assumptions.
+- [Normality Tests for Statistical Analysis: A Guide for Non-Statisticians](https://doi.org/10.5812/ijem.3505) - Ghasemi and Zahediasl (2012), International Journal of Endocrinology and Metabolism 10(2), 486 to 489. Why a shape test on a large sample flags leans too small to matter.
+- [Why Psychologists Should by Default Use Welch's t-test Instead of Student's t-test](https://doi.org/10.5334/irsp.82) - Delacre, Lakens and Leys (2017), International Review of Social Psychology 30(1), 92 to 101. What happens when two groups spread out by different amounts.
+- [Statistical Power Analysis for the Behavioral Sciences](https://doi.org/10.4324/9780203771587) - Cohen (1988), 2nd edition, Lawrence Erlbaum. The source of the small, medium and large effect-size benchmarks.
+- [The ASA Statement on p-Values: Context, Process, and Purpose](https://doi.org/10.1080/00031305.2016.1154108) - Wasserstein and Lazar (2016), The American Statistician 70(2), 129 to 133. Six principles, including the one saying a p-value does not measure the size of an effect.
 
 === step === complete
+## Quick recap
 
-## The five questions, from memory
+You started out frozen in front of a dozen tests and you have ended up with one plain sentence about the store. Here is the whole route again, in the order you walk it:
 
-You arrived with a freeze and three branches. You are leaving with a method.
+- **What are you measuring?** A number you can average heads for the t-test and ANOVA family. A label you can only count heads for chi-square, or for Fisher's exact test once any expected count drops under 5.
+- **How many groups?** Two get a t-test. Three or more get one test across all of them, because three separate t-tests raised a false alarm in 122 months out of 1,000 when nothing was different.
+- **Are the numbers linked?** The promo's 30 customers gave 6.4e-10 when the test was told about the pairing and 0.343 when it was not. Same 60 numbers.
+- **What shape is the data?** Look at a histogram, then decide with your sample size in mind. Badly skewed and small moves you one column across, to the rank-based partner.
+- **How big is the gap?** Eta squared came out at 0.314 for the store, which is large. The p-value could never have told you that.
 
-::widget process-flow {"steps": [{"title": "What are you measuring?", "sub": "number goes one way, label goes the other"}, {"title": "How many groups?", "sub": "two is the t-test family, three plus is ANOVA"}, {"title": "Are the groups linked?", "sub": "linked means paired, and paired is its own test"}, {"title": "What shape is the spread?", "sub": "lopsided sends you to the rank-based twin"}, {"title": "Read the map", "sub": "four answers, one row, one test"}]}
+And the store's answer, which was a one-way ANOVA followed by Tukey: Adyar takes about $11 more per order than Anna Nagar and Velachery, those two are indistinguishable from each other, and branch accounts for roughly a third of the variation in order value.
 
-Take those five questions to any dataset at all. Answer them in order, out
-loud if it helps, and the test will name itself. When question four comes back
-lopsided, move across to the rank-based twin and carry on.
-
-And keep what Bean and Bun taught you. The popular test said there was no
-difference and the right test said there was a clear one, on the same 38
-tickets, and those five questions were the only thing standing between the two
-answers.
+Next time we take up the assumption a one-way ANOVA makes quietly, that every group is spread out by about the same amount, and what you run when one branch turns out to be far more scattered than the rest.
