@@ -1,9 +1,12 @@
 ---
 title: "Interaction effects: test and interpret them"
-description: "An interaction means one thing's effect depends on another. Add it to a model in R, read all four coefficient rows, test it, and report an effect per group."
-keywords: "interaction effects in R, interaction term lm, moderation, simple slopes, anova model comparison, interpreting interaction coefficients, predict interaction R"
+slug: "Regression-Reading-Mini-1"
+description: "A coupon lifted new customers by 12 dollars and regulars by 1. Learn to spot that split in your data, put it into a model, test it, and report it right."
+keywords: "interaction effects in R, interaction term in lm, interpret interaction coefficient, test an interaction, nested F test in R, moderation in R, cross term regression"
+mathjax: false
+webr: true
+date: "2026-08-21"
 post_type: "LESSON"
-curriculum_id: "0.0.5"
 course_id: "reading-model-output"
 course_title: "Reading Regression Models"
 course_lesson: "1"
@@ -11,670 +14,599 @@ course_total: "2"
 course_landing: "/dashboard.html"
 course_prev: ""
 course_next: ""
+curriculum_id: "0.0.5"
 lesson_access: "windowed"
-catalog_blurb: "How to find and report an effect that is different for different groups."
-mathjax: "false"
-webr: "true"
-date: "2026-08-19"
+catalog_blurb: "How to spot an effect that changes by group, and report it."
 ---
 
 === step === cover
-
+::eyebrow Reading Regression Models
 ## Interaction effects: test and interpret them
 
-Let's say an online store posts a discount coupon to some of its customers and
-not to others, and a month later the finance team asks the obvious question.
-Did the coupon work?
+Let's say your store mails a discount coupon to half of its customers.
 
-Somebody runs the numbers. Customers who got a coupon spent about $10 more
-than customers who did not, which is ten dollars a head, so the coupon works.
+A month later the numbers come in. Customers who got a coupon spent about six and a half dollars more than customers who did not. So the coupon works, and someone in the meeting is already asking how much bigger the next mailing should be.
 
-Then somebody else splits that same crowd in two: customers who were new to
-the store, and long-time regulars who were going to shop there anyway.
+Then, before you agree to anything, you split those customers into two piles: the people who were already buying from you, and the people who were not.
 
-New customers spent about $19 more, and regulars spent about $1 more.
+New customers spent about twelve dollars more when they had a coupon. Regulars spent about one dollar more, which is nothing at all. They were going to buy anyway, so the coupon just handed them a discount on an order they had already decided to make.
 
-So the $10 is true of nobody. It is the average of a large effect and almost
-no effect, and it fits neither of the two kinds of people it was measured on.
-The question "does the coupon work?" turns out to have no single answer,
-because the answer depends on who got it.
+So the question, does the coupon work, turns out to have no single answer. It depends entirely on who gets the coupon.
 
-Below are the four real averages from that store, the ones you are about to
-build and check yourself. Look at the gap between the first two bars, and then
-look at the gap between the last two bars.
+Right?
 
-::widget chart-plotter {"geoms": ["bar"], "x": "group", "y": "avg_spend", "data": [{"x": "new, no coupon", "y": 44.85}, {"x": "new, coupon", "y": 63.88}, {"x": "regular, no coupon", "y": 67.16}, {"x": "regular, coupon", "y": 68.07}]}
+That is an interaction, and you already know it from ordinary life. The part that is easy to miss is what happens when a model does not know about it. It will report one average effect that is wrong for both groups, and nothing in the output will look broken.
 
-That difference between the two gaps has a name. It is called an interaction,
-and you are about to spot one, put it in a model, read every row the model
-prints, test whether it is real, and write it up in a sentence your finance
-team would understand.
+So here is what we are going to do about it.
+
+::widget process-flow {"steps":[{"title":"Split the effect by group","sub":"what the coupon did to new customers and to regulars"},{"title":"Put the split into the model","sub":"one star lets the coupon effect differ between groups"},{"title":"Test whether it earned its place","sub":"keep the extra term only if it pays for itself"}]}
+
+We are going to do all three on a table of 1,200 customers, one piece at a time.
 
 === step === concept
+## The coupon test the store ran
 
-## Who is in this data?
+Let's build the store's data first, because every number from here on comes out of it.
 
-The data covers three hundred customers of one online store.
+There are 1,200 customers. Six hundred of them are new, meaning this is their first month with the store, and six hundred are regulars who have bought before. Inside each of those two halves, a coin toss decided who got a coupon and who did not.
 
-Half of them are new, meaning this was their first month buying anything, and
-the other half are long-time regulars who have been ordering for over a year.
-That is the `type` column.
+We then record what each customer spent over the next thirty days, in dollars, and the device the order came from, mobile or desktop.
 
-Each customer was assigned a discount of 0, 5, 10, 15 or 20 percent off. A
-discount of 0 means no coupon arrived at all, and those customers are the ones
-everybody else is compared against. That is the `discount` column, and the
-`coupon` column is the same thing collapsed to a plain yes or no.
+One thing worth saying out loud before you run it: this data is made up, and we are building it in front of you rather than loading it from somewhere. That is deliberate. Because we plant the answer ourselves, we can check at the end whether the model finds it.
 
-Then the store wrote down one more number for each person, which is how much
-that person spent over the following month, in dollars. That is `spend`.
+What we plant is this. The coupon adds 12 dollars for a new customer and 1 dollar for a regular. Desktop orders run 6 dollars larger than mobile ones no matter who is ordering. And everybody's spending wobbles around by a random amount, the way real spending does.
 
-Run the block. It builds the table and shows you the first six customers.
+Press Run.
 
 ```r
-set.seed(271)
+# Build the store's coupon test: 1,200 customers, half new and half regular
+set.seed(117)
 
-type <- rep(c("new", "regular"), each = 150)
-discount <- rep(c(0, 0, 5, 10, 15, 20), times = 50)
-coupon <- factor(ifelse(discount > 0, "yes", "no"), levels = c("no", "yes"))
+n <- 1200
+customer <- factor(rep(c("new", "regular"), each = 600), levels = c("new", "regular"))
+coupon   <- factor(sample(c("no", "yes"), n, replace = TRUE), levels = c("no", "yes"))
+device   <- factor(sample(c("mobile", "desktop"), n, replace = TRUE), levels = c("mobile", "desktop"))
 
-spend <- 45 + 22 * (type == "regular") +
-  ifelse(type == "new", 1.5, 0.1) * discount +
-  rnorm(300, sd = 9)
+spend <- 40 +
+  18 * (customer == "regular") +                           # regulars start out spending more
+  6  * (device == "desktop") +                             # desktop orders run a little larger
+  ifelse(customer == "new", 12, 1) * (coupon == "yes") +   # the coupon, and it is not one number
+  rnorm(n, sd = 15)                                        # everyday random wobble
 
-shoppers <- data.frame(type = factor(type, levels = c("new", "regular")),
-                       discount = discount,
-                       coupon = coupon,
-                       spend = round(spend, 1))
+coupons <- data.frame(customer, coupon, device, spend = round(spend, 2))
 
-head(shoppers)
-#>   type discount coupon spend
-#> 1  new        0     no  39.1
-#> 2  new        0     no  42.2
-#> 3  new        5    yes  52.2
-#> 4  new       10    yes  58.0
-#> 5  new       15    yes  85.9
-#> 6  new       20    yes  83.7
+head(coupons, 4)
+#>   customer coupon  device spend
+#> 1      new     no  mobile 54.98
+#> 2      new    yes  mobile 40.99
+#> 3      new     no desktop 33.86
+#> 4      new    yes desktop 59.10
 
-xtabs(~ type + coupon, data = shoppers)
-#>          coupon
-#> type       no yes
-#>   new      50 100
-#>   regular  50 100
+table(coupons$customer, coupons$coupon)
+#>          
+#>            no yes
+#>   new     297 303
+#>   regular 300 300
 ```
 
-`set.seed(271)` fixes the random noise, so the numbers you get are the same
-numbers printed here, and the same numbers you saw in the bar chart. If you
-change the seed, every figure moves, and that is a fine thing to try once you
-have finished.
+Let me say a few words about that code, in case any of it is new to you.
 
-The second table is the important one for what follows. Fifty new customers
-and fifty regulars got no coupon, and a hundred of each got one. Both kinds of
-customer sit on both sides of the comparison, so nothing that follows is an
-accident of who happened to receive what.
+- `factor()` turns text into a labelled category with a fixed list of allowed values, which is how R knows `customer` is a grouping and not a word it should try to do arithmetic on. The order you pass to `levels` matters later, so keep it in mind.
+- `set.seed(117)` fixes the random numbers, so the table on your screen is the same as the one on mine.
+- `rnorm(n, sd = 15)` is the wobble: 1,200 random nudges, mostly within about 15 dollars of zero.
+
+Now read the table of counts at the bottom. The four groups came out at 297, 303, 300 and 300 customers, near enough to even, which is what a coin toss inside each half should give you. That balance matters, because it means no group is so thin that we would be reading noise.
 
 === step === concept
+## What the coupon did to the average order
 
-## What did the coupon do, on average?
+The store's first instinct is the obvious one. Take everyone who got a coupon, take everyone who did not, and compare the two averages.
 
-Let's start with the comparison anyone would make first. Take everybody who got
-a coupon, take everybody who did not, and subtract one average from the other.
+`mean()` gives the average of a column, and the square brackets pick out just the rows we want.
 
 ```r
-with_coupon <- mean(shoppers$spend[shoppers$coupon == "yes"])
-no_coupon   <- mean(shoppers$spend[shoppers$coupon == "no"])
+# The headline number: average spend with a coupon, minus average spend without
+with_coupon <- mean(coupons$spend[coupons$coupon == "yes"])
+no_coupon   <- mean(coupons$spend[coupons$coupon == "no"])
 
-round(c(no_coupon = no_coupon,
-        with_coupon = with_coupon,
-        difference = with_coupon - no_coupon), 2)
-#>   no_coupon with_coupon  difference
-#>       56.00       65.98        9.97
+round(c(with_coupon = with_coupon,
+        no_coupon   = no_coupon,
+        difference  = with_coupon - no_coupon), 2)
+#> with_coupon   no_coupon  difference 
+#>       58.20       51.61        6.58
 ```
 
-Customers with no coupon spent $56.00 on average. Customers with a coupon
-spent $65.98. The coupon is worth $9.97 a head.
+So there it is: 58.20 dollars against 51.61, a difference of 6.58 dollars per customer.
 
-That number is real and the arithmetic behind it is correct. It is the way
-people then read it that is about to fall apart.
+That number is not wrong. The arithmetic is fine, and if the store mailed a coupon to another thousand customers drawn the same way, it really would expect about six and a half extra dollars each on average.
+
+The trouble is what people do with it next. They say "the coupon is worth 6.58 dollars a customer" and plan the next mailing around that figure, as though every customer walked around carrying that number.
+
+Not one of the 1,200 customers has an effect of 6.58 dollars. Let's see why.
 
 === step === concept
+## The same coupon, new customers against regulars
 
-## Does that one number describe anybody?
+Instead of two averages, let's take four: one for each combination of customer type and coupon.
 
-Now run that same comparison twice, once inside the new customers and once
-inside the regulars, and `aggregate()` will do it in one line. Read the formula
-as "average spend, broken down by coupon and by type".
+`aggregate()` does exactly that. The formula `spend ~ coupon + customer` reads as "average `spend`, broken down by `coupon` and by `customer`", and `FUN = mean` says which kind of average we want.
 
 ```r
-cell_means <- aggregate(spend ~ coupon + type, data = shoppers, FUN = mean)
-cell_means$spend <- round(cell_means$spend, 2)
+# Average spend in each of the four groups, then the coupon gap inside each customer type
+cell_means <- aggregate(spend ~ coupon + customer, data = coupons, FUN = mean)
 cell_means
-#>   coupon    type spend
-#> 1     no     new 44.85
-#> 2    yes     new 63.88
-#> 3     no regular 67.16
-#> 4    yes regular 68.07
+#>   coupon customer    spend
+#> 1     no      new 42.09364
+#> 2    yes      new 54.45479
+#> 3     no  regular 61.03870
+#> 4    yes  regular 61.97590
 
-lift_new     <- with(cell_means, spend[type == "new" & coupon == "yes"] -
-                                 spend[type == "new" & coupon == "no"])
-lift_regular <- with(cell_means, spend[type == "regular" & coupon == "yes"] -
-                                 spend[type == "regular" & coupon == "no"])
+new_no  <- cell_means$spend[cell_means$customer == "new"     & cell_means$coupon == "no"]
+new_yes <- cell_means$spend[cell_means$customer == "new"     & cell_means$coupon == "yes"]
+reg_no  <- cell_means$spend[cell_means$customer == "regular" & cell_means$coupon == "no"]
+reg_yes <- cell_means$spend[cell_means$customer == "regular" & cell_means$coupon == "yes"]
 
-round(c(lift_new = lift_new, lift_regular = lift_regular), 2)
-#>     lift_new lift_regular
-#>        19.03         0.91
+round(c(new_customers = new_yes - new_no,
+        regulars      = reg_yes - reg_no), 2)
+#> new_customers      regulars 
+#>         12.36          0.94
 ```
 
-There it is. A new customer who got a coupon spent $19.03 more than a new
-customer who did not, and a regular who got a coupon spent $0.91 more than a
-regular who did not. That is ninety-one cents.
+Look at the two gaps at the bottom, because they are the whole story in two numbers.
 
-Now hold the pooled $9.97 up against those two numbers. It sits between them
-because it is their average: half the customers are new and half are regulars,
-so $9.97 is the midpoint of $19.03 and $0.91 and nothing more. No customer in
-this data experienced a $9.97 coupon, because new customers got far more than
-that and regulars got almost nothing.
+A new customer with a coupon spent 12.36 dollars more than a new customer without one. A regular with a coupon spent 0.94 dollars more than a regular without one, and 94 cents is a rounding error on a sixty dollar order.
+
+Now put the headline back beside them. The store's one number was 6.58, and it sits neatly between 12.36 and 0.94 because it is roughly their average. It is too small for new customers, too big for regulars, and right for nobody.
 
 [KEY INSIGHT]
-When the effect of something differs by group, the pooled average is not a
-compromise everyone can live with. It is a number that is wrong for every
-group you have. That is what an interaction is: the effect of one thing
-(the coupon) depends on the value of another thing (customer type).
+When an effect is different in different groups, the single overall effect is an average of those group effects. It is arithmetically correct and practically useless, because there is no customer it applies to.
 
-=== step === quiz
-
-## Is "the coupon adds $10" a fair thing to say?
-
-The store's newsletter wants one line about the coupon campaign. Someone
-proposes: "the coupon raised spending by about $10 per customer."
-
-You have both group averages in front of you. Is that line fair?
-
-::quiz {"correct": 4, "gate": true, "difficulty": "beginner"}
-- Yes. It is the honest average over all 300 customers, so it is the fairest one-line summary available. ::no Arithmetically honest, and still misleading.
-- No. The two groups have different numbers of coupon customers, so the $10 is a biased average. ::no The design is balanced: both types have 50 customers without a coupon and 100 with one.
-- Yes, as long as the line also mentions that regulars spend more overall than new customers. ::no Regulars do spend more overall, and saying so does not repair the sentence. The problem is not the baseline, it is the lift. The $10 overstates what the coupon did for regulars by about ten times, and understates what it did for new customers by half. An average across two groups can be wrong for both of them, and this one is.
-- No. It is the average of a $19.03 effect and a $0.91 effect, so it is wrong for both kinds of customer. ::ok Exactly. The $10 is real as arithmetic and useless as a description. Anyone acting on it would over-invest in coupons for regulars and under-invest in coupons for new customers.
+One more thing to notice while it is on screen. Regulars spent 61.04 dollars without a coupon and new customers spent 42.09, so regulars simply spend more. That gap of about 19 dollars is a difference in height between the two groups and has nothing to do with the coupon. Keep those two ideas apart: how high a group sits, and how far the coupon moves it.
 
 === step === concept
+## Two lines that refuse to stay parallel
 
-## What does a model without the interaction say?
+Four numbers are easy to misread. The same four as a picture are hard to argue with.
 
-Now hand the same question to a linear model. The obvious formula is
-`spend ~ coupon + type`: predict spending from whether a coupon arrived, and
-from what kind of customer this is.
+We are going to plot spending up the vertical axis and coupon along the horizontal, with one line for new customers and one for regulars. `interaction.plot()` is built into R for exactly this, and it works out the group averages for you.
 
 ```r
-m_add <- lm(spend ~ coupon + type, data = shoppers)
-round(coef(summary(m_add)), 3)
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   50.887      1.290  39.433        0
-#> couponyes      9.975      1.369   7.287        0
-#> typeregular   10.230      1.290   7.927        0
+# Draw the four group averages as two lines, one per customer type
+interaction.plot(x.factor     = coupons$coupon,
+                 trace.factor = coupons$customer,
+                 response     = coupons$spend,
+                 fun          = mean,
+                 type = "b", pch = 19, lwd = 2,
+                 col  = c("#2563a8", "#b5631a"),
+                 xlab = "Coupon",
+                 ylab = "Mean spend in dollars",
+                 trace.label = "Customer",
+                 main = "What the coupon did to each customer type")
 ```
 
-Look at the `couponyes` row. The model says the coupon is worth $9.98, with a
-standard error of $1.37 and a p-value too small to show at three decimals. It
-is strongly significant and tightly estimated, and it is the same $10 you
-already know is wrong for both groups.
+There are your two lines, and they are not parallel. The lower line, new customers, climbs steeply from 42 to 54. The upper line, regulars, is nearly flat.
 
-The model is not making a mistake. It is answering the question you asked. The
-`+` in `spend ~ coupon + type` says one thing and only that: the coupon shifts
-spending by some fixed amount, customer type shifts spending by some other
-fixed amount, and the size of one shift has nothing to do with the other.
-Written that way, there is exactly one coupon effect to report, so one is what
-you get back.
+That shape is the thing to learn to see, so here is how to read any version of it.
 
-=== step === widget
+- **Parallel lines** mean the effect is the same in both groups. Whatever the coupon is worth, it is worth that to everybody, and one number describes the whole store.
+- **Lines at different angles** mean the effect depends on the group. There is no single coupon effect to report, because the coupon does one thing to new customers and something else to regulars.
 
-## Why can it only ever say one number?
+Our lines are at different angles. In one word, that is an **interaction**: the effect of one thing, the coupon, depends on the value of another thing, the customer type.
 
-It helps to see what a model with a `+` in it is able to draw at all.
+And notice that an interaction is symmetric. You can read the same picture the other way round and say the gap between new customers and regulars depends on whether a coupon was sent, which is equally true. It is one fact about the data, and you can say it from either side.
 
-The picture below is not the store data. It is a deliberately extreme case,
-two groups whose effects run in opposite directions, so the shape of the
-problem is impossible to miss. The solid lines are what a model with an
-interaction fits, and the dashed lines are what the additive model fits.
+=== step === quiz
+## Quick check: what do the two gaps say about the coupon?
 
-::widget wrong-family-fit {"mode": "interaction", "seed": 31}
+The coupon moved new customers by 12.36 dollars and regulars by 0.94, and the store's headline number was 6.58 dollars.
 
-The two dashed lines are parallel, and they are not parallel by accident.
-There is no term anywhere in `y ~ x + g` that can make one group's slope differ
-from the other's, so the fitted lines cannot come out any other way. The group
-term can move a line up or down, and nothing in that formula can change how
-steeply a line rises.
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- The 6.58 figure is a mistake in the arithmetic, because neither group actually moved by that much. ::no
+- The coupon does a lot for new customers and almost nothing for regulars, so a single average effect answers a question the store never asked. ::ok Exactly. Nothing about 6.58 is miscalculated, it is just the wrong shape of answer. Once the effect changes from group to group, the useful output is two numbers rather than one.
+- The coupon works, and 6.58 dollars is the best single summary of how well it works. ::no
+- Regulars spend more per order than new customers, so the coupon must be working better on regulars. ::no Careful with those two ideas. Regulars do sit higher, at about 61 dollars against 42, but that is where they started before any coupon existed. What the coupon is worth is the gap inside each group, and there it is 12.36 for new customers against 0.94 for regulars. And 6.58 is not an error, it is the average of those two, which is exactly why it fits neither.
 
-That is why the store model returned a single $9.98. Parallel lines have one
-slope between them, and that single slope is what the model reports.
+=== step === concept
+## What a model without a cross term has to believe
+
+Now let's move from averages to a model, because a model is what you would actually fit.
+
+`lm()` fits a linear model: you hand it a formula and a data frame, and it hands back one number per term, chosen so the model's predictions land as close to the real spending as possible. The formula `spend ~ coupon + customer` says "explain spend using coupon and customer".
+
+That plus sign is saying more than it looks. It says the coupon shifts spending by some amount, the customer type shifts spending by some other amount, and the two shifts simply add up. That is one coupon effect, applied to everybody.
+
+Let's fit it and hold its four predictions next to the four real averages. `predict()` takes a fitted model and a table of situations, and returns what the model expects in each one.
+
+```r
+# Fit a model with no cross term, then compare what it expects with what happened
+m_add <- lm(spend ~ coupon + customer, data = coupons)
+
+comparison <- cell_means
+names(comparison)[3] <- "actual_mean"
+comparison$actual_mean  <- round(comparison$actual_mean, 2)
+comparison$additive_fit <- round(predict(m_add, newdata = cell_means), 2)
+comparison
+#>   coupon customer actual_mean additive_fit
+#> 1     no      new       42.09        44.98
+#> 2    yes      new       54.45        51.63
+#> 3     no  regular       61.04        58.18
+#> 4    yes  regular       61.98        64.83
+```
+
+Compare the last two columns row by row and you can watch the model struggle.
+
+For new customers without a coupon it predicts 44.98 when the truth is 42.09, so it is nearly 3 dollars too high. For new customers with a coupon it predicts 51.63 when the truth is 54.45, so now it is nearly 3 dollars too low. For regulars with a coupon it predicts 64.83 against a real 61.98, which is almost 3 dollars out in the other direction again.
+
+Those misses are not random. They follow a pattern, and the pattern comes straight from what the model is forced to believe.
+
+Work out the coupon step inside each customer type in the fitted column. For new customers it is 51.63 minus 44.98, which is 6.65. For regulars it is 64.83 minus 58.18, which is also 6.65. It is exactly the same number, and that is no coincidence.
 
 [NOTE]
-This is the right way to think about a model that "found nothing". Before you
-conclude an effect is absent, check whether the formula you wrote was even
-able to express the effect you were looking for.
+A model built with `+` has no term that could make the coupon do different things in different groups. It can put the two groups at different heights, and that is all it can do. Drawn on the picture from a moment ago, its two lines are parallel by construction, so it splits the difference and misses in both groups.
 
 === step === concept
+## Adding the interaction with a single star
 
-## How do I let the effect depend on the group?
-
-Change one character. Write `coupon * type` instead of `coupon + type`.
-
-The `*` is shorthand. R expands it into three terms:
-`coupon + type + coupon:type`. The first two are the same main effects you
-already had. The third one, the one with the colon, is the new part. It is
-called the interaction term, or the cross term, and it is what lets the coupon
-effect come out differently for different customer types.
+The fix is one character. Swap the `+` between `coupon` and `customer` for a `*`.
 
 ```r
-m_int <- lm(spend ~ coupon * type, data = shoppers)
-round(coef(summary(m_int)), 3)
-#>                       Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)             44.846      1.462  30.681        0
-#> couponyes               19.036      1.790  10.634        0
-#> typeregular             22.312      2.067  10.794        0
-#> couponyes:typeregular  -18.123      2.532  -7.158        0
+# Fit the same model, but let the coupon effect differ between the two customer types
+m_int <- lm(spend ~ coupon * customer, data = coupons)
+
+round(coef(summary(m_int))[, c("Estimate", "Std. Error")], 2)
+#>                           Estimate Std. Error
+#> (Intercept)                  42.09       0.88
+#> couponyes                    12.36       1.24
+#> customerregular              18.95       1.24
+#> couponyes:customerregular   -11.42       1.75
 ```
 
-You get four rows now instead of three. The $9.98 is gone, and one of the
-numbers you worked out by hand has appeared in its place: 19.036, which is
-exactly the lift you measured for the new customers.
+Before we read the numbers, look at the formula itself. `coupon * customer` is shorthand, and R expands it into three terms:
 
-[TIP]
-`coupon * type` and `coupon + type + coupon:type` are two ways of writing the
-same model, so use the star. A colon on its own gives you the cross term
-without the main effects, and that is almost never what you want.
+```
+coupon * customer   becomes   coupon + customer + coupon:customer
+```
+
+So you get both original terms plus a new one, `coupon:customer`, which is written with a colon and is called the **cross term** or the interaction term. The colon on its own gives you only the cross term, so `spend ~ coupon:customer` would leave the other two out. In practice you almost always want the star, and in a few minutes we are going to see why.
+
+Now let's read the output. The model has four rows where the earlier one had three, and the new fourth row is the cross term.
+
+The **Estimate** column holds the numbers the model fitted. The **Std. Error** column beside it says how much each of those numbers would wobble if the store ran the whole test again on a fresh 1,200 customers, so it measures how firmly the data pins each estimate down.
+
+Those four estimates are not four separate effects. They are four instructions for rebuilding the four group averages, so let's read them one at a time.
 
 === step === concept
+## What the four numbers in the coefficient table stand for
 
-## How do I read those four rows?
+R turned the two categories into rows with names like `couponyes` and `customerregular`, and those names tell you exactly what each number does.
 
-This is the part that ties people's brains in knots, so let's go slowly. Every
-row is a comparison, and each one is measured from the same starting point.
+When R meets a factor it picks one level as the **reference level** and measures everything else against it. The reference is the first level, which for us is `no` for the coupon and `new` for the customer, because that is the order we put in `levels`. There is no row for the reference level itself, because it is the baseline that every other row is a step away from.
 
-That starting point is a new customer who got no coupon, because `new` is the
-first level of `type` and `no` is the first level of `coupon`. R calls those
-two the reference levels, and it measures everything else from there.
+So let's take them one row at a time.
 
-```r
-round(coef(m_int), 2)
-#>           (Intercept)             couponyes           typeregular
-#>                 44.85                 19.04                 22.31
-#> couponyes:typeregular
-#>                -18.12
-```
+- `(Intercept)` = **42.09** is not an effect at all. It is the average spend of one specific group: new customers with no coupon, the corner where both factors sit at their reference level.
+- `couponyes` = **12.36** is one step away from that corner. Take a new customer, hand them a coupon, and spending goes up by 12.36 dollars.
+- `customerregular` = **18.95** is the other step. Take a customer with no coupon, make them a regular instead of new, and spending goes up by 18.95 dollars. That is the height difference we spotted earlier, the one that has nothing to do with coupons.
+- `couponyes:customerregular` = **-11.42** is the cross term, and it is a correction to a step rather than a step itself. It says the coupon does 11.42 dollars less for a regular than it does for a new customer.
 
-| Row | Number | What it says, in plain words |
-|---|---|---|
-| `(Intercept)` | 44.85 | Average spend of a new customer with no coupon. The starting point. |
-| `couponyes` | 19.04 | What a coupon is worth **to a new customer**. Not to everybody. |
-| `typeregular` | 22.31 | How much more a regular spends than a new customer **when neither got a coupon**. |
-| `couponyes:typeregular` | -18.12 | How much the coupon effect **changes** when you move from a new customer to a regular. It shrinks by $18.12. |
+That last one is the one people misread, so say it slowly. The cross term is not the coupon's effect on regulars. It is the difference between two coupon effects: 12.36 for new customers, and 12.36 minus 11.42, which is 0.94, for regulars.
 
-Now check the first two rows against the group averages you computed by hand.
-The intercept 44.85 is exactly the new-and-no-coupon cell, and the 19.04 is
-exactly the new customers' lift, give or take a cent of rounding.
+And 12.36 and 0.94 are the two gaps we worked out by hand from the averages. The model found them.
 
-The last row is the one that is genuinely new. It is not an effect on
-spending. It is an effect on an effect: a number saying how much the coupon
-effect moves when the customer type changes. That is also why a lone
-interaction coefficient means nothing to a reader on its own. Minus $18.12 of
-what?
-
-=== step === tryit
-
-## What is the coupon worth to a regular customer?
-
-You already know the answer from the table of averages: $0.91. Now let's get
-it out of the model, because on real data you will often have the coefficients
-in front of you and no tidy two-by-two table to check them against.
-
-The coupon effect for a new customer is the `couponyes` row. The interaction
-row says how much that effect changes when you move to a regular. So the
-coupon effect for a regular is those two rows put together.
-
-Fill in the blank.
+Let's prove the four numbers really do rebuild the four group averages. `coef()` pulls the estimates out of a fitted model as a plain vector.
 
 ```r
-b <- coef(m_int)
-b
-
-# The coupon effect for a regular customer:
-regular_lift <- ____
-round(unname(regular_lift), 2)
-```
-
-::check {"regex": "couponyes.*\\+.*couponyes:typeregular", "gate": true, "difficulty": "intermediate", "ok": "That is it. Adding the cross term to the couponyes row gives 0.91, exactly the regulars lift you measured straight off the group averages.", "no": "Not yet. The couponyes row is the coupon effect for new customers only, and the cross term is what has to be added to it. Add the row named couponyes:typeregular to the row named couponyes."}
-
-::solution
-
-```r
+# Rebuild all four group averages by adding up the coefficients
 b <- coef(m_int)
 
-regular_lift <- b["couponyes"] + b["couponyes:typeregular"]
-round(unname(regular_lift), 2)
-#> [1] 0.91
+round(c(new_no      = unname(b[1]),
+        new_yes     = unname(b[1] + b[2]),
+        regular_no  = unname(b[1] + b[3]),
+        regular_yes = unname(b[1] + b[2] + b[3] + b[4])), 2)
+#>      new_no     new_yes  regular_no regular_yes 
+#>       42.09       54.45       61.04       61.98
 ```
 
-That rule holds in general. In a model with an interaction, a group's own
-effect is the main effect plus that group's cross term, and the reference
-group is the only one whose effect you can read straight off a single row.
+Those four numbers, 42.09, 54.45, 61.04 and 61.98, are the same averages `aggregate()` gave us earlier, to the cent.
 
-=== step === concept
+Notice which pieces each corner needed. A new customer with a coupon takes the intercept plus the coupon row. A regular with no coupon takes the intercept plus the customer row. A regular with a coupon is the only corner that needs all four, because it is the only one where both factors have moved off their reference at once, and the cross term is the number that says what happens when they do.
 
-## How do I get both effects without that arithmetic?
-
-Adding coefficients by hand works, and it stops being fun the moment you have
-three groups and two interaction terms to keep straight. There is a way to
-make R do that work for you.
-
-Build a small grid of the combinations you care about, ask `predict()` what the
-model expects in each one, and subtract within each customer type. You handle
-no coefficients, you add nothing up yourself, and you make no sign errors.
-
-```r
-cell_grid <- expand.grid(coupon = factor(c("no", "yes"), levels = c("no", "yes")),
-                         type   = factor(c("new", "regular"), levels = c("new", "regular")))
-cell_grid$predicted <- round(predict(m_int, newdata = cell_grid), 2)
-cell_grid
-#>   coupon    type predicted
-#> 1     no     new     44.85
-#> 2    yes     new     63.88
-#> 3     no regular     67.16
-#> 4    yes regular     68.07
-
-pred_lift_new     <- with(cell_grid, predicted[type == "new" & coupon == "yes"] -
-                                     predicted[type == "new" & coupon == "no"])
-pred_lift_regular <- with(cell_grid, predicted[type == "regular" & coupon == "yes"] -
-                                     predicted[type == "regular" & coupon == "no"])
-
-round(c(pred_lift_new = pred_lift_new, pred_lift_regular = pred_lift_regular), 2)
-#>     pred_lift_new pred_lift_regular
-#>             19.03              0.91
-```
-
-You get $19.03 and $0.91 straight out, with no arithmetic on your part.
-
-Now compare the four predicted values against the four averages in
-`cell_means`. They are identical. That is worth a pause, because a model with
-an interaction between two grouping columns is not smoothing anything and it
-is not borrowing strength from one cell to another. It reproduces the group
-averages exactly, and the four coefficients are just another way of writing
-down the same four averages you computed earlier.
+[KEY INSIGHT]
+With a cross term in the model, a main effect is no longer an average effect. `couponyes` is the coupon's effect for new customers only, because new is the reference level. To get any other group's effect, you add the cross term to it.
 
 === step === quiz
+## Quick check: what does the cross-term coefficient measure?
 
-## What does the couponyes row mean now?
+The cross term `couponyes:customerregular` came back as -11.42 dollars.
 
-In the additive model, `couponyes` was $9.98. In the interaction model, the
-row with the same name reads 19.04.
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The coupon's effect on regular customers. ::no
+- How much the coupon's effect changes when you move from a new customer to a regular. ::ok That is it. It is a difference between two effects, so on its own it describes nobody. Add it to `couponyes` and you get the effect for regulars: 12.36 plus -11.42, which is 0.94.
+- The average coupon effect across both customer types. ::no
+- The difference in spending between regulars and new customers. ::no Two of these name real numbers in the table, just not this one. The coupon's effect on regulars is 0.94 and the height difference between the groups is 18.95, and neither of those is -11.42. The cross term is the gap between the two coupon effects, which is why it comes out negative even though the coupon never once reduced anybody's spending.
 
-The coupon did not change. The data did not change. So what does that row
-report now?
+=== step === tryit
+## Your turn: find the coupon effect for regular customers
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The average coupon effect across all 300 customers, the same as it always was. ::no That was its meaning in the additive model, and it is not its meaning any more.
-- The coupon effect for regular customers, since `regular` is the second level of `type`. ::no The wrong group. R measures from the first level, not the second.
-- The coupon effect for new customers only, because `new` is the reference level of `type`. ::ok Right. Once a cross term is in the model, a main effect stops being an average over everybody and becomes one specific group's effect, the reference group's. Every other group needs its cross term added.
-- The extra effect of a coupon once you already know what type of customer you are looking at. ::no Once an interaction is in the model, a main effect is no longer an average over everybody. It is the effect for the reference group, which here is new customers, and every other group's effect is that row plus its own cross term. This is the most common misreading of an interaction model, so it is worth saying out loud whenever you report one: this number is for new customers.
+The fitted model `m_int` is still loaded, and `coef(m_int)` holds its four numbers under these names:
 
-=== step === concept
+`(Intercept)`, `couponyes`, `customerregular`, `couponyes:customerregular`.
 
-## How do I picture it?
-
-Those four numbers make two lines. Put the coupon on the horizontal axis and
-average spending on the vertical, then draw one line per customer type.
+Two of those four combine to give the coupon's effect on regular customers. Write the line that adds them and prints the answer, rounded to two decimals.
 
 ```r
-library(ggplot2)
+# Pull the coupon effect for REGULAR customers out of the fitted coefficients.
+# Start from coef(m_int) and add the two rows that belong together.
+# One line, then press Check.
+```
+::check {"regex": "(?=[\\s\\S]*couponyes(?!:))(?=[\\s\\S]*couponyes:customerregular)", "gate": true, "difficulty": "beginner", "ok": "Yes: 0.94 dollars. The coupon row is the effect for new customers, and the cross term is what to add when you move to regulars, so 12.36 plus -11.42 gives you 94 cents.", "no": "Name the two rows rather than counting positions: take `coef(m_int)` and add `couponyes` to `couponyes:customerregular`, then wrap the result in round(). The cross term is the piece that carries you from one group to the other."}
+::solution
+```r
+# The coupon effect for regular customers: the coupon row plus the cross term
+b <- coef(m_int)
 
-ggplot(cell_means, aes(x = coupon, y = spend, colour = type, group = type)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
-  labs(x = "coupon sent", y = "average spend in dollars",
-       colour = "customer",
-       title = "Two lines that are not parallel") +
-  theme_minimal(base_size = 13)
+round(unname(b["couponyes"] + b["couponyes:customerregular"]), 2)
+#> [1] 0.94
 ```
 
-The new customers' line climbs steeply, from 44.85 up to 63.88, while the
-regulars' line is nearly flat, from 67.16 to 68.07.
-
-Lines that are not parallel mean there is an interaction. Lines that are
-parallel would have meant the coupon did the same thing to both groups,
-whatever their starting levels.
-
-The shape gives you the sentence to write as well. These two lines start far
-apart and finish close together, which is the store's real finding said
-without a single coefficient: the coupon does not lift regulars, it brings new
-customers up to where regulars already were.
-
 === step === concept
+## Why the coupon row no longer means what it used to
 
-## Are those two lines really not parallel?
+There is a trap sitting in that coefficient table, and it catches careful people.
 
-Your eyes say the lines are not parallel. Eyes will say that about any two
-lines drawn from any two samples, because averages wobble. So let's test it.
+The row labelled `couponyes` says 12.36. In a model with no cross term, a row like that would be the coupon's effect across the whole store. Here it is the coupon's effect for new customers alone, because new is the reference level, and nothing in the label warns you.
 
-The test compares the two models you have already fitted. The additive model
-is the interaction model with one term removed, which makes it a fair
-comparison: same data, same everything else, one fewer number to estimate.
-`anova()` asks whether that extra number bought enough improvement in fit to
-be worth having.
+Here is how to see that it really is tied to the reference. `relevel()` makes a different level the reference, so let's make `regular` the baseline and fit the very same model again.
 
 ```r
+# Refit the identical model with regular customers as the reference level
+coupons_reg <- coupons
+coupons_reg$customer <- relevel(coupons_reg$customer, ref = "regular")
+
+m_int2 <- lm(spend ~ coupon * customer, data = coupons_reg)
+
+round(coef(summary(m_int2))[, c("Estimate", "Std. Error")], 2)
+#>                       Estimate Std. Error
+#> (Intercept)              61.04       0.87
+#> couponyes                 0.94       1.24
+#> customernew             -18.95       1.24
+#> couponyes:customernew    11.42       1.75
+```
+
+Every number moved. The intercept is now 61.04, the average spend of a regular with no coupon, and `couponyes` is now 0.94, the coupon's effect on regulars. The customer row flipped sign, and so did the cross term.
+
+Nothing about the store changed. We changed which group R measures the others against, and the coefficients rearranged themselves to describe the same data from a new corner.
+
+That raises a fair question. If the numbers move around like that, is the model itself any different? It is not. Watch what both fits predict for the four groups.
+
+```r
+# The same four predictions from both fits, despite the different coefficients
+round(cbind(first_fit  = predict(m_int,  newdata = cell_means),
+            second_fit = predict(m_int2, newdata = cell_means)), 2)
+#>   first_fit second_fit
+#> 1     42.09      42.09
+#> 2     54.45      54.45
+#> 3     61.04      61.04
+#> 4     61.98      61.98
+```
+
+They are identical, to the cent. It is the same model and the same fit, telling you the same thing from a different starting corner.
+
+[WARNING]
+Once a cross term is in the model, never read a main effect as an overall effect. It answers only about the reference level, and moving the reference moves the number. If somebody hands you an interaction model and quotes the `couponyes` row as "the coupon effect", ask which group is the reference before you believe it.
+
+This is also why `relevel()` is worth knowing. Setting the reference to the group you actually want to talk about is the quickest way to read that group's effect straight off the table, with no arithmetic at all.
+
+=== step === concept
+## Is the interaction real, or is it noise?
+
+We have been treating the split as a fact, and so far the only evidence for it is that 12.36 and 0.94 look different. They do. But two group averages built from about 300 customers each will always differ a bit, even when nothing is going on, purely because different people happened to land in each group.
+
+So we need to ask a harder question. If the coupon really were worth the same to everybody, how often would random assignment hand us a split this big anyway?
+
+The way to ask it is to compare the two models we have already fitted. One says there is a single coupon effect. The other says there are two. `anova()` takes both and reports whether the extra term bought enough improvement in fit to justify the extra number it cost.
+
+```r
+# Compare the model with one coupon effect against the model with two
 anova(m_add, m_int)
 #> Analysis of Variance Table
 #>
-#> Model 1: spend ~ coupon + type
-#> Model 2: spend ~ coupon * type
-#>   Res.Df   RSS Df Sum of Sq      F    Pr(>F)
-#> 1    297 37094
-#> 2    296 31620  1    5474.1 51.244 6.466e-12 ***
+#> Model 1: spend ~ coupon + customer
+#> Model 2: spend ~ coupon * customer
+#>   Res.Df    RSS Df Sum of Sq      F    Pr(>F)    
+#> 1   1197 283581                                  
+#> 2   1196 273794  1    9787.5 42.754 9.172e-11 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
-Read the second row. `Df = 1` is the one extra term. `Sum of Sq = 5474.1` is
-how much unexplained variation that one term accounts for. `F = 51.244` sets
-that improvement against the noise still left over.
-And `Pr(>F)` works out at about six in a trillion.
-If the coupon really did the same thing to both groups, a gap between the
-lines this large would essentially never turn up. So the gap you are looking
-at is not wobble.
+Let's read that table across, because every column has a job.
 
-There is one fair question to ask here. Why run this test at all, when the
-`couponyes:typeregular` row already came with its own p-value? For a single
-extra term the two say the same thing: square that row's t value of -7.158 and
-you get 51.2, the F above. The model comparison is the version that keeps
-working when the term you add is worth more than one row, which happens the
-moment your group column has three levels instead of two.
+- `RSS` is the residual sum of squares, which is how much of the spending each model failed to explain, so smaller is better. It falls from 283,581 to 273,794.
+- `Sum of Sq` is what the cross term recovered out of that leftover: 9,787.5.
+- `Df` is 1, meaning the cross term cost exactly one extra number.
+- `F` is 42.754. Roughly speaking, it is the improvement in fit measured against the everyday noise in the data, so a large F means the improvement is far bigger than noise usually manages.
+- `Pr(>F)` is 9.172e-11, which is R's shorthand for 0.00000000009172.
 
-And when the test comes back the other way, with a large p-value, that result
-is useful as well. It means the data cannot tell the two effects apart. The
-usual move then is to drop the cross term and report the single pooled number,
-which now means something, because you have checked that one number really
-does describe both groups.
+That last number is the one to lean on. It says that in a world where the coupon was worth the same to both groups, an improvement this big would turn up about once in ten billion tests. We ran one test and got it.
 
-=== step === widget
+So the split is not sampling noise. Keep the term.
 
-## What if the thing that changes the effect is a number?
-
-So far the coupon has been a yes or a no. However, the store did not send just
-one kind of coupon, it sent five sizes of it: 0, 5, 10, 15 and 20 percent off.
-The interesting question for next quarter is not whether to send a coupon at
-all. It is whether a deeper discount is worth more on one kind of customer than
-it is on the other.
-
-Plot spending against discount size and you can see the difficulty. Pooled into
-one chart, the two customer types sit on top of each other and the pattern is a
-smear. Split into one chart per type and the two stories come apart.
-
-Press the toggle.
-
-::widget facet-grid {"geom": "point", "x": "discount", "y": "spend", "facetVar": "type", "data": [{"x": 0, "y": 39.1, "facet": "new"}, {"x": 0, "y": 45.6, "facet": "new"}, {"x": 5, "y": 44.2, "facet": "new"}, {"x": 10, "y": 65.4, "facet": "new"}, {"x": 15, "y": 56, "facet": "new"}, {"x": 20, "y": 70.8, "facet": "new"}, {"x": 0, "y": 41.6, "facet": "new"}, {"x": 0, "y": 38.5, "facet": "new"}, {"x": 5, "y": 46.2, "facet": "new"}, {"x": 10, "y": 57.2, "facet": "new"}, {"x": 15, "y": 69.4, "facet": "new"}, {"x": 20, "y": 74.3, "facet": "new"}, {"x": 0, "y": 52.9, "facet": "new"}, {"x": 0, "y": 37.1, "facet": "new"}, {"x": 5, "y": 64.9, "facet": "new"}, {"x": 10, "y": 70.5, "facet": "new"}, {"x": 15, "y": 69.2, "facet": "new"}, {"x": 20, "y": 80.8, "facet": "new"}, {"x": 0, "y": 28.3, "facet": "new"}, {"x": 0, "y": 55.3, "facet": "new"}, {"x": 5, "y": 62.1, "facet": "new"}, {"x": 10, "y": 48.2, "facet": "new"}, {"x": 15, "y": 79.9, "facet": "regular"}, {"x": 20, "y": 76.9, "facet": "regular"}, {"x": 0, "y": 71.5, "facet": "regular"}, {"x": 0, "y": 66.8, "facet": "regular"}, {"x": 5, "y": 72.7, "facet": "regular"}, {"x": 10, "y": 61.9, "facet": "regular"}, {"x": 15, "y": 71.2, "facet": "regular"}, {"x": 20, "y": 64.2, "facet": "regular"}, {"x": 0, "y": 66.5, "facet": "regular"}, {"x": 0, "y": 54.9, "facet": "regular"}, {"x": 5, "y": 57.7, "facet": "regular"}, {"x": 10, "y": 63.5, "facet": "regular"}, {"x": 15, "y": 80.7, "facet": "regular"}, {"x": 20, "y": 60.1, "facet": "regular"}, {"x": 0, "y": 63, "facet": "regular"}, {"x": 0, "y": 58.8, "facet": "regular"}, {"x": 5, "y": 68.6, "facet": "regular"}, {"x": 10, "y": 74.4, "facet": "regular"}, {"x": 15, "y": 63.8, "facet": "regular"}, {"x": 20, "y": 66.8, "facet": "regular"}, {"x": 0, "y": 68.6, "facet": "regular"}]}
-
-Those are real customers out of the same 300, every seventh one, so the panels
-are thin enough to see through. In the new customers' panel the cloud climbs
-from left to right, and in the regulars' panel it drifts along flat. It is the
-same chart in both panels telling two different stories, and pooling them would
-have averaged the climb and the drift into a single slope in between.
-
-Customer type is doing the same job here that it did with the yes-or-no
-coupon, because it decides how big the discount's effect is. A column with
-that job has a name. It is called the moderator.
-
-=== step === concept
-
-## Fitting it when the moderator is a number
-
-Nothing about the syntax changes. Swap the yes-or-no `coupon` column for the
-numeric `discount` column and keep the star.
-
-```r
-m_disc <- lm(spend ~ discount * type, data = shoppers)
-round(coef(summary(m_disc)), 3)
-#>                      Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)            45.185      1.130  39.977        0
-#> discount                1.482      0.101  14.662        0
-#> typeregular            21.264      1.598  13.303        0
-#> discount:typeregular   -1.324      0.143  -9.261        0
-```
-
-The rows mean exactly what they meant before, with one phrase swapped in.
-Where you used to say "the effect of a coupon", you now say "per extra
-percentage point of discount".
-
-`discount` is 1.482, so for a new customer every extra percentage point off is
-worth another $1.48 of spending. `discount:typeregular` is -1.324, so that
-per-point value is $1.32 smaller for a regular.
-
-The one genuinely new thing to watch is the intercept. It is the expected
-spend of a new customer at `discount = 0`, which here is a real customer who
-really did get no coupon. When zero is not a value your data actually contains
-(think income, or year, or temperature in Fahrenheit), the intercept and both
-main effects are describing somebody who does not exist, which is why people
-often subtract the mean from a numeric predictor before fitting.
+[TIP]
+Run this test on the pair of models rather than reading the cross term's own p-value. With a two-level factor the two say almost the same thing. With a factor of three or more levels the cross term spreads across several rows, and only the test on the pair asks the one question you care about, which is whether the interaction as a whole earned its place.
 
 === step === tryit
+## Your turn: does the coupon effect depend on the device too?
 
-## What is one point of discount worth to each group?
+The store also recorded whether each order came from a mobile or a desktop. Which raises the obvious question: does the coupon do more on one device than on the other?
 
-The store has a budget question. If they deepen the discount by one percentage
-point, whose extra spending does that buy the most of?
+Run the same comparison you just watched, with `device` where `customer` was. Fit the model with no cross term, fit the model with one, and hand both to `anova()`.
 
-It is the same rule as before. The reference group's slope is the main effect,
-and any other group's slope is the main effect plus that group's cross term.
-
-Fill in both blanks.
+Then read the answer honestly, whichever way it comes out.
 
 ```r
-b <- coef(m_disc)
-b
-
-slope_new     <- ____
-slope_regular <- ____
-round(c(slope_new = unname(slope_new),
-        slope_regular = unname(slope_regular)), 3)
+# Test whether the coupon effect depends on the device.
+# Fit a model with no cross term, fit one with a cross term,
+# then compare the pair. The data frame is coupons.
+# Three lines. Press Check when you have them.
 ```
-
-::check {"regex": "discount.*\\+.*discount:typeregular", "gate": true, "difficulty": "intermediate", "ok": "Right: about 1.48 dollars per point from a new customer and about 0.16 from a regular, roughly nine times the return on the same discount. That is a decision, not just a coefficient.", "no": "Not yet. The slope for new customers is the discount row on its own, because new is the reference level. The slope for regulars is that row plus the row named discount:typeregular."}
-
+::check {"regex": "(?=[\\s\\S]*coupon\\s*[*]\\s*device)(?=[\\s\\S]*anova)", "gate": true, "difficulty": "intermediate", "ok": "Right, and the answer is no. F comes out at 0.43 with a p-value of 0.511, so the cross term bought almost nothing. On this data the coupon is worth about the same on a phone as on a laptop, and the model should stay additive in device.", "no": "You need three lines: `m_dev_add <- lm(spend ~ coupon + device, data = coupons)`, then the same thing with `coupon * device` saved as `m_dev_int`, then `anova(m_dev_add, m_dev_int)`."}
 ::solution
-
 ```r
-b <- coef(m_disc)
+# Compare a device model with no cross term against one with a cross term
+m_dev_add <- lm(spend ~ coupon + device, data = coupons)
+m_dev_int <- lm(spend ~ coupon * device, data = coupons)
 
-slope_new     <- b["discount"]
-slope_regular <- b["discount"] + b["discount:typeregular"]
-round(c(slope_new = unname(slope_new),
-        slope_regular = unname(slope_regular)), 3)
-#>     slope_new slope_regular
-#>         1.482         0.158
+anova(m_dev_add, m_dev_int)
+#> Analysis of Variance Table
+#>
+#> Model 1: spend ~ coupon + device
+#> Model 2: spend ~ coupon * device
+#>   Res.Df    RSS Df Sum of Sq      F Pr(>F)
+#> 1   1197 320400                           
+#> 2   1196 320285  1    115.79 0.4324  0.511
 ```
 
-One percentage point of discount buys $1.48 of extra spending from a new
-customer, and it buys 16 cents from a regular. If the store has a fixed
-discount budget for next quarter, that one comparison tells them where to
-spend it.
+Put that beside the customer test and the difference is hard to miss. There the cross term recovered 9,787 and F was 42.75. Here it recovered 116 and F is 0.43, which means the improvement is smaller than ordinary noise produces on its own.
 
-=== step === concept
+A p-value of 0.511 says a gain at least this big turns up about half the time when there is nothing there at all. So drop this cross term and keep `spend ~ coupon + device`, which is the honest model for that pair.
 
-## How do I write this up?
+That is a real result, not a failed one. The device shifts how much people spend, but it does not change what the coupon is worth, and knowing which of your variables behave that way is worth as much as knowing which ones do not.
 
-Someone who is never going to read a coefficient table needs three things from
-you: the effect inside each group, in the units of the thing being measured,
-and the test that says the difference between those effects is not noise.
+=== step === widget
+## When a coupon helps one group and hurts the other
 
-Here is the store result written that way, and every number in it came off
-your own screen while you were working through the code.
+So far the coupon has been a yes or a no. Suppose instead the store varies the size of the discount, from nothing up to ten dollars off, and measures spending as that discount grows.
 
-> Sending a discount coupon raised average monthly spending by $19.03 among
-> new customers, from $44.85 to $63.88, and by $0.91 among long-time regulars,
-> from $67.16 to $68.07. The difference between those two lifts is larger than
-> sampling noise can account for (F(1, 296) = 51.2, p < 0.001). In plain terms,
-> the coupon pays for itself on new customers and does close to nothing on
-> regulars.
+Now the two customer types can do more than climb at different speeds. They can move in opposite directions. A bigger discount pulls new customers in, so their spending rises. Regulars were buying anyway, so a bigger discount only shaves money off an order that was already coming, and their spending falls.
 
-Notice what is missing from that paragraph. The number -18.12 never appears.
-It is the correct interaction coefficient, and it is the one number in the
-whole analysis a reader cannot do anything with, because it is a difference
-between two effects they were never told.
+That is the sharpest version of an interaction, and it has a name: a **crossover**, because the two lines cross.
+
+The panel below runs that case on its own set of made-up numbers, so its axes are labelled in general terms. Read the predictor along the bottom as the size of the discount, and the outcome up the side as spending. It fits both models to the same points and shows you what each one says. The dashed pair is the model with no cross term, the two solid lines are the model with one, and there is real R underneath that you can run and edit.
+
+::widget wrong-family-fit {"mode": "interaction"}
+
+Look at what the model without the cross term reports. Its single slope comes out close to zero, because it is averaging a rise against a fall and the two very nearly cancel.
+
+Read that slope on its own and you would write "the discount makes no difference" in your report and move on. It would be completely wrong. The discount makes a large difference to both groups, in opposite directions, and the model you fitted had no way to say so.
 
 [WARNING]
-Keep both main effects whenever you keep the interaction. Fitting something
-like `spend ~ coupon:type` without `coupon` and `type` in the model leaves you
-with a cross term that depends entirely on where zero happens to sit, and the
-coefficients stop meaning anything you can defend. Leave the main effects in
-even when their own p-values are large.
+A near-zero effect can mean nothing is happening, or it can mean two things are happening that cancel out. The two look identical in the output. The only way to tell them apart is to ask whether the effect might differ by group, and then test it.
 
-=== step === quiz
-
-## Which write-up would you send?
-
-Four versions of the same result land in your inbox. All four are about the
-store data you just analysed. Which one would you actually send to the finance
-team?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The interaction between coupon and customer type was significant (b = -18.12, p < 0.001). ::no Correct, and unusable. The reader is handed a difference between two effects without being told either effect.
-- The coupon raised spending by $19.03 for new customers and by $0.91 for regulars, and that difference is far larger than sampling noise (F(1, 296) = 51.2, p < 0.001). ::ok That is the one. Both effects in dollars, the groups named, and the test saying the gap between them is real. A reader can act on this without knowing what a cross term is.
-- The coupon raised spending by about $10 per customer (p < 0.001). ::no The pooled number, reported as though it described somebody.
-- The coupon had no consistent effect across customer types, so no reliable conclusion can be drawn. ::no Not that one. A reader needs the two effects themselves, in dollars, plus the test that the difference between them is real. A lone cross-term coefficient gives a difference without the things being differenced. A pooled $10 describes neither group. And "no consistent effect" turns the actual finding upside down: you did not fail to find an effect, you found that the effect depends on who receives it, and that is a result worth reporting on its own.
+Notice also that the two dashed lines stay parallel no matter what. That is not the data speaking, it is the model. `+` has no term capable of bending them, so a model built that way cannot report a crossover even when the crossover is the entire story.
 
 === step === concept
+## Saying the finding in one sentence the team can act on
 
+The analysis is done. Now somebody has to hear it, and this is where interactions usually get mangled.
+
+There are two ways to mangle it. Report the average effect, 6.58 dollars, and you have described nobody. Report the cross term, -11.42 dollars, and you have quoted a difference between two effects that you never actually stated, which sounds a lot like the coupon costing money.
+
+Report the two group effects instead. That is what the store can act on.
+
+While we are at it, let's put a range around each one, because a single number hides how firmly the data pins it down. A **95% confidence interval** is the range of true effects that sit comfortably with the data we collected, and `confint()` reads it straight off a fitted model.
+
+We already have both fits we need. `m_int` has new customers as the reference, so its `couponyes` row is the new-customer effect. `m_int2` has regulars as the reference, so its `couponyes` row is the regulars' effect.
+
+```r
+# The coupon effect inside each customer type, with a 95% interval on each
+new_effect     <- c(coef(m_int)["couponyes"],  confint(m_int)["couponyes", ])
+regular_effect <- c(coef(m_int2)["couponyes"], confint(m_int2)["couponyes", ])
+
+effects <- round(rbind(new_customers = new_effect, regulars = regular_effect), 2)
+colnames(effects) <- c("effect", "low", "high")
+effects
+#>               effect   low  high
+#> new_customers  12.36  9.94 14.79
+#> regulars        0.94 -1.49  3.36
+```
+
+There are two rows there, and each one is a sentence waiting to be written.
+
+For new customers the coupon is worth 12.36 dollars, and the data is consistent with anything from about 10 to about 15. Every value in that range is real money, so the finding holds up whichever end you take.
+
+For regulars the coupon is worth 0.94 dollars, and the range runs from -1.49 to 3.36. It includes zero, which means the data cannot rule out the coupon doing nothing whatsoever for regulars, and the largest effect it can support is a few dollars.
+
+So here is the sentence for the meeting:
+
+> The coupon added about 12 dollars per new customer, somewhere between 10 and 15. For regular customers it added about a dollar, and we cannot tell that apart from nothing. Send it to new customers.
+
+Read it back. It names both groups, it carries a range for each, and it never once mentions the average effect or the cross term. That is the whole reporting rule.
+
+[TIP]
+Two habits make this easier every time. Refit with `relevel()` so each group takes its turn as the reference, and read that group's effect and interval straight off the table. And put the picture in the deck, because two lines at different angles convince a room faster than any coefficient will.
+
+=== step === quiz
+## Quick check: which write-up of the coupon result is right?
+
+You are writing one line about the coupon test for the team. The model gave 12.36 dollars for new customers with an interval of 9.94 to 14.79, and 0.94 dollars for regulars with an interval of -1.49 to 3.36. The cross term was -11.42, and the store's overall average was 6.58.
+
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- The coupon raised spending by 6.58 dollars per customer. ::no
+- The coupon effect is -11.42 dollars, so the coupon reduced spending. ::no
+- The coupon added about 12.36 dollars per new customer, between 9.94 and 14.79, and about 0.94 for regulars, between -1.49 and 3.36. ::ok Exactly right. Both groups named, both with a range, no averaged effect and no bare cross term. That is a sentence somebody can make a decision on.
+- The coupon added 12.36 dollars per customer, and customer type mattered as well. ::no Every one of these carries a real number, which is what makes them tempting. 6.58 is the average of two effects and describes neither group. The figure -11.42 is the gap between the two effects rather than an effect, and nobody's spending ever went down. And 12.36 belongs to new customers only, so quoting it for the whole store promises regulars a lift they did not get.
+
+=== step === tryit
+## Your turn: recover both coupon effects from a model you fit yourself
+
+Let's do it one more time, without the scaffolding.
+
+The data frame `coupons` is still loaded, with columns `customer`, `coupon`, `device` and `spend`. Fit the model that lets the coupon effect differ between customer types, then pull both group effects out of its coefficients and print them together.
+
+You are aiming for 12.36 and 0.94.
+
+```r
+# Fit the interaction model on coupons, then read out BOTH coupon effects:
+# the one for new customers and the one for regular customers.
+# Three lines. Press Check when you have them.
+```
+::check {"regex": "(?=[\\s\\S]*coupon\\s*[*]\\s*customer)(?=[\\s\\S]*couponyes:customerregular)", "gate": true, "difficulty": "intermediate", "ok": "That is the whole skill in three lines. The coupon row is the reference group's effect, and the cross term carries you to the other group, so 12.36 and 12.36 plus -11.42 give you both numbers.", "no": "Two pieces are needed. Fit with a star, `lm(spend ~ coupon * customer, data = coupons)`, then read `couponyes` for new customers and add `couponyes:customerregular` to it for regulars."}
+::solution
+```r
+# Fit the interaction model and read both group effects off the coefficients
+m_mine <- lm(spend ~ coupon * customer, data = coupons)
+b <- coef(m_mine)
+
+round(c(new_customers = unname(b["couponyes"]),
+        regulars      = unname(b["couponyes"] + b["couponyes:customerregular"])), 2)
+#> new_customers      regulars 
+#>         12.36          0.94
+```
+
+=== step === quiz
+## Quick check: which model should the store ship?
+
+The customer comparison came back with F = 42.75 and p = 9.172e-11. The device comparison came back with F = 0.43 and p = 0.511.
+
+::quiz {"correct": 1, "gate": true, "difficulty": "advanced"}
+- `spend ~ coupon * customer` for the customer question, and `spend ~ coupon + device` for the device question. ::ok Right on both counts. The customer cross term paid for itself and stays, the device one did not and goes, and each model keeps both of its main effects.
+- `spend ~ coupon * customer * device`, since more terms can only fit the data better. ::no
+- `spend ~ coupon:customer`, since the cross term is in and the main effects are now redundant. ::no
+- `spend ~ coupon + customer` for both, since one average effect per variable is easier to report. ::no Two traps here are worth naming. Adding every cross term you can think of buys fit you never tested for and did not need, which is why the device term was tested and dropped rather than kept for safety. And dropping a main effect while keeping its cross term breaks the model in a quieter way: with `couponyes` gone there is nothing for the cross term to correct, so it stops meaning "how much the coupon effect changes" and starts meaning whatever the arbitrary zero point of the other variable makes it mean. Keep both main effects whenever you keep their interaction.
+
+=== step === concept
 ## References
 
-- [Faraway, J. Practical Regression and Anova using R](https://cran.r-project.org/doc/contrib/Faraway-PRA.pdf), on model comparison and factor coding in linear models.
-- [Fox, J. and Weisberg, S. An R Companion to Applied Regression](https://www.john-fox.ca/Companion/), the chapter on linear models with categorical and continuous predictors.
-- [UCLA OARC: Decomposing, Probing, and Plotting Interactions in R](https://stats.oarc.ucla.edu/r/seminars/interactions-r/), a long worked treatment of group-by-group slopes.
-- [R documentation for `formula`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html), which defines what `*` and `:` expand to.
-- [R documentation for `anova.lm`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/anova.lm.html), the F test used here to compare the two models.
-
-If you want to go further than this, the standard book-length treatment is
-*Multiple Regression: Testing and Interpreting Interactions*, written by
-Aiken, L.S. and West, S.G. and published by Sage in 1991.
+- [Understanding Interaction Models: Improving Empirical Analyses](https://doi.org/10.1093/pan/mpi014) - Brambor, Clark and Golder (2006), Political Analysis 14(1), 63-82. The clearest statement of why both main effects stay in the model whenever the cross term does.
+- [An R Companion to Applied Regression](https://www.john-fox.ca/Companion/) - Fox and Weisberg (2019), 3rd edition, Sage. The chapters on factors and on models with interacting predictors, including how R builds those coefficient names.
+- [Linear Models with R](https://julianfaraway.github.io/faraway/LMR/) - Faraway (2014), 2nd edition, Chapman and Hall/CRC. Factors, factor-covariate models and interactions, worked in R throughout.
+- [Model formulae in R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html) - R Core Team. The reference for what `*` and `:` expand into.
+- [ANOVA for linear model fits](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/anova.lm.html) - R Core Team. The documentation for the nested F test that decides whether a cross term stays.
 
 === step === complete
+## Quick recap
 
-## What you can do now
+You took a coupon test where one average effect was wrong for everybody, found the split, put it into a model, tested it and wrote it up. Here is what is worth keeping:
 
-You started with a $10 coupon effect that described nobody. Here is what to do
-the next time one turns up.
+- An interaction means one thing's effect depends on another thing's value. The coupon was worth 12.36 dollars to new customers and 0.94 to regulars, so the store's 6.58 dollar headline described nobody.
+- You can see it before you fit anything. Take the four group averages, work out the gap inside each group, and look at whether the two lines come out parallel.
+- `coupon * customer` expands into `coupon + customer + coupon:customer`. The cross term is a difference between two effects and never an effect on its own, so -11.42 means the coupon does 11.42 dollars less for a regular.
+- With a cross term in, a main effect only answers about the reference level. Moving the reference with `relevel()` moves the coefficients and leaves the predictions untouched.
+- `anova()` on the two models decides whether the term stays. The customer split earned its place at p = 9.172e-11, the device split did not at p = 0.511, and either way both main effects stay in.
 
-- **Spot it before modelling.** Compute the effect separately inside each
-  group. If the two numbers differ a lot, as $19.03 and $0.91 do, there is an
-  interaction and a pooled average will bury it.
-- **Put it in the model.** `spend ~ coupon * type`. The star gives you both
-  main effects and the cross term in one character.
-- **Read every row.** The intercept is the reference cell, a main effect is
-  the reference group's effect, and the cross term is how much that effect
-  changes for the other group.
-- **Recover each group's own effect.** Add the cross term to the main effect,
-  or skip the arithmetic and run `predict()` on a small grid of combinations.
-- **Test it.** `anova(m_add, m_int)` asks whether the extra term earns its
-  place. If it does not, drop it and report the pooled effect with a clear
-  conscience.
-- **Report it.** Give both effects in real units, name the groups, add the
-  test. Never send the cross-term coefficient on its own.
+And the sentence to say out loud, every time:
 
-The same moves work when the moderator is a number instead of a group.
-`spend ~ discount * type` told you a percentage point of discount is worth
-$1.48 to a new customer and 16 cents to a regular, which is the kind of
-sentence a budget meeting can actually use.
+"The coupon added about 12 dollars per new customer, between 10 and 15. For regulars it added about a dollar, and we cannot tell that apart from nothing."
+
+That is two groups, each one with its own number and its own range. Next time you meet a coefficient table with a star in the formula, you will take it apart the same way, right down to the harder case where the predictor is a measured number rather than a group. Congratulations, and have a great day!
