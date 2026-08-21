@@ -423,6 +423,102 @@ Priya called nine of ten, and blind guessing reaches nine or better about 12 tim
 - Priya gets about nine of ten right, so she can tell the drinks apart roughly 90% of the time. ::no
 - The evening proves Priya can taste the difference. ::no Three of these four claim more than the count can support. Two of them put odds on Priya, either on her being a guesser or on her true ability, and neither was ever measured; the count only ever describes a world where she is guessing. The third treats one evening as proof, when a rare result makes luck a poor explanation without making anything certain.
 
+=== step === tryit
+## Your turn: would eight of ten have cleared the bar?
+
+Before we close, four questions on the whole evening.
+
+Arun, who was sitting across the table, wants a go at the same ten cups. He calls eight of them right.
+
+The table had settled on one in twenty before anybody poured, which written as a share is 0.05.
+
+`luck_hits` still holds the scores of all ten thousand pure-guess rounds. Count the ones that reached eight or better, write that count as a share of ten thousand, then hold the share up against the line the table picked.
+
+```r
+# luck_hits holds the score of 10,000 pure-guess rounds of ten cups.
+# Count the rounds that reached eight or better, write that count as a
+# share of all 10,000, then test whether the share comes in under the
+# line the table agreed on before the pouring started.
+# Three lines. Press Check when you have them.
+```
+::check {"regex": "luck_hits\\s*>=\\s*8[\\s\\S]*<\\s*0?\\.05", "gate": true, "difficulty": "intermediate", "ok": "There it is: 550 rounds out of 10,000, a share of 0.055, which does not come in under 0.05. Blind guessing reaches eight about five times in every hundred rounds, so Arun misses the line the table drew.", "no": "Two counting lines and one comparison. Count with `sum(luck_hits >= 8)`, take the share with `mean(luck_hits >= 8)`, then test that share with `< 0.05`."}
+::solution
+```r
+# Count the pure-guess rounds that reached eight or better, then hold the share against the bar
+sum(luck_hits >= 8)
+#> [1] 550
+arun_share <- mean(luck_hits >= 8)
+arun_share
+#> [1] 0.055
+arun_share < 0.05
+#> [1] FALSE
+```
+
+One cup is the whole difference between the two of them. Priya's nine came out at 0.012 and cleared the line with room to spare. Arun's eight comes out at 0.055 and misses it, because blind guessing reaches eight about five times in every hundred rounds and reaches nine about once.
+
+So Arun is not owed an apology and the table is not being harsh. The line went in before the pouring, and his evening landed on the wrong side of it.
+
+=== step === quiz
+## Quick check: which of these evenings still means what we counted?
+
+Four different tables run the same taste test, and all four report a taster who called nine of ten. Only one of those evenings lets you say what we have been saying. Which one?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The pourer ran short of Pepsi, so seven of the ten cups held Coke, and the taster was told as much before she started. ::no
+- Every cup was filled on a coin toss, the taster saw nothing and heard nothing from the table between calls, and the line was written down before the first pour. ::ok That is the evening we counted. Random pours are the only reason a guesser has an even chance on each cup, blindness is the only reason a high score has to come from taste, and a line picked in advance is the only one nobody can bend afterwards.
+- The taster played five separate evenings of ten cups each, and the table reported the best of the five. ::no
+- The table looked at 0.012, decided one in a hundred was the sensible line after all, and reported that luck could not be ruled out. ::no Three of these four break something before the arithmetic ever starts. Loading the cups with Coke and saying so hands the taster a way to score well without tasting a thing. Playing five evenings and keeping the best one gives luck five chances at a nine and then shows you only its luckiest. Choosing the line once you can see which side of it you landed on is not a decision, it is a story. None of the three can be repaired by counting more carefully afterwards.
+
+=== step === tryit
+## Your turn: is a perfect six as good as nine of ten?
+
+Arun wants a rematch and he wants it shorter. Six cups this time, poured the same way on a coin toss. He calls all six right.
+
+A clean sweep, nothing missed, and it feels like the strongest result of the whole evening. The only way to know is to build the luck world for six cups and count inside it.
+
+```r
+# Play 10,000 pure-guess rounds against a six-cup evening
+set.seed(5)
+six_pours <- pours[1:6]
+
+# Two lines to write. First build luck6, playing 10,000 blind rounds against
+# six_pours and storing the score of each round, the same shape as the ten-cup
+# scores. Then one line for the share of those rounds that called all six
+# correctly. Press Check when you have them.
+```
+::check {"regex": "luck6\\s*<-\\s*replicate[\\s\\S]*luck6\\s*(?:==|>=)\\s*6", "gate": true, "difficulty": "intermediate", "ok": "Yes: 146 rounds out of 10,000, a share of 0.0146. A clean sweep of six is easier for luck to reach than Priya's nine of ten, which sat at 0.012, so the shorter test is the weaker evidence.", "no": "Take the shape of the ten-cup rounds and shrink it. Build `luck6` with `replicate(10000, ...)`, where each round samples six cups at random and counts the hits against `six_pours`, then finish with `mean(luck6 == 6)`."}
+::solution
+```r
+# Play 10,000 pure-guess rounds against the six cups and count the clean sweeps
+set.seed(5)
+six_pours <- pours[1:6]
+
+luck6 <- replicate(10000, {
+  guess <- sample(c("Coke", "Pepsi"), size = 6, replace = TRUE)
+  sum(guess == six_pours)
+})
+
+sum(luck6 == 6)
+#> [1] 146
+mean(luck6 == 6)
+#> [1] 0.0146
+```
+
+146 rounds in ten thousand swept all six, which is a share of 0.0146. Set that beside Priya's 0.012 and the perfect score comes out behind.
+
+A guesser has to survive only six coin tosses to sweep six cups, and one round in sixty four manages it. Surviving ten of them, even with one miss allowed, is harder than that. So a spotless run on a short test is worth less than a near miss on a long one, which is the twenty cups arriving at the same place from the other direction.
+
+=== step === quiz
+## Quick check: why did the two answers not land on the same number?
+
+Ten thousand blind rounds gave 0.012. `binom.test()` printed 0.01074, and counting by hand put it at eleven ways out of 1,024. So why is there a gap at all?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The two are answering different questions, so they were never going to agree. ::no
+- The simulation is an estimate. Ten thousand rounds is a sample of the luck world, so its answer wobbles around the exact 0.01074 and settles closer to it the more rounds you play. ::ok Exactly right. The exact figure is the truth of that world, and the ten thousand rounds are a handful of draws from it, so the two close in on each other as the rounds pile up rather than ever being at odds.
+- The seed is what separates them. Change the seed and both numbers would move. ::no
+- The exact figure counts only the ways to score nine, while the ten thousand rounds also counted the tens. ::no Both numbers answer one question: how often does blind guessing reach nine or better? The exact figure settles it by counting every way the ten calls can come out, and that count already includes the clean ten, which is why it is eleven ways and not ten. The ten thousand rounds sample the same world instead of counting it, so they land near the exact answer and shift a little with the seed, while the exact answer never moves at all.
+
 === step === concept
 ## References
 
