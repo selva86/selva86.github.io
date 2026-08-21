@@ -1,9 +1,12 @@
 ---
-title: "ARIMA: what AR, I, and MA actually mean"
-description: "Meera runs a coffee shop. Her 48 days of sales show what the AR, the I and the MA in ARIMA each mean, until a label like ARIMA(2,1,1) reads as plain English."
-keywords: "ARIMA, what AR I MA mean, autoregressive, moving average, differencing, ARIMA p d q, time series in R, arima function"
+title: "ARIMA from Zero Lesson 1: ARIMA: what AR, I, and MA actually mean"
+slug: "ARIMA-Mini-1"
+description: "AR is memory, MA is an echo, and I is growth taken out. Build all three from one coffee shop year of sales, then read ARIMA(2,1,1) as a plain sentence."
+keywords: "what AR I and MA mean, ARIMA explained, AR vs MA, autoregressive model, moving average model, differencing a time series, ARIMA p d q, arima in R"
+mathjax: true
+webr: true
+date: "2026-08-21"
 post_type: "LESSON"
-curriculum_id: "0.0.4"
 course_id: "arima-from-zero"
 course_title: "ARIMA from Zero"
 course_lesson: "1"
@@ -11,473 +14,590 @@ course_total: "7"
 course_landing: "/dashboard.html"
 course_prev: ""
 course_next: ""
+curriculum_id: "0.0.4"
 lesson_access: "windowed"
-catalog_blurb: "Read any ARIMA label as a plain sentence about your own data."
-mathjax: true
-webr: true
-date: "2026-08-19"
+catalog_blurb: "What each letter of ARIMA means, built from one year of shop sales."
 ---
 
 === step === cover
-
+::eyebrow ARIMA from Zero
 ## ARIMA: what AR, I, and MA actually mean
 
-Let's consider Meera, who runs a coffee shop two streets from a train station. At closing time she writes down one number: how many cups she sold that day.
+Let's say you run a coffee shop, and every evening you write down how many cups you sold that day.
 
-Seven weeks of that gives you 48 numbers. There is no weather column, there is no footfall counter, and there is no marketing spreadsheet. There is only the shop, day after day.
+After a few months of doing that, you start noticing things. Busy days seem to come in runs, so a busy Tuesday is usually followed by a busy Wednesday. Then one morning a tour bus pulls up and clears out the pastry case, and the next day still feels a little livelier than usual, as if the rush left something behind. And underneath all of it the shop is slowly getting bigger, so a good day in December beats a good day in January.
 
-Sit with those 48 numbers for a while and three things come out of them.
+Those are three plain observations about a coffee shop, made by somebody who has never opened a statistics book.
 
-Busy days come in runs. A rush that arrived out of nowhere is still felt a little the next day. And underneath both of those, the shop is slowly growing.
+They are also, exactly, the three letters in ARIMA.
 
-That is the core idea. Those three sentences are the AR, the I and the MA in ARIMA.
+::widget process-flow {"steps":[{"title":"AR, the memory","sub":"busy days tend to follow busy days"},{"title":"I, the growth","sub":"the shop keeps getting bigger, so ask how much it changed"},{"title":"MA, the echo","sub":"a rush yesterday is still a little in the room today"}]}
 
-::widget process-flow {"steps": [{"title": "Busy days come in runs", "sub": "a busy day is usually followed by another"}, {"title": "A rush leaves a mark", "sub": "the day after a rush is still not normal"}, {"title": "The shop keeps growing", "sub": "the everyday level creeps up week by week"}]}
+ARIMA looks like alphabet soup from the outside, and most explanations of it open with a page of Greek letters, which does not help anybody. So we are going to do the opposite. We take one imaginary shop, hand it one habit at a time, and measure exactly what that habit does to the numbers, and we build and fit every one of those series ourselves as we go.
 
-Once you can see all three of them in her numbers, ARIMA(2,1,1) reads like a plain sentence about this shop: today leans on the last two days, the growth was taken out once, and one day of surprise still echoes.
+By the end, ARIMA(2,1,1) will read like an ordinary sentence: today leans on the last two days, the growth was taken out once, and one day of random noise is still echoing.
 
 === step === concept
+## A coffee shop with no memory at all
 
-::eyebrow The data
+Let's give the shop a name and some numbers to work with. Bloom Coffee sells around 180 cups on an ordinary day, and we are going to follow it for a full year, all 365 days.
 
-## What are we actually looking at?
+Before we hand it any of the three habits, let's build the boring version of Bloom Coffee, a shop where every day starts fresh. Some days are busy and some are quiet, but what happened yesterday has nothing whatsoever to do with today.
 
-Here are Meera's numbers, one per day, day 1 to day 48.
-
-I made these numbers up, and I would rather say that plainly than pretend otherwise. But I built them to move the way a small shop actually moves, so everything you are about to see in them is real arithmetic on real numbers, and not a story told over the top of them.
+Press Run.
 
 ```r
-cups <- c(126, 124, 126, 133, 147, 138, 139, 127, 129, 145,
-          149, 144, 141, 137, 135, 140, 143, 137, 144, 153,
-          156, 212, 174, 163, 155, 149, 146, 156, 155, 158,
-          163, 175, 175, 178, 175, 171, 172, 175, 176, 188,
-          182, 185, 187, 192, 196, 201, 193, 192)
+# Build a year of daily sales for a shop whose days do not lean on each other
+set.seed(4)
+shock  <- rnorm(365, sd = 9)   # a year of daily surprises, the same set used all the way through
+steady <- round(180 + shock)   # 180 cups on an ordinary day, plus that day's surprise
 
-length(cups)
-#> [1] 48
+head(steady, 8)
+#> [1] 182 175 188 185 195 186 168 178
 
-head(cups, 10)
-#>  [1] 126 124 126 133 147 138 139 127 129 145
-
-plot(1:48, cups, type = "o", pch = 16, col = "#1f7a55",
-     xlab = "Day", ylab = "Cups sold",
-     main = "Meera: cups sold per day")
+plot(steady, type = "l", col = "grey40",
+     main = "A year at Bloom Coffee, with no memory from one day to the next",
+     xlab = "Day of the year", ylab = "Cups sold")
 ```
 
-That is a **time series**: one column of numbers where the order is the point. Shuffle the 48 numbers and you have destroyed the thing you care about.
+`rnorm(365, sd = 9)` draws 365 random numbers centred on zero, most of them landing within about 9 cups either side of it. Those are the day-to-day surprises: the weather, a road closure, a school trip that happened to walk past. Add them to 180 and you have a year of sales.
 
-Now notice what you do not have. In most prediction problems there are other columns to lean on, price and size and colour and so on. Here there is one column. So whatever you use to predict tomorrow has to come out of the series itself, out of its own past. That single constraint is where the whole of ARIMA comes from.
+`set.seed(4)` just fixes which random numbers you get, so your year comes out the same as mine.
 
-Two things already stand out in that chart. There is one wild day around day 22, and the line finishes higher than it started. Hold on to both.
+Day 1 sold 182 cups, day 2 sold 175, day 3 sold 188. The line wobbles, and there is no pattern at all in the wobble.
 
-=== step === concept
+Now here is the one tool we need for the whole of today, and it is a lot simpler than its name. It is called a **lag**, and all it means is shifting the series along by a day so that yesterday sits beside today.
 
-::eyebrow The AR part
-
-## Do busy days really follow busy days?
-
-The first of the three sentences was "busy days come in runs". That sounds like something you feel rather than something you measure. Let us measure it.
-
-Take every day and write next to it what the shop sold the day before. Day 2 pairs with day 1, day 3 pairs with day 2, all the way to day 48 pairing with day 47. Day 1 has nothing before it, so you get 47 pairs.
-
-Now put those pairs on a chart. Yesterday goes across, today goes up. Each dot is one pair of consecutive days.
-
-::widget chart-plotter {"data": [{"x":126,"y":124},{"x":124,"y":126},{"x":126,"y":133},{"x":133,"y":147},{"x":147,"y":138},{"x":138,"y":139},{"x":139,"y":127},{"x":127,"y":129},{"x":129,"y":145},{"x":145,"y":149},{"x":149,"y":144},{"x":144,"y":141},{"x":141,"y":137},{"x":137,"y":135},{"x":135,"y":140},{"x":140,"y":143},{"x":143,"y":137},{"x":137,"y":144},{"x":144,"y":153},{"x":153,"y":156},{"x":156,"y":212},{"x":212,"y":174},{"x":174,"y":163},{"x":163,"y":155},{"x":155,"y":149},{"x":149,"y":146},{"x":146,"y":156},{"x":156,"y":155},{"x":155,"y":158},{"x":158,"y":163},{"x":163,"y":175},{"x":175,"y":175},{"x":175,"y":178},{"x":178,"y":175},{"x":175,"y":171},{"x":171,"y":172},{"x":172,"y":175},{"x":175,"y":176},{"x":176,"y":188},{"x":188,"y":182},{"x":182,"y":185},{"x":185,"y":187},{"x":187,"y":192},{"x":192,"y":196},{"x":196,"y":201},{"x":201,"y":193},{"x":193,"y":192}], "geoms": ["point"], "x": "yesterday", "y": "today"}
-
-If yesterday told you nothing about today, those dots would sit in a shapeless cloud. They do not. They climb from bottom left to top right, and the number the chart reports, r = 0.87, is the **correlation**: a single number between -1 and 1 saying how tightly the two move together. Zero would mean no relationship at all. 0.87 is a strong one.
-
-So the feeling was right, and now it is a number. A busy yesterday really does mean a busier-than-usual today, in this shop, over these seven weeks.
-
-One dot sits out on its own at the far right. That is the pair around the wild day, and we will come back to it.
-
-=== step === concept
-
-::eyebrow The AR part
-
-## What the AR part does
-
-When the dots lean that strongly, the next move is to write down exactly how today follows yesterday, and then use it.
-
-The simplest version of that goes like this. Today is some baseline, plus a share of yesterday, plus whatever nobody could have seen coming.
+Day 1 sold 182 and day 2 sold 175, which gives us one pair: 182 yesterday, 175 today. Day 2 sold 175 and day 3 sold 188, so the next pair is 175 and 188. Do that for all 364 pairs and put them on a scatter.
 
 ```r
-shop <- data.frame(
-  day        = 1:48,
-  today      = cups,
-  yesterday  = c(NA, head(cups, -1)),
-  day_before = c(NA, NA, head(cups, -2))
-)
+# Put yesterday's cups beside today's and measure how tightly the two move together
+yesterday <- steady[-365]   # days 1 to 364
+today     <- steady[-1]     # days 2 to 365
 
-head(shop, 4)
-#>   day today yesterday day_before
-#> 1   1   126        NA         NA
-#> 2   2   124       126         NA
-#> 3   3   126       124        126
-#> 4   4   133       126        124
+plot(yesterday, today, pch = 16, col = "grey40",
+     main = "Yesterday against today, the no-memory shop",
+     xlab = "Cups sold yesterday", ylab = "Cups sold today")
 
-one_lag <- lm(today ~ yesterday, data = shop)
-round(coef(one_lag), 3)
-#> (Intercept)   yesterday 
-#>      22.907       0.865
+round(cor(yesterday, today), 2)
+#> [1] -0.03
 ```
 
-Read that as a rule Meera could use tomorrow morning:
+`steady[-365]` means every day except the last one, and `steady[-1]` means every day except the first. Line those two up and each dot on the chart is one pair of consecutive days: how many cups yesterday, how many cups today.
 
-**today = 22.9 + 0.865 x yesterday**
+The cloud has no tilt to it. Knowing the shop sold 200 yesterday tells you nothing at all about today.
 
-If she sold 160 cups yesterday, the rule expects 22.9 + 0.865 x 160, which is about 161 today. If she sold 200 yesterday, it expects about 196.
+`cor()` puts a number on that tilt. It runs from -1 to 1, and 0 means no relationship whatsoever. Here it comes back at -0.03, which is as good as nothing.
 
-That is autoregression, and the name is literal. A regression is the ordinary business of predicting one thing from another. Here the thing you predict from is the same series, only earlier, so you are regressing the series on itself. Auto means self.
+=== step === concept
+## Busy days that follow busy days
 
-In symbols it is written like this:
+Now let's hand Bloom Coffee its first real habit.
 
-\[ y_t = c + \phi\, y_{t-1} + e_t \]
+It is the same shop and the same year, and here is the important bit: the surprises are exactly the same ones. The weather does what it did before, the road closure lands on the same day, and the school trip walks past at the same hour. The only thing we are changing is that the shop now carries something over from one day to the next.
 
-where \( y_t \) is today's value, \( y_{t-1} \) is yesterday's, \( c \) is the baseline (22.9 here), \( \phi \) is the share of yesterday that carries over (0.865 here), and \( e_t \) is today's surprise, the part the rule cannot reach.
+The rule is easy to say out loud. Each day starts from where the last two days landed, and then the day's own surprise gets added on top. If yesterday ran 10 cups above an ordinary day, today starts half of that above, at 5, before anything else happens. The day before yesterday still counts too, for a quarter of what it was.
 
-[KEY INSIGHT] The AR part predicts today from the actual past **values** of the series. It uses nothing else. That is the whole idea, and everything else about AR is bookkeeping over how many past values you allow.
+```r
+# Give the shop a memory, then put yesterday beside today again
+dev <- numeric(365)                 # how far each day sits from an ordinary day
+for (t in 3:365) {
+  dev[t] <- 0.5 * dev[t - 1] + 0.25 * dev[t - 2] + shock[t]
+}
+ar_shop <- round(180 + dev)
+
+plot(ar_shop[-365], ar_shop[-1], pch = 16, col = "#1f7a55",
+     main = "Yesterday against today, the memory shop",
+     xlab = "Cups sold yesterday", ylab = "Cups sold today")
+
+round(cor(ar_shop[-365], ar_shop[-1]), 2)
+#> [1] 0.61
+```
+
+`dev` holds how far each day sits above or below an ordinary 180-cup day. `numeric(365)` starts it off as a year of zeros, and the loop fills them in one day at a time, beginning on day 3 because day 1 and day 2 have no two days behind them to lean on. Then `round(180 + dev)` turns those deviations back into whole cups.
+
+Look at the same scatter now. The cloud has tilted. Dots that sit far to the right, meaning a busy yesterday, now sit high up as well, meaning a busy today.
+
+The correlation has gone from -0.03 to 0.61. Nothing about the weather changed. The only thing we added was that the shop remembers.
+
+[KEY INSIGHT]
+That tilt is the **AR** in ARIMA. AR is short for autoregressive, which is a long word for a plain idea: predict the series from its own recent values. "Auto" means self, and the thing this series leans on is itself, a day or two back.
+
+=== step === concept
+## How strongly yesterday pulls on today
+
+We built that shop ourselves, so we already know the answer: today carries half of yesterday's deviation. In real life you never get to look inside the shop like that. You get the sales figures and nothing else, and the number has to be recovered from them.
+
+Recovering it is what people mean by fitting a model. Written out, a shop that leans on yesterday alone looks like this:
+
+\[ y_t = c + \phi \, y_{t-1} + e_t \]
+
+Take it one symbol at a time and it stops being frightening. \(y_t\) is today's sales, where t is just a label for the day. \(y_{t-1}\) is yesterday's, because t minus 1 means one day back. \(c\) is a constant, and its job is to pin the series to an ordinary level instead of letting it wander off. For this shop that level is around 180 cups a day. \(e_t\) is today's own surprise, the piece that nothing before it could have told you. And \(\phi\), the Greek letter phi, is the number worth having: how much of yesterday carries into today.
+
+R has `arima()` built in, so there is no package to load. We hand it the sales figures and ask for a model with one day of memory.
+
+```r
+# Ask R how strongly yesterday pulls on today
+arima(ar_shop, order = c(1, 0, 0))
+#>
+#> Call:
+#> arima(x = ar_shop, order = c(1, 0, 0))
+#>
+#> Coefficients:
+#>          ar1  intercept
+#>       0.6134   179.6511
+#> s.e.  0.0412     1.1949
+#>
+#> sigma^2 estimated as 78.56:  log likelihood = -1314.55,  aic = 2635.1
+```
+
+The `order = c(1, 0, 0)` argument is where you tell R what shape of model you want, and those three slots are the whole label. They are p, d and q, in that order, and they are the three numbers you see in ARIMA(p, d, q). We asked for one day of memory, so p is 1, and the other two are still sitting at zero because we have not met them yet.
+
+Now look at what came back. `ar1` is 0.6134, and that is phi. About 61% of however far today sits from an ordinary day carries into tomorrow.
+
+`intercept` is 179.6511, which is the ordinary level the shop keeps returning to. We built it at 180, and the fit found it to within half a cup, using nothing but the sales figures.
+
+The `s.e.` row underneath is the standard error, which is how much each estimate would wobble if you could run the same year over again with fresh weather. At 0.0412, the estimate of 0.6134 is a firm one.
 
 === step === quiz
+## Quick check: what an AR coefficient of 0.61 says
 
-::eyebrow Check yourself
-
-## Which of these is the AR part using?
-
-Meera could record all sorts of things about her shop. The AR part of ARIMA uses exactly one of them.
-
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- The day of the week, because weekends run busier than Tuesdays
-- The temperature and rainfall on the day before
-- The number of cups sold on the days just before today ::ok Exactly. AR reaches back into the series itself, at the actual sales figures from the days just gone.
-- A column marking which days had a discount running ::no AR does not look at any other column. It has one thing to work with: the past values of the series itself. Weekday, weather and promotions are all information from outside the series, and they belong to a different kind of model.
-
-=== step === concept
-
-::eyebrow The AR part
-
-## What the p in ARIMA(p, d, q) counts
-
-The rule so far reaches back exactly one day. There is no law saying it has to stop there, so let it look back two days instead.
-
-```r
-two_lag <- lm(today ~ yesterday + day_before, data = shop)
-round(coef(two_lag), 3)
-#> (Intercept)   yesterday  day_before 
-#>      21.530       0.716       0.160
-```
-
-Now there are two shares instead of one. Today gets 0.716 of yesterday and 0.160 of the day before that, on top of a baseline of 21.5.
-
-That count, how many days back the model is allowed to reach, is **p**. It is the first number in the label.
-
-- p = 0 means today leans on no past values at all.
-- p = 1 means today leans on yesterday.
-- p = 2 means today leans on yesterday and the day before.
-
-And that is genuinely all p is. It is a number you choose.
-
-Now look at what these numbers suggest about where to set it here. The share on the day before is 0.160, which is small next to yesterday's 0.716. Once yesterday is already in the rule, the day before yesterday has little left to add. And that is worth saying plainly rather than glossing over: p is your choice, and the numbers that come back tell you whether the choice was worth making.
-
-=== step === concept
-
-::eyebrow The MA part
-
-## What counts as an error here?
-
-Two of the three sentences are still to come, and the next one is about the day the shop was slammed. Before you can get at it you need one more idea, and it is a plain one.
-
-Take the two-day rule from a moment ago and use it to predict every single day. Then, for each day, subtract what it predicted from what actually happened.
-
-That difference is a **forecast error**: one number per day, in cups. A positive number means the shop sold more than the rule expected. A negative number means it sold less.
-
-```r
-shop$predicted <- round(predict(two_lag, newdata = shop), 1)
-shop$error     <- round(shop$today - shop$predicted, 1)
-
-shop[20:26, c("day", "today", "predicted", "error")]
-#>    day today predicted error
-#> 20  20   153     146.5   6.5
-#> 21  21   156     154.1   1.9
-#> 22  22   212     157.7  54.3
-#> 23  23   174     198.2 -24.2
-#> 24  24   163     180.0 -17.0
-#> 25  25   155     166.0 -11.0
-#> 26  26   149     158.6  -9.6
-```
-
-There is the wild day. On day 22 the rule looked at the two unremarkable days before it and said 158 cups. Meera sold 212. The rule was 54 cups short.
-
-Something happened that day that is nowhere in the sales figures. Maybe a post about the shop went around locally that morning. The rule had no way to know that, and that is not a flaw in it. Nothing built only from past sales could have seen it coming.
-
-=== step === concept
-
-::eyebrow The MA part
-
-## What the MA part does
-
-The interesting part is not day 22. It is the days after it.
-
-```r
-# how far off the rule is on an ordinary day
-round(median(abs(shop$error), na.rm = TRUE), 1)
-#> [1] 5.2
-
-# the four days it got most wrong, biggest miss first
-head(shop[order(-abs(shop$error)), c("day", "error")], 4)
-#>    day error
-#> 22  22  54.3
-#> 23  23 -24.2
-#> 24  24 -17.0
-#> 8    8 -16.1
-
-plot(shop$day, shop$error, type = "h", lwd = 3, col = "#1f7a55",
-     xlab = "Day", ylab = "Miss, in cups",
-     main = "The two-day rule: 46 daily misses")
-abline(h = 0, col = "#677084")
-```
-
-On a typical day the rule is off by about 5 cups. Now look at the three biggest misses in the whole seven weeks. They are day 22, day 23 and day 24. One surprise left three bad days in a row.
-
-Day 23 is the one to sit with. The rule was 24 cups **over**. It had just seen a packed day, it leaned on that packed day, and so it expected most of the crowd to come back. Some of them did come back. Most of them did not.
-
-So the misses are not separate little accidents scattered at random across the seven weeks. A big miss yesterday tells you something real about today's miss. And anything that carries information like that is worth putting into the model.
-
-That is the MA part. It adds a share of yesterday's error to today's forecast:
-
-\[ y_t = c + \theta\, e_{t-1} + e_t \]
-
-where \( e_{t-1} \) is yesterday's forecast error, an actual number you can work out once yesterday has happened, \( \theta \) is the share of it carried into today, and \( e_t \) is today's own surprise.
-
-\( \theta \) can come out positive or negative, and the sign tells you which way the echo runs. For Meera it comes out near -0.78 once the full label is fitted, and that reads as: when the rule came in well under what the shop actually did yesterday, pull today back down, because that crowd is not all coming back.
-
-[KEY INSIGHT] AR looks at past **values**. MA looks at past **misses**. That is the entire difference between the two letters.
-
-=== step === quiz
-
-::eyebrow Check yourself
-
-## Is MA the same as a moving average?
-
-MA stands for moving average, which is a genuinely unhelpful name, because a moving average is also a common way to smooth a wiggly line.
+Bloom Coffee's fit came back with `ar1` at 0.61. Which sentence reads that correctly?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- Yes. It replaces each day with the average of the last 7 days, so the line comes out smoother
-- No. It is a weighted sum of the model's own past forecast errors ::ok Right. The MA part never touches the raw sales to smooth them. It works on the misses, the gaps between what happened and what the model said.
-- Yes. It averages today with yesterday to take the noise out ::no The name is a trap. Smoothing averages the sales figures themselves and hands you a tidier line. The MA part of ARIMA averages the model's own forecast errors and hands you a better next forecast. Same two words, different job.
+- There is a 61% chance that tomorrow will be a busy day. ::no
+- About 61% of however far today sits from an ordinary day carries over into tomorrow. ::ok Exactly. It is a share of a deviation, not a probability and not a forecast on its own. If today runs 20 cups above ordinary, tomorrow starts around 12 above before its own surprise arrives.
+- Tomorrow's sales will be 61% of today's, so a 200-cup day is followed by a 122-cup day. ::no
+- The model gets about 61% of its forecasts right. ::no The coefficient is not a probability, not an accuracy score, and not a fraction of tomorrow's total. It is the share of today's deviation from the ordinary level that carries into tomorrow, and that is the only thing phi ever measures.
 
 === step === concept
+## The day before yesterday still counts
 
-::eyebrow The I part
+There is something slightly off about that fit, and it is worth catching.
 
-## Why a growing shop breaks both of those
+We built the shop leaning on two days: half of yesterday and a quarter of the day before. Then we asked R for a model that is only allowed one day of memory, and it answered 0.61. That single number had to do the work of both.
 
-Everything so far has assumed, without ever saying so, that the shop has a normal level to come back to. The AR share only means something if there is a level to be above or below, and the misses only mean something if they are measured against a target that stays put.
-
-Look at what the normal level actually did over these seven weeks.
-
-```r
-round(mean(cups[1:24]), 1)
-#> [1] 144.2
-
-round(mean(cups[25:48]), 1)
-#> [1] 174.8
-
-plot(1:48, cups, type = "o", pch = 16, col = "#c5cdda",
-     xlab = "Day", ylab = "Cups sold",
-     main = "The level Meera sells around keeps moving")
-segments(1, mean(cups[1:24]), 24, mean(cups[1:24]), col = "#1f7a55", lwd = 3)
-segments(25, mean(cups[25:48]), 48, mean(cups[25:48]), col = "#b04a52", lwd = 3)
-```
-
-Over the first half of the seven weeks Meera sold 144 cups a day on average, and over the second half she sold 175. So the normal level itself moved by 30 cups while we were busy talking about days sitting above it and below it.
-
-This is the third sentence from the start, "the shop keeps growing", and it is not a small detail sitting off to one side, because it breaks the other two. A model built on "today is a share of yesterday" is chasing a target that will not stand still, and 180 cups is a good day in week one but a poor day in week seven.
-
-So before anything else works properly, the growth has to go. And the way to take it out is very simple.
-
-=== step === widget
-
-::eyebrow The I part
-
-## What differencing actually does
-
-Stop modelling how many cups Meera sold. Model how much it **changed** from the day before.
-
-Day 20 to day 21 is 153 to 156, a change of +3. Day 21 to day 22 is 156 to 212, a change of +56. That is all it is: subtract each day from the one after it.
-
-::widget table-transform {"code": "df %>% mutate(change = cups - lag(cups)) %>% filter(!is.na(change))", "caption": "Every row now carries the change from the day before. Day 17 has no day before it in this window, so it drops out: 8 daily totals become 7 daily changes.", "before": {"cols": ["day", "cups"], "rows": [[17, 143], [18, 137], [19, 144], [20, 153], [21, 156], [22, 212], [23, 174], [24, 163]]}, "after": {"cols": ["day", "cups", "change"], "rows": [[18, 137, -6], [19, 144, 7], [20, 153, 9], [21, 156, 3], [22, 212, 56], [23, 174, -38], [24, 163, -11]]}}
-
-This is called **differencing**, and here is why it fixes the growth problem. Suppose the shop reliably adds a cup a day. In the raw figures that shows up as a line climbing away from you forever. In the changes it shows up as a small steady number sitting near +1, day after day, going nowhere. The climb has been turned into a constant.
-
-It costs you exactly one thing. Forty-eight daily totals give you only 47 changes, because the first day has no day before it.
-
-=== step === concept
-
-::eyebrow The I part
-
-## What the d in ARIMA(p, d, q) counts
-
-**d** is how many times you take that change. It is the second number in the label, and I stands for integrated, which is the formal name for undoing a difference to get back to real cups at the end.
-
-- d = 0 means the series is left alone, in cups.
-- d = 1 means you work with day-to-day changes.
-- d = 2 means you take the change of the changes. Rare, and usually a sign of a series that is accelerating rather than just growing.
-
-Here is Meera's shop with d = 1.
+The first slot of the label, p, is simply how many days back the model may look. Let it look at two.
 
 ```r
-change <- diff(cups)
-
-length(change)
-#> [1] 47
-
-round(mean(change), 2)
-#> [1] 1.4
-
-plot(2:48, change, type = "h", lwd = 3, col = "#1f7a55",
-     xlab = "Day", ylab = "Change in cups since the day before",
-     main = "The same seven weeks, as changes")
-abline(h = 0, col = "#677084")
-```
-
-Compare that with the first chart you drew, where the raw sales drifted upward across the page. The changes hover around a line and stay there, up on some days and down on others, with the day-22 rush now showing as one spike up followed immediately by one spike down.
-
-They hover around +1.4 rather than exactly 0, and that +1.4 is Meera's growth: about one and a half extra cups a day, every day. Differencing did not delete the growth. It turned it from a moving target into a single small number, which is a far easier thing for a model to carry.
-
-=== step === tryit
-
-::eyebrow Your turn
-
-## Difference the series yourself
-
-One function does it. Replace the blank with the R function that turns 48 daily totals into 47 daily changes, then press Check.
-
-```r
-# Turn the 48 daily totals into 47 daily changes.
-change_yours <- ____(cups)
-
-length(change_yours)
-head(change_yours)
-```
-
-::check {"regex": "diff\\s*[(]\\s*cups\\s*[)]", "gate": true, "difficulty": "beginner", "ok": "That is it. diff() subtracts each value from the one after it, which is exactly one difference, exactly d = 1.", "no": "The function is diff(). Give it the whole vector, like diff(cups), and it hands back the 47 gaps between consecutive days."}
-
-::solution
-
-```r
-change_yours <- diff(cups)
-
-length(change_yours)
-#> [1] 47
-
-head(change_yours)
-#> [1] -2  2  7 14 -9  1
-```
-
-Forty-seven numbers, and the first one is -2 because Meera sold 126 cups on day 1 and 124 on day 2. Taking the difference twice, with `diff(cups, differences = 2)`, would be d = 2.
-
-=== step === concept
-
-::eyebrow Putting it together
-
-## How do the three letters fit in one label?
-
-You now have all three ideas, and each one arrived with a number attached. ARIMA(p, d, q) is nothing more than those three numbers written down in a fixed order.
-
-| The letter | The question it answers | Meera at (2, 1, 1) |
-|---|---|---|
-| AR, the p | How many past days may today lean on? | 2, so today leans on the last two days |
-| I, the d | How many times do we take the change? | 1, so the growth is taken out once |
-| MA, the q | How many past misses does today carry? | 1, so one day of surprise still echoes |
-
-The order never changes, so ARIMA(2,1,1) is always p = 2, d = 1, q = 1. And each number stands on its own. You can have p without q, as in ARIMA(1,0,0), or q without p, as in ARIMA(0,0,1), or neither of them.
-
-There is one more detail worth being straight about. Once d = 1, the p and the q are working on the **changes**, not on the raw cups. So ARIMA(2,1,1) for Meera says: today's change leans on the last two days of changes, and carries one day of past miss, on a series that has been differenced once.
-
-=== step === tryit
-
-::eyebrow Your turn
-
-## Fit ARIMA(2,1,1) to Meera's shop
-
-The label is not just a description. It is an instruction you can hand to R, and R hands you back the shares.
-
-Fill in the three numbers for ARIMA(2,1,1), in that order, and press Check.
-
-```r
-# Fit the label ARIMA(2, 1, 1) to Meera's 48 days.
-fit <- arima(cups, order = c(____, ____, ____))
-
-fit
-```
-
-::check {"regex": "order\\s*=\\s*c[(]\\s*2\\s*,\\s*1\\s*,\\s*1\\s*[)]", "gate": true, "difficulty": "beginner", "ok": "That is the label, handed straight to R. The order argument takes p, d and q in that order, always.", "no": "The order argument wants p, d and q in that order, so ARIMA(2,1,1) is order = c(2, 1, 1)."}
-
-::solution
-
-```r
-fit <- arima(cups, order = c(2, 1, 1))
-
-fit
-#> 
+# Let the model lean on two days instead of one
+arima(ar_shop, order = c(2, 0, 0))
+#>
 #> Call:
-#> arima(x = cups, order = c(2, 1, 1))
-#> 
+#> arima(x = ar_shop, order = c(2, 0, 0))
+#>
 #> Coefficients:
-#>          ar1     ar2      ma1
-#>       0.5142  0.0163  -0.7760
-#> s.e.  0.2119  0.1577   0.1554
-#> 
-#> sigma^2 estimated as 126.1:  log likelihood = -180.45,  aic = 368.91
+#>          ar1     ar2  intercept
+#>       0.4624  0.2446   179.6238
+#> s.e.  0.0508  0.0508     1.5217
+#>
+#> sigma^2 estimated as 73.84:  log likelihood = -1303.31,  aic = 2614.62
 ```
 
-Those three coefficients are the same shares you have been meeting all along, now estimated properly rather than by eye.
+Given two slots, the 0.61 splits into `ar1` at 0.4624 and `ar2` at 0.2446. We built the shop with 0.5 and 0.25.
 
-`ar1` is 0.51, so about half of yesterday's change carries into today's. `ar2` is 0.02, which is effectively nothing, and it means the day before yesterday has nothing left to add here. `ma1` is -0.78, so a big share of yesterday's miss is carried into today, with a minus sign: a day the model badly underestimated pulls the next day's forecast back down.
+So the shop had been leaning on two days the whole time. The one-day model could not say so, and it did the only thing available to it, which was to inflate yesterday's pull to cover for the day it was not allowed to see.
 
-The row marked `s.e.` under each one is its standard error, a measure of how firmly 48 days of data pin that number down. Notice that 0.0163 is much smaller than its own standard error of 0.1577. When a coefficient comes out that much smaller than its own standard error, 48 days of sales have not really pinned it down, and the second AR term is not doing any real work here.
+That is what p does, and it is all it does. ARIMA(1, 0, 0) is one day of memory. ARIMA(2, 0, 0) is two.
 
-The bottom line of the output is R scoring the fit rather than describing the shop. `sigma^2` measures how much surprise the model could not account for, and `aic` is a score whose only use is comparing one label against another on the same series.
+=== step === concept
+## Every extra day has to pay for itself
+
+If two days of memory beat one, why not ask for five? Or fifty?
+
+Because more slots will always fit the year you already have a little better. Give a model enough of them and it stops describing how the shop behaves and starts describing the exact weather of last April, and then next April turns up and the model is wrong.
+
+So we need a score that rewards a good fit and charges rent for every extra term. The usual one is **AIC**, the Akaike information criterion. Lower is better, and the arithmetic behind it is worth knowing because it is short: AIC takes a measure of how well the model explains the year, then adds a flat penalty of 2 points for every coefficient it had to use.
+
+R has already been printing it at the bottom of every fit. Let's put the two side by side.
+
+```r
+# Weigh the one-day model against the two-day model, where the lower AIC wins
+fit1 <- arima(ar_shop, order = c(1, 0, 0))
+fit2 <- arima(ar_shop, order = c(2, 0, 0))
+
+round(c(one_day = AIC(fit1), two_days = AIC(fit2)), 1)
+#>  one_day two_days
+#>   2635.1   2614.6
+```
+
+The second day of memory cost 2 points in penalty and bought back about 22 points of fit, so the AIC fell by 20. That is a clear win, and it says the day before yesterday is genuinely in the data.
+
+There is one warning worth giving about AIC, because this is where it trips people up. The number on its own means nothing at all. 2614.6 is neither good nor bad. It is only useful sitting next to another AIC computed on the very same series. Never compare an AIC from one shop against an AIC from another.
+
+=== step === tryit
+## Your turn: does a third day add anything?
+
+`ar_shop` still holds the memory shop's year, and `fit2` is the two-day fit, with an AIC of 2614.6.
+
+Ask for a third day of memory on the same series. Then look at two things: what the third coefficient, `ar3`, comes out at, and whether the AIC goes down or up. It is one call to `arima()` with a different number in the first slot.
+
+```r
+# Fit a three-day model on ar_shop and compare its AIC with the two-day fit
+# The first slot of order = c(p, d, q) is the number of days of memory.
+# Press Check when you have it.
+```
+::check {"regex": "order\\s*=\\s*c[(]\\s*3", "gate": true, "difficulty": "beginner", "ok": "Right. `ar3` lands at -0.0042, which is nothing at all, and the AIC climbs from 2614.6 to 2616.6. There was no third day of memory to find, so the extra slot bought nothing and still paid rent.", "no": "One call, same series, a 3 in the first slot: `arima(ar_shop, order = c(3, 0, 0))`. Then put `AIC()` on it beside 2614.6."}
+::solution
+```r
+# Fit a three-day model and set its AIC beside the two-day model
+fit3 <- arima(ar_shop, order = c(3, 0, 0))
+fit3
+#>
+#> Call:
+#> arima(x = ar_shop, order = c(3, 0, 0))
+#>
+#> Coefficients:
+#>          ar1     ar2      ar3  intercept
+#>       0.4634  0.2466  -0.0042   179.6324
+#> s.e.  0.0524  0.0563   0.0524     1.5156
+#>
+#> sigma^2 estimated as 73.84:  log likelihood = -1303.3,  aic = 2616.61
+
+round(c(two_days = AIC(fit2), three_days = AIC(fit3)), 1)
+#>   two_days three_days
+#>     2614.6     2616.6
+```
+
+Notice how precisely the penalty shows up here. `ar3` is -0.0042, so the third day improved the fit by almost exactly nothing, and the AIC rose by almost exactly 2, which is the standing charge for one more coefficient.
+
+That is the whole mechanism. A slot that earns back more than 2 points of fit is worth keeping, and a slot that does not is a slot you are paying for out of habit.
+
+=== step === concept
+## The morning the tour bus pulled up
+
+Every day so far has had one piece in it that we have not looked at straight on. In the formula it was \(e_t\), and it is time we looked at it properly, because the M and the A of ARIMA are built entirely out of it.
+
+A surprise is the part of a day that nothing before it could have told you. It is not bad weather in general, because if a storm was forecast you would already have been expecting a quiet day. A surprise is whatever is left over once everything knowable has been accounted for.
+
+At Bloom Coffee, a surprise looks like this. A tour bus pulls up at half past nine, forty people come through the door in twenty minutes, and by lunchtime the pastry case is empty. Nothing in the shop's own history could have told you it was coming.
+
+```r
+# Look at the daily surprises on their own, with the biggest one marked
+big_day <- which.max(shock)
+
+plot(shock, type = "h", col = "grey60",
+     main = "The daily surprises on their own",
+     xlab = "Day of the year", ylab = "Cups above or below an ordinary day")
+abline(h = 0, col = "grey20")
+points(big_day, shock[big_day], col = "#c1440e", pch = 16, cex = 1.4)
+
+round(c(day = big_day, cups_above_ordinary = shock[big_day]), 1)
+#>                 day cups_above_ordinary
+#>               292.0                22.7
+```
+
+Each vertical line is one day's surprise, drawn from zero. Most of them are small, a few are large, and not one of them has anything to do with the one before it. That is what makes them surprises.
+
+The orange dot is the biggest of the year. Day 292, counting from the first of January, is the nineteenth of October, and it ran 22.7 cups above what an ordinary day would have given the shop. Call it 23 cups that Bloom Coffee was never going to sell.
+
+=== step === concept
+## A rush that is still in the room the next day
+
+In the no-memory shop the tour bus is a one-day event, and then it is over. The next morning the shop goes back to being an ordinary shop, as if nothing had happened.
+
+Real shops often do not behave that way. Some of those forty people liked the flat white and came back on the Tuesday. Somebody put the place in a group chat. The staff were still in the rhythm of it and moved a bit quicker. The rush itself has finished, but a piece of it is still in the room.
+
+That is a different habit from memory, and the difference between the two matters, so let's be precise about it. Memory leans on yesterday's **sales**. This leans on yesterday's **surprise**. If yesterday was a perfectly ordinary day, one that anybody could have predicted, then there is no surprise to echo and nothing carries over.
+
+Let's build a shop that does exactly that, keeping 80% of yesterday's surprise, and set it beside the no-memory shop on the three days around the bus.
+
+```r
+# Build a shop where yesterday's surprise still echoes today, then read the tour-bus days
+ma_shop <- round(180 + shock + 0.8 * c(0, head(shock, -1)))
+
+days <- (big_day - 1):(big_day + 1)
+data.frame(day = days, no_echo = steady[days], with_echo = ma_shop[days])
+#>   day no_echo with_echo
+#> 1 291     186       191
+#> 2 292     203       208
+#> 3 293     183       201
+```
+
+`head(shock, -1)` is the surprise vector with its last day chopped off, and sticking a 0 on the front pushes everything along by one day. So `0.8 * c(0, head(shock, -1))` is simply "80% of yesterday's surprise", lined up against today.
+
+Day 293 is where it shows. Without the echo the shop drops straight back to 183, and the tour bus might as well never have come. With the echo it is still sitting at 201, because 80% of yesterday's 23-cup surprise is still there.
+
+Day 292 itself is the bus day, so the two shops differ there by only the small echo left over from day 291.
+
+=== step === concept
+## The moving average that averages nothing
+
+Written out, a shop that keeps yesterday's echo and nothing else looks like this:
+
+\[ y_t = c + e_t + \theta \, e_{t-1} \]
+
+Read it the same way as before. \(y_t\) is today's sales and \(c\) is the ordinary level. \(e_t\) is today's surprise and \(e_{t-1}\) is yesterday's. The new symbol, \(\theta\), is the Greek letter theta, and it says how loudly yesterday's surprise is still sounding today.
+
+Notice what is missing from that line. There is no \(y_{t-1}\) anywhere in it. Yesterday's sales figure never appears, only yesterday's surprise.
+
+Let's see whether R can recover the 0.8 we used, working from the sales figures alone.
+
+```r
+# Ask R how loud yesterday's surprise still is today
+arima(ma_shop, order = c(0, 0, 1))
+#>
+#> Call:
+#> arima(x = ma_shop, order = c(0, 0, 1))
+#>
+#> Coefficients:
+#>          ma1  intercept
+#>       0.7696   179.8438
+#> s.e.  0.0325     0.7978
+#>
+#> sigma^2 estimated as 74.36:  log likelihood = -1304.74,  aic = 2615.49
+```
+
+`order = c(0, 0, 1)` asks for zero days of memory, no differencing, and one day of echo. `ma1` comes back at 0.7696 against the 0.8 we built in, which is about as close as a single year of data will get you.
+
+That third slot is q, and it counts days of echo exactly the way p counts days of memory.
+
+Now let's deal with the name. **MA** stands for moving average, and it is honestly a terrible name.
+
+A moving average everywhere else in the world means smoothing a bumpy chart with a rolling mean, the sort of thing a sales dashboard draws on top of daily traffic. That is not this. Here it means the series is written as a weighted sum of recent surprises, and somebody long ago noticed that a weighted sum looks like an average, and the name stuck. If you have met a 7-day moving average before, set that idea aside. This is a different thing wearing the same name.
 
 === step === quiz
+## Quick check: memory or echo?
 
-::eyebrow Check yourself
-
-## Read ARIMA(0,1,2) out loud
-
-Meera has a friend with a bakery down the road, and a model for the bakery comes back as ARIMA(0,1,2). It has the same three slots in the same order.
+Bloom Coffee has an entirely ordinary week, running at exactly the sales you would have predicted every day. Then on Thursday the tour bus turns up. Come Friday, which habit reacts to Thursday?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Two past days, the growth taken out once, and no past misses carried
-- No past days at all, the growth taken out once, and two days of past misses carried ::ok Exactly right. p = 0 means the model leans on no past values whatsoever, so the whole memory of that series sits in q, in the last two forecast errors.
-- No past days, the change taken twice, and one day of past miss ::no The three slots are always p, then d, then q. So the 0 is p, and it says the model uses no past values at all. The 1 is d, one difference. The 2 is q, two days of past misses. Reading the slots in the wrong order is the single most common way to misread a label.
+- Only the memory, because Friday leans on Thursday and Thursday was a big day. ::no
+- Both can, but they react to different things: the memory leans on Thursday's sales figure, while the echo leans on the part of Thursday that nobody saw coming. ::ok That is the distinction to hold on to. AR reads past values, MA reads past surprises, and Thursday happens to be loaded with both.
+- Only the echo, because memory can react to a trend but never to a single day. ::no
+- Neither, because a one-off event is noise and models throw noise away. ::no Both habits can respond to Thursday, and the split between them is the whole point: AR leans on what the shop sold, MA leans on the unforecastable piece of what it sold. Noise is not thrown away here, it is precisely what MA is built out of.
 
 === step === concept
+## The shop is quietly getting bigger
 
-::eyebrow Where this comes from
+So far Bloom Coffee has always come home to 180 cups. Busy days and quiet days pull it around, but there is a level it keeps returning to, and both of the habits we have met so far need that level to exist.
 
+Now let's take the level away. The shop starts at 180 cups a day and creeps upward by about a tenth of a cup every day, week after week, for a year.
+
+```r
+# Build a shop that is slowly getting bigger, then compare its first month with its last
+growing <- round(180 + 0.12 * (1:365) + shock)
+
+plot(growing, type = "l", col = "grey40",
+     main = "A year at Bloom Coffee while the shop is growing",
+     xlab = "Day of the year", ylab = "Cups sold")
+
+round(c(first_30_days = mean(head(growing, 30)), last_30_days = mean(tail(growing, 30))), 1)
+#> first_30_days  last_30_days
+#>         186.2         221.8
+```
+
+An extra 0.12 cups a day is nothing you would notice on any given morning. Across a year it is the difference between averaging 186 cups in January and 222 cups in December.
+
+Here is the trouble that causes. Ask "is 210 cups a good day at Bloom Coffee?" and the honest answer is that it depends entirely on when you asked. In January it is a triumph and in December it is a disappointment. The question has stopped having a single answer, because there is no longer any such thing as an ordinary day.
+
+A series like this, with a level that never settles, is called **non-stationary**. AR and MA both need a level to lean against, so fitting either of them to it as it stands gives you numbers that do not mean anything.
+
+=== step === concept
+## Ask how much it changed, not how big it is
+
+The fix is a small change of question, and it is the whole of the I in ARIMA.
+
+Stop asking how many cups the shop sold. Ask how many more it sold than yesterday.
+
+That question has a stable answer all year round. In January the shop grows by a fraction of a cup a day, and in December it grows by a fraction of a cup a day. Both are the same. In R that takes one function, `diff()`, which subtracts each day from the one after it and hands back the changes.
+
+```r
+# Turn the levels into day-to-day changes and look at those instead
+change <- diff(growing)
+
+plot(change, type = "l", col = "#1f7a55",
+     main = "The same year, read as the change from one day to the next",
+     xlab = "Day of the year", ylab = "Change in cups sold")
+abline(h = 0, col = "grey20")
+
+round(c(first_30_changes = mean(head(change, 30)), last_30_changes = mean(tail(change, 30))), 2)
+#> first_30_changes  last_30_changes
+#>             0.10            -0.27
+```
+
+365 days of sales become 364 changes, because the first day has no day before it to compare with.
+
+Look at what the chart is doing now. It rattles up and down around zero, and it does that in exactly the same way in December as it did in January. The climb has gone, and what is left has a level that stays put.
+
+The early average change is 0.10 cups and the late one is -0.27, both of them small numbers scattered around the true growth rate. Set that against the levels, which marched from 186 to 222 and never came back.
+
+Doing this once is called differencing the series, and the middle slot of the label, d, counts how many times you did it. `d = 1` means the model works on changes. `d = 0` means it works on the raw figures, which is what every fit up to now has been doing without saying so.
+
+=== step === quiz
+## Quick check: what d = 1 does to a series
+
+A shop fits a model with `d = 1`. What has actually happened to its sales figures?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- The growth was thrown away, so the model can no longer say anything about how big the shop gets. ::no
+- The model works on the day-to-day change instead of the daily total, and the changes get added back up when the model is put to use. ::ok Right. Differencing is a change of question, not a loss of information. Every daily total can be rebuilt by starting at day one and adding the changes back on.
+- Each day was divided by the trend line to flatten it out. ::no
+- One unusual day was removed from the series before fitting. ::no Differencing does not delete anything and it does not divide by anything. It swaps the question from "how many cups" to "how many more than yesterday", and d simply counts how many times that swap was made.
+
+=== step === widget
+## Why the growth comes off first
+
+The order of operations here is easy to get backwards, so let's be plain about it. The differencing is not something applied to the memory and the echo afterwards. It happens first, and everything else is fitted to whatever is left.
+
+::widget process-flow {"steps":[{"title":"Difference the series","sub":"turn cups sold into the change from one day to the next"},{"title":"Fit the memory and the echo","sub":"AR and MA now describe daily moves, not daily cup counts"},{"title":"Add the changes back up","sub":"a forecast of changes becomes a forecast of cups again"}]}
+
+That last box is where the letter comes from. **I** stands for integrated, and integrating in this sense just means adding up. The name is describing the repair rather than the damage. You took differences on the way in, so you add them back up on the way out, and the forecast comes out in cups again.
+
+It also settles what the outer two numbers of a label are describing. In ARIMA(2, 1, 1), the 2 and the 1 on the ends are not about cups sold. They are about the daily change in cups sold. Miss that and you will read every ARIMA label slightly wrong.
+
+=== step === concept
+## One shop with all three habits
+
+Every shop so far has been a teaching shop, given one habit and nothing else. Bloom Coffee's real ledger has all three at once, which is the ordinary situation for anything you would actually be handed at work.
+
+So here is the real year. The daily change leans on the two changes before it, carries 80% of yesterday's surprise, and sits on top of a steady climb.
+
+```r
+# Build the shop's real ledger, with memory, echo and growth all at once
+set.seed(70)
+s    <- rnorm(365, sd = 2)     # the surprises, this time landing on the daily change
+move <- numeric(365)           # how much the shop moves from one day to the next
+for (t in 3:365) {
+  move[t] <- 0.5 * move[t - 1] + 0.25 * move[t - 2] + 0.4 + s[t] + 0.8 * s[t - 1]
+}
+cups <- round(180 + cumsum(move))
+
+plot(cups, type = "l", col = "grey25",
+     main = "Bloom Coffee's real year", xlab = "Day of the year", ylab = "Cups sold")
+
+c(day_1 = cups[1], lowest = min(cups), highest = max(cups), day_365 = cups[365])
+#>   day_1  lowest highest day_365
+#>     180     150     389     350
+```
+
+Two pieces of that line are worth naming. The `0.4` is the growth, a small steady push added to the daily change rather than to the cup count. And `cumsum()` is what adds a year of those daily moves up into a running total of cups, which is how the shop travels so far from where it opened.
+
+The surprises here are much smaller than the ones we have been using, 2 cups rather than 9, and there is a good reason for that. These ones land on the daily change, and changes accumulate, so a surprise on day 40 is still sitting in the shop's level on day 300. Nine-cup surprises piled up that way would send Bloom Coffee to the moon by March.
+
+Now read the line, because it is nothing like a tidy upward ramp. The shop opens the year at 180 cups a day and then has a bad spring: by day 139, the nineteenth of May, it is down to 150. It recovers over the summer, runs hard through the autumn and touches 389 on day 316, then eases back to finish the year at 350.
+
+That wandering is what all three habits look like when they work together. There is a climb inside it, but it is nowhere near a straight line, and not one day of it was inevitable.
+
+=== step === concept
+## ARIMA(2,1,1), read out loud
+
+Now we hand R the sales figures and nothing else, and ask it to find the three habits.
+
+Every number in the call is one of the letters: two days of memory, one differencing, one day of echo.
+
+```r
+# Fit the label that says two days of memory, one differencing, one day of echo
+arima(cups, order = c(2, 1, 1))
+#>
+#> Call:
+#> arima(x = cups, order = c(2, 1, 1))
+#>
+#> Coefficients:
+#>          ar1     ar2     ma1
+#>       0.5158  0.2349  0.6474
+#> s.e.  0.1227  0.1144  0.1018
+#>
+#> sigma^2 estimated as 3.768:  log likelihood = -758.77,  aic = 1525.55
+```
+
+Set the estimates against the shop we built. `ar1` is 0.5158 against a true 0.5, and `ar2` is 0.2349 against a true 0.25. From 365 numbers and nothing else, R found the memory almost exactly.
+
+The echo lands a little short: `ma1` is 0.6474 where the truth is 0.8. That gap is worth explaining. We rounded the ledger to whole cups, the way a real till would, and that rounding sprinkles a small independent wobble on top of the real surprises. An echo estimate cannot tell that wobble apart from genuine noise, so it reads a touch quieter than it should. Take the rounding away and the estimate climbs back to the 0.8 we built in.
+
+And that is the sentence the label was hiding all along.
+
+[KEY INSIGHT]
+ARIMA(2, 1, 1) says: today's **change** in cups leans on the two changes before it, the series was differenced once to take the growth out, and one day of random noise is still echoing.
+
+One last thing to notice, because it looks like something has been left out. There is no intercept row in this fit. Once you difference a series, `arima()` drops the constant by default, because the ordinary level it would be estimating no longer exists.
+
+=== step === quiz
+## Quick check: which shop needs which label?
+
+A bakery has sold roughly the same volume for three years, with no growth in it at all. Yesterday's total tells you a lot about today's, while the total from two days back adds nothing on top of that. One-off surprises fade out the same day they arrive.
+
+Which label fits that bakery?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- ARIMA(0, 1, 1) ::no
+- ARIMA(1, 0, 0) ::ok Yes. One day of memory gives p = 1, no growth to remove gives d = 0, and surprises that fade the same day give q = 0.
+- ARIMA(1, 1, 1) ::no
+- ARIMA(0, 0, 1) ::no Take the three clues in order. Yesterday matters and the day before does not, so p = 1. The volume has not grown in three years, so there is nothing to difference and d = 0. Surprises leave nothing behind, so q = 0.
+
+=== step === tryit
+## Your turn: is the second day of memory worth keeping?
+
+`cups` still holds Bloom Coffee's real year, and the ARIMA(2, 1, 1) fit came in with an AIC of 1525.5.
+
+Fit the one-day version of the same model, ARIMA(1, 1, 1), on the same series, and put the two AIC values beside each other. Then decide which of the two you would keep.
+
+```r
+# Fit ARIMA(1, 1, 1) on cups and compare its AIC with the 1525.5 above
+# Remember the three slots are order = c(p, d, q).
+# Press Check when you have it.
+```
+::check {"regex": "order\\s*=\\s*c[(]\\s*1\\s*,\\s*1\\s*,\\s*1", "gate": true, "difficulty": "intermediate", "ok": "Right: ARIMA(1, 1, 1) scores 1527.4 against 1525.5 for ARIMA(2, 1, 1). The two-day model wins by about 2 points, so the second day of memory paid its rent and you would keep it.", "no": "One call on the same series, with a 1 in the first slot: `arima(cups, order = c(1, 1, 1))`. Then read the aic line at the bottom, or wrap the fit in `AIC()`."}
+::solution
+```r
+# Fit the one-day version and set its AIC beside the two-day version
+one_day  <- arima(cups, order = c(1, 1, 1))
+two_days <- arima(cups, order = c(2, 1, 1))
+
+one_day
+#>
+#> Call:
+#> arima(x = cups, order = c(1, 1, 1))
+#>
+#> Coefficients:
+#>          ar1     ma1
+#>       0.7629  0.4305
+#> s.e.  0.0385  0.0607
+#>
+#> sigma^2 estimated as 3.808:  log likelihood = -760.69,  aic = 1527.38
+
+round(c(arima_1_1_1 = AIC(one_day), arima_2_1_1 = AIC(two_days)), 1)
+#>  arima_1_1_1  arima_2_1_1
+#>       1527.4       1525.5
+```
+
+Look at what the one-day model did once it was denied a second slot. `ar1` jumped from 0.5158 up to 0.7629, inflating yesterday's pull to cover for the day it could not see, which is the very same trick the memory shop pulled on us before.
+
+The gap between them is under 2 points, a much thinner win than the 20 points we saw before. That is honest: there really is a second day of memory in this shop, but with only 365 days of till receipts, the evidence for it is modest.
+
+=== step === quiz
+## Quick check: what ARIMA(0,1,2) would say about a shop
+
+A subscription business fits ARIMA(0, 1, 2) to its daily signups and hands you the label with no explanation. What is that model claiming about the signups?
+
+::quiz {"correct": 1, "gate": true, "difficulty": "advanced"}
+- The daily change leans on no past days at all, the growth was taken out once, and surprises from the last two days are still echoing. ::ok Exactly right, and you have just read a label you had never seen before. p = 0 is no memory, d = 1 is one differencing, and q = 2 is two days of echo.
+- The last two days of signups are used to predict today, and the trend was removed once. ::no
+- Two rounds of growth were taken out and one day of surprise still echoes. ::no
+- Daily signups were smoothed with a two-day rolling average after the trend was removed. ::no The slots are always p, d, q in that order, so 0 is the memory, 1 is the differencing and 2 is the echo. The last option is the trap worth naming out loud: the MA in ARIMA is not a rolling average of past sales, it is a weighted sum of past surprises.
+
+=== step === concept
 ## References
 
-The shop and its numbers are mine. The ideas underneath are standard, and these are the places to go deeper.
-
-- Hyndman and Athanasopoulos, *Forecasting: Principles and Practice* (3rd edition), chapter 9 on ARIMA models: [otexts.com/fpp3/arima.html](https://otexts.com/fpp3/arima.html)
-- The R documentation for the function used here, `stats::arima`: [the R manual page](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html)
-- Hyndman and Khandakar (2008), Automatic Time Series Forecasting, *Journal of Statistical Software* 27(3): [jstatsoft.org/article/view/v027i03](https://www.jstatsoft.org/article/view/v027i03)
-- Shumway and Stoffer, *Time Series Analysis and Its Applications* (4th edition), chapter 3, for the full treatment.
-- Box, Jenkins, Reinsel and Ljung, *Time Series Analysis: Forecasting and Control* (5th edition), Wiley, 2015. The original source of the method.
+- [Forecasting: Principles and Practice, 3rd edition, chapter 9](https://otexts.com/fpp3/arima.html) - Hyndman and Athanasopoulos. The clearest free treatment of ARIMA anywhere, and the natural place to go for seasonal models.
+- [Fit an ARIMA model to a univariate time series](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html) - R Core Team, the documentation for the `arima()` function used throughout.
+- [Automatic Time Series Forecasting: The forecast Package for R](https://doi.org/10.18637/jss.v027.i03) - Hyndman and Khandakar (2008), Journal of Statistical Software 27(3). How an automatic order search picks p, d and q for you.
+- Box, Jenkins, Reinsel and Ljung (2015), Time Series Analysis: Forecasting and Control, 5th edition, Wiley. The book the whole method comes from.
+- Shumway and Stoffer (2017), Time Series Analysis and Its Applications, 4th edition, Springer, chapter 3. A more mathematical treatment of the same ground.
 
 === step === complete
+## Quick recap
 
-## You can read the label now
+You started with three plain observations about a coffee shop and finished by fitting all three. Here is the whole of it:
 
-It all came from three sentences about a coffee shop, and you have now met all three of them.
+- **AR** is memory: the shop leans on its own recent days. You measured it at 0.61 with one slot, and watched it split into 0.46 and 0.24 when it was given two.
+- **MA** is echo: the shop leans on its own recent surprises. You measured that at 0.77, and saw a 23-cup tour bus leave 18 cups behind on the following day.
+- **I** is growth taken out: ask how much the shop changed rather than how big it is. A series that marched from 186 cups to 222 turned into changes that sat around zero all year.
+- **p, d and q** are simply how many days of memory, how many differencings, and how many days of echo, always in that order.
+- **AIC** decides whether an extra slot was worth having. Every coefficient costs 2 points, so a slot that does not buy back more than that is a slot you are paying for out of habit.
 
-Busy days come in runs, so today leans on the days just before it. That is **AR**, and **p** counts how many days back it may reach.
+So when somebody drops ARIMA(2,1,1) into a meeting, you can now say what it means without hesitating:
 
-The shop keeps growing, so the level itself will not stand still. Take the change from day to day instead. That is **I**, and **d** counts how many times you do it.
+"Today's change leans on the last two days, the growth was taken out once, and one day of random noise is still echoing."
 
-A rush that came from nowhere still leaves a mark on the next day, so the model carries a share of yesterday's miss. That is **MA**, and **q** counts how many days of misses it carries.
-
-Put them in order and ARIMA(2,1,1) stops being soup. Today leans on the last two days, the growth was taken out once, and one day of surprise still echoes. You can read any label you are handed the same way now, on Meera's shop or on your own data.
-
-That leaves one gap, and it is the obvious one: those three numbers were handed to you. Working them out for yourself comes down to reading two plots that show how far back the memory in a series actually goes.
+The one thing we did by hand today was choosing which orders to try, and there are plots that narrow that choice down for you before you fit anything at all.
