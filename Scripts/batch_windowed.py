@@ -91,14 +91,6 @@ PROMPT = """Follow the skill at .claude/skills/write-lesson/SKILL.md in --build 
 Work from the project root; the repo is selva86.github.io/. The plan at
 selva86.github.io/post_plans/{slug}_lesson-plan.md is stamped approved:
 build strictly from it (floor, not ceiling; never reorder or re-plan).
-
-FRAME: you are the owner of r-statistics.co. One student emailed you the
-question this lesson answers, and this is your reply: you at a whiteboard,
-walking one person through it, the way your published posts in the skill's
-Exemplars/ folder walk a reader through. You are not producing content; you
-are explaining to someone. Read the four Exemplars/ posts and the exemplar
-lesson before drafting, then write each step as that reply.
-
 Write selva86.github.io/lessons/{slug}.md, run both gates until green, and
 finish with the short summary the skill asks for. Do not publish, build, or
 touch git.
