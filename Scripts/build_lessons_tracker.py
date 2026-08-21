@@ -102,6 +102,7 @@ LESSON_CATALOG_TITLE = {
     'ARIMA-Mini-2': 'ACF and PACF: how to read the plots for ARIMA orders',
     'Regression-Reading-Mini-1': 'Interaction effects: test and interpret them',
     'Regression-Health-Mini-1': 'Multicollinearity: why your coefficients look wrong, and the fix',
+    'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
     'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v3': "Welch's ANOVA: the test for unequal group variances",
