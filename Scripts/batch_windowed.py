@@ -337,9 +337,12 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
             if '.prev' in name:
                 continue              # rotated older copies, never restored to the tree
             dst = os.path.join(ROOT, name.replace('__', os.sep))
-            if not os.path.exists(dst):
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                shutil.move(os.path.join(archive, name), dst); n += 1
+            # OVERWRITE: after a failed rebuild the tree may hold the rejected
+            # new build at this path; the archive copy is the live truth.
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            if os.path.exists(dst):
+                os.remove(dst)
+            shutil.move(os.path.join(archive, name), dst); n += 1
         log(f'rebuild: restored {n} archived artifact(s) after failure')
 
     # Stage 1: a fresh session PLANS only. (--resume: skip if a plan exists.)
