@@ -353,6 +353,12 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
     elif resume and os.path.exists(plan_path):
         log(f'seq {seq} -> {slug}: resume, plan exists; skipping planner')
     else:
+        # Fresh planning: a leftover plan (from a killed or failed earlier run)
+        # must never be readable by the new planner session, or it anchors on
+        # the old arc and wording. Delete it before the session starts.
+        if os.path.exists(plan_path):
+            os.remove(plan_path)
+            log(f'seq {seq} -> {slug}: removed leftover plan before fresh planning')
         prompt = PLAN_PROMPT.format(**fmt) + indep
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
