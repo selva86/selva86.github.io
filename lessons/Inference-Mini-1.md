@@ -1,11 +1,11 @@
 ---
 title: "How statistical inference works, no formulas yet"
 slug: "Inference-Mini-1"
-description: "A friend calls nine of ten cups right by taste. Skill, or luck? Build the luck-only world in R, count how often blind guessing wins, and meet inference."
-keywords: "how statistical inference works, statistical inference, statistical inference explained, inference without formulas, null hypothesis intuition, simulation based inference, statistical inference in R, lady tasting tea"
+description: "Arjun says he can spot an AI written review, and calls ten of twelve right. Build the pure guessing world in R and count how often luck does that well."
+keywords: "how statistical inference works, statistical inference, null hypothesis, statistical significance, simulation in R, hypothesis testing for beginners, inference from scratch"
 mathjax: false
 webr: true
-date: "2026-08-21"
+date: "2026-08-23"
 post_type: "LESSON"
 course_id: "inference-from-zero"
 course_title: "Inference from Zero"
@@ -13,536 +13,436 @@ course_lesson: "1"
 course_total: "7"
 course_landing: "/dashboard.html"
 course_prev: ""
-course_next: "Inference-Mini-2"
+course_next: ""
 curriculum_id: "0.0.1"
 lesson_access: "windowed"
-catalog_blurb: "What a statistical test is really asking, built from one taste test."
+catalog_blurb: "How to tell a real result from a lucky one, without formulas."
 ---
 
 === step === cover
 ::eyebrow Inference from Zero
 ## How statistical inference works, no formulas yet
 
-Today let's understand the essence of how statistical inference works.
+You have probably heard the one about ten cups poured in a kitchen, nine of them called right, and a friend who swears she can taste Coke against Pepsi. Hold on to that scene for a second, because the same argument is about to break out at your lunch table over something more modern.
 
-Let's start with a simple bet. You are at a friend's place for dinner when Priya makes a claim: she can tell Coke from Pepsi purely by taste alone.
+Arjun, who sits two desks away, makes a claim: he can spot an AI written product review just by reading it. The wording gives it away, he says.
 
-Nobody at the table believes it.
+Nobody at the table believes him.
 
-So you carry ten identical plastic cups into the kitchen and fill each one by tossing a coin. When it lands heads you fill it with Coke and for tails fill it with Pepsi, while writing the answers down as you go.
+So you settle it after lunch.
 
-Not even you know how many of each you poured. Next, Priya tastes all ten and calls them one at a time.
+You print twelve product reviews and pick each one by tossing a coin. Heads and you take a review a real customer wrote, tails and you take one a chatbot wrote, while writing the answers on a slip of paper as you go.
 
-She gets nine right and one wrong.
+By the time you fold the slip into your pocket and hand him the stack, even you have lost track of the order.
 
-Now, is Priya really skilled, or just got lucky?
+Arjun reads all twelve and calls them one at a time.
 
-Getting nine out of ten right does feel like a lot. However, the trouble is that somebody with no ability whatsoever, somebody purely guessing, would still get a fair share of the cups right by chance, and every so often that guesser would get almost all of them right.
+He gets ten right and two wrong.
 
-So the question is not whether 9 out of 10 sounds impressive. It does. The real question is how often blind luck manages nine.
+Ten out of twelve does feel like a lot. The trouble is that somebody with no ability at all, somebody flipping a mental coin on every review, would still get a fair share of them right, and every so often that person would get nearly all of them.
 
-How can we find out?
+So the question is not whether ten of twelve sounds impressive. It does. The real question is how often pure guessing manages ten.
 
-Press the buttons below and watch. Each press plays that many rounds of ten pure-guess calls, right now, in front of you. Every round lands on one of the eleven bars according to how many cups it got right, so the bars grow taller as the rounds pile up. The two orange bars on the right are nine and ten, the rounds where luck alone matched Priya or beat her.
+Press the buttons below. Each round is twelve pure guesses played right now in front of you, and the bars stack up the scores those rounds land on. The orange ones are the scores where guessing alone did as well as Arjun or better.
 
-::widget luck-simulator {"trials": 10, "p": 0.5, "observed": 9, "unit": "cups called right"}
-
-Whatever you just talked yourself into while those bars piled up, that was statistical inference. Everything from here is the same move, done slowly and done properly.
+::widget luck-simulator {"trials": 12, "p": 0.5, "observed": 10, "unit": "correct calls", "seed": 11}
 
 === step === concept
-## Either Priya can taste the difference, or she got lucky
+## The twelve calls, and how many Arjun got right
 
-Let's start by getting the evening written down as data, because every count we make from here on comes out of it.
+Let's get the numbers on the table first, because everything we work out later is measured against them.
 
-There are two rival explanations sitting on the table. One says Priya has a real ability to taste the difference. The other says she has no ability at all and simply caught a good run of guesses. Nobody in that kitchen can look at the ten cups and tell you which one of the two is true.
-
-So let's rebuild the evening in R. The coin toss fills the cups, and Priya's ten calls go in beside them.
+The `truth` column below is the answer key that sat folded in your pocket, decided one coin toss at a time. The `call` column is what Arjun said out loud as he read. The `set.seed(4)` line pins down which coin tosses R hands you, so the twelve reviews on your screen are the same twelve I am talking about.
 
 Press Run.
 
 ```r
-# Pour ten cups on a coin toss and record the ten calls Priya made
-set.seed(1)
-pours <- sample(c("Coke", "Pepsi"), size = 10, replace = TRUE)
+# Build the twelve reviews, record what Arjun called, and score him
+set.seed(4)
+truth <- sample(c("human", "chatbot"), 12, replace = TRUE)   # one coin toss per review
 
-calls <- pours        # she matched the pour on nine of the ten cups
-calls[4] <- "Pepsi"   # cup 4 held Coke and she said Pepsi, her one miss
+calls <- truth          # start from the key, then put back the two he got wrong
+calls[3]  <- "chatbot"  # a real customer review he called a chatbot
+calls[10] <- "human"    # a chatbot review he called real
 
-data.frame(cup = 1:10, poured = pours, called = calls, correct = calls == pours)
-#>    cup poured called correct
-#> 1    1   Coke   Coke    TRUE
-#> 2    2  Pepsi  Pepsi    TRUE
-#> 3    3   Coke   Coke    TRUE
-#> 4    4   Coke  Pepsi   FALSE
-#> 5    5  Pepsi  Pepsi    TRUE
-#> 6    6   Coke   Coke    TRUE
-#> 7    7   Coke   Coke    TRUE
-#> 8    8   Coke   Coke    TRUE
-#> 9    9  Pepsi  Pepsi    TRUE
-#> 10  10  Pepsi  Pepsi    TRUE
+reviews <- data.frame(review = 1:12, truth = truth, call = calls)
+n_right <- sum(reviews$call == reviews$truth)
+
+reviews
+#>    review   truth    call
+#> 1       1 chatbot chatbot
+#> 2       2   human   human
+#> 3       3   human chatbot
+#> 4       4   human   human
+#> 5       5   human   human
+#> 6       6 chatbot chatbot
+#> 7       7   human   human
+#> 8       8 chatbot chatbot
+#> 9       9   human   human
+#> 10     10 chatbot   human
+#> 11     11   human   human
+#> 12     12 chatbot chatbot
+
+n_right
+#> [1] 10
 ```
 
-`sample()` with `replace = TRUE` is the coin toss. It draws from Coke and Pepsi ten times over, and each draw ignores the ones before it. That is why the pours came out six Coke and four Pepsi instead of a neat five and five, which is exactly what a real coin would have done.
+Read the two columns side by side and you can see exactly where he slipped. On review 3 a real customer's writing got called a chatbot, and on review 10 a chatbot got called real. Every other row matches.
 
-`set.seed(1)` just fixes which ten pours you get, so your cups match mine.
+`n_right` counts the rows where his call equals the key, and it comes to 10.
 
-Now count the cups she called correctly.
-
-```r
-# Count how many of the ten cups Priya called correctly
-her_hits <- sum(calls == pours)
-her_hits
-#> [1] 9
-```
-
-`calls == pours` compares the two lists cup by cup and hands back ten TRUEs and FALSEs. `sum()` treats a TRUE as 1 and a FALSE as 0, so it simply adds up the hits.
-
-So, nine. That is the number the rest of the evening is going to argue about.
+So the score is ten of twelve, and that is what everything from here on gets measured against.
 
 === step === concept
-## Why does nine out of ten not settle it?
+## What made the reading test fair
 
-Nine out of ten feels like a lot, and that feeling is the thing we have to put to the test.
+Before we make anything of that ten, we should be sure the test itself was worth running. A score of ten only means something if reading the review was the one thing that could have helped him.
 
-Here is what makes it hard. Somebody with no ability at all does not score zero. They are saying Coke or Pepsi on every cup, so on any single cup they have a coin's chance of being right, and across ten cups they will land a fair few by accident.
+Two decisions took care of that. Each review went into the stack on a coin toss, so no person chose how many of each kind Arjun would face. And the answers stayed folded in your pocket, so he had nothing to work with except the words in front of him.
 
-So let's put a pure guesser in that kitchen and let them call the very same ten cups. They taste nothing. They just say Coke or Pepsi at random.
-
-```r
-# Play one round where somebody with no ability guesses all ten cups
-set.seed(7)
-one_guess <- sample(c("Coke", "Pepsi"), size = 10, replace = TRUE)
-sum(one_guess == pours)
-#> [1] 4
-```
-
-Four out of ten, from somebody who cannot taste a thing. Not nine, but a long way from nothing.
-
-And that was one round. Send in a different guesser and they might land three, or six, or on a very good night, nine.
-
-That is the whole difficulty in one line. Luck does not hand you a zero by default. Luck gets cups right, and every so often it gets a great many of them right, and that is exactly why you cannot judge Priya's nine until you know how far luck can stretch.
-
-=== step === concept
-## What happens if we let luck try ten thousand times?
-
-One guesser on one night tells us almost nothing. To learn what luck usually does, we have to watch it try thousands of times.
-
-So let's send in ten thousand pure guessers, one after another. Each one calls the same ten cups Priya faced, each one guesses blind, and we write down every score.
-
-The function `replicate()` in the code below runs the same round over and over and stores the score from each one.
+Here is what the coin actually produced.
 
 ```r
-# Play ten thousand pure-guess rounds and store how many cups each one got right
-set.seed(2)
-luck_hits <- replicate(10000, {
-  guess <- sample(c("Coke", "Pepsi"), size = 10, replace = TRUE)
-  sum(guess == pours)
-})
-
-hist(luck_hits, breaks = seq(-0.5, 10.5, by = 1), col = "grey85", border = "white",
-     main = "10,000 rounds played by pure guessing",
-     xlab = "Cups called right out of ten")
-abline(v = 9, col = "red", lwd = 3)
+# Count how many of the twelve reviews were human written and how many were chatbot
+table(key = reviews$truth)
+#> key
+#> chatbot   human
+#>       5       7
 ```
 
-Let's read the output slowly, because everything else rests on it.
-
-Each grey bar counts the rounds that scored that many cups. The tall bar over 5 holds the guessers who got half of them right, about 2,400 rounds, and there are more of those than of anything else. That is what a coin does.
-
-Move right and the pile thins out fast. Seven turns up around 1,100 times. Eight drops to a bit over 400. Nine and ten are down near the floor of the chart, and you have to look for them.
-
-The red line is Priya, at nine. She is not off the chart. Pure guessing does reach her, it just reaches her rarely. How rarely, exactly? Let's count that next.
+The coin gave seven human and five chatbot. That split is worth noticing, because nobody in the room knew it, Arjun included. Had somebody told him, he could have called seven of them human and collected correct answers for free, without reading a line.
 
 === step === quiz
-## Quick check: what is that pile actually made of?
+## Quick check: what would have ruined the test?
 
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- Ten thousand rounds that Priya herself played, so the pile shows how well she usually does. ::no
-- The ten cups from the kitchen, counted up a different way. ::no
-- Ten thousand rounds played by somebody with no ability at all, scored against the same ten cups Priya faced. ::ok That is it. Not one bar in that pile came from Priya. It is a made-up world where the taster is guessing every cup, built on purpose so we can see what guessing alone produces.
-- Proof that Priya was guessing, because her nine shows up inside the pile. ::no Every bar in that pile is a round of blind guessing, not a round Priya played, so the pile says nothing about her by itself. We built it to answer one narrow question: how far can luck stretch? Her nine landing out in the thin right tail is the thing we go on to measure, and it is not a verdict on its own.
+You are setting the same test up again next week. Which one of these would stop the score from measuring his reading?
+
+::quiz {"correct": 1, "gate": true, "difficulty": "beginner"}
+- Telling Arjun at the start that seven of the twelve came from real customers. ::ok Right. The moment he knows seven are human, he can call seven of them human and beat a guesser without reading a word, so his score would be measuring arithmetic instead of reading.
+- Tossing a coin for every review, so that not even you knew the split in advance. ::no
+- Letting Arjun take as long as he wanted over each review. ::no
+- Writing the answers on a slip of paper instead of trying to remember them. ::no Only one of these changes what the score measures. The coin toss, the unhurried reading and the slip of paper all leave his calls resting on the reviews themselves. Knowing the split does not, because seven human and five chatbot is something he can score off without reading anything. Showing him where each review came from, or choosing the twelve by hand, would break the test in the same way.
 
 === step === concept
-## So how often does luck reach nine?
+## Start by assuming Arjun cannot tell at all
 
-Now let's do the counting, which is shorter than you might expect.
+Now comes the move that feels backwards the first time you see it.
 
-We have ten thousand luck-only scores sitting in `luck_hits`, and we want the rounds that did as well as Priya or better. That means nine or ten. Anything under nine did worse than she did, so it does not count against her.
+To argue that Arjun has skill, you do not begin by assuming he has skill. You begin by assuming the opposite: he cannot tell a chatbot review from a real one at all, and every call he made was a coin flip inside his head. Then you check whether his ten makes that assumption look ridiculous.
 
-The "or better" catches people out, because Priya scored nine and not ten. Here is why it belongs. We are asking how easily luck produces an evening this impressive, and a guesser who lands all ten has cleared that bar too. Leave the tens out and you are quietly pretending luck never does better than nine, which would make luck look worse at this than it really is.
+That starting assumption has a name. It is called the **null hypothesis**, written H0 and said out loud as "H nought". It is the boring story, the one where nothing interesting is going on.
+
+Three moves take us from that assumption to an answer.
+
+::widget process-flow {"steps": [{"title": "Assume no skill", "sub": "every call Arjun made was a coin flip"}, {"title": "Replay the guessing", "sub": "10,000 rounds of pure guessing on the same twelve reviews"}, {"title": "Count the matches", "sub": "how many of those rounds reached ten right"}]}
+
+Everything from here is just doing those three things, one at a time.
+
+=== step === concept
+## What one pure guesser scores on the same twelve reviews
+
+You might expect a guesser to get six of twelve, since half of twelve is six. On average that is exactly right. However, any single round of guessing is a different matter.
+
+Let's put one guesser through the same twelve reviews. `sample()` with `replace = TRUE` draws twelve calls at random, each one human or chatbot with equal chance, which is a coin flipped twelve times.
 
 ```r
-# Count the pure-guess rounds that matched or beat Priya's nine
-sum(luck_hits >= 9)
-#> [1] 120
-mean(luck_hits >= 9)
-#> [1] 0.012
+# Let one pure guesser call the same twelve reviews
+set.seed(7)
+one_round <- sample(c("human", "chatbot"), 12, replace = TRUE)
+sum(one_round == reviews$truth)
+#> [1] 8
 ```
 
-`luck_hits >= 9` turns the ten thousand scores into ten thousand TRUEs and FALSEs. `sum()` counts the TRUEs, and `mean()` writes that same count as a share of all ten thousand.
+A different seed here, so a different set of tosses from the ones that built the key, and again the same ones on your screen as on mine.
 
-So 120 rounds out of 10,000 reached her, which as a share comes to 0.012, a little over one in a hundred.
+This guesser got eight of the twelve right, on no reading and no knowledge whatsoever, and still finished only two calls short of Arjun.
 
-[KEY INSIGHT]
-That one number is statistical inference in a single move. Assume the boring explanation is true, replay the evening inside it thousands of times, and count how often luck alone does as well as the real result. Here, luck reached nine about 12 times in every 1,000 attempts.
+One round tells us nothing about what guessing usually does. For that we need a great many rounds.
 
-So a guesser who matches Priya is not impossible, just rare. And rare is something you can act on, which is the thing to sort out next.
+=== step === concept
+## Ten thousand rounds of pure guessing
+
+`replicate()` runs the same block of code over and over and keeps the answer from every run. So we ask it for ten thousand rounds of pure guessing against the same answer key, and then draw the whole pile of scores. It takes a couple of seconds.
+
+```r
+# Play 10,000 rounds of pure guessing against the same answer key
+set.seed(1)
+luck_scores <- replicate(10000, {
+  guesses <- sample(c("human", "chatbot"), 12, replace = TRUE)
+  sum(guesses == reviews$truth)
+})
+
+hist(luck_scores, breaks = seq(-0.5, 12.5, by = 1), col = "grey85", border = "white",
+     main = "10,000 rounds of pure guessing on the same twelve reviews",
+     xlab = "Reviews called right out of twelve")
+abline(v = 10, col = "red", lwd = 3)
+```
+
+That grey pile is what pure guessing looks like when you let it run ten thousand times. Every bar sits over a score, and the height of the bar is how many of the ten thousand rounds finished on that score.
+
+Look at where the pile sits. The tall bars are around six, which is what a coin should give you. But the pile has real width to it. Guessing wanders up to eight and nine often enough to see clearly, and it keeps going, thinning as it goes, until the bars almost run out on the right.
+
+The red line is Arjun's ten. Notice that it is not off the chart. It sits out in the thin part, where guessing does reach but rarely.
+
+Rarely is not a number, and a number is what we need. So let's count.
+
+=== step === quiz
+## Quick check: what one bar in that pile means
+
+Take the bar sitting over 9 in the chart you just drew. What is its height counting?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- The chance that Arjun scores 9 the next time somebody hands him twelve reviews. ::no
+- The number of reviews that a guesser called correctly. ::no
+- The number of those 10,000 pure guessing rounds that finished with exactly 9 calls right. ::ok Exactly. Each bar is a plain count of rounds, nothing more. Ten thousand rounds were played, every round landed on a score from 0 to 12, and each bar counts the rounds that landed on it.
+- How confident we are that Arjun really scored 9. ::no Every bar is a count of rounds of guessing, and only that. Arjun appears nowhere in the chart, because none of those ten thousand rounds involved him or anybody reading anything. The pile is what the boring story produces, drawn so that we have something to compare his ten against.
+
+=== step === concept
+## How often guessing alone reached ten
+
+`luck_scores` holds ten thousand numbers, one score for each round of guessing. To find how often guessing alone reached Arjun's ten, we ask how many of those numbers are ten or more. Ten or more rather than exactly ten, because the question is how often luck does at least as well as he did, and a round that scored eleven was luck outdoing him.
+
+```r
+# Count the guessing rounds that reached ten or better, then write it as a share
+sum(luck_scores >= 10)
+#> [1] 204
+
+mean(luck_scores >= 10)
+#> [1] 0.0204
+```
+
+So 204 of the ten thousand rounds reached ten or better.
+
+The second line writes that same count as a share. `luck_scores >= 10` turns the ten thousand scores into ten thousand TRUE and FALSE values, and `mean()` over TRUE and FALSE is simply the fraction that came out TRUE. So 204 out of 10,000 is 0.0204.
+
+That is about two in a hundred, and it answers the question the table argued about over lunch. How often does pure guessing manage ten of twelve? Roughly twice in every hundred attempts.
+
+=== step === concept
+## The verdict, and the bar you set before looking
+
+A count is not yet a decision. Somebody has to say how rare is rare enough, and to see what that choice is worth, let's watch the count change as the bar moves.
+
+The block below does the same counting at four different bars, 9, 10, 11 and 12. `sapply()` is what saves us writing the same two lines out four times: it runs the count once for every number in `bar` and collects the answers.
+
+```r
+# Show how the share of guessing rounds shrinks as the bar moves up
+bar <- 9:12
+data.frame(
+  at_least = bar,
+  rounds   = sapply(bar, function(k) sum(luck_scores >= k)),
+  share    = sapply(bar, function(k) mean(luck_scores >= k))
+)
+#>   at_least rounds  share
+#> 1        9    731 0.0731
+#> 2       10    204 0.0204
+#> 3       11     31 0.0031
+#> 4       12      3 0.0003
+```
+
+Nine or better is nothing special: guessing manages it seven times in a hundred. Ten drops that to two in a hundred. Eleven is three in a thousand.
+
+Arjun landed on ten. Two in a hundred is poor going for the guessing story. It can still explain what happened, but only by leaning on something that turns up about twice in every hundred tries, and skill explains the same result far more comfortably. So we drop the assumption that he was guessing and say he can do it.
+
+Now here is the honest part. There is no natural point where rare becomes rare enough. The line most fields use is 5 in 100, and it is a convention somebody started and everybody kept. What matters more than the number is that you fix it before you look at the result. Deciding what would have convinced you after you already know the answer is not deciding anything.
+
+[NOTE]
+Two in a hundred clears the usual 5 in 100 bar, so Arjun walks away vindicated. Had he scored nine, the count would have been about seven in a hundred, and by that same convention the table would have gone back to work with no verdict at all.
 
 === step === tryit
-## Your turn: how often does luck reach seven?
+## Your turn: how often does guessing reach eleven?
 
-Suppose Priya had called seven right instead of nine. Would the table have owed her an apology?
-
-`luck_hits` still holds the scores of all ten thousand pure-guess rounds. Count the ones that reached seven or more, then write that same count as a share of ten thousand.
+One more correct call would have put Arjun on eleven. Count how often pure guessing gets there.
 
 ```r
-# luck_hits holds the score of 10,000 pure-guess rounds of ten cups.
-# Count the rounds that reached seven or more,
-# then write that count as a share of all 10,000.
+# luck_scores holds the score from each of 10,000 pure guessing rounds.
+# Count the rounds that reached 11 or more, then write that same
+# count as a share of all 10,000.
 # Two lines. Press Check when you have them.
 ```
-::check {"regex": "luck_hits\\s*>=\\s*7", "gate": true, "difficulty": "beginner", "ok": "Right: 1,685 rounds out of 10,000, a share of 0.1685. Blind guessing reaches seven about one time in six, so seven out of ten would have proved nothing at all.", "no": "Use the same two lines as before and move the bar from 9 down to 7: `sum(luck_hits >= 7)`, then the same line with `mean()` in place of `sum()`."}
+::check {"regex": "luck_scores\\s*>=\\s*11", "gate": true, "difficulty": "beginner", "ok": "Yes: 31 rounds out of 10,000, a share of 0.0031. One extra correct call takes the result from rare to almost unheard of.", "no": "Use the same two counting lines with the bar moved up: `sum(luck_scores >= 11)`, then the same line with `mean()` in place of `sum()`."}
 ::solution
 ```r
-# Count the pure-guess rounds that reached seven or more, and the same as a share
-sum(luck_hits >= 7)
-#> [1] 1685
-mean(luck_hits >= 7)
-#> [1] 0.1685
+# Count the guessing rounds that reached eleven or better
+sum(luck_scores >= 11)
+#> [1] 31
+
+mean(luck_scores >= 11)
+#> [1] 0.0031
 ```
 
-Seven out of ten sounds impressive right up until you see this. Blind guessing gets there about one round in six, so if Priya had called seven the table would have been right to shrug.
-
-Two cups made all the difference. Nine sits out where luck rarely reaches, whereas seven sits right where luck goes all the time.
+That is three in a thousand. The bar you set decides how much evidence you are asking for, and moving it by a single call changes that a great deal.
 
 === step === concept
-## Is one in a hundred rare enough to call it?
+## What the two-in-a-hundred does not say
+::prose-only the point is which direction the reasoning runs, and the picture that carries it is the pile of guessing scores already drawn
 
-We have the number now. Luck reaches nine about 12 times in 1,000. What we do not have is a rule for what to do about it.
+There is one sentence people say about a result like this that sounds right and is not. Let's pin it down while the numbers are still fresh, because it is the difference between reading a result correctly and reading it backwards.
 
-Rare is not a verdict on its own. Somebody has to decide how rare is rare enough before they are willing to say that luck is a poor explanation for what happened. That line is a choice, and it belongs to whoever is running the test.
+Our 0.0204 was counted inside a world we built by hand, a world where Arjun has no skill whatsoever. All ten thousand of those rounds were pure guessing, by construction. So the number says one thing and one thing only: if Arjun could not tell the difference at all, a score of ten or better would still show up about twice in a hundred tests.
 
-Three lines get picked most often in practice: one in ten, one in twenty, and one in a hundred, which written as shares are 0.10, 0.05 and 0.01. Let's hold our number up against all three at once.
+What it does not say is that there is a 2% chance he was guessing. That would be a statement about Arjun, and we never worked out anything about Arjun. We worked out what a guessing machine produces.
+
+[KEY INSIGHT]
+The count runs in one direction. Assume no skill, then ask how ordinary Arjun's result would be. It never runs the other way, from his result back to the chance that he has no skill.
+
+The two sentences use the same ingredients, which is why they sound like the same sentence. They are not the same, and keeping them apart is most of what it takes to read a result honestly.
+
+=== step === concept
+## Why a three-review test could never settle this
+
+Twelve reviews was a choice you made while standing at the printer. So let's see what a shorter test would have been able to settle.
+
+Suppose you had printed three reviews instead of twelve and Arjun had called all three right. That is a perfect score, and it would have looked wonderful. Here is how often pure guessing manages the same thing.
 
 ```r
-# Compare the luck-only share against the three bars people pick most often
-luck_share <- mean(luck_hits >= 9)
-bars <- c(0.10, 0.05, 0.01)
+# Run the same guessing test on only the first three reviews
+set.seed(3)
+tiny_scores <- replicate(10000, {
+  guesses <- sample(c("human", "chatbot"), 3, replace = TRUE)
+  sum(guesses == reviews$truth[1:3])
+})
 
-data.frame(
-  bar        = bars,
-  luck_share = luck_share,
-  verdict    = ifelse(luck_share < bars, "luck is a poor explanation", "luck stays on the table")
-)
-#>    bar luck_share                    verdict
-#> 1 0.10      0.012 luck is a poor explanation
-#> 2 0.05      0.012 luck is a poor explanation
-#> 3 0.01      0.012    luck stays on the table
+mean(tiny_scores == 3)
+#> [1] 0.1198
 ```
 
-`ifelse()` checks the share against each bar in turn and writes the matching verdict, so all three answers land side by side.
+That happens about twelve times in a hundred. A guesser sweeps all three roughly once in every eight attempts, which is common enough that you could never rule it out.
 
-Now look at the bottom row. Same evening, same nine cups, same 0.012, and the answer flips depending on the line you drew.
-
-At one in ten and at one in twenty, luck looks like a poor way to explain Priya. At one in a hundred it does not, because 0.012 sits just above 0.01. One in twenty is the line most fields default to, and there is no deep reason for it. It is a habit somebody started and everybody kept.
-
-[WARNING]
-The bar is a decision, not a fact the data hands you. Pick it before the tasting starts and say out loud which one you picked. Choosing it afterwards, once you can see which side of the line you landed on, is how perfectly honest people end up talking themselves into the answer they were hoping for.
-
-=== step === widget
-## How the tasting went from a claim to a verdict
-
-Everything that happened in that kitchen was five moves, and they came in a fixed order. It is worth naming them, because the order is what makes the final number mean anything.
-
-::widget process-flow {"steps":[{"title":"Write the claim","sub":"Priya says she can tell Coke from Pepsi by taste"},{"title":"Assume no ability","sub":"the boring explanation: she is guessing every cup"},{"title":"Replay on luck alone","sub":"ten thousand blind rounds against the same ten cups"},{"title":"Count the matches","sub":"how many of those rounds reached nine or better"},{"title":"Compare with the bar","sub":"the line you picked before the tasting began"}]}
-
-Notice the second move, because it is the one people find strange. You do not start by assuming Priya is skilled and then hunt for support. You start by assuming she is not, and then check whether the evening makes that assumption look silly.
-
-So why is it built backwards? Because there is exactly one way to be guessing, so we can build that world precisely and count inside it. There are a thousand ways to be skilled, and no single world you could build.
-
-The fifth move is the only one that is not arithmetic. The first four hand you a number. The last one is you deciding what that number is worth.
+So a perfect score on a three-review test is worth almost nothing, however good it looks written down. How big you make the test decides what the test is able to settle, and it decides that before anybody reads a word.
 
 === step === concept
-## A t-test asks the same question
+## The claim is about Arjun, not about these twelve reviews
 
-::prose-only the five moves already have their diagram directly above, and this maps familiar test names onto that same diagram rather than drawing a new one
+Here is what makes all of this inference rather than counting.
 
-Here is the payoff for having done it by hand.
+Nobody at the table cares about those twelve particular reviews. They were printed, called and thrown in the recycling. The claim on trial is about Arjun himself: can he do this, in general, on reviews nobody has shown him yet? The twelve were only a sample of every review he might have been handed.
 
-Every test you are going to meet in statistics is those same five moves. What changes is the data and the arithmetic in the middle. The shape never changes.
-
-Take a t-test, which compares two groups. Say you have the average order value from two branches of a store, and one branch is ahead by 90 rupees. The boring explanation is that the two branches are really the same and 90 is a wobble. The luck world is all the ways those same customers could have been dealt out between the two branches, and the count is how often that wobble reaches 90.
-
-An ANOVA runs the same move for three branches or ten instead of two. A chi-squared test runs it for counts in a table instead of averages. A correlation test runs it for two columns that seem to rise and fall together.
-
-Claim, boring explanation, luck world, count, bar. That is the shape every time.
-
-And that is why doing it the slow way is worth the hour. Learn one test as a recipe and you have learned exactly one test. Learn this move and the rest are variations you can reason your way through, including the ones you have never run.
-
-=== step === concept
-## Can R skip the ten thousand rounds?
-
-Simulating ten thousand rounds is the honest way to see what the number really is. However, it is not how anybody computes it at work.
-
-For a run of yes-or-no calls like this one, a function like `binom.test()` reaches the same answer exactly, in one line and without simulating anything at all. You hand it the hits, the number of cups, and the chance of being right by guessing.
+That matters, because a sample wobbles. To see how much, take a caller who genuinely has the skill, somebody who is right 80% of the time, and hand him twelve reviews ten thousand times over. `rbinom(10000, 12, 0.8)` asks: out of twelve calls, each right with probability 0.8, how many came out right this time? Then it does that ten thousand times.
 
 ```r
-# Get the same answer straight from R, with no simulation involved
-binom.test(her_hits, 10, p = 0.5, alternative = "greater")
+# Score a caller who really is right 80 percent of the time, over 10,000 tests
+set.seed(5)
+skilled_scores <- rbinom(10000, 12, 0.8)
+table(skilled_scores)
+#> skilled_scores
+#>    4    5    6    7    8    9   10   11   12
+#>    5   37  173  539 1326 2372 2827 2053  668
+
+mean(skilled_scores < 10)
+#> [1] 0.4452
+```
+
+Read the table first. A caller who is right 80% of the time usually scores nine, ten or eleven, but his scores run all the way from four to twelve. It is the same person with the same ability every time, judging twelve reviews at a go.
+
+Now look at the second number. In 44.52% of those tests, a genuinely skilled caller scored below ten. Nearly half the time, real ability produces a result no better than the one we spent the afternoon judging, and often worse.
+
+That is not a flaw in the test. It is what judging a person from a handful of examples means. Twelve reviews tell you about Arjun only indirectly, and that is exactly why we counted how often guessing reaches ten instead of simply admiring the ten.
+
+=== step === concept
+## binom.test does the ten thousand rounds in one line
+
+You will not want to write a guessing simulation every time a question like this comes up. For a setup this simple, R already has the count built in.
+
+`binom.test()` works out the same share with exact arithmetic instead of simulation. Read its arguments as "ten right out of twelve calls". The `alternative = "greater"` part says we only care about doing better than a coin, not worse.
+
+```r
+# Ask the same question with the built-in exact test
+binom.test(10, 12, alternative = "greater")
 #>
 #> 	Exact binomial test
 #>
-#> data:  her_hits and 10
-#> number of successes = 9, number of trials = 10, p-value = 0.01074
+#> data:  10 and 12
+#> number of successes = 10, number of trials = 12, p-value = 0.01929
 #> alternative hypothesis: true probability of success is greater than 0.5
 #> 95 percent confidence interval:
-#>  0.6058367 1.0000000
+#>  0.5618946 1.0000000
 #> sample estimates:
 #> probability of success
-#>                    0.9
+#>              0.8333333
 ```
 
-Read the arguments as "nine hits out of ten cups, when a guesser is right half the time". The `alternative = "greater"` part says we only care about doing better than guessing, not worse.
+The line to look at is `p-value = 0.01929`.
 
-The line to look at is `p-value = 0.01074`. Our ten thousand rounds gave 0.012. The two agree to two decimal places, and neither one is more correct than the other.
+Ten thousand rounds of guessing gave us 0.0204. The exact arithmetic gives 0.01929. They agree, and they were always going to: the simulation is an estimate of the very number this function computes exactly. Run the rounds again from a different starting seed and you would land somewhere else close by, a little above or a little below.
 
-So where does that exact 0.01074 come from? There is nothing mysterious in it. Think of a guesser's ten calls, not the pours this time. Since every call is a fifty-fifty choice, those ten calls can come out 1,024 different ways, all equally likely. Ten of those ways get exactly nine cups right and one gets all ten, so eleven of the 1,024 reach Priya or beat her.
-
-```r
-# Work out the exact answer by hand: the ways luck reaches nine or better, out of 1,024
-ways <- choose(10, 9) + choose(10, 10)
-c(ways = ways, out_of = 2^10)
-#>   ways out_of
-#>     11   1024
-round(ways / 2^10, 5)
-#> [1] 0.01074
-```
-
-Eleven in 1,024. That is the figure the test printed, and it is the figure our ten thousand rounds were circling.
-
-This number has a name, and you have almost certainly met it long before it made any sense. It is the p-value, and it is nothing more exotic than the share you just counted by hand.
-
-=== step === concept
-## Would twenty cups have been more convincing?
-
-Here is the question the table should have asked before anybody poured anything. How many cups is enough?
-
-Picture the same evening with twenty cups, and Priya calling eighteen of them right. That is the same accuracy, nine in every ten. Her claim has not changed and her skill has not changed. The only thing that grew is the amount of evidence.
-
-So let's pour twenty and send fifty thousand blind guessers at them.
-
-```r
-# Pour twenty cups and play fifty thousand pure-guess rounds against them
-set.seed(3)
-pours20 <- sample(c("Coke", "Pepsi"), size = 20, replace = TRUE)
-
-luck20 <- replicate(50000, {
-  guess <- sample(c("Coke", "Pepsi"), size = 20, replace = TRUE)
-  sum(guess == pours20)
-})
-
-hist(luck20, breaks = seq(-0.5, 20.5, by = 1), col = "grey85", border = "white",
-     main = "50,000 rounds of twenty cups, played by pure guessing",
-     xlab = "Cups called right out of twenty")
-abline(v = 18, col = "red", lwd = 3)
-```
-
-The pile has moved. Its tall bars now sit around ten, which is half of twenty, and the red line at eighteen is far out at the edge where there is barely anything left. Across all fifty thousand rounds, not one guesser managed a clean twenty.
-
-Now set that beside the ten-cup picture, where nine sat close enough to the crowd that you had to squint at it.
-
-Doubling the cups did not make Priya better. It made luck worse at imitating her. That is worth holding on to, because the two are easy to mix up. Nine of ten and eighteen of twenty are the same skill. They are not the same evidence.
-
-=== step === tryit
-## Your turn: how often does luck reach eighteen of twenty?
-
-Put a number on it. `luck20` holds the scores of all fifty thousand blind rounds of twenty cups. Count the ones that reached eighteen or more, then write that count as a share of fifty thousand.
-
-```r
-# luck20 holds the score of 50,000 pure-guess rounds of twenty cups.
-# Count the rounds that reached eighteen or more,
-# then write that count as a share of all 50,000.
-# Two lines. Press Check when you have them.
-```
-::check {"regex": "luck20\\s*>=\\s*18", "gate": true, "difficulty": "beginner", "ok": "Yes: 12 rounds out of 50,000, a share of 0.00024. Luck reaches nine of ten about once in a hundred tries, and eighteen of twenty about twice in ten thousand.", "no": "The same two lines as before, pointed at the twenty-cup scores: `sum(luck20 >= 18)`, then the same line with `mean()` in place of `sum()`."}
-::solution
-```r
-# Count the twenty-cup pure-guess rounds that reached eighteen or more, and the share
-sum(luck20 >= 18)
-#> [1] 12
-mean(luck20 >= 18)
-#> [1] 0.00024
-```
-
-Twelve rounds in fifty thousand. Put that next to the ten-cup answer, where 120 rounds in ten thousand reached nine.
-
-One in a hundred was interesting. Two in ten thousand is the sort of number that ends an argument at a dinner table. Same claim, same accuracy, twice the cups.
-
-=== step === concept
-## What made the tasting fair?
-
-::prose-only this is a procedure to follow before any data exists rather than an object to draw, and the five moves it protects already have their diagram
-
-The count we did is only worth something if the evening was set up properly. Three things had to be true before Priya tasted a drop, and each one is easy to get wrong.
-
-- **The pours had to be random.** Every cup was filled on a coin toss, which is the only reason a guesser has an even chance on each one. Fill six with Coke because there was more Coke in the fridge, mention it to Priya, and she can score well by saying Coke a lot.
-- **She had to be blind.** No labels, no odd cup out, no watching you pour, and no reactions from the table between calls. Each of those gives her a second way of being right, and then a high score stops meaning the thing we counted.
-- **The bar had to go in first.** We picked our line before we knew the answer. Settling on one in a hundred after seeing 0.012, precisely because it lets you keep the answer you liked, is not a decision. It is a story.
-
-There is a fourth trap that catches more people than those three combined. Suppose the table had let Priya taste again and again, and then counted only her best run. The count would be worthless. The world we built assumed ten cups, once. Every extra attempt you throw away is one more chance for luck to hand you a nine.
-
-None of this is arithmetic, and none of it can be repaired afterwards. It is all decided before the first cup is poured, and no amount of careful counting later can rescue an evening that was set up badly.
-
-=== step === concept
-## What does that one in a hundred still not tell you?
-
-::prose-only the limits here are about what a claim may and may not say, and the pile of luck-only rounds they refer to is already drawn
-
-We have a number and we have a verdict. Now the fine print, because this is where careful people still overreach.
-
-Let's start with what we are entitled to say. Blind guessing reaches nine of ten about once in a hundred tries. Priya reached nine. So guessing is a poor explanation for what happened at that table. That is the whole claim, and it is a real one.
-
-Here is what it does not say.
-
-It does not say how good Priya is. Our count never measured her ability at all. It measured what a guesser does. Somebody who can tell the two drinks apart every single time, and somebody who can tell them apart three times in four, would both produce a nine often enough, and one evening cannot separate them.
-
-It does not say she will do it again. The next ten cups are a fresh evening with fresh luck in them. She might call all ten. She might call six.
-
-And it does not say there is a one in a hundred chance she was guessing. Read that one twice, because it sounds identical to what we found and it is not. We began by assuming she was guessing, then asked how often that assumption produces a nine. We never asked how likely the assumption itself was, and nothing in the count could have told us.
-
-So the honest sentence, the one you can say out loud at the table without being wrong, is this. If Priya had no ability at all, an evening this good would turn up about once in a hundred tries, and we just watched one.
+And this is where it stops being about Arjun at all. Swap the twelve calls for two groups of patients and you have a t-test. Swap them for the average order value at three branches of a store and you have ANOVA. The data changes, the arithmetic changes, and the question underneath stays exactly the same: how surprising would this result be if nothing but luck were at work?
 
 === step === quiz
-## Quick check: what can you fairly say about Priya's nine?
+## Quick check: seven of twelve, and what to make of it
 
-Priya called nine of ten, and blind guessing reaches nine or better about 12 times in every 1,000 rounds. Which sentence is fair?
+Suppose the afternoon had gone differently and Arjun had called seven of the twelve right instead of ten. It is the same coin toss, the same twelve reviews and the same key in your pocket. What should the table make of seven?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- There is about a one in a hundred chance that Priya was guessing. ::no
-- If Priya had no ability at all, an evening this good would turn up about once in a hundred tries, so guessing is a poor explanation for what we saw. ::ok Exactly right. It assumes the boring explanation first, then reports how ordinary Priya's evening would be inside it. That is the only direction this count ever runs.
-- Priya gets about nine of ten right, so she can tell the drinks apart roughly 90% of the time. ::no
-- The evening proves Priya can taste the difference. ::no Three of these four claim more than the count can support. Two of them put odds on Priya, either on her being a guesser or on her true ability, and neither was ever measured; the count only ever describes a world where she is guessing. The third treats one evening as proof, when a rare result makes luck a poor explanation without making anything certain.
+- Seven is above half, so it is weak evidence that he has some skill. ::no
+- Guessing alone reaches seven or better in roughly 38 rounds out of every 100, so a score of seven settles nothing either way. ::ok That is it. Of the ten thousand guessing rounds, 3,775 reached seven or better. A result that ordinary gives you no reason to drop the guessing story, and no reason to believe it either.
+- Seven of twelve shows he was guessing, since a guesser averages six. ::no
+- Seven is only three short of ten, so the verdict barely changes. ::no Seven sits in the fattest part of the guessing pile: 3,775 of the ten thousand pure guessing rounds got there or better. That is far too ordinary to argue against guessing, and it is no proof of guessing either, because a skilled caller has bad days too. A test that lands there has settled nothing, which is a real and honest outcome rather than a failure.
 
 === step === tryit
-## Your turn: would eight of ten have cleared the bar?
+## Your turn: hand Arjun twenty reviews instead
 
-Before we close, four questions on the whole evening.
+Twelve reviews was your decision on the day. A longer test changes what counts as convincing, and it changes it in a direction most people find surprising.
 
-Arun, who was sitting across the table, wants a go at the same ten cups. He calls eight of them right.
-
-The table had settled on one in twenty before anybody poured, which written as a share is 0.05.
-
-`luck_hits` still holds the scores of all ten thousand pure-guess rounds. Count the ones that reached eight or better, write that count as a share of ten thousand, then hold the share up against the line the table picked.
+Ten of twelve is 83% correct. Fifteen of twenty is 75% correct, a weaker performance. Count how often pure guessing reaches fifteen out of twenty, then compare it with the two in a hundred that Arjun's ten came to.
 
 ```r
-# luck_hits holds the score of 10,000 pure-guess rounds of ten cups.
-# Count the rounds that reached eight or better, write that count as a
-# share of all 10,000, then test whether the share comes in under the
-# line the table agreed on before the pouring started.
-# Three lines. Press Check when you have them.
+# rbinom(10000, 20, 0.5) plays 10,000 rounds of a twenty review test
+# for a pure guesser, and gives the number of correct calls in each round.
+# Store those scores, then write the share of them that reached 15 or more.
+# Press Check when you have it.
+set.seed(6)
 ```
-::check {"regex": "luck_hits\\s*>=\\s*8[\\s\\S]*<\\s*0?\\.05", "gate": true, "difficulty": "intermediate", "ok": "There it is: 550 rounds out of 10,000, a share of 0.055, which does not come in under 0.05. Blind guessing reaches eight about five times in every hundred rounds, so Arun misses the line the table drew.", "no": "Two counting lines and one comparison. Count with `sum(luck_hits >= 8)`, take the share with `mean(luck_hits >= 8)`, then test that share with `< 0.05`."}
+::check {"regex": "rbinom\\s*[(]\\s*10000\\s*,\\s*20\\s*,\\s*0?\\.5", "gate": true, "difficulty": "intermediate", "ok": "Right: 213 rounds out of 10,000 reached fifteen, a share of 0.0213. Fifteen of twenty is the weaker performance, and the longer test still leaves guessing only about 2 chances in 100 of matching it.", "no": "Build the scores first, then count them: `big_scores <- rbinom(10000, 20, 0.5)`, then `mean(big_scores >= 15)`."}
 ::solution
 ```r
-# Count the pure-guess rounds that reached eight or better, then hold the share against the bar
-sum(luck_hits >= 8)
-#> [1] 550
-arun_share <- mean(luck_hits >= 8)
-arun_share
-#> [1] 0.055
-arun_share < 0.05
-#> [1] FALSE
+# Count how often a pure guesser reaches fifteen right out of twenty
+set.seed(6)
+big_scores <- rbinom(10000, 20, 0.5)
+
+sum(big_scores >= 15)
+#> [1] 213
+
+mean(big_scores >= 15)
+#> [1] 0.0213
 ```
 
-One cup is the whole difference between the two of them. Priya's nine came out at 0.012 and cleared the line with room to spare. Arun's eight comes out at 0.055 and misses it, because blind guessing reaches eight about five times in every hundred rounds and reaches nine about once.
-
-So Arun is not owed an apology and the table is not being harsh. The line went in before the pouring, and his evening landed on the wrong side of it.
+Fifteen of twenty lands in the same place as Arjun's ten of twelve, about 2 in 100, even though 75% correct is the weaker showing. Give a test more calls to make and a smaller edge becomes just as hard for guessing to fake.
 
 === step === quiz
-## Quick check: which of these evenings still means what we counted?
+## Quick check: which sentence states the verdict correctly
 
-Four different tables run the same taste test, and all four report a taster who called nine of ten. Only one of those evenings lets you say what we have been saying. Which one?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The pourer ran short of Pepsi, so seven of the ten cups held Coke, and the taster was told as much before she started. ::no
-- Every cup was filled on a coin toss, the taster saw nothing and heard nothing from the table between calls, and the line was written down before the first pour. ::ok That is the evening we counted. Random pours are the only reason a guesser has an even chance on each cup, blindness is the only reason a high score has to come from taste, and a line picked in advance is the only one nobody can bend afterwards.
-- The taster played five separate evenings of ten cups each, and the table reported the best of the five. ::no
-- The table looked at 0.012, decided one in a hundred was the sensible line after all, and reported that luck could not be ruled out. ::no Three of these four break something before the arithmetic ever starts. Loading the cups with Coke and saying so hands the taster a way to score well without tasting a thing. Playing five evenings and keeping the best one gives luck five chances at a nine and then shows you only its luckiest. Choosing the line once you can see which side of it you landed on is not a decision, it is a story. None of the three can be repaired by counting more carefully afterwards.
-
-=== step === tryit
-## Your turn: is a perfect six as good as nine of ten?
-
-Arun wants a rematch and he wants it shorter. Six cups this time, poured the same way on a coin toss. He calls all six right.
-
-A clean sweep, nothing missed, and it feels like the strongest result of the whole evening. The only way to know is to build the luck world for six cups and count inside it.
-
-```r
-# Play 10,000 pure-guess rounds against a six-cup evening
-set.seed(5)
-six_pours <- pours[1:6]
-
-# Two lines to write. First build luck6, playing 10,000 blind rounds against
-# six_pours and storing the score of each round, the same shape as the ten-cup
-# scores. Then one line for the share of those rounds that called all six
-# correctly. Press Check when you have them.
-```
-::check {"regex": "luck6\\s*<-\\s*replicate[\\s\\S]*luck6\\s*(?:==|>=)\\s*6", "gate": true, "difficulty": "intermediate", "ok": "Yes: 146 rounds out of 10,000, a share of 0.0146. A clean sweep of six is easier for luck to reach than Priya's nine of ten, which sat at 0.012, so the shorter test is the weaker evidence.", "no": "Take the shape of the ten-cup rounds and shrink it. Build `luck6` with `replicate(10000, ...)`, where each round samples six cups at random and counts the hits against `six_pours`, then finish with `mean(luck6 == 6)`."}
-::solution
-```r
-# Play 10,000 pure-guess rounds against the six cups and count the clean sweeps
-set.seed(5)
-six_pours <- pours[1:6]
-
-luck6 <- replicate(10000, {
-  guess <- sample(c("Coke", "Pepsi"), size = 6, replace = TRUE)
-  sum(guess == six_pours)
-})
-
-sum(luck6 == 6)
-#> [1] 146
-mean(luck6 == 6)
-#> [1] 0.0146
-```
-
-146 rounds in ten thousand swept all six, which is a share of 0.0146. Set that beside Priya's 0.012 and the perfect score comes out behind.
-
-A guesser has to survive only six coin tosses to sweep six cups, and one round in sixty four manages it. Surviving ten of them, even with one miss allowed, is harder than that. So a spotless run on a short test is worth less than a near miss on a long one, which is the twenty cups arriving at the same place from the other direction.
-
-=== step === quiz
-## Quick check: why did the two answers not land on the same number?
-
-Ten thousand blind rounds gave 0.012. `binom.test()` printed 0.01074, and counting by hand put it at eleven ways out of 1,024. So why is there a gap at all?
+The count came to 204 rounds out of 10,000, which is 0.0204. Somebody at the table asks what that actually means. Which sentence says it correctly?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The two are answering different questions, so they were never going to agree. ::no
-- The simulation is an estimate. Ten thousand rounds is a sample of the luck world, so its answer wobbles around the exact 0.01074 and settles closer to it the more rounds you play. ::ok Exactly right. The exact figure is the truth of that world, and the ten thousand rounds are a handful of draws from it, so the two close in on each other as the rounds pile up rather than ever being at odds.
-- The seed is what separates them. Change the seed and both numbers would move. ::no
-- The exact figure counts only the ways to score nine, while the ten thousand rounds also counted the tens. ::no Both numbers answer one question: how often does blind guessing reach nine or better? The exact figure settles it by counting every way the ten calls can come out, and that count already includes the clean ten, which is why it is eleven ways and not ten. The ten thousand rounds sample the same world instead of counting it, so they land near the exact answer and shift a little with the seed, while the exact answer never moves at all.
+- There is about a 2% chance Arjun was only guessing. ::no
+- If Arjun were only guessing, a score of ten or better would still turn up in about 2 tests out of every 100. He got one. ::ok Yes. It assumes the boring story first and then reports how ordinary his result would be inside it. That is the only direction this count ever runs.
+- There is about a 98% chance Arjun can genuinely tell the two apart. ::no
+- Arjun reads reviews correctly about 98% of the time. ::no Three of these four put the probability on Arjun, or on how good he is. The count only ever says how often data like his turns up in a world where he has no skill at all. He got ten of twelve, which is 83% correct, and 0.0204 is how ordinary a score like that would be under pure guessing.
 
 === step === concept
 ## References
 
-- [The Design of Experiments](https://archive.org/details/in.ernet.dli.2015.502684) - Fisher (1935). Chapter 2 sets out the tasting experiment this evening is built on: cups poured at random, then counted against what chance alone would manage.
-- [The Lady Tasting Tea](https://openlibrary.org/works/OL4274440W) - Salsburg (2001). The story of the afternoon behind Fisher's chapter, and how one question at a tea table reshaped the way experiments are designed.
-- [The Introductory Statistics Course: A Ptolemaic Curriculum?](https://doi.org/10.5070/T511000028) - Cobb (2007), Technology Innovations in Statistics Education 1(1). The case for teaching inference by counting luck-only outcomes before any formula arrives.
-- [Introduction to Statistical Investigations](https://www.isi-stats.com/isi/) - Tintle, Chance, Cobb, Rossman and colleagues. A full course built on the move you just made.
-- [Exact binomial test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/binom.test.html) - R Core Team, the documentation for `binom.test()`.
+- [The Design of Experiments](https://archive.org/details/in.ernet.dli.2015.502684) - Fisher (1935), chapter 2. The lady tasting tea, where this way of arguing was first written down properly.
+- [The Introductory Statistics Course: A Ptolemaic Curriculum](https://doi.org/10.5070/T511000028) - Cobb (2007), Technology Innovations in Statistics Education 1(1). The case for teaching inference by simulation before formulas.
+- [Permutation Methods: A Basis for Exact Inference](https://doi.org/10.1214/088342304000000396) - Ernst (2004), Statistical Science 19(4), 676-685. Why counting rearrangements is a real test rather than a shortcut.
+- [Introduction to Statistical Investigations](http://www.isi-stats.com/isi/) - Tintle, Chance, Cobb, Rossman, Roy, Swanson and VanderStoep (2016), Wiley. A full course built on simulated worlds where nothing is going on.
+- [Exact binomial test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/binom.test.html) - R Core Team, the documentation for the one line version of the count you ran by hand.
 
 === step === complete
 ## Quick recap
 
-You settled a bet at a dinner table by building the boring world where Priya is guessing every cup, and then counting inside it. To summarize:
+You just did the whole of statistical inference on one small question, and you did it without a formula in sight. Here is the shape of what you did.
 
-- The question was never whether nine of ten sounds impressive. It was how often blind luck manages nine.
-- You built the luck-only world by hand: ten thousand rounds of pure guessing against the same ten cups.
-- You counted the rounds that matched Priya or beat her. 120 out of 10,000, a share of 0.012, and `binom.test()` put the exact figure at 0.01074, which is eleven ways out of 1,024.
-- You picked a bar and watched the verdict move with it, which is exactly why the bar goes in before the tasting starts.
-- You poured twenty cups instead of ten and watched the same accuracy turn into far stronger evidence: 12 rounds in 50,000.
+- A claim turned up that could be skill or could be luck. Arjun called ten of twelve reviews right.
+- The test was built so that nothing but reading could help him. A coin chose every review and the answer key stayed out of sight.
+- You assumed the boring story first, that he cannot tell at all, and played ten thousand rounds of pure guessing to see what that story produces.
+- You counted the rounds that reached his ten. 204 out of 10,000, about 2 in 100.
+- Two in a hundred is poor going for the guessing story, so skill is the better reading. The bar you judge against is a convention, and you fix it before you look.
+- The count says how ordinary his ten would be if he were guessing. It never says how likely it is that he was guessing.
+- Twelve reviews were only a sample of the reviews he might face, so scores wobble, and how big you make a test decides what it can settle.
 
-Five moves, every time. Write the claim, assume no ability, replay on luck alone, count the matches, compare with the bar.
+Every named test works this way underneath. A t-test, ANOVA, a chi-squared test: different data, different arithmetic, the same question about how far luck alone can stretch.
 
-Every test you are ever going to run is those same five moves in different clothes. A t-test, an ANOVA, a chi-squared test: the data changes, the arithmetic in the middle changes, and the shape holds.
+That count you made, 204 out of 10,000, has a name. It is called the p-value, and it is misread more often than any other number in statistics, which is where we go tomorrow.
 
-So the next time a result lands on your desk, you have one question to ask of it. How often would luck alone have done this well?
-
-Next time we take the number this count produced, the p-value, and go after everything people get wrong about it.
+See you then.
