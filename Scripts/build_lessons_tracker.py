@@ -109,6 +109,7 @@ LESSON_CATALOG_TITLE = {
     'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v3': "Welch's ANOVA: the test for unequal group variances",
+    'Which-Test-Mini-3': 'Mann-Whitney U test: when and how to run it',
 }
 
 
