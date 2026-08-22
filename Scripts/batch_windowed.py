@@ -321,7 +321,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
                  "earlier version of this lesson, any file whose name starts with "
                  f"{slug}, or any other lesson under lessons/. Plan and build from the "
                  "email promise, the source post, and the skill alone, as if no lesson "
-                 "had ever been written for it.\n")
+                 "had ever been written for it. If any exemplar inside the write-lesson skill tells THIS lesson's own story (a cover or passage on this very topic), treat that exemplar as an earlier version too: imitate its manner only, and build the lesson on a DIFFERENT running example with different people, things, and numbers.\n")
         owner_cover = os.path.join(BRIEFS, f'owner-cover-{slug}.md')
         owner_cover_used = os.path.exists(owner_cover)
         if owner_cover_used:
