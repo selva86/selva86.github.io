@@ -457,13 +457,22 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
             # default) long steps that share big verbatim chunks measured as
             # low as 0.21 when the honest figure was 0.71.
             norm = lambda t: ' '.join(t.split())
-            worst = 0.0
-            for ns in new_steps:
-                for os_ in old_steps:
-                    worst = max(worst, difflib.SequenceMatcher(None, norm(ns), norm(os_), autojunk=False).ratio())
-            log(f'independence check: worst step similarity vs canonical = {worst:.2f}')
+            worst, wi, wj = 0.0, -1, -1
+            for i, ns in enumerate(new_steps):
+                for j, os_ in enumerate(old_steps):
+                    r = difflib.SequenceMatcher(None, norm(ns), norm(os_), autojunk=False).ratio()
+                    if r > worst:
+                        worst, wi, wj = r, i, j
+            log(f'independence check: worst step similarity vs canonical = {worst:.2f} '
+                f'(new step {wi + 1} vs old step {wj + 1}, 1-based within compared steps)')
             if worst > 0.65:
                 log('FAIL: comparison build copied the canonical lesson (similarity > 0.65)')
+                # Never lose a finished build to the gate: keep the rejected
+                # markdown beside the archive for diagnosis before restoring.
+                if archive:
+                    import shutil as _sh
+                    _sh.copy2(lesson_md, os.path.join(archive, f'lessons__{slug}.md.rejected'))
+                    log(f'rejected build preserved at briefs/rebuild-archive/{slug}/lessons__{slug}.md.rejected')
                 restore_archive(); return None
 
     log('gates + publish steps')
