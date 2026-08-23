@@ -1,8 +1,8 @@
 ---
 title: "Confidence intervals: what they really mean"
 slug: "Inference-Mini-3"
-description: "A 95% confidence interval is not 95% of pizzas and not a 95% chance. Build intervals from a week of delivery times and count which ones catch the true average."
-keywords: "confidence interval meaning, what does 95% confidence mean, confidence interval interpretation, confidence interval in R, standard error, coverage, prediction interval, t.test confidence interval"
+description: "A 95% confidence interval is not 95% of your data and not a 95% chance. Build intervals from a pizza shop's delivery times and see what the 95% really counts."
+keywords: "confidence interval meaning, what does 95% confidence mean, confidence interval interpretation, confidence interval in R, t.test confidence interval, coverage, standard error, prediction interval"
 mathjax: true
 webr: true
 date: "2026-08-23"
@@ -16,629 +16,555 @@ course_prev: "Inference-Mini-2"
 course_next: ""
 curriculum_id: "0.0.3"
 lesson_access: "windowed"
-catalog_blurb: "What the 95% in a confidence interval is actually promising."
+catalog_blurb: "What the 95% in a confidence interval is really counting."
 ---
 
 === step === cover
 ::eyebrow Inference from Zero
 ## Confidence intervals: what they really mean
 
-Bella's is the pizza place two streets over. At the bottom of every receipt they print a line about delivery: we are 95% confident your order takes between 22 and 30 minutes.
+You order from Mario's most Friday nights, and somewhere on the shop's page there is a line that sounds reassuring: we are 95% confident the average delivery takes between 22 and 30 minutes.
 
-It reads like a promise. The trouble is that nobody at the table agrees on what it promises.
+It reads like a promise. So what exactly is being promised?
 
-Ask around and you get two answers. One person says it means 95% of Bella's deliveries land between 22 and 30 minutes. Another says it means there is a 95% chance the true average delivery time sits somewhere in there.
+Ask around and you get one of two answers. Either 95% of pizzas arrive inside that window, or there is a 95% chance the shop's true average delivery time sits somewhere between 22 and 30 minutes.
 
-Both of those are wrong.
+Both sound sensible. Neither one is what the 95% says.
 
-The second one is wrong in a way that takes a few minutes to see properly, and almost everybody who uses these intervals at work has skipped straight past it.
+That is a strange thing to be true of a number this common, and most people nod along and never ask again. We are going to do the opposite. We will take Mario's actual delivery times and build the interval by hand, then build a kitchen whose true average we set ourselves, run a hundred nights through it, and watch which intervals catch that true average and which ones miss.
 
-So instead of handing you a definition to memorise, we are going to build these intervals ourselves out of one week of delivery times, then run a pizza place whose true average we already know, and count how often the intervals actually catch it.
+There are only three steps involved.
 
-::widget process-flow {"steps":[{"title":"Measure one week","sub":"twelve delivery times, one average, one interval"},{"title":"Rebuild that interval","sub":"once by resampling the week, once by the standard formula"},{"title":"Repeat a hundred times","sub":"count how many intervals caught the true average"}]}
+::widget process-flow {"steps":[{"title":"Take one sample","sub":"20 delivery times from one night at the shop"},{"title":"Turn it into an interval","sub":"a mean, plus and minus a margin"},{"title":"Repeat and count","sub":"how many of those intervals hold the true average"}]}
 
-Everything from here is doing those three things with numbers you can run yourself.
+That is the whole idea. By the end you will have one sentence you can say out loud about any confidence interval, and you will know exactly why the other two readings are wrong.
 
 === step === concept
-## Twelve delivery times and the average they give you
+## Where the 22 to 30 minutes came from
 
-Let's get some numbers on the table, because everything we build from here comes out of them.
+Before we argue about what the interval means, let's see where those two numbers came from. Nobody picked them to sound good. They were computed.
 
-I asked Bella's for last week's delivery times and they handed over twelve, in the order they came in: 39, 27, 20, 22, 25, 24, 33, 15, 29, 29, 27, 22 minutes.
+Mario's has not timed every pizza it will ever send out. Nobody can. What the shop has is a record of its last 20 deliveries, in minutes, and that record is the whole basis of the claim on the page.
+
+Press Run.
+
+```r
+# Take the shop's last 20 delivery times and turn them into a 95% interval
+deliveries <- c(13, 15, 15, 16, 20, 21, 22, 24, 24, 25, 25,
+                27, 27, 28, 32, 33, 33, 33, 42, 45)
+
+c(orders = length(deliveries), mean = mean(deliveries), sd = round(sd(deliveries), 2))
+#> orders   mean     sd
+#>   20.0   26.0    8.6
+
+t.test(deliveries)$conf.int
+#> [1] 21.97685 30.02315
+#> attr(,"conf.level")
+#> [1] 0.95
+```
+
+Twenty orders, averaging 26.0 minutes, with a standard deviation of 8.6 minutes. One pizza took 13 minutes and another took 45, which is what a real kitchen on a real evening looks like.
+
+`t.test(deliveries)$conf.int` pulls the confidence interval out of R's one-sample t-test. It hands back two numbers, 21.98 and 30.02. Round those off and you have the 22 to 30 the shop advertises. The `attr(,"conf.level")` line underneath is R telling you which level it used, and 0.95 is its default.
+
+So the interval is not a fact about pizza. It is a pair of numbers computed from those 20 delivery times, and it moves the moment the 20 times move.
+
+=== step === concept
+## Do 95% of pizzas actually arrive between 22 and 30?
+
+That is the first reading, and it is the easy one to settle, because we are holding the very 20 delivery times the interval was built from. If 95% of pizzas land between 22 and 30 minutes, then about 19 of these 20 should.
+
+Let's count them and draw them.
+
+```r
+# Count how many of the 20 deliveries actually landed inside 22 to 30 minutes
+inside <- deliveries >= 21.98 & deliveries <= 30.02
+sum(inside)
+#> [1] 8
+mean(inside)
+#> [1] 0.4
+
+hist(deliveries, breaks = 8, col = "grey85", border = "white",
+     main = "Mario's last 20 deliveries",
+     xlab = "Delivery time in minutes")
+abline(v = c(21.98, 30.02), col = "red", lwd = 3)
+```
+
+Eight out of twenty. That is 40%, and 40% is nowhere near 95%.
+
+The histogram says the same thing in one look. The two red lines are the interval, and the bars spill well past them on both sides. The 13 and 15 minute deliveries sit off to the left, the 42 and 45 minute ones sit off to the right, and none of them is a mistake. They are ordinary Friday nights.
+
+So that settles the first reading. The interval was never a claim about where individual deliveries land.
 
 [NOTE]
-Those twelve numbers are invented for the example. Every number computed from them, from here to the end, is real output from R.
+Look at the width for a second. The delivery times themselves run from 13 to 45 minutes, a spread of 32 minutes, and yet the interval is only 8 minutes wide. Something that narrow could not possibly be describing individual pizzas.
 
-Press Run and look at what twelve orders give you.
+So what is it describing? The average. Every ingredient that went into it, the mean of 26.0 and the count of 20 orders, is about the average delivery time and nothing else.
 
-```r
-# Last week's twelve delivery times, and the average they give
-orders <- c(39, 27, 20, 22, 25, 24, 33, 15, 29, 29, 27, 22)
+=== step === quiz
+## Quick check: what is the interval a statement about?
+::prose-only the histogram immediately above carries the picture, and this asks the reader to put what it showed into words
 
-c(n = length(orders), average = mean(orders), spread = round(sd(orders), 2))
-#>       n average  spread 
-#>   12.00   26.00    6.27 
+Mario's 95% interval runs from 21.98 to 30.02 minutes, and 8 of the shop's 20 deliveries landed inside it. What is that interval making a claim about?
 
-stripchart(orders, method = "stack", pch = 19, col = "grey40",
-           main = "Twelve deliveries from last week",
-           xlab = "Minutes from order to doorstep")
-abline(v = mean(orders), col = "red", lwd = 3)
-```
-
-Look at the two numbers that matter. The average of the twelve is 26.0 minutes, which is the red line in the plot. The `sd()` line gives 6.27, which is the standard deviation: roughly how far a single delivery falls from that average. So a typical order lands about six minutes either side of 26, and you can see that in the dots, which run from a 15 minute sprint to a 39 minute crawl.
-
-Now the important part, and it is easy to slide past.
-
-That 26.0 is not Bella's delivery time. It is last week's twelve orders averaged. If Bella's kept cooking and driving under the same conditions forever, all those delivery times would settle around some fixed number, and that fixed number is what we actually want to know. Call it the **true average**. Nobody has ever seen it and nobody ever will.
-
-What we have is 26.0, an estimate of it, built out of twelve orders.
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- The delivery time of your next order, which should land between 22 and 30 minutes. ::no
+- The 20 orders it was built from, 95% of which should sit inside it. ::no
+- The average delivery time across all of the shop's orders, and not any single delivery. ::ok That is it. The interval is built out of the mean, so it is a statement about the mean. Individual pizzas scatter much more widely, which is exactly why only 8 of the 20 landed inside it.
+- The range the shop can guarantee, since it chose to advertise those numbers. ::no Three of these four talk about individual deliveries or about a guarantee. The interval only ever talks about the average delivery time, and we watched the individual times ignore it completely: 8 of 20 inside, not 19 of 20.
 
 === step === concept
-## Why next week's twelve orders would land somewhere else
+## The sample mean moves every night
 
-Here is the thing that makes an interval necessary at all.
+26.0 minutes was one night's answer. Tomorrow the shop takes 20 more orders and gets a different average, not because anything in the kitchen changed, but because a different 20 customers happened to order.
 
-Suppose Bella's had taken a different twelve orders last week. The kitchen is the same, the drivers are the same, the roads are the same. A couple of the far-flung addresses would not have called, one order would have gone out during a quiet patch instead of the rush, and the average would have come back at 24 or 28 rather than 26.
+That is the awkward thing about a sample mean. The true average delivery time of Mario's kitchen, the one you would get from every order it will ever make, sits perfectly still. Our estimate of it wanders around.
 
-The average you get depends on which orders happen to walk in the door. So before we can say anything at all about the true average, we have to find out how much this one number of ours moves around.
+We cannot see Mario's true average, so let's build a kitchen where we can. `rnorm(20, mean = 26, sd = 8.6)` invents 20 delivery times whose true long-run average is exactly 26 minutes, scattered around it in the bell shape of a normal distribution with a standard deviation of 8.6 minutes. Those are Mario's own two numbers, so the made-up kitchen runs at the same pace and with the same spread as the real one.
 
-The honest way to measure that would be to run next week, and the week after, and forty weeks more, then look at the spread of the forty averages. We do not have forty weeks. We have twelve numbers.
+It does come out tidier than a real Friday, which has a longer tail of very late deliveries than a bell curve does, and that costs us nothing here, because what we are about to put on trial is the way an interval gets built, not the kitchen it gets built from. What we gain is that this kitchen's true average is 26 minutes and we know it, because we set it ourselves.
 
-So here is the trick that gets us out of it. Write each of the twelve delivery times on a slip of paper, drop the slips in a bowl, pull one out, write it down, and put it back in the bowl. Do that twelve times and you have a brand new week of twelve orders, built entirely out of the week you already had.
-
-Putting each slip back is the part that makes it work. Some delivery times get pulled twice, some never get pulled at all, and that jostling is exactly the kind of thing that makes one real week differ from the next.
-
-Press Draw again a few times and watch which of the twelve get left out.
-
-::widget bootstrap-sample {"n": 12, "seed": 7, "tail": "Those delivery times stayed in the bowl and never made it into this draw."}
-
-The grey ones marked OOB are the slips that stayed in the bowl. OOB is short for out of bag, which is the standard name for them. Roughly a third of the twelve miss out on any given draw, and it is a different third every time.
-
-R does the same thing in one line, with `replace = TRUE` doing the putting back.
+Now for eight nights of it. `replicate()` is how you run something more than once: hand it a count and a line of code, and it runs that line that many times and keeps all the answers. Here each answer is one night of 20 orders boiled down to its average.
 
 ```r
-# Draw twelve slips with replacement and see where the new average lands
-set.seed(4)
-one_redraw <- sample(orders, size = 12, replace = TRUE)
-one_redraw
-#>  [1] 15 27 20 20 33 22 20 24 25 29 20 15
-
-mean(one_redraw)
-#> [1] 22.5
-```
-
-Look at what came out. The 20 minute delivery turned up four times, the 15 turned up twice, and the 39 minute crawl, last week's slowest order of the lot, never came out of the bowl at all. This resampled week averages 22.5 minutes against the 26.0 we started with.
-
-Nothing about Bella's changed. Only the twelve slips did, and the average moved three and a half minutes.
-
-`set.seed(4)` just fixes which draw you get, so your numbers match mine.
-
-=== step === concept
-## How far the average wanders: the standard error
-
-One redraw told us the average can slide from 26.0 down to 22.5. Two thousand redraws will tell us how far it usually slides.
-
-The function `replicate()` runs the same lines over and over and keeps the answer from each run. Here it draws a fresh set of twelve slips, takes their average, stores it, and does that two thousand times.
-
-```r
-# Two thousand resampled weeks, and the pile of averages they produce
+# Run eight nights of 20 orders through a kitchen whose true average is 26 minutes
 set.seed(7)
-boot_means <- replicate(2000, mean(sample(orders, size = 12, replace = TRUE)))
-
-hist(boot_means, breaks = 30, col = "grey85", border = "white",
-     main = "Averages from 2,000 resampled weeks",
-     xlab = "Average delivery time (minutes)")
-abline(v = mean(orders), col = "red", lwd = 3)
-
-round(sd(boot_means), 2)
-#> [1] 1.7
+night_means <- replicate(8, mean(rnorm(20, mean = 26, sd = 8.6)))
+round(night_means, 1)
+#> [1] 29.8 26.8 26.9 27.2 25.2 28.0 29.2 25.0
 ```
 
-Let's read that plot carefully, because this pile is what an interval is made of.
+`set.seed(7)` fixes which random nights you get, so your eight numbers match mine.
 
-Every bar is a batch of resampled weeks, and its height says how many of the two thousand came out at that average. The red line is last week's own 26.0, sitting in the middle where it should be. The pile runs from about 21 to about 32, so an average built from twelve orders carries a couple of minutes of slack either way.
+Every one of those nights came out of a kitchen whose true average is 26 minutes, and not one of them reported 26. The first said 29.8, nearly four minutes high. The last said 25.0, a minute low. The truth never moved.
 
-That spread has a name. The standard deviation of an estimate, measured across the samples it could have come from, is called the **standard error**. Here the standard error of the average delivery time is 1.70 minutes.
+That wobble is not a flaw in the arithmetic. It is what sits between a sample and the truth, and an interval is what you get when you measure the wobble and allow for it.
 
-Now the good news. You do not have to resample two thousand times to get that number. There is a formula for it, and it needs only two things you already have.
+=== step === concept
+## The standard error: how far the sample mean usually lands from the truth
+
+Those eight nights came back between 25.0 and 29.8. Run thousands of nights instead of eight and the wobble takes on a definite size, and that size has a name: the **standard error** of the mean. It is the standard deviation of the sample mean itself, the typical distance between one night's average and the truth.
+
+Here is the useful part. You do not need thousands of nights to get it. It is the sample's own standard deviation divided by the square root of the number of orders.
 
 \[ \text{standard error} = \frac{s}{\sqrt{n}} \]
 
-In that formula, s is the standard deviation of your delivery times, which was 6.27 minutes, and n is how many orders you measured, which was 12. Nothing else goes in. Let's put the formula next to what the resampling gave.
+That is a claim, so let's not take it on trust. We run 5,000 nights through the same kitchen, collect the 5,000 nightly averages, and measure how much they actually spread. Then we compute s divided by the square root of n from Mario's 20 real orders, and see whether the two agree.
 
 ```r
-# The resampled spread against the standard error formula
-c(resampled_spread       = round(sd(boot_means), 2),
-  formula_standard_error = round(sd(orders) / sqrt(12), 2))
-#>       resampled_spread formula_standard_error 
-#>                   1.70                   1.81 
+# Check s / sqrt(n) against the real spread of 5,000 nightly averages
+set.seed(1)
+many_means <- replicate(5000, mean(rnorm(20, mean = 26, sd = 8.6)))
+
+c(spread_of_the_means = round(sd(many_means), 3),
+  s_over_sqrt_n       = round(sd(deliveries) / sqrt(20), 3))
+#> spread_of_the_means       s_over_sqrt_n
+#>               1.909               1.922
 ```
 
-Two thousand redraws gave 1.70 minutes and one line of arithmetic gave 1.81. Those are two completely different routes to the same quantity, and they agree to within a tenth of a minute.
+1.909 against 1.922. The left number came from actually running 5,000 nights and measuring how far apart the answers landed. The right number came from 20 delivery times and a square root, with no simulation at all.
 
-Read the formula once more, because those two symbols are the only things that ever make an interval wide or narrow. Dividing by the square root of n means the wobble shrinks as you measure more orders. Multiplying by s means it grows when the deliveries themselves are more erratic.
+So a nightly average typically sits about 1.9 minutes from the truth. Compare that with the 8.6 minute spread of the deliveries themselves. Averaging 20 orders together cancels most of that noise, and dividing by the square root of 20 is exactly how much of it gets cancelled.
 
 [KEY INSIGHT]
-The standard error is not how much delivery times vary. It is how much the AVERAGE of twelve delivery times varies from one week of orders to the next. Bella's single deliveries scatter by about 6.27 minutes. Their twelve-order average only moves by about 1.8.
-
-=== step === quiz
-## Quick check: what the standard error measures
-
-The two thousand resampled weeks gave a spread of 1.70 minutes. What is that 1.70 measuring?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- How far a single Bella's delivery usually falls from 26 minutes. ::no
-- How much the average of twelve orders moves from one week of orders to the next. ::ok That is it. The delivery times themselves scatter by 6.27 minutes, but averaging twelve of them smooths most of that away and leaves about 1.70.
-- How wrong the 26.0 minute average is, so the true average must be 26.0 give or take 1.70. ::no
-- How much the delivery times would spread out if Bella's hired more drivers. ::no The 1.70 is about the AVERAGE, not about single pizzas and not about how wrong you are. Single deliveries scatter by 6.27 minutes. Divide that by the square root of twelve and you get how far a twelve-order average drifts from week to week, which is all the standard error has ever measured.
+The standard error is what makes an interval possible at all. It converts the spread of individual pizzas, which you can see, into the spread of your estimate, which you cannot.
 
 === step === concept
-## Cutting the middle 95% out of the pile of averages
+## Building the interval by hand: estimate, multiplier, standard error
 
-We have two thousand averages sitting in `boot_means` and we know roughly how wide the pile is. That is enough to carve an interval straight out of it, with no formula anywhere.
+Every confidence interval you will ever meet is three pieces stuck together: an estimate to sit at the centre, a standard error to say how far that estimate typically strays, and a multiplier that decides how many standard errors of room to allow.
 
-Sort the two thousand averages from smallest to largest. Walk in from the bottom until you have passed 2.5% of them, which is fifty averages, and put a mark there. Walk in from the top by the same amount and put a second mark. Between those two marks sits the middle 95% of everything the average could have been.
+\[ \bar{x} \;\pm\; t_{0.975,\, n-1} \times \frac{s}{\sqrt{n}} \]
 
-The function `quantile()` finds the marks for you. Hand it 0.025 and 0.975 and it returns the values that 2.5% and 97.5% of the averages fall below.
+We already have the estimate and the standard error. The multiplier is the new piece, and `qt()` supplies it. `qt(0.975, df = 19)` asks the t distribution for the point with 97.5% of the curve below it, which leaves 2.5% above. The matching 2.5% at the other end leaves 95% sitting in the middle. The t distribution has the same bell shape as the normal, with slightly heavier tails, and it is the right curve to ask because we had to estimate the spread rather than being handed it.
 
-```r
-# Cut off the lowest and the highest 2.5% of the 2,000 resampled averages
-middle_95 <- quantile(boot_means, probs = c(0.025, 0.975))
-round(middle_95, 2)
-#>  2.5% 97.5% 
-#> 22.75 29.50 
-
-hist(boot_means, breaks = 30, col = "grey85", border = "white",
-     main = "The middle 95% of the resampled averages",
-     xlab = "Average delivery time (minutes)")
-abline(v = middle_95, col = "blue", lwd = 3, lty = 2)
-```
-
-22.75 to 29.50 minutes. The two blue dashed lines in the plot are those cuts, and everything between them is the middle 95% of the pile.
-
-That is a 95% confidence interval for Bella's true average delivery time, and notice what did not go into it. No formula, no table in the back of a textbook, no assumption about the shape of anything. All it took was two thousand redraws of the week we had and a pair of scissors 2.5% in from each end.
-
-It already sits close to the 22 to 30 printed on the receipt. The receipt gets there another way, and that way is worth seeing, because it is the one you will actually use at work.
-
-=== step === concept
-## Where the 22 to 30 on the receipt comes from
-
-Every confidence interval you will ever build for an average has the same three pieces:
-
-1. the estimate you got, which here is the 26.0 minute average;
-2. the standard error, which is how much that estimate wobbles, 1.81 minutes;
-3. a multiplier, which says how many standard errors to reach out on each side.
-
-Written down, the three pieces look like this.
-
-\[ \bar{x} \pm t \times \frac{s}{\sqrt{n}} \]
-
-Reading it left to right: start at your average, then step out a certain number of standard errors in each direction. The x with the bar over it is the average of your twelve orders, s over the square root of n is the standard error, and the t out front is the multiplier we still have to pin down.
-
-So how many standard errors do you step out for 95%?
-
-Most people remember 1.96. That number is correct when you already know the true spread of Bella's deliveries. You do not. You estimated the spread from the very same twelve orders you used for the average, and that estimate can be off, so the interval has to be a little more generous to cover for it.
-
-The generous version of 1.96 is called the **t multiplier**, and it depends on how many orders you measured. The function `qt()` gives it to you. The 0.975 leaves 2.5% in each tail, and `df = 11` is twelve orders minus one.
+Let's get all three pieces on the table.
 
 ```r
-# Build the receipt's interval by hand: average plus and minus t standard errors
-se         <- sd(orders) / sqrt(12)
-t_mult     <- qt(0.975, df = 11)
-half_width <- t_mult * se
+# Work out the three pieces of the interval from the 20 delivery times
+n      <- length(deliveries)
+x_bar  <- mean(deliveries)
+s      <- sd(deliveries)
+se     <- s / sqrt(n)
+t_crit <- qt(0.975, df = n - 1)
 
-c(average = mean(orders), t_multiplier = round(t_mult, 3),
-  standard_error = round(se, 3), half_width = round(half_width, 2))
-#>        average   t_multiplier standard_error     half_width 
-#>         26.000          2.201          1.809          3.980 
-
-round(c(mean(orders) - half_width, mean(orders) + half_width), 2)
-#> [1] 22.02 29.98
+c(estimate = x_bar, multiplier = round(t_crit, 3), standard_error = round(se, 3))
+#>       estimate     multiplier standard_error
+#>         26.000          2.093          1.922
 ```
 
-2.201, not 1.96. With only twelve orders in hand, that extra 0.24 is the price of not knowing the true spread. Multiply it by the standard error of 1.809 and you reach out 3.98 minutes on each side of 26.0, which lands you on 22.02 and 29.98.
+The multiplier is 2.093, so the interval will reach 2.093 standard errors either side of 26.0. If you have seen 1.96 quoted for a 95% interval, 2.093 is the same idea with a small allowance added on, because we estimated the spread s from the very same 20 numbers rather than knowing it in advance. The `df = n - 1` argument, 19 here, is the degrees of freedom, and it is what sets the size of that allowance. The more orders you have, the smaller it gets, and the closer the multiplier gets to 1.96.
 
-That is the receipt. Bella's rounded it to 22 and 30 and printed it.
-
-You will rarely do those four lines by hand, because `t.test()` does the whole thing and hands you the pair.
+Now multiply and add.
 
 ```r
-# The same interval straight from the built-in one-liner
-week_ci <- t.test(orders)$conf.int
-round(week_ci, 2)
-#> [1] 22.02 29.98
-#> attr(,"conf.level")
-#> [1] 0.95
+# Assemble the interval by hand, then compare it with what t.test reports
+ci_by_hand <- c(x_bar - t_crit * se, x_bar + t_crit * se)
+round(ci_by_hand, 2)
+#> [1] 21.98 30.02
+
+round(as.numeric(t.test(deliveries)$conf.int), 2)
+#> [1] 21.98 30.02
 ```
 
-`t.test()` runs a whole test and `$conf.int` pulls the interval out of the result. R tags the pair with the confidence level it used, 95% unless you say otherwise, and prints that as the `attr` line underneath.
+The same two numbers. `t.test()` is not doing anything you did not just do yourself with `mean()`, `sd()` and `qt()`.
 
-Now put the two intervals side by side. Resampling gave 22.75 to 29.50. The formula gave 22.02 to 29.98, a shade wider at both ends. Neither one is the right answer with the other as an approximation. They are two ways of measuring the same wobble, and on twelve numbers they land within a minute of each other.
+That matters more than it looks. Those few lines are a fixed recipe. Hand it any sample of delivery times and it returns an interval, the same way every time. So when we talk about the 95% from here on, the recipe is what we are talking about.
 
 === step === tryit
-## Your turn: build the interval for a quieter week
+## Your turn: build the same interval at 99%
 
-Bella's sends over another twelve delivery times, from a week when the roads were kinder. The number of orders is the same and the scatter is far smaller.
+Suppose Mario's wants to be more careful and quote a 99% interval instead of a 95% one. Only the multiplier changes. Leaving 99% in the middle puts 0.5% in each tail, so you want the point with 99.5% of the curve below it.
 
-Build the 95% interval for that week. Three moves: the average, the standard error, then the average plus and minus 2.201 standard errors. Or take the shortcut and let `t.test()` do all three. Either one counts.
+`x_bar`, `se` and `n` are all still on the page. Swap 0.975 for 0.995 in `qt()`, then build the interval the same way you just did.
 
 ```r
-# quiet_week holds twelve delivery times from a calmer week, in minutes.
-# Build a 95% confidence interval for the average of these twelve orders,
-# either by hand (average, standard error, plus and minus 2.201 standard
-# errors) or with the one-line built-in.
-# Press Check when you have it.
-quiet_week <- c(24, 26, 22, 27, 25, 23, 28, 24, 26, 25, 23, 27)
+# x_bar is 26.0, se is 1.922 and n is 20, all computed above.
+# Ask qt() for the 99% multiplier, then build the interval around x_bar.
+# Two lines. Press Check when you have them.
 ```
-::check {"regex": "t\\.test\\s*[(]\\s*quiet_week|sd\\s*[(]\\s*quiet_week\\s*[)]\\s*/\\s*sqrt", "gate": true, "difficulty": "beginner", "ok": "Yes: 23.82 to 26.18 minutes. That is less than a third of the width the first week gave, and the only thing that changed is how much the deliveries scattered.", "no": "Two ways in. The short one is `t.test(quiet_week)$conf.int`. The long one is `mean(quiet_week)` plus and minus `qt(0.975, df = 11) * sd(quiet_week) / sqrt(12)`."}
+::check {"regex": "qt[(]\\s*0?\\.995", "gate": true, "difficulty": "beginner", "ok": "That gives a multiplier of 2.861 and an interval of 20.5 to 31.5 minutes. Asking for more confidence bought no better information about the kitchen, it only widened the net.", "no": "Only the multiplier changes. Use `qt(0.995, df = n - 1)`, then the same `x_bar` plus and minus `multiplier * se` you built a moment ago."}
 ::solution
 ```r
-# The quieter week, worked both ways
-round(mean(quiet_week) + c(-1, 1) * qt(0.975, df = 11) * sd(quiet_week) / sqrt(12), 2)
-#> [1] 23.82 26.18
+# Build the 99% interval by changing only the multiplier
+t_crit_99 <- qt(0.995, df = n - 1)
+round(t_crit_99, 3)
+#> [1] 2.861
 
-round(t.test(quiet_week)$conf.int, 2)
-#> [1] 23.82 26.18
-#> attr(,"conf.level")
-#> [1] 0.95
+round(c(x_bar - t_crit_99 * se, x_bar + t_crit_99 * se), 2)
+#> [1] 20.5 31.5
 ```
 
-23.82 to 26.18, a window just under two and a half minutes wide. The first week's twelve gave nearly eight. The number of orders is twelve in both cases, so that is not what changed. What changed is s, the scatter of the deliveries, and it walked straight through the standard error into the width.
+The 95% interval was 8.0 minutes wide and this one is 11.0 minutes wide, off the same 20 orders. More confidence always costs width, and that trade is the only thing the confidence level controls.
 
 === step === concept
-## One hundred weeks, one hundred intervals
+## One hundred nights, one hundred intervals
 
-Here is the problem with everything we have built so far. We have two intervals and no way of telling whether either of them is right, because nobody knows Bella's true average delivery time.
+We have a recipe now, and a kitchen whose true average delivery time is 26 minutes because we put it there. Those two together are what finally let us test the 95%.
 
-So let's build a pizza place where we do know it.
-
-`rnorm(12, mean = 26, sd = 6.3)` invents twelve delivery times from a kitchen whose true average is exactly 26 minutes and whose orders scatter by 6.3 minutes, which is roughly what last week's twelve looked like. We know the answer is 26 because we typed it in ourselves.
-
-Those two numbers were picked to look like Bella's week so the figures stay familiar. That is not a claim that Bella's true average is 26. Theirs is still unknown and always will be. The 26 is true only inside this simulated kitchen, and that is exactly why it is useful, because it hands us an answer to check the intervals against.
-
-Now run that kitchen for a hundred weeks. Each week gives twelve orders, each set of twelve gives one interval, and then we ask the only question that matters: how many of those hundred intervals have 26 inside them?
+The plan is simple. Run one night, which is 20 orders out of that kitchen. Push those 20 times through the recipe and write down the interval it hands back. Then do it 99 more times, a fresh 20 orders each night, and ask one question of every interval. Does it contain 26?
 
 ```r
-# A hundred simulated weeks at a true average of 26, one interval from each
-set.seed(3)
-true_avg <- 26
+# Run 100 separate nights through the recipe and count the intervals that hold 26
+set.seed(4)
+intervals <- replicate(100, t.test(rnorm(20, mean = 26, sd = 8.6))$conf.int)
+dim(intervals)
+#> [1]   2 100
 
-weeks  <- replicate(100, t.test(rnorm(12, mean = true_avg, sd = 6.3))$conf.int)
-caught <- weeks[1, ] <= true_avg & weeks[2, ] >= true_avg
-
+caught <- intervals[1, ] <= 26 & intervals[2, ] >= 26
 sum(caught)
-#> [1] 92
+#> [1] 94
+mean(caught)
+#> [1] 0.94
 ```
 
-Ninety-two of the hundred contained the truth. Let's draw all hundred of them so you can see which ones did not.
+`replicate()` ran the whole night 100 times and stacked the answers into `intervals`, a table of 2 rows and 100 columns: the lower bound of each night on top, the upper bound underneath.
 
-```r
-# Draw all hundred intervals against the true average of 26
-plot(NULL, xlim = range(weeks), ylim = c(0, 101),
-     xlab = "Interval for the average delivery time (minutes)",
-     ylab = "Simulated week",
-     main = "100 weeks at a true average of 26 minutes")
-segments(weeks[1, ], 1:100, weeks[2, ], 1:100,
-         col = ifelse(caught, "grey70", "red"), lwd = 2)
-abline(v = true_avg, col = "black", lwd = 3)
-```
+`caught` then asks each column whether its lower bound is at or below 26 and its upper bound at or above it. That is exactly the question "did this interval contain the true average", and R answers it 100 times over.
 
-Every horizontal line is one week's interval. The thick black line running down the middle is 26, the truth. Grey lines cross it, so those weeks caught the true average. Red lines sit entirely to one side of it, so those weeks missed, and there are eight of them.
+94 of the 100 intervals contained 26. Written as a share, 0.94.
 
-Stay on the red ones for a moment, because they are the whole point.
-
-Nothing went wrong in those weeks. They came out of the same recipe, the same t multiplier and the same arithmetic as all the others, and every one of them is correctly computed. They simply happened to draw a batch of unusually quick or unusually slow deliveries, and the window they built landed off to one side of the truth.
-
-A hundred weeks is a short run. Push it to five thousand and the catch rate settles down.
-
-```r
-# The same recipe over 5,000 weeks, reported as a catch rate
-catch_rate <- function(n_weeks, level = 0.95) {
-  caught <- replicate(n_weeks, {
-    week <- rnorm(12, mean = 26, sd = 6.3)
-    ci   <- t.test(week, conf.level = level)$conf.int
-    ci[1] <= 26 && ci[2] >= 26
-  })
-  mean(caught)
-}
-
-set.seed(3)
-catch_rate(5000)
-#> [1] 0.9502
-```
-
-0.9502. Ninety-five intervals in every hundred contained the true average delivery time, and five did not.
-
-That number is the 95%.
+There is the 95%, near enough. Run more nights and it settles closer still. The 95% is a hit rate.
 
 === step === concept
-## Your interval either has the 26 in it or it does not
-::prose-only the hundred drawn intervals are the evidence and they are already on the page; the idea here is about where the probability lives, which has no picture of its own
+## Which intervals caught 26 minutes, and which missed
 
-Now take that back to the receipt, which said 22 to 30.
+94 out of 100 is the number, but the picture is the thing worth carrying away. Let's draw all 100 intervals as vertical bars, one per night, with a horizontal line at the true average of 26 minutes. Any bar that fails to cross that line is a night the recipe got wrong.
 
-Bella's true average delivery time is a fixed number. It does not move about. Either it is somewhere between 22 and 30 or it is not, and which of those two happened was settled the moment those twelve orders came in. There is no 95% left in it.
+```r
+# Draw all 100 intervals against the true average, misses in red
+plot(NULL, xlim = c(1, 100), ylim = range(intervals),
+     xlab = "Night", ylab = "Interval, in minutes",
+     main = "100 nights, 100 intervals, one true average")
+segments(x0 = 1:100, y0 = intervals[1, ], y1 = intervals[2, ],
+         col = ifelse(caught, "grey65", "red"), lwd = 2)
+abline(h = 26, lwd = 2)
+```
 
-So where did the 95% go?
+Six of the bars came out red. Every one of them was built by the same recipe from a perfectly ordinary sample of 20 orders, and every one of them sits entirely above or entirely below the truth.
 
-It went into the recipe. Look again at what we actually counted: not how often the truth wandered into an interval, but how often intervals built this way landed on top of the truth. Ninety-two times in a hundred the recipe worked. Eight times it handed back a perfectly reasonable-looking window that was simply wrong, and it never once told you which kind of week you were having.
+Now look at the grey bars for a moment. They are all over the place. Some sit high, some sit low, some are wide and some are narrow, and not one of them is centred exactly on 26. The one thing they have in common is that each one covers the line.
 
-That is the entire promise, and it is a promise about the method rather than about your two numbers:
-
-About 95 out of every 100 intervals built by this recipe contain the true value.
-
-Bella's cannot say more than that, and neither can you. Your one interval is a single draw from that hundred. It might be a grey line. It might be a red one. The 95% is the hit rate of the machine that produced it, and by the time the machine has printed your two numbers the odds are already spent.
+Here is the part that decides the whole meaning of the 95%. Standing on any one night, holding a single bar, you cannot tell its colour. The red ones do not look broken. They came out of the same kitchen and the same recipe, and their 20 orders just happened to run high or low.
 
 [KEY INSIGHT]
-The 95% belongs to the procedure, not to your interval. Before you collect the orders there is a 95% chance the interval you are about to build will catch the truth. After you have built it, the interval either contains the truth or it does not, and nothing in the two printed numbers tells you which.
-
-=== step === quiz
-## Quick check: is there a 95% chance the true average sits in your interval?
-
-Bella's printed 22 to 30 minutes on your receipt at 95% confidence. Is there a 95% chance their true average delivery time is inside that window?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Yes. The interval was built to have a 95% chance of containing it, so 22 to 30 holds the true average with probability 0.95. ::no
-- No. The true average is a fixed number that is either inside 22 to 30 or outside it. The 95% is the share of intervals built this way that catch the truth. ::ok Exactly. The chance lived in the procedure, before the orders came in. Once the two numbers are printed the answer is already yes or no, and you cannot tell which.
-- No, because the true average changes from week to week, so no window could ever pin it down. ::no
-- Yes, as long as the twelve orders were a fair sample of Bella's deliveries. ::no The 95% never attaches to your one interval. Bella's true average is a fixed number and your printed window either contains it or it does not, with no chance remaining in it. What the 95% counts is the recipe: build intervals this way over and over and about 95 in every 100 will land on the truth, exactly as 92 of the hundred simulated weeks did.
+The 95% is the share of bars that cross the line. It belongs to the recipe, it is measured across many nights, and it is visible only in the picture of all 100 of them.
 
 === step === concept
-## Do 95% of pizzas arrive between 22 and 30 minutes?
+## So what is the 95% a property of?
 
-That is one of the two readings dealt with. Here is the other one, and it is the reading people actually act on.
+Now for the second reading, the one that sounds harmless: there is a 95% chance the true average is between 22 and 30.
 
-If Bella's prints 22 to 30 on your receipt, is your pizza turning up in that window?
-
-We can answer that with the twelve orders already in front of us. Count how many of last week's deliveries actually landed outside 22 to 30.
+Let's pull two of those hundred nights out and look at them closely.
 
 ```r
-# How many of last week's twelve deliveries fell outside the 22 to 30 window
-sum(orders < 22 | orders > 30)
-#> [1] 4
+# Pull out one night whose interval caught 26 and one whose interval missed
+hit  <- which(caught)[1]
+miss <- which(!caught)[1]
 
-orders[orders < 22 | orders > 30]
-#> [1] 39 20 33 15
+data.frame(night    = c(hit, miss),
+           lower    = round(intervals[1, c(hit, miss)], 2),
+           upper    = round(intervals[2, c(hit, miss)], 2),
+           holds_26 = caught[c(hit, miss)])
+#>   night lower upper holds_26
+#> 1     2 25.00 32.26     TRUE
+#> 2     1 26.01 32.46    FALSE
 ```
 
-Four of the twelve missed the window, and Bella's is not running a broken kitchen. A third of last week's orders fell outside the very range printed on their own receipts, because that range was never about single pizzas.
+Night 2 gave 25.00 to 32.26 minutes. The true average, 26, is in there. There is no 95% about it. That interval holds the truth, and we can see that it does.
 
-Let's push it further than twelve orders. Simulate five thousand individual deliveries from the same kitchen, the one whose true average is 26 minutes and whose orders scatter by 6.3, and see what share of them lands between 22 and 30.
+Night 1 gave 26.01 to 32.46 minutes and missed by one hundredth of a minute. There is no 95% chance that 26 lies inside that one either. It lies outside. The interval is just wrong, and no amount of confidence attached to it changes that.
 
-```r
-# Five thousand single deliveries, and the share landing inside 22 to 30
-set.seed(3)
-all_orders <- rnorm(5000, mean = 26, sd = 6.3)
+That is the trouble with saying there is a 95% chance the true average is between 22 and 30. Once the interval has been computed, the randomness is over. The truth is a fixed number, the two bounds are fixed numbers, and one of two things is true: the interval covers it, or it does not.
 
-mean(all_orders >= 22 & all_orders <= 30)
-#> [1] 0.4682
-
-hist(all_orders, breaks = 40, col = "grey85", border = "white",
-     main = "5,000 single deliveries from the same kitchen",
-     xlab = "Minutes from order to doorstep")
-abline(v = c(22, 30), col = "blue", lwd = 3, lty = 2)
-```
-
-About 47 in every hundred. Not 95.
-
-The two dashed lines sit well inside the pile, and deliveries spill out on both sides, down below ten minutes and up past forty-five. That is exactly what you would expect. Single deliveries scatter by 6.3 minutes while the average of twelve only wobbles by 1.8, and the interval was built out of the small number.
-
-Now suppose you did want a window that holds a single pizza 95% of the time. It has the same shape as before with one change: the scatter of the deliveries goes in whole, rather than divided by the square root of twelve.
-
-```r
-# A window built to hold one single delivery, not the average
-one_order <- mean(orders) + c(-1, 1) * qt(0.975, df = 11) * sd(orders) * sqrt(1 + 1/12)
-round(one_order, 1)
-#> [1] 11.6 40.4
-```
-
-11.6 to 40.4 minutes. That is the honest answer to when will my pizza get here, and it is nearly five times as wide as the one on the receipt. It has a name of its own, the **prediction interval**, and the extra `sqrt(1 + 1/12)` is in there because a single delivery has to carry its own scatter on top of our uncertainty about where the centre is.
-
-[KEY INSIGHT]
-A confidence interval is a window for the average, not for the next pizza. Bella's 22 to 30 says where their true average delivery time probably sits. It says nothing at all about whether your order shows up at 18 minutes or at 38.
-
-=== step === quiz
-## Quick check: the range you give a customer on the phone
-
-A customer rings ten minutes after ordering and asks when the pizza will get there. You have three numbers in front of you: 26 minutes, the 22 to 30 from the receipt, and 11.6 to 40.4. Which one answers what they asked?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- 22 to 30 minutes, because that is the window Bella's prints and it was built at 95% confidence. ::no
-- About 26 minutes, because that is the average and an average is what people want to hear. ::no
-- Somewhere between about 12 and 40 minutes, because that is the window built to hold one single delivery. ::ok Right. The caller is asking about one pizza, so the answer has to come from the window built for one pizza. It is uncomfortably wide, and that width is the truth about Bella's deliveries rather than a flaw in the arithmetic.
-- None of them, because a confidence interval can never say anything about a single order. ::no The caller asked about one pizza, so the answer has to come from the window built for one pizza, which runs from 11.6 to 40.4 minutes. The 22 to 30 is a window for the true average and only about 47 in every hundred deliveries land inside it. Quoting 26 flat is worse still, since it hides all the scatter and roughly half of all orders will be slower than that.
-
-=== step === concept
-## Four times the orders, half the width
-
-Bella's would love to print a tighter promise on the receipt. There are exactly two ways to get one, and this is the first.
-
-Go back to the standard error. It divides by the square root of n, so to halve the wobble you need four times the orders. Twelve becomes forty-eight.
-
-Let's build a forty-eight order week from the same simulated kitchen and put its half width next to last week's.
-
-```r
-# A 48-order week from the same kitchen, and how much narrower its interval is
-set.seed(21)
-big_week <- rnorm(48, mean = 26, sd = 6.3)
-
-half_12 <- qt(0.975, df = 11) * sd(orders)   / sqrt(12)
-half_48 <- qt(0.975, df = 47) * sd(big_week) / sqrt(48)
-
-c(orders_12 = round(half_12, 2), orders_48 = round(half_48, 2))
-#> orders_12 orders_48 
-#>      3.98      1.97 
-```
-
-3.98 minutes each side comes down to 1.97. Four times the orders bought almost exactly half the width, which is what the square root promised. It will not come out at exactly half every time, since each new week brings its own scatter, but the square root is what drives it.
-
-Now turn that around, because turned around is where the money goes. To halve the width again, from 1.97 down to about 1, Bella's needs 192 orders. To halve it once more, 768. Precision never gets cheaper as you go, it only gets more expensive, and there is no clever way around it, because the square root is baked into the standard error itself.
-
-[TIP]
-When somebody asks how much data they need, this is the sentence to reach for. Doubling your precision costs four times the data, and quadrupling it costs sixteen times.
-
-=== step === concept
-## Asking for 99% confidence costs you a wider interval
-
-The second way to change the width does not need a single extra order. It changes what you are asking for.
-
-Ninety-five is a convention, not a law. `t.test()` takes a `conf.level` argument and will hand you any level you like. Here are three of them, run on the very same twelve delivery times. The loop below calls `t.test()` once for each level in the list and prints the pair it gets back.
-
-```r
-# The same twelve orders at three different confidence levels
-for (level in c(0.80, 0.95, 0.99)) {
-  ci <- t.test(orders, conf.level = level)$conf.int
-  cat(level * 100, "% :", round(ci[1], 1), "to", round(ci[2], 1), "minutes\n")
-}
-#> 80 % : 23.5 to 28.5 minutes
-#> 95 % : 22 to 30 minutes
-#> 99 % : 20.4 to 31.6 minutes
-```
-
-Ask for more confidence and the interval reaches further out. Ask for less and it pulls in tight. It is the same twelve orders and the same kitchen, and you get three different windows.
-
-So what did that 80% actually buy? It bought a catch rate, and we can go and count it. Run the simulated kitchen again, the one whose true average we set to 26, but build every interval at 80% instead of 95%.
-
-```r
-# The catch rate when every interval is built at 80% instead of 95%
-set.seed(3)
-catch_rate(5000, level = 0.80)
-#> [1] 0.799
-```
-
-0.799. Ask for 80% and 80% is what you get: about eighty intervals in every hundred land on the truth and about twenty miss it.
-
-So the level is a dial with a price on both ends. Turn it up and your intervals get wider and catch the truth more often. Turn it down and they get tight and flattering and wrong one time in five. Ninety-five is simply where most fields settled, for no deeper reason than that somebody started there and everybody kept it.
-
-=== step === concept
-## When the 95% quietly stops being 95%
-
-Everything so far assumed two things about Bella's twelve orders, and both of them are easy to break.
-
-The first assumption is that the orders are independent, meaning one delivery running late tells you nothing about the next one. Break that and the interval goes badly wrong. A snowstorm makes every order late together, so twelve orders during a storm carry nowhere near twelve orders' worth of information, and the window built from them is far too narrow for what it claims.
-
-The second assumption is that the delivery times are not too lopsided. That t multiplier of 2.201 is exactly right when the times sit roughly symmetrically around their centre. Real delivery times often do not sit that way. Most orders come back in the twenties while a few stragglers run to fifty or sixty, which drags a long tail out to the right.
-
-Let's find out what that tail costs us. The function `rlnorm()` draws times with exactly that shape, a solid clump in the twenties and a thin tail of very late orders, and its true average works out at 28.73 minutes.
-
-That 28.73 is worth a second look. The middle order of the week comes in at 24 minutes, and the thin tail of very late ones drags the average nearly five minutes above it. The line `24 * exp(0.6^2 / 2)` is the known arithmetic for that gap on this particular shape, so we are not guessing at the truth we are about to check against.
-
-We run the same recipe over five thousand weeks of twelve orders and count the catches the same way as before.
-
-```r
-# Five thousand lopsided weeks, and how often the same recipe still catches the truth
-set.seed(3)
-true_skew_avg <- 24 * exp(0.6^2 / 2)
-
-skew_caught <- replicate(5000, {
-  week <- rlnorm(12, meanlog = log(24), sdlog = 0.6)
-  ci   <- t.test(week)$conf.int
-  ci[1] <= true_skew_avg && ci[2] >= true_skew_avg
-})
-
-c(true_average = round(true_skew_avg, 2), catch_rate = mean(skew_caught))
-#> true_average   catch_rate 
-#>       28.730        0.913 
-```
-
-0.913, not 0.95. Nearly nine intervals in every hundred miss the truth where the label says five should.
-
-And here is the uncomfortable part. Nothing in the printed interval tells you any of this is happening. It looks exactly like the honest one: two numbers, a 95% sitting next to them. The label is a claim about the recipe, and when your data breaks what the recipe assumed, the label just carries on being printed.
+So where did the chance go? It was never in the interval. It was in the drawing of the sample. Before Mario's took those 20 orders, the recipe had a 95% chance of producing an interval that would cover the truth. That is a statement about the recipe, made before the sample lands. Afterwards you are holding one result, and the only thing you can honestly say about it is which recipe produced it.
 
 [WARNING]
-The 95% is only as good as the two assumptions underneath it: orders that arrive independently, and delivery times without a heavy tail. Break either one and the interval keeps its label while catching the truth less often than it says.
+"95% of intervals built this way cover the truth" is right. "This interval has a 95% chance of covering the truth" is the same sentence with the probability moved onto a number that has already been decided.
+
+=== step === quiz
+## Quick check: is there a 95% chance the true average is between 22 and 30?
+::prose-only the point is a distinction in wording, and the picture that carries it is the hundred intervals drawn just above
+
+Mario's interval has been computed, printed, and put on the shop's page: 21.98 to 30.02 minutes. Which statement about it is defensible?
+
+::quiz {"correct": 4, "gate": true, "difficulty": "intermediate"}
+- There is a 95% chance the shop's true average delivery time is between 21.98 and 30.02 minutes. ::no
+- 95% of the shop's deliveries take between 21.98 and 30.02 minutes. ::no
+- There is a 5% chance the true average sits outside 21.98 to 30.02, so the shop is 95% safe quoting it. ::no The first three all place a probability on a question that has already been settled. The true average is a fixed number and this interval is now a fixed pair of numbers, so it covers that average or it fails to, the way night 1 failed by 0.01 of a minute. The 95% describes how often the recipe succeeds, counted before the sample is drawn.
+- The recipe that produced 21.98 to 30.02 covers the true average on 95% of samples. This particular interval either covers it or it does not. ::ok Exactly. The 95% is attached to the procedure and measured over repeats, which is why we had to run a hundred nights before we could see it at all.
 
 === step === concept
-## What to say when someone asks about the 22 to 30
+## What makes an interval narrow?
 
-You do not need to memorise a definition. You need one sentence you can say out loud in a meeting without being wrong, and here it is with Bella's numbers already in it:
+Mario's interval is 8 minutes wide, which is not much use if you are deciding whether to order before a meeting starts. So you want it tighter. Look back at the recipe and you can see exactly what you have to work with, because only three things go into it.
 
-"If we ran this week over and over, about 95 out of every 100 intervals built this way would contain Bella's true average delivery time. This is one of them, and it runs from 22 to 30 minutes."
+1. **The number of orders.** n sits under a square root in the denominator of the standard error, so more orders narrow the interval, though only at the pace of that square root.
+2. **The spread of the delivery times.** The sample standard deviation s sits on top. A kitchen that runs steadily gives a narrower interval than a chaotic one from the same number of orders.
+3. **The confidence level you ask for.** That sets the multiplier, and it is the one knob that buys you nothing, because a wider interval is not a better estimate.
 
-Notice how that is put together. It starts with the recipe, then reports how often the recipe works, and only then points at your two numbers. It never puts a probability on the truth, and it never says anything about a single pizza.
+The first one is the one you can actually go out and buy, so let's watch it work. The shop collects 20 orders, then 80, then 320, then 1,280, and we average the interval width over 500 nights at each size so that luck does not drown the pattern.
 
-Here are the three readings that go wrong, and what each one is confusing.
+```r
+# Average interval width at four sample sizes, 500 nights at each
+avg_width <- function(n_orders) {
+  mean(replicate(500, {
+    night <- rnorm(n_orders, mean = 26, sd = 8.6)
+    2 * qt(0.975, n_orders - 1) * sd(night) / sqrt(n_orders)
+  }))
+}
 
-| What people say | What it confuses |
-|---|---|
-| "There is a 95% chance the true average is between 22 and 30." | Puts the probability on the truth. Bella's true average is a fixed number that is either in there or not. The 95% belongs to the recipe. |
-| "95% of deliveries arrive between 22 and 30 minutes." | Confuses a window for the average with a window for one order. Only about 47 in every hundred deliveries land inside it, and the window for one order runs from 11.6 to 40.4. |
-| "Run another week and its average will land inside 22 to 30 about 95% of the time." | Turns a statement about the true average into a forecast about next week's average. Those are different quantities, and next week's average carries a fresh wobble of its own on top. |
+set.seed(99)
+sizes <- c(20, 80, 320, 1280)
+data.frame(orders = sizes, interval_width = round(sapply(sizes, avg_width), 2))
+#>   orders interval_width
+#> 1     20           7.93
+#> 2     80           3.82
+#> 3    320           1.89
+#> 4   1280           0.94
+```
+
+Read down the second column: 7.93 minutes, then 3.82, then 1.89, then 0.94. Each row multiplies the orders by four and cuts the width roughly in half. It comes out a shade better than half, because the multiplier is easing down toward 1.96 at the same time.
+
+That is the square root doing its work, and it cuts both ways. To halve the width once more from 1,280 orders you would need 5,120 of them. Precision gets expensive fast.
+
+=== step === concept
+## Where a single delivery lands is a different question
+
+Come back to the first reading for a moment, because it was asking a fair question with the wrong tool. Suppose you really do want to know when your pizza will arrive. That question has an answer. It is just not this interval.
+
+The range for one future delivery has to carry two kinds of uncertainty instead of one. We are unsure where the true average sits, and on top of that, any single pizza scatters around that average by the kitchen's own spread. One extra term in the formula does the whole job.
+
+\[ \bar{x} \;\pm\; t_{0.975,\, n-1} \times s \times \sqrt{1 + \tfrac{1}{n}} \]
+
+The 1 under the square root is the pizza's own variation and the 1/n is our uncertainty about the average. With 20 orders that second piece is 0.05 against the first piece's 1. This range has a name of its own, the **prediction interval**, and it is the one you want when the question is about a single order rather than the long-run average.
+
+```r
+# Work out the range one single delivery falls in, beside the interval for the average
+one_order <- c(x_bar - t_crit * s * sqrt(1 + 1/n),
+               x_bar + t_crit * s * sqrt(1 + 1/n))
+round(one_order, 1)
+#> [1]  7.6 44.4
+
+c(average_interval = round(diff(ci_by_hand), 1),
+  one_order_range  = round(diff(one_order), 1))
+#> average_interval  one_order_range
+#>              8.0             36.9
+```
+
+7.6 to 44.4 minutes. That is the honest answer to "when will my pizza get here", and it is 36.9 minutes wide against the average's 8.0, more than four times as much.
+
+Do not read the 7.6 too literally. The formula spreads the range evenly either side of 26.0, and real delivery times cannot run as far below the average as they can above it, so the low end comes out optimistic. The number to take from this is the width. Had Mario's put a 37 minute range on its page, nobody would have called it reassuring, which is probably why the average's interval is the one on the page.
+
+=== step === concept
+## Why more orders shrink the average's interval but not the one-order range
+
+Put the two ranges side by side and let the number of orders grow. The same four sample sizes, 500 nights at each, and this time we record both widths.
+
+```r
+# Compare both widths as the number of orders grows
+both_widths <- function(n_orders) {
+  w <- replicate(500, {
+    night <- rnorm(n_orders, mean = 26, sd = 8.6)
+    t_n   <- qt(0.975, n_orders - 1)
+    s_n   <- sd(night)
+    c(2 * t_n * s_n / sqrt(n_orders), 2 * t_n * s_n * sqrt(1 + 1/n_orders))
+  })
+  rowMeans(w)
+}
+
+set.seed(99)
+widths <- sapply(sizes, both_widths)
+data.frame(orders           = sizes,
+           average_interval = round(widths[1, ], 2),
+           one_order_range  = round(widths[2, ], 2))
+#>   orders average_interval one_order_range
+#> 1     20             7.93           36.35
+#> 2     80             3.82           34.38
+#> 3    320             1.89           33.84
+#> 4   1280             0.94           33.73
+```
+
+The middle column collapses from 7.93 minutes to 0.94. The right column goes from 36.35 to 33.73, and then more or less stops.
+
+It stops because it has hit the kitchen. With 1,280 orders you know the average delivery time to within about a minute, and individual pizzas still vary by 8.6 minutes around it. That variation is a fact about how Mario's cooks and drives, not a fact about your data. Multiply 8.6 by the 1.96 the multiplier settles at, then double it to cover both sides, and you land on 33.7 minutes. That is the floor.
+
+[KEY INSIGHT]
+More data pins down an average. It never pins down the next single value. The average's interval shrinks toward zero, while the range for one delivery shrinks to the spread of the kitchen and stays there.
+
+That is also the cleanest way to see why the first reading could never have worked. The two ranges answer different questions, and they do not even move the same way.
 
 === step === quiz
-## Quick check: which reading of 22 to 30 is right?
+## Quick check: what would tighten the shop's interval?
+::prose-only the two width tables immediately above carry the picture, and this asks the reader to use them
 
-Bella's receipt says 22 to 30 minutes at 95% confidence. Which of these sentences reads it correctly?
+Mario's wants its 95% interval for the average delivery time narrower than the 8 minutes it currently runs to. Which change would do that?
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- There is a 95% chance Bella's true average delivery time is between 22 and 30 minutes. ::no
-- About 95% of Bella's deliveries arrive between 22 and 30 minutes. ::no
-- If Bella's rebuilt this interval week after week, about 95 in every 100 would contain their true average delivery time. ::ok That is the one. It talks about the recipe and how often the recipe works, which is the only thing the 95% has ever counted.
-- Bella's true average is 26 minutes, give or take about 4 minutes on any given order. ::no Only one of these talks about the recipe rather than about the truth or about a single pizza. The 95% counts how often intervals built this way catch the true average, which is what the hundred simulated weeks showed: 92 caught it and 8 missed. Your printed window either contains the truth or it does not, and only about 47 in every hundred deliveries land inside 22 to 30.
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- Quote a 99% interval instead, since a higher confidence level is a stronger claim. ::no
+- Base it on 80 orders instead of 20, which cuts the width roughly in half. ::ok Yes, and the table showed it: 7.93 minutes at 20 orders against 3.82 at 80. Four times the orders halves the width, because the orders enter through a square root.
+- Nothing can, because the delivery times vary by 8.6 minutes and that spread is fixed. ::no
+- Drop the slowest deliveries from the record so the times look steadier. ::no Only three things set the width: the number of orders, the spread of the times, and the confidence level. A higher level widens the interval rather than tightening it, the 8.6 minute spread puts a floor under the range for one delivery but not under the interval for the average, and dropping the slow orders does not tighten an estimate, it moves it somewhere it does not belong.
+
+=== step === concept
+## How to say it, and how to answer it in an interview
+
+You do not need to memorise a textbook definition. One sentence covers it, and it is the sentence those hundred nights were run to earn.
+
+"If Mario's kept taking samples of 20 orders and building an interval this way each time, 95% of those intervals would contain the shop's true average delivery time. This is one of them, and it runs from 22 to 30 minutes."
+
+Say that and you cannot be wrong. It puts the 95% on the procedure, then reports the one result you actually hold.
+
+When an interviewer asks what a 95% confidence interval means, they are listening for one thing: whether you put the probability on the interval or on the procedure. Answer with the procedure. Then, to finish the point, add that once the interval has been computed it either contains the true average or it does not.
+
+Now here are the wordings people reach for instead, and what each one is really claiming.
+
+| What people say | Why it is wrong |
+|---|---|
+| "95% of deliveries take 22 to 30 minutes." | Talks about individual pizzas. Only 8 of the shop's 20 orders landed in that window, and the range for one delivery runs 7.6 to 44.4 minutes. |
+| "There is a 95% chance the true average is between 22 and 30." | Puts a probability on an interval that has already been computed. It covers the truth or it does not, and the 95% belongs to the recipe that made it. |
+| "We are 95% sure the average is 26 minutes." | Confuses the estimate with the interval. 26.0 is a single number, and the interval exists precisely because that number is not exact. |
+| "A 99% interval would be more accurate." | Confuses confidence with precision. Asking for 99% widened Mario's interval from 8.0 to 11.0 minutes on the same 20 orders and told you nothing new. |
+
+[TIP]
+Report the interval next to the estimate, never on its own. "26.0 minutes, 95% interval 22.0 to 30.0" gives someone the answer and how firm it is in one breath.
+
+=== step === quiz
+## Quick check: which claim can this interval support?
+::prose-only a judgement about wording, deliberately put to the reader without a picture to lean on
+
+Mario's is writing new copy for its website with one 95% interval to work from: 21.98 to 30.02 minutes for the average delivery time, built from 20 orders. Which line is the shop entitled to publish?
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- Our average delivery time came out at 26 minutes, and the method we used to estimate it lands the true figure inside a window like 22 to 30 in 95% of samples. ::ok Right, and notice how careful it is. It reports the estimate, then credits the 95% to the method rather than to this one window.
+- 95% of our deliveries arrive within 30 minutes. ::no
+- There is only a 5% chance our true average is worse than 30 minutes. ::no
+- Order from us and your pizza will almost certainly arrive in under 30 minutes. ::no The three wrong lines fail in three different ways. Two of them promise something about individual deliveries, which the interval never spoke about, and the third puts a probability on the shop's true average after the interval was already computed. On top of that, 5% is the total left over on both sides of a two-sided interval, so it was never the chance of being worse than 30.
 
 === step === tryit
-## Your turn: build an interval from a bigger week and judge it
+## Your turn: ask for 80% confidence and count the catches
 
-`big_week` still holds the forty-eight delivery times from the simulated kitchen, the one whose true average we set to 26 minutes.
+If the 95% really is a hit rate, then asking for 80% confidence should give intervals that catch the truth about 80% of the time, and narrower ones at that.
 
-Build the 95% interval for its average. Then look at the two bounds and answer two questions for yourself: does 26 fall inside, and how does the width compare with the 22.02 to 29.98 that twelve orders gave?
+Run the same 100 nights with `conf.level = 0.80` inside `t.test()`, then work out the share of intervals that contain 26. Keep `set.seed(4)` at the top so you get the same 100 nights as before.
 
 ```r
-# big_week holds 48 delivery times from the kitchen whose true average is 26.
-# Build the 95% confidence interval for the average of those 48 orders,
-# then check whether 26 falls inside it.
+# The kitchen and the recipe stay the same. Only the confidence level changes.
+# Rerun the 100 nights with conf.level = 0.80 inside t.test(),
+# then work out the share of those intervals that contain 26.
 # Press Check when you have it.
 ```
-::check {"regex": "t\\.test\\s*[(]\\s*big_week|sd\\s*[(]\\s*big_week\\s*[)]\\s*/\\s*sqrt", "gate": true, "difficulty": "intermediate", "ok": "24.97 to 28.90 minutes. It catches 26, and it is 3.93 minutes wide against 7.96 for the twelve-order week, so four times the orders roughly halved it. Notice it is not centred on 26 either: these forty-eight orders averaged 26.93.", "no": "One line does it: `t.test(big_week)$conf.int`. By hand it is `mean(big_week)` plus and minus `qt(0.975, df = 47) * sd(big_week) / sqrt(48)`."}
+::check {"regex": "conf\\.level\\s*=\\s*0?\\.8", "gate": true, "difficulty": "intermediate", "ok": "82 of the 100 caught it, and the average width fell from 7.85 to 4.98 minutes. The level you ask for is the hit rate you get, and a narrower net misses more often.", "no": "Reuse the `replicate()` line from the hundred nights and add `conf.level = 0.80` as a second argument to `t.test()`. Then rebuild the same check, `intervals_80[1, ] <= 26 & intervals_80[2, ] >= 26`, and take its mean."}
 ::solution
 ```r
-# The 48-order interval, and whether it catches the true average of 26
-big_ci <- t.test(big_week)$conf.int
-round(big_ci, 2)
-#> [1] 24.97 28.90
-#> attr(,"conf.level")
-#> [1] 0.95
+# Rerun the same 100 nights at 80% confidence and count the catches
+set.seed(4)
+intervals_80 <- replicate(100, t.test(rnorm(20, mean = 26, sd = 8.6),
+                                      conf.level = 0.80)$conf.int)
 
-big_ci[1] <= 26 & big_ci[2] >= 26
-#> [1] TRUE
+caught_80 <- intervals_80[1, ] <= 26 & intervals_80[2, ] >= 26
+mean(caught_80)
+#> [1] 0.82
+
+c(width_at_80 = round(mean(intervals_80[2, ] - intervals_80[1, ]), 2),
+  width_at_95 = round(mean(intervals[2, ] - intervals[1, ]), 2))
+#> width_at_80 width_at_95
+#>        4.98        7.85
 ```
 
-Four times the orders took the window from just under eight minutes wide down to just under four, and this one caught the truth. That is the outcome you get about ninety-five weeks in a hundred.
+82 catches out of 100 against 94 at the 95% level, and the average interval shrank by nearly three minutes. Both of those come from the same small change: a smaller multiplier makes a narrower net, and a narrower net lets more nights slip through.
 
-=== step === quiz
-## Quick check: when does the promise break?
+=== step === tryit
+## Your turn: a new week of orders, and the shop's 30-minute promise
 
-Which of these makes an interval catch the truth less often than its own label claims?
+A fresh week has gone by and Mario's has 20 new delivery times. The shop wants to put "average delivery under 30 minutes" on its flyers and asks whether the data backs it up.
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Dropping the confidence level from 95% to 80%, because the intervals come out narrower. ::no
-- Building the interval from delivery times with a long tail of very late orders. ::ok Yes. Five thousand lopsided weeks caught the truth 91.3% of the time while every one of those intervals carried on printing 95%, and nothing in the two numbers warned anybody.
-- Measuring 48 orders instead of 12, because the interval comes out narrower. ::no
-- Using a t multiplier of 2.201 instead of 1.96, because it makes the interval wider than it needs to be. ::no The confidence level and the number of orders both change the WIDTH while keeping the label honest: ask for 80% and you catch the truth about 80% of the time, and forty-eight orders give a narrower window that still catches at 95%. The multiplier of 2.201 is one of the things keeping the label honest on twelve orders. What actually breaks the promise is data the recipe was never built for.
+Build the 95% interval for the average of `next_week`, then see where 30 sits against it.
+
+```r
+# A fresh week of 20 delivery times from the shop, in minutes
+next_week <- c(18, 19, 21, 22, 23, 23, 24, 25, 26, 26,
+               27, 28, 29, 30, 31, 33, 34, 36, 38, 41)
+
+# Build the 95% interval for the average of next_week,
+# then decide what the shop may honestly claim about 30 minutes.
+# Press Check when you have it.
+```
+::check {"regex": "t\\.test[(]\\s*next_week", "gate": true, "difficulty": "intermediate", "ok": "The interval runs 24.75 to 30.65 minutes around a mean of 27.7. Since 30 sits inside it, a true average of 30 minutes is still entirely consistent with this week of orders, so the flyer would be claiming more than the data can support.", "no": "One line does it: `t.test(next_week)$conf.int`. Then ask whether 30 falls inside the two numbers that come back."}
+::solution
+```r
+# Build the interval for the new week and see where 30 falls
+round(mean(next_week), 2)
+#> [1] 27.7
+
+round(as.numeric(t.test(next_week)$conf.int), 2)
+#> [1] 24.75 30.65
+```
+
+The average came out at 27.7 minutes, comfortably under 30, and that is what makes the flyer tempting. The interval is the reason to hold off. It runs up to 30.65, so a kitchen whose true average is exactly 30 minutes would produce a week like this one with no trouble at all. Twenty orders is not enough to rule that out.
 
 === step === concept
 ## References
 
-- [Outline of a Theory of Statistical Estimation Based on the Classical Theory of Probability](https://doi.org/10.1098/rsta.1937.0005) - Neyman (1937), Philosophical Transactions of the Royal Society A 236, 333-380. The paper that defines a confidence interval by its long-run catch rate, which is the count you ran on the hundred weeks.
-- [The fallacy of placing confidence in confidence intervals](https://doi.org/10.3758/s13423-015-0947-8) - Morey, Hoekstra, Rouder, Lee and Wagenmakers (2016), Psychonomic Bulletin and Review 23(1), 103-123. Takes apart the "95% chance the truth is in here" reading in detail.
-- [Robust misinterpretation of confidence intervals](https://doi.org/10.3758/s13423-013-0572-3) - Hoekstra, Morey, Rouder and Wagenmakers (2014), Psychonomic Bulletin and Review 21(5), 1157-1164. Students and working researchers were handed six statements about one interval, and both groups failed them at similar rates.
-- [Inference by eye: confidence intervals and how to read pictures of data](https://doi.org/10.1037/0003-066X.60.2.170) - Cumming and Finch (2005), American Psychologist 60(2), 170-180. How to read intervals off a plot without drawing the wrong conclusion.
+- [Outline of a Theory of Statistical Estimation Based on the Classical Theory of Probability](https://doi.org/10.1098/rsta.1937.0005) - Neyman (1937), Philosophical Transactions of the Royal Society A 236, 333-380. The paper that introduces the confidence interval and states its meaning as a long-run property of the procedure.
+- [Robust misinterpretation of confidence intervals](https://doi.org/10.3758/s13423-013-0572-3) - Hoekstra, Morey, Rouder and Wagenmakers (2014), Psychonomic Bulletin and Review 21, 1157-1164. Students and researchers were shown one interval and six false statements about it, and both groups endorsed several of them.
+- [The fallacy of placing confidence in confidence intervals](https://doi.org/10.3758/s13423-015-0947-8) - Morey, Hoekstra, Rouder, Lee and Wagenmakers (2016), Psychonomic Bulletin and Review 23, 103-123. A long treatment of the two readings we took apart here.
+- [Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations](https://doi.org/10.1007/s10654-016-0149-3) - Greenland and colleagues (2016), European Journal of Epidemiology 31, 337-350. Twenty-five misinterpretations catalogued and corrected, several of them about confidence intervals.
 - [Student's t-Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) - R Core Team, the documentation for `t.test()` and its `conf.level` argument.
 
 === step === complete
 ## Quick recap
 
-You built confidence intervals two different ways, then ran a kitchen whose true average you already knew and counted the catches. What to hold on to:
+You started with a line on a pizza shop's page and built the thing yourself twice: once by hand out of 20 delivery times, and once as a hundred nights whose truth you set. Here is what that leaves you with.
 
-- A confidence interval is your estimate plus and minus a multiplier times the standard error. Bella's was 26.0 plus and minus 3.98, so 22.02 to 29.98 minutes.
-- The standard error is how much your estimate wobbles, not how much the data scatters. Two thousand resampled weeks put it at 1.70 minutes and the formula put it at 1.81, while the deliveries themselves scattered by 6.27.
-- The 95% is the catch rate of the recipe, not a probability about your interval. A hundred simulated weeks gave 92 catches and 8 misses, and 5,000 weeks settled at 0.9502.
-- It is not a window for one pizza. Four of last week's twelve orders fell outside 22 to 30, and across 5,000 deliveries only about 47 in a hundred landed inside. The window for one order runs from 11.6 to 40.4 minutes.
-- You buy width with orders and with the confidence level. Four times the orders halved it, from 3.98 down to 1.97. Asking for 99% instead of 95% pushed 22.0 to 30.0 out to 20.4 to 31.6.
-- The promise holds only while the orders arrive independently and the times are not too lopsided. Five thousand lopsided weeks caught the truth 91.3% of the time and never stopped printing 95%.
+- An interval is three pieces: an estimate, a multiplier, and a standard error. You built Mario's by hand as 26.0 plus and minus 2.093 times 1.922, and landed on 21.98 to 30.02, exactly where `t.test()` lands.
+- The 95% is a hit rate of the recipe. Across a hundred nights from a kitchen whose true average was 26 minutes, 94 intervals covered it and 6 did not, and none of the six looked broken from the inside.
+- It is not 95% of your data. Only 8 of Mario's 20 deliveries landed inside the interval, because the interval describes the average and not the pizzas. The range for one pizza ran from 7.6 to 44.4 minutes.
+- It is not a 95% chance about the interval in your hand. Night 1 came back with 26.01 to 32.46 and just missed. Once the numbers are computed, the chance has already been spent.
+- Width is bought with orders, not with confidence. Four times the orders halves the width, while a higher confidence level only widens it.
 
-So the next time somebody reads out a confidence interval and asks what the 95% means, here is your sentence:
+So when someone asks what the shop's 22 to 30 minutes means, you have this:
 
-"If we ran this week over and over, about 95 out of every 100 intervals built this way would contain the true average. This is one of them."
+"If the shop kept sampling 20 orders and building an interval this way, 95% of those intervals would contain its true average delivery time. This is one of them."
 
-Say that in an interview and you are already ahead of most of the room. How many orders you have to collect before a difference worth caring about will actually show up is a topic for another day. Have a good one.
+That is the whole answer, and you can put the hundred bars on a screen and show anyone why it is the right one. Nicely done.
