@@ -1,1249 +1,652 @@
 ---
 title: "Effect size: Cohen's d and friends, explained"
 slug: "Inference-Mini-6"
-catalog_blurb: "How to say how big an effect is, not just whether it exists."
-description: "Two diet trials, both significant: one lost half a kilo, the other five. Build Cohen's d from scratch in R and learn to say how big an effect really is."
-keywords: "effect size, Cohen's d, Hedges g, eta squared, omega squared, Cramer's V, confidence interval for effect size, practical significance, standardized mean difference, statistics for beginners, R"
-date: "2026-08-19"
+description: "Two diet trials, both significant, half a kilo against five. Build Cohen's d by hand and learn to report how big an effect is, not just whether it is real."
+keywords: "effect size, Cohen's d, Cohen's d explained, Hedges g, eta squared, omega squared, Cramer's V, effect size in R, practical significance, how big is the effect"
+mathjax: true
+webr: true
+date: "2026-08-24"
 post_type: "LESSON"
-curriculum_id: "0.0.15"
-lesson_access: "windowed"
 course_id: "inference-from-zero"
 course_title: "Inference from Zero"
 course_lesson: "6"
 course_total: "7"
 course_landing: "/dashboard.html"
 course_prev: "Inference-Mini-5"
-webr: true
-mathjax: true
+course_next: ""
+curriculum_id: "0.0.15"
+lesson_access: "windowed"
+catalog_blurb: "Measuring how big an effect is, not just whether it is real."
 ---
 
 === step === cover
-::eyebrow Part 6 of 7
+::eyebrow Inference from Zero
 ## Effect size: Cohen's d and friends, explained
 
-Part 5 ended on a number it introduced and then walked away from. Nadia's loaves came in two thirds of a spread below label weight, and that quantity has a name, the **effect size**. Today is about reading it, reporting it, and knowing when two thirds of a spread is a lot. If you missed the earlier parts, nothing here leans on them, because every piece gets built from the beginning.
+Two diet trials land on your desk on the same morning, and both of them came back significant.
 
-Dr. Amara Osei has **1,900 patients** on her list and has to recommend one weight programme. Two published trials sit on her desk.
+The first one tested a low-fat plan on 1,200 volunteers. Over twelve weeks, the people on the plan lost half a kilo more than the people left on usual care. The second one tested a meal replacement plan on 60 volunteers, and those people lost five kilos more.
 
-The **SlimTrack app trial** followed 1,566 people. The app group lost **half a kilo** more than the control group, p = 0.020. The **coach programme trial** followed 60 people. The coach group lost **five kilos** more, p = 0.000042.
+Both trials carry the same p under 0.05 stamp. Only one of them is worth changing your dinner for.
 
-Both are significant. Both got the same stamp.
+That is what goes wrong when you treat a test result as the verdict. A test tells you whether an effect is real. It was never built to tell you how big that effect is, and with enough volunteers even the half kilo plan clears the bar comfortably.
 
-Half a kilo and five kilos are not the same advice though. For a patient who needs to lose ten kilos, half a kilo is no use at all, and with more than fifteen hundred participants a difference that small clears the bar comfortably. So the stamp cannot be the thing Amara decides on.
+So let's give the size question a number of its own. We will build both trials, run both tests, then hold that half kilo gap perfectly still and watch its p-value slide from 0.63 to 0.0000013 on headcount alone. Once you have seen that happen, the fix takes one line of arithmetic.
 
-She does have a number in her head for what would change her advice: a programme has to deliver about **4 kg** before she would recommend it over doing nothing, which is roughly five percent of body weight for her patients. Hold onto that 4, because the panel below asks for it.
+::widget process-flow {"steps":[{"title":"Measure the gap","sub":"how many kilos the plan moved the scale"},{"title":"Divide by the spread","sub":"how much people already differ from each other"},{"title":"Report both answers","sub":"how big it is, and whether it is real"}]}
 
-Here is the app trial as four different papers wrote it up. Pick whichever one reads as the strongest evidence, then look at what all four turn out to have in common.
-
-::widget report-four-ways {"studies": [{"label": "SlimTrack app trial", "outcome": "weight lost at six months", "unit": "kg", "n1": 786, "n2": 780, "m1": 0.6, "m2": 1.1, "sd": 4.25, "mcid": 4}], "alpha": 0.05}
-
-The panel scores each write-up on three questions: how big is it, how precise is it, and does it matter. Only the last card answers all three, and its answer to the third is that the whole interval sits below the 4 kg Amara set. Two of the cards also carry a number we have not met yet, **d = 0.12**. Building that number from nothing, and then finding out where it misleads, is what today does.
-
-By the end you will be able to:
-
-- Say what a significant result does and does not tell you, and why size is a separate question
-- Compute Cohen's d from raw data or from a published summary table, and say what one d means in human terms
-- Put an interval on an effect size, and correct a small-sample d with Hedges' g
-- Name the four ways a d gets inflated, and check whether any of them bit
-- Pick and compute the right effect size for the design: two averages, several averages, two continuous measurements, two categorical ones
-- Report an effect the way a careful person does, and decide with it rather than with a label
-
-**What you need first:** you can read a simple R script, so a variable, a function call and a comparison like `p < 0.05` are familiar. No statistics background is assumed, and every term is defined in plain words the moment it appears.
+That is the whole idea. Two questions instead of one, and an answer to each: is it real, and is it big.
 
 === step === concept
-::eyebrow The verdict
-## Both trials passed the test
+## The two diet trials, side by side
 
-A statistical test answers one question: could this result plausibly have come from nothing at all? When the answer is no, the result is called **significant**, and the number that decides it is the **p-value**, which counts how often a world with no real difference would throw up evidence at least this strong. The smaller the p, the harder the result is to explain away as luck.
+Let's get both trials onto the table as numbers, because everything we work out from here runs on them.
 
-Both trials published summaries rather than raw data, which is what a paper normally gives you. That is enough. Group averages, group spreads and group sizes rebuild the whole test.
+Every volunteer is weighed at the start and again twelve weeks later, and we keep one number per person: kilos lost. A positive number means they lost weight and a negative one means they put some on. Trial A has 600 people on usual care and 600 on the low-fat plan. Trial B has 30 on each.
+
+Press Run.
 
 ```r
-# SlimTrack app trial: control lost 0.6 kg (sd 4.3), app group lost 1.1 kg (sd 4.2).
-app_n1 <- 786
-app_n2 <- 780
-app_sp <- sqrt(((app_n1 - 1) * 4.3^2 + (app_n2 - 1) * 4.2^2) / (app_n1 + app_n2 - 2))
-app_se <- app_sp * sqrt(1 / app_n1 + 1 / app_n2)
-app_t  <- (1.1 - 0.6) / app_se
-app_p  <- 2 * pt(-abs(app_t), df = app_n1 + app_n2 - 2)
+# Build both diet trials: kilos lost over 12 weeks, arm by arm
+set.seed(42)
 
-# Coach programme trial: control lost 1.2 kg (sd 4.1), coach group lost 6.2 kg (sd 4.6).
-coach_n1 <- 29
-coach_n2 <- 31
-coach_sp <- sqrt(((coach_n1 - 1) * 4.1^2 + (coach_n2 - 1) * 4.6^2) / (coach_n1 + coach_n2 - 2))
-coach_se <- coach_sp * sqrt(1 / coach_n1 + 1 / coach_n2)
-coach_t  <- (6.2 - 1.2) / coach_se
-coach_p  <- 2 * pt(-abs(coach_t), df = coach_n1 + coach_n2 - 2)
+make_arm <- function(n, mean_kg, sd_kg) {
+  draw <- rnorm(n)
+  mean_kg + sd_kg * (draw - mean(draw)) / sd(draw)
+}
 
-round(c(app = app_t, coach = coach_t), 4)
-#>    app  coach
-#> 2.3275 4.4332
+trial_a <- data.frame(
+  arm     = rep(c("usual care", "low-fat"), each = 600),
+  loss_kg = c(make_arm(600, 0.0, 4), make_arm(600, 0.5, 4))
+)
 
-signif(c(app = app_p, coach = coach_p), 4)
-#>       app     coach
-#> 2.006e-02 4.191e-05
+trial_b <- data.frame(
+  arm     = rep(c("usual care", "meal replacement"), each = 30),
+  loss_kg = c(make_arm(30, 0.0, 4), make_arm(30, 5.0, 4))
+)
+
+a_ctl <- trial_a$loss_kg[trial_a$arm == "usual care"]
+a_trt <- trial_a$loss_kg[trial_a$arm == "low-fat"]
+b_ctl <- trial_b$loss_kg[trial_b$arm == "usual care"]
+b_trt <- trial_b$loss_kg[trial_b$arm == "meal replacement"]
+
+round(c(A_usual = mean(a_ctl), A_lowfat = mean(a_trt), A_gap = mean(a_trt) - mean(a_ctl),
+        B_usual = mean(b_ctl), B_meal = mean(b_trt), B_gap = mean(b_trt) - mean(b_ctl)), 2)
+#> A_usual A_lowfat    A_gap  B_usual   B_meal    B_gap
+#>     0.0      0.5      0.5      0.0      5.0      5.0
 ```
 
-`app_sp` is the two groups' spreads combined into one number, and every line beneath it leans on that one value. Step 7 opens it up and gives it a name, because the rest of today is built on it. For now take it as the yardstick the test used.
+The helper `make_arm()` draws one arm of people, then shifts and stretches that draw so the arm lands on exactly the average and exactly the spread we asked for. Real trials are never that tidy. We want them tidy here so every number you meet is the one the arithmetic produced, and not an accident of a single random draw.
 
-So p = 0.020 and p = 0.000042. Both under 0.05, both significant, and Amara has learned exactly one thing about each programme: it does something. Not how much.
+Read the six numbers as two sets of three. In trial A, usual care averages 0.0 kg lost and the low-fat plan averages 0.5 kg, a gap of half a kilo. In trial B, usual care averages 0.0 kg again and the meal replacement plan averages 5.0 kg, a gap of five kilos.
+
+The four vectors `a_ctl`, `a_trt`, `b_ctl` and `b_trt` hold the two arms of each trial on their own, and everything from here reaches for them.
 
 === step === concept
-::eyebrow Size, take one
-## The first honest answer is in kilos
+## Both trials came back significant
 
-The plainest measure of how big an effect is, is the difference itself, in the units you already understand. Most treatments of effect size hurry past that, so let us not.
+Now the part that started the trouble. Each trial gets the usual two-sample test, which compares the two arms and says whether a gap that size is easy to write off as luck.
 
 ```r
-diff_app   <- 1.1 - 0.6
-diff_coach <- 6.2 - 1.2
+# Run the usual two-sample test on each trial and print what it reports
+test_a <- t.test(a_trt, a_ctl)
+test_b <- t.test(b_trt, b_ctl)
 
-ci_app   <- diff_app   + c(-1, 1) * qt(0.975, app_n1 + app_n2 - 2) * app_se
-ci_coach <- diff_coach + c(-1, 1) * qt(0.975, coach_n1 + coach_n2 - 2) * coach_se
-
-round(c(difference = diff_app, lower = ci_app[1], upper = ci_app[2]), 4)
-#> difference      lower      upper
-#>     0.5000     0.0786     0.9214
-
-round(c(difference = diff_coach, lower = ci_coach[1], upper = ci_coach[2]), 4)
-#> difference      lower      upper
-#>     5.0000     2.7423     7.2577
+results <- data.frame(
+  trial   = c("A low-fat", "B meal replacement"),
+  per_arm = c(length(a_trt), length(b_trt)),
+  gap_kg  = round(c(mean(a_trt) - mean(a_ctl), mean(b_trt) - mean(b_ctl)), 2),
+  ci_low  = round(c(test_a$conf.int[1], test_b$conf.int[1]), 2),
+  ci_high = round(c(test_a$conf.int[2], test_b$conf.int[2]), 2),
+  p_value = format(signif(c(test_a$p.value, test_b$p.value), 2),
+                   scientific = FALSE, drop0trailing = TRUE)
+)
+results
+#>                trial per_arm gap_kg ci_low ci_high p_value
+#> 1          A low-fat     600    0.5   0.05    0.95   0.031
+#> 2 B meal replacement      30    5.0   2.93    7.07 0.00001
 ```
 
-Those lower and upper numbers are a **confidence interval**, which is the range of true differences that would not look surprising given this data. So the app trial's real effect sits somewhere around 0.08 to 0.92 kg, whereas the coach trial's sits somewhere around 2.74 to 7.26 kg. Intervals get proper treatment at step 15, where we put one around the effect size itself.
+Look at the last column first. Trial A comes in at 0.031 and trial B at 0.00001. Both sit under the customary 0.05 line, so both trials get written up as significant and both get a press release.
 
-Read those two lines as a patient would. One programme is worth between a tenth of a kilo and a kilo. The other is worth between three kilos and seven. Amara can tell those apart without any further arithmetic, which means the honest answer here is kilos, and nothing that follows is an upgrade on kilos.
+The `ci_low` and `ci_high` columns are the 95% range the test hands back next to the p-value, and they say something the p-value does not. Trial A's true gap sits somewhere between 0.05 and 0.95 kg. Trial B's sits between 2.93 and 7.07 kg. Those two ranges do not come close to overlapping.
 
-That is worth saying flatly, because the usual mistake is to treat a standardized effect size as the grown-up version of a raw difference. It is not. It is a translation you reach for when the raw units stop working, and the next step is about when exactly that happens.
+So both tests agree that the plans do something. Neither of them has a word to say about one plan being worth ten of the other. That is not a flaw in the test. It is a question nobody asked it.
 
 === step === concept
-::eyebrow Size, take two
-## Where kilos stop working
+## Why the half kilo trial cleared the bar
 
-Kilos work here because everybody at the table knows what a kilo is. Raw units fail in three specific situations, and those three are the only reason standardized effect sizes exist at all.
+Here's what makes a small p-value so easy to misread.
 
-| The situation | What goes wrong | An example from Amara's desk |
-|---|---|---|
-| The scale means nothing to you | 4 points is big or small depending entirely on the questionnaire | A trial that reports a **wellbeing score out of 60** rather than kilos |
-| Two studies measured the same thing differently | You cannot subtract kilos from body-mass index points | A trial that reports **BMI change**, not weight change |
-| You want to pool many studies at once | Every study contributes a number on its own scale | A review of 27 weight programmes, half in kilos, half in pounds, some in BMI |
+A p-value goes down as the evidence gets stronger, and headcount is one of the ingredients of evidence. So let's freeze the effect itself and change nothing but how many people took part. The gap stays at exactly 0.50 kg. The spread inside each arm stays at exactly 4 kg. Only the number of volunteers moves.
 
-In all three the fix is the same: stop asking how many kilos, and start asking how many kilos compared with how much people differ from each other anyway. That ratio has no units left in it, so a questionnaire and a bathroom scale can finally be put side by side.
+```r
+# Hold the gap at 0.50 kg and the spread at 4 kg, change only the headcount
+set.seed(42)
 
-Before we build it, one check on the half of the story you already have.
+p_for_n <- function(n) {
+  ctl <- make_arm(n, 0.0, 4)
+  trt <- make_arm(n, 0.5, 4)
+  t.test(trt, ctl)$p.value
+}
+
+per_arm <- c(30, 100, 600, 3000)
+
+p_by_n <- data.frame(
+  people_per_arm = per_arm,
+  gap_kg         = 0.5,
+  pooled_sd_kg   = 4,
+  p_value        = format(signif(sapply(per_arm, p_for_n), 2),
+                          scientific = FALSE, drop0trailing = TRUE)
+)
+p_by_n
+#>   people_per_arm gap_kg pooled_sd_kg   p_value
+#> 1             30    0.5            4      0.63
+#> 2            100    0.5            4      0.38
+#> 3            600    0.5            4     0.031
+#> 4           3000    0.5            4 0.0000013
+```
+
+Read the middle two columns first, top to bottom. The gap is 0.5 kg on every row and the spread is 4 kg on every row. The half kilo diet is the same half kilo diet all four times.
+
+Now read the last column. At 30 people an arm the same effect looks like nothing at all, p = 0.63. At 600 an arm it clears the bar at 0.031. At 3,000 an arm it comes back at 0.0000013, which anybody would read as overwhelming.
+
+Nothing about the diet changed between the first row and the last. The trial just bought more volunteers.
+
+[KEY INSIGHT]
+Given enough people, an effect too small to care about will produce a p-value small enough to publish. The p-value moved from 0.63 to 0.0000013 while the effect sat perfectly still at half a kilo.
 
 === step === quiz
-::eyebrow Check yourself
-## What significant bought you
-
-The app trial reported p = 0.020. Which of these does that let Amara say?
+## Quick check: what makes a p-value small?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- The app makes a large difference to weight ::no A p-value counts how surprising the data would be in a world where the app changes nothing at all. That is a claim about existence, not about size, and it says nothing about how many kilos are involved. With 1,566 participants half a kilo is enough to clear the bar, which is exactly why a second and separate number is needed.
-- The data would be surprising if the app made no difference at all ::ok That is all a p-value ever claims. It says how badly "nothing is going on" survives contact with the data, and it stays completely silent on how big the something is.
-- There is a 2 percent chance the app does nothing ::no A p-value counts how surprising the data would be in a world where the app changes nothing at all. That is a claim about existence, not about size, and it says nothing about how many kilos are involved. With 1,566 participants half a kilo is enough to clear the bar, which is exactly why a second and separate number is needed.
-- The effect is 98 percent likely to matter to patients ::no A p-value counts how surprising the data would be in a world where the app changes nothing at all. That is a claim about existence, not about size, and it says nothing about how many kilos are involved. With 1,566 participants half a kilo is enough to clear the bar, which is exactly why a second and separate number is needed.
+- The size of the effect, and nothing else. Only a wider gap between the two arms can drive a p-value down. ::no
+- Three things together: how wide the gap is, how much people scatter around it, and how many of them there are. Move any one of the three the right way and p falls. ::ok Exactly. Headcount is an ingredient of the p-value in its own right, which is why the same half kilo gap ran from 0.63 to 0.0000013 with the diet held completely still.
+- The gap has to be wider than the spread inside the arms before p can drop below 0.05. ::no
+- The number of people, and nothing else. The size of the gap plays no part. ::no A p-value blends all three: the gap, the scatter, and the headcount. That is exactly the problem. Because headcount is in the mix, a small p-value on its own cannot tell you whether the gap was worth having, and a big p-value cannot tell you the effect was absent.
 
 === step === concept
-::eyebrow Building it
-## Measure the gap against how much people differ anyway
+## Half a kilo against how much scatter?
 
-Think about what makes half a kilo unimpressive. The reported spreads say that in both trials people varied hugely among themselves, by around four kilos either side of their group's average, and that happened in the control groups too, where nothing was being done to anybody. Against that background noise, a half-kilo shift between two groups is barely audible.
+If the test cannot tell you whether half a kilo is a lot, what can?
 
-So put the gap next to the noise and look at them together.
+Not the raw number on its own. Half a kilo means nothing until you know what people were already doing. If everyone on usual care landed within a few hundred grams of each other, half a kilo would be an enormous shift. If they were scattered all over the place, half a kilo disappears into the noise.
+
+So let's put the gap next to the scatter and look at both at once.
 
 ```r
-round(c(gap = diff_app, spread = app_sp, gap_in_spreads = diff_app / app_sp), 4)
-#>            gap         spread gap_in_spreads
-#>         0.5000         4.2505         0.1176
+# Set trial A's half-kilo gap against the spread inside each arm
+round(c(gap_kg = mean(a_trt) - mean(a_ctl),
+        sd_usual_care = sd(a_ctl),
+        sd_low_fat = sd(a_trt)), 2)
+#>        gap_kg sd_usual_care    sd_low_fat
+#>           0.5           4.0           4.0
 
-round(c(gap = diff_coach, spread = coach_sp, gap_in_spreads = diff_coach / coach_sp), 4)
-#>            gap         spread gap_in_spreads
-#>         5.0000         4.3658         1.1453
+kg_breaks <- seq(floor(min(a_ctl, a_trt)), ceiling(max(a_ctl, a_trt)), by = 1)
+tallest <- max(hist(a_ctl, breaks = kg_breaks, plot = FALSE)$counts,
+               hist(a_trt, breaks = kg_breaks, plot = FALSE)$counts)
+
+hist(a_ctl, breaks = kg_breaks, col = rgb(0.45, 0.45, 0.45, 0.55), border = "white",
+     ylim = c(0, tallest),
+     main = "Trial A: 600 people on each plan",
+     xlab = "Kilos lost over 12 weeks")
+hist(a_trt, breaks = kg_breaks, col = rgb(0.85, 0.45, 0.10, 0.55), border = "white", add = TRUE)
+abline(v = c(mean(a_ctl), mean(a_trt)), col = c("grey25", "#C25E0D"), lwd = 3)
+legend("topright", bty = "n", border = "white",
+       fill = c(rgb(0.45, 0.45, 0.45, 0.55), rgb(0.85, 0.45, 0.10, 0.55)),
+       legend = c("usual care", "low-fat plan"))
 ```
 
-The two spreads are almost identical, about four and a quarter kilos, which says people in these two trials wobbled by roughly the same amount. What differs is the gap. Divide one by the other and the app trial's gap is about a tenth of the ordinary person-to-person wobble, while the coach trial's is slightly more than the whole of it.
+The standard deviation of each arm is 4 kg. That is the everyday spread among people on the same plan. Some lose eight kilos, some put on six, and the typical distance from their own arm's average is about four kilos either way.
 
-That last column is the effect size we are after. It has no units, because kilos cancel kilos. Two questions remain: which spread should go on the bottom, and what does a number like 1.15 actually mean for a patient.
+Now the picture. The grey pile is usual care, the orange pile is the low-fat plan, and the two vertical lines are their averages. The piles sit almost entirely on top of each other, and the two lines are so close they nearly touch.
+
+That is what half a kilo really looks like. The gap is one eighth of the ordinary variation between two people on the same diet, so pick one person from each pile and you would very often find the usual care person had done better.
+
+And that gives us the measurement we want. The question is not how many kilos the gap is worth. It is how many spreads.
 
 === step === concept
-::eyebrow The denominator
-## One spread from two groups
+## Cohen's d: the gap measured in standard deviations
 
-Each trial has two spreads, one per group, and the effect size wants a single yardstick. The obvious move is to average them. The right move is nearly that, and the difference matters when the groups are different sizes.
+That last line is the whole idea, and it has a name. **Cohen's d** is the gap between two group averages, divided by the spread inside the groups.
 
-What you actually do is pool the **variance**, which is the spread squared, weighting each group by how many people it had, then take the square root at the end. The result is called the **pooled standard deviation**, written \( s_p \).
+\[ d = \frac{\bar{x}_{plan} - \bar{x}_{usual}}{s_{pooled}} \]
 
-\[ s_p = \sqrt{\frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1+n_2-2}} \]
+The top is the plain difference in kilos. The bottom, the **pooled standard deviation**, is the two arms' spreads combined into one number, weighted by how many people each arm contributed.
 
-Reading it left to right: \( s_1 \) and \( s_2 \) are the two groups' standard deviations, so \( s_1^2 \) and \( s_2^2 \) are their variances; \( n_1 \) and \( n_2 \) are the two group sizes; each variance is multiplied by its group size minus one, the two are added, and the total is divided by the combined size minus two. The weights are group sizes because a spread measured on 780 people is a better estimate than one measured on 29, and it deserves to count for more.
+\[ s_{pooled} = \sqrt{\frac{(n_1 - 1)s_1^2 + (n_2 - 1)s_2^2}{n_1 + n_2 - 2}} \]
 
-Watch it work on the coach trial, whose two spreads were 4.1 and 4.6.
+Read that as an average of the two variances and nothing more exotic. Square each arm's standard deviation to get its variance, weight each variance by that arm's headcount minus one, add the two, divide by the two counts minus two, and take the square root. If both arms scatter by the same amount, the answer comes back as that amount, which is exactly what should happen.
+
+Let's work trial A through it, one piece at a time.
 
 ```r
-ss_control   <- (coach_n1 - 1) * 4.1^2
-ss_programme <- (coach_n2 - 1) * 4.6^2
-pooled_variance <- (ss_control + ss_programme) / (coach_n1 + coach_n2 - 2)
+# Work Cohen's d for trial A by hand, one piece at a time
+n_trt <- length(a_trt)
+n_ctl <- length(a_ctl)
 
-round(c(ss_control = ss_control, ss_programme = ss_programme), 2)
-#>   ss_control ss_programme
-#>       470.68       634.80
+gap_kg    <- mean(a_trt) - mean(a_ctl)
+s_pooled  <- sqrt(((n_trt - 1) * var(a_trt) + (n_ctl - 1) * var(a_ctl)) / (n_trt + n_ctl - 2))
+d_trial_a <- gap_kg / s_pooled
 
-round(sqrt(pooled_variance), 4)
-#> [1] 4.3658
-
-mean(c(4.1, 4.6))
-#> [1] 4.35
+round(c(gap_kg = gap_kg, pooled_sd_kg = s_pooled, d = d_trial_a), 3)
+#>       gap_kg pooled_sd_kg            d
+#>        0.500        4.000        0.125
 ```
 
-4.3658 against a plain average of 4.35. Close here, because the two groups are nearly the same size and their spreads are similar, and not close at all when one group is four times the other.
+Half a kilo over four kilos is 0.125. The low-fat plan moved people an eighth of a standard deviation.
 
-And that 4.3658 is the debt from step 2 coming due. It is exactly `coach_sp`, the number the t-test used back there without ever naming it. The test needed it to reach a verdict, and we need it to get a size.
+Notice what happened to the units along the way. The top of that fraction is kilos and the bottom is kilos, so they cancel, and d comes out as a bare number with no unit on it. That is the property that makes d worth having.
+
+A d of 0.125 means the same thing whether the study weighed people in kilos, measured blood pressure in millimetres of mercury or scored an exam out of 100. It is always the gap counted in units of how much people ordinarily differ.
 
 === step === concept
-::eyebrow The definition
-## Cohen's d, written down
+## Cohen's d for both trials, in one function
 
-Now the whole thing in one line. **Cohen's d** is the gap between the two group averages, measured in pooled standard deviations.
-
-\[ d = \frac{\bar{x}_2 - \bar{x}_1}{s_p} \]
-
-\( \bar{x}_1 \) is the control group's average, \( \bar{x}_2 \) is the programme group's average, and \( s_p \) is the pooled standard deviation from the last step. Read out loud: how many ordinary person-to-person spreads separate the two group averages.
-
-Here it is as a function, because we will use it on five different trials before the day is out.
+We are going to want that computation a few more times, so let's put it in a function instead of retyping it.
 
 ```r
-cohens_d_from_summary <- function(m1, m2, s1, s2, n1, n2) {
-  spread <- sqrt(((n1 - 1) * s1^2 + (n2 - 1) * s2^2) / (n1 + n2 - 2))
-  (m2 - m1) / spread
+# Wrap Cohen's d in a function and run it on both trials
+cohens_d <- function(x, y) {
+  n1 <- length(x)
+  n2 <- length(y)
+  s_p <- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  (mean(x) - mean(y)) / s_p
 }
 
-# control mean, programme mean, control sd, programme sd, control n, programme n
-round(cohens_d_from_summary(1.2, 6.2, 4.1, 4.6, 29, 31), 4)
-#> [1] 1.1453
+round(c(trial_A = cohens_d(a_trt, a_ctl), trial_B = cohens_d(b_trt, b_ctl)), 3)
+#> trial_A trial_B
+#>   0.125   1.250
 ```
 
-Six numbers in, one number out, and every one of the six sits in the results table of a published paper. That is worth noticing on its own: you never need a paper's raw data to compute its effect size.
+There they are, side by side: 0.125 and 1.250.
 
-There is a shortcut for the days when a paper prints only its t statistic and its group sizes. Multiply t by \( \sqrt{1/n_1 + 1/n_2} \) and you get d exactly. For the coach trial that is 4.4332 times 0.2583, which is 1.1453 again.
+The meal replacement plan is exactly ten times the effect of the low-fat plan. Both trials came back under 0.05 and the p-values could not tell them apart in any useful way, because trial A's bigger crowd had padded its evidence. One number, worked out in four lines, separates them cleanly.
+
+`cohens_d(x, y)` subtracts the second group's average from the first, so the order of the arguments sets the sign. Feed it the treated arm first and a plan that helps gives a positive d. Swap them and you get 0.125 with a minus in front, which is the same effect described from the other side. So whenever you report a d, say which way it runs.
 
 === step === concept
-::eyebrow The reveal
-## The two trials, finally separated
+## What d = 0.125 and d = 1.25 look like drawn
 
-Both trials came back significant. Run both through the same function and see what the p-values were hiding.
+Numbers like 0.125 and 1.25 are easier to trust once you have seen what they look like, so let's draw them.
+
+Both plans produced arms that spread by 4 kg, so each arm draws as a bell curve centred on that arm's average, with those 4 kg as its natural step along the axis. Cohen's d is then just how far apart two of those curves sit, counted in 4 kg steps.
 
 ```r
-d_app   <- cohens_d_from_summary(0.6, 1.1, 4.3, 4.2, 786, 780)
-d_coach <- cohens_d_from_summary(1.2, 6.2, 4.1, 4.6, 29, 31)
+# Draw both trials on one axis so d becomes a distance you can see
+kg_grid <- seq(-14, 20, length.out = 400)
 
-round(c(app = d_app, coach = d_coach), 4)
-#>    app  coach
-#> 0.1176 1.1453
-
-signif(c(app = app_p, coach = coach_p), 4)
-#>       app     coach
-#> 2.006e-02 4.191e-05
+plot(kg_grid, dnorm(kg_grid, 0.0, 4), type = "l", lwd = 3, col = "grey35",
+     main = "Usual care against each diet plan",
+     xlab = "Kilos lost over 12 weeks", ylab = "How common that result is")
+lines(kg_grid, dnorm(kg_grid, 0.5, 4), lwd = 3, col = "#C25E0D", lty = 2)
+lines(kg_grid, dnorm(kg_grid, 5.0, 4), lwd = 3, col = "#C25E0D")
+legend("topright", bty = "n", lwd = 3,
+       legend = c("usual care", "low-fat, d = 0.125", "meal replacement, d = 1.25"),
+       col = c("grey35", "#C25E0D", "#C25E0D"), lty = c(1, 2, 1))
 ```
 
-Look at the two rows together. On the verdict, both trials say yes. On the size, one is 0.12 and the other is 1.15, so the coach programme's effect is nearly ten times the app's, measured on the one scale that lets them be compared.
+The grey curve is usual care. The dashed orange curve is the low-fat plan, and it sits so close to grey that you have to look twice to find the gap. That is d = 0.125 drawn to scale: two crowds of people who are, for any practical purpose, the same crowd.
 
-And notice which trial has the smaller p-value. The coach trial, on 60 people. The app trial needed 1,566 people to detect its effect, and the size of that effect is precisely why. A p-value falls as the effect grows, and it also falls as the sample grows, so it cannot tell you which of the two is happening. The effect size can.
+The solid orange curve is the meal replacement plan. It has moved a full step and a quarter to the right, five kilos against a spread of four, and now the overlap is small. Most of the people on that plan did better than most of the people on usual care. That is d = 1.25.
+
+Same axis, same spread, same picture. The only thing that changed is how far the second crowd moved, and d is the number that counts that distance.
+
+=== step === concept
+## Cohen's benchmarks, and when to ignore them
+
+You now have a number. The next thing anybody will ask is whether that number is big, and for that there is a convention.
+
+Jacob Cohen, who introduced d, suggested three landmarks for it, and they have stuck ever since.
+
+| d | Cohen's label | What it means on the drawn curves |
+|---|---|---|
+| 0.2 | small | the two curves are nearly on top of each other |
+| 0.5 | medium | a visible shift, the curves still overlap heavily |
+| 0.8 | large | the curves have clearly parted company |
+
+A small helper turns any d into its label.
+
+```r
+# Turn a d into Cohen's label, then label both trials
+interpret_d <- function(d) {
+  size <- abs(d)
+  if (size < 0.2) "negligible"
+  else if (size < 0.5) "small"
+  else if (size < 0.8) "medium"
+  else "large"
+}
+
+c(trial_A = interpret_d(cohens_d(a_trt, a_ctl)),
+  trial_B = interpret_d(cohens_d(b_trt, b_ctl)))
+#>      trial_A      trial_B
+#> "negligible"      "large"
+```
+
+Trial A's 0.125 does not even reach the small mark, so it comes back negligible. Trial B's 1.25 is well past large.
+
+Now the caveat, and it matters more than the table does. Cohen picked 0.2, 0.5 and 0.8 from what was typical in the behavioural research he knew, and he wrote that he offered them reluctantly, for people with nothing better to go on. They are not laws. What counts as big depends on what the effect costs and who it reaches.
+
+- A d of 0.1 from a cheap public health change that reaches forty million people can prevent more illness than a d of 1.0 from a therapy almost nobody will complete.
+- A d of 0.3 in a field where the published effects all run around 0.2 is a strong result.
+- A d of 1.5 in a lab study on ten people is usually a sign that the trial was too small, not that the effect was enormous.
+
+So take the labels as a starting point, then say what the effect is worth in the language of the field it came from.
 
 === step === quiz
-::eyebrow Check yourself
-## Change the units, change the d?
+## Quick check: reading a d of 0.125
 
-An American journal republishes the coach trial with every weight converted to pounds. What happens to d?
+The low-fat plan came back with d = 0.125. What does that number tell you about the people in that trial?
 
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- It is multiplied by 2.2, the same as the weights ::no Both the top and the bottom of the fraction are measured in the same units, so converting the data multiplies the gap by 2.2 and the pooled spread by 2.2 as well. The two cancel and d comes out identical, which is the entire reason for dividing by a spread in the first place.
-- It gets smaller, because the numbers all get bigger ::no Both the top and the bottom of the fraction are measured in the same units, so converting the data multiplies the gap by 2.2 and the pooled spread by 2.2 as well. The two cancel and d comes out identical, which is the entire reason for dividing by a spread in the first place.
-- Nothing, because the gap and the spread scale by the same factor ::ok Kilos cancel kilos. That is what makes d comparable across a bathroom scale, a questionnaire and a blood test, and it is the property the raw difference does not have.
-- It changes only if the sample size changes too ::no Both the top and the bottom of the fraction are measured in the same units, so converting the data multiplies the gap by 2.2 and the pooled spread by 2.2 as well. The two cancel and d comes out identical, which is the entire reason for dividing by a spread in the first place.
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The low-fat plan moved the scale 12.5% further than usual care did. ::no
+- The two crowds sit an eighth of a standard deviation apart, so plenty of people on usual care did better than plenty of people on the low-fat plan. ::ok That is it. The curves you drew sat almost exactly on top of each other, and 0.125 is that overlap written down as a number.
+- There is a 12.5% chance the low-fat plan did nothing at all. ::no
+- The effect is small, but the p-value of 0.031 shows it is still worth acting on. ::no Cohen's d is a distance between two crowds, measured in standard deviations, and 0.125 is an eighth of one. It is not a percentage, it is not a probability, and no p-value can rescue it: 0.031 only says the gap was hard to get by luck with 1,200 volunteers, not that the gap was worth having.
 
-=== step === concept
-::eyebrow Seeing it
-## What one d looks like
+=== step === widget
+## How many people does a small effect need?
 
-One line to settle the pounds question for good, because a claim like that is easy to check.
+All of this has a practical consequence, and it explains why trial A had to recruit 1,200 people in the first place.
 
-```r
-lb <- 2.20462
-d_coach_lb <- cohens_d_from_summary(1.2 * lb, 6.2 * lb, 4.1 * lb, 4.6 * lb, 29, 31)
+A small effect is expensive. The smaller the true effect, the more volunteers you need before a test can spot it reliably. The curve below plots exactly that. The horizontal axis is how many people you put in each arm, and the vertical axis is your chance of coming back significant when the effect really is there, which is what everybody calls the power of the trial.
 
-round(c(kilograms = d_coach, pounds = d_coach_lb), 6)
-#> kilograms    pounds
-#>  1.145272  1.145272
-```
-
-Identical to six decimal places. Now for what those numbers look like.
-
-A d is a distance between two piles of people. Weight change tends to pile up around a group's average and thin out on either side, which draws the bell-shaped curve `dnorm()` produces below. Draw the control group as one of those curves and the programme group as the same curve shifted along by d, and the shaded region is where the two groups are indistinguishable.
-
-```r
-draw_two_groups <- function(d, label) {
-  x <- seq(-4, 5.5, length.out = 400)
-  control   <- dnorm(x)
-  programme <- dnorm(x, mean = d)
-  plot(x, control, type = "n", xlab = "weight lost, in spreads",
-       ylab = "", yaxt = "n", main = paste0(label, ", d = ", round(d, 2)))
-  polygon(c(x, rev(x)), c(pmin(control, programme), rep(0, length(x))),
-          col = "#dfe5ee", border = NA)
-  lines(x, control, lwd = 2, col = "#2563a8")
-  lines(x, programme, lwd = 2, col = "#b5631a")
-  abline(v = c(0, d), lty = 2, col = c("#2563a8", "#b5631a"))
-}
-
-par(mfrow = c(1, 2))
-draw_two_groups(d_app, "App trial")
-draw_two_groups(d_coach, "Coach trial")
-```
-
-Press Run and compare the two panels. On the left the two curves sit almost exactly on top of each other, and the dashed lines marking the two group averages are so close they nearly touch. On the right the piles have visibly pulled apart, though even there they still overlap a great deal, which is a useful corrective: a d of 1.15 is a big effect by any standard, and plenty of coach patients still did worse than plenty of control patients.
-
-=== step === concept
-::eyebrow Saying it
-## Three ways to say a d out loud
-
-"One point one five pooled standard deviations" is not a sentence you can say to a patient. Three translations fix that, and each is a single line of arithmetic on d rather than a rule of thumb. All three read their answer off the two bell curves you just drew, so they hold as long as both groups are shaped roughly like that and spread by roughly the same amount.
-
-```r
-say_it_out_loud <- function(d) {
-  c(overlap             = 2 * pnorm(-abs(d) / 2),
-    beats_a_control     = pnorm(d / sqrt(2)),
-    above_control_mean  = pnorm(d))
-}
-
-round(say_it_out_loud(d_app), 4)
-#>            overlap    beats_a_control above_control_mean
-#>             0.9531             0.5331             0.5468
-
-round(say_it_out_loud(d_coach), 4)
-#>            overlap    beats_a_control above_control_mean
-#>             0.5669             0.7910             0.8740
-```
-
-Take them one at a time, for the coach trial.
-
-- **Overlap, 0.5669.** The two groups have about 57 percent of their area in common. Shade the picture from the last step and that is the grey area.
-- **Beats a control patient, 0.7910.** Pick one coach patient and one control patient at random, and the coach patient has lost more about 79 times in 100. This one is called the probability of superiority, and it is the translation patients understand fastest.
-- **Above the control average, 0.8740.** Eighty-seven percent of coach patients did better than the typical control patient.
-
-Now the app trial. Its probability of superiority is 0.5331, so if you pick one patient from each group, the app user has lost more about 53 times in 100. A coin flip is 50. That is what half a kilo buys, and Amara can now say it in a sentence a patient will follow.
-
-=== step === tryit
-::eyebrow Your turn
-## A third trial from its published table
-
-A third paper lands on the desk. The **MealBox trial**: 64 control patients lost 0.9 kg with a standard deviation of 4.0, and 66 MealBox patients lost 3.4 kg with a standard deviation of 4.5.
-
-Fill in the two averages and press Check, then run it to see the effect size.
-
-```r
-cohens_d_from_summary(____, ____, 4.0, 4.5, 64, 66)
-```
-::check {"regex":"0\\.9\\s*,\\s*3\\.4","gate":true,"difficulty":"intermediate","ok":"d = 0.5867, which sits between the app trial's 0.12 and the coach trial's 1.15, and closer to the coach end. In plain terms, pick one MealBox patient and one control patient at random and the MealBox patient has lost more about 66 times in 100. The trial is also significant, t = 3.3442 with p = 0.0011, but you knew that would not tell you any of this.","no":"The function takes the control average first and the programme average second, so it wants 0.9 and then 3.4. The two standard deviations and the two group sizes are already filled in for you."}
-::solution
-```r
-d_mealbox <- cohens_d_from_summary(0.9, 3.4, 4.0, 4.5, 64, 66)
-round(d_mealbox, 4)
-#> [1] 0.5867
-```
-
-=== step === quiz
-::eyebrow Check yourself
-## Reading a d
-
-The MealBox trial's d is 0.59. Which reading of that number is right?
-
-::quiz {"correct": 4, "gate": true, "difficulty": "intermediate"}
-- 59 percent of MealBox patients lost weight ::no d is a ratio of two things measured in kilos: the gap between the group averages on top, and the ordinary person-to-person spread on the bottom. It is not a percentage of anything, and it carries no information at all about how likely the result is to be real. That second question is the p-value's job, and it is a separate question.
-- The programme works 59 percent of the time ::no d is a ratio of two things measured in kilos: the gap between the group averages on top, and the ordinary person-to-person spread on the bottom. It is not a percentage of anything, and it carries no information at all about how likely the result is to be real. That second question is the p-value's job, and it is a separate question.
-- The result is 59 percent likely to be real ::no d is a ratio of two things measured in kilos: the gap between the group averages on top, and the ordinary person-to-person spread on the bottom. It is not a percentage of anything, and it carries no information at all about how likely the result is to be real. That second question is the p-value's job, and it is a separate question.
-- The average MealBox patient lost about six tenths of a typical person-to-person spread more than the average control patient ::ok That is the definition read out loud. Every other reading smuggles in a percentage or a probability that d simply does not contain.
-
-=== step === concept
-::eyebrow The catch
-## Your d is an estimate too
-
-Three papers, three effect sizes, and Amara is one step away from a mistake most readers make: treating a published d as a fact. It is not a fact. It is an estimate computed from a sample, exactly like the group averages that went into it, and estimates come with uncertainty.
-
-The uncertainty has a formula. The **standard error** of d, meaning the typical amount a d bounces around from sample to sample, is
-
-\[ SE(d) \approx \sqrt{\frac{n_1+n_2}{n_1 n_2} + \frac{d^2}{2(n_1+n_2)}} \]
-
-Two terms, two sources of doubt. The first, \( (n_1+n_2)/(n_1 n_2) \), is there because you do not know the two true averages, only the sample ones. The second, \( d^2/(2(n_1+n_2)) \), is there because you do not know the true spread either, and it grows with d because a bigger effect leans harder on that spread. Both shrink as the groups grow, and nothing else shrinks them.
-
-```r
-se_of_d <- function(d, n1, n2) sqrt((n1 + n2) / (n1 * n2) + d^2 / (2 * (n1 + n2)))
-
-se_app   <- se_of_d(d_app, 786, 780)
-se_coach <- se_of_d(d_coach, 29, 31)
-
-round(c(d = d_app, se = se_app, lower = d_app - 1.96 * se_app, upper = d_app + 1.96 * se_app), 4)
-#>      d     se  lower  upper
-#> 0.1176 0.0506 0.0185 0.2168
-
-round(c(d = d_coach, se = se_coach, lower = d_coach - 1.96 * se_coach, upper = d_coach + 1.96 * se_coach), 4)
-#>      d     se  lower  upper
-#> 1.1453 0.2787 0.5990 1.6915
-```
-
-Read the coach trial's row again. Its effect size is somewhere between 0.60 and 1.69. That range covers everything from a moderate effect to an enormous one, which is what sixty people buys you, and it is a far less confident statement than the bare "d = 1.15" in the abstract.
-
-The app trial's interval is narrow, 0.02 to 0.22, because 1,566 people pin a number down. So one trial is small and precise and the other is large and vague, and neither abstract said so.
-
-=== step === concept
-::eyebrow Where the interval comes from
-## The same interval, by resampling
-
-That formula appeared out of nowhere, which is unsatisfying. So here is the same uncertainty built by hand, with no formula at all, on data Amara can see.
-
-A year ago she ran her own small comparison in the clinic. Thirty-six patients, twelve on usual care, twelve given the app, twelve funded onto the coach programme, with weight lost at six months recorded for each.
-
-Here is how the resampling works. Take those twelve coach patients and draw twelve of them **with replacement**, meaning after each pick you throw the name back in, so some patients get picked twice and others get left out entirely. That gives you a clinic that could plausibly have walked through the door instead. Do it ten thousand times, compute d each time, and the spread of the answers is the uncertainty.
-
-Press Draw again a few times to watch one resample happen.
-
-::widget bootstrap-sample {"n": 12, "seed": 7, "tail": "Those patients are missing from this resample, and the next draw will miss different ones."}
-
-That is one draw. Here are Amara's actual numbers, and then ten thousand draws.
-
-```r
-kg_lost <- c(0.5, 0.2, 4.6, 0.8, -1.1, 1.7, 0.1, 0.4, -3.6, -5.2, -2.5, 1.9,
-             3.7, 1.7, -3.0, 7.2, 0.1, -1.3, 1.8, 3.8, -1.0, 0.9, 4.9, 1.3,
-             5.8, 3.6, 6.7, 3.3, 3.6, 2.6, 5.3, 3.7, 10.8, 6.8, 8.4, 5.7)
-minutes <- c(35, 107, 119, 100, 54, 92, 53, 87, 44, 86, 44, 64,
-             112, 81, 106, 118, 150, 142, 94, 125, 49, 84, 94, 81,
-             167, 111, 195, 172, 125, 86, 86, 128, 151, 167, 156, 127)
-arm <- factor(rep(c("usual", "app", "coach"), each = 12),
-              levels = c("usual", "app", "coach"))
-
-usual <- kg_lost[arm == "usual"]
-app   <- kg_lost[arm == "app"]
-coach <- kg_lost[arm == "coach"]
-
-# The same d as before, this time from raw numbers rather than a summary table.
-cohens_d <- function(treated, control) {
-  n1 <- length(control)
-  n2 <- length(treated)
-  spread <- sqrt(((n1 - 1) * var(control) + (n2 - 1) * var(treated)) / (n1 + n2 - 2))
-  (mean(treated) - mean(control)) / spread
-}
-
-round(tapply(kg_lost, arm, mean), 4)
-#>   usual     app   coach
-#> -0.1833  1.6750  5.5250
-
-round(cohens_d(coach, usual), 4)
-#> [1] 2.2684
-```
-
-Usual care lost nothing at all on average, the app arm lost about 1.7 kg, and the coach arm lost 5.5 kg. Coach against usual comes out at d = 2.27, which is bigger than the published trial's 1.15. Leave that gap alone for now. Step 27 explains it, and the explanation is worth more than the number.
-
-```r
-set.seed(5)
-boot_d <- replicate(10000, {
-  coach_again <- sample(coach, replace = TRUE)
-  usual_again <- sample(usual, replace = TRUE)
-  cohens_d(coach_again, usual_again)
-})
-
-round(quantile(boot_d, c(0.025, 0.975)), 4)
-#>   2.5%  97.5%
-#> 1.6338 3.4074
-
-d_clinic  <- cohens_d(coach, usual)
-se_clinic <- se_of_d(d_clinic, 12, 12)
-round(c(lower = d_clinic - 1.96 * se_clinic, upper = d_clinic + 1.96 * se_clinic), 4)
-#>  lower  upper
-#> 1.2427 3.2941
-```
-
-`quantile(boot_d, c(0.025, 0.975))` throws away the lowest 2.5 percent and the highest 2.5 percent of the ten thousand answers and reports what is left, which is a 95 percent interval built by brute force. It lands on 1.63 to 3.41, and the formula from the last step lands on 1.24 to 3.29. Two completely different routes arrive at the same message: twelve patients per arm cannot pin an effect size down.
-
-```r
-hist(boot_d, breaks = 40, col = "#dbe7f3", border = "white",
-     main = "", xlab = "d from each resampled clinic")
-abline(v = quantile(boot_d, c(0.025, 0.975)), lwd = 2, lty = 2, col = "#b5631a")
-abline(v = d_clinic, lwd = 2, col = "#2563a8")
-```
-
-=== step === tryit
-::eyebrow Your turn
-## Bootstrap the app arm
-
-Amara's app arm looked promising: 1.7 kg lost against nothing at all in usual care. Do to it what we just did to the coach arm.
-
-Fill in the arm being resampled and press Check, then run it.
-
-```r
-set.seed(9)
-boot_app <- replicate(10000, {
-  app_again   <- sample(____, replace = TRUE)
-  usual_again <- sample(usual, replace = TRUE)
-  cohens_d(app_again, usual_again)
-})
-
-round(cohens_d(app, usual), 4)
-round(quantile(boot_app, c(0.025, 0.975)), 4)
-```
-::check {"regex":"sample\\s*[(]\\s*app\\s*,","gate":true,"difficulty":"intermediate","ok":"d = 0.6756, and the interval runs from -0.0931 to 1.5482. Stop on that lower end for a second. It is below zero, which means twelve patients per arm cannot rule out the possibility that the app did nothing whatsoever, even though the d in front of you looks respectable. A number that the usual labels would call medium is sitting on an interval that includes nothing at all.","no":"The vector holding the twelve app patients is called `app`, so `sample(app, replace = TRUE)` is the line you want. `usual` is already filled in on the row below."}
-::solution
-```r
-set.seed(9)
-boot_app <- replicate(10000, {
-  app_again   <- sample(app, replace = TRUE)
-  usual_again <- sample(usual, replace = TRUE)
-  cohens_d(app_again, usual_again)
-})
-
-round(cohens_d(app, usual), 4)
-#> [1] 0.6756
-
-round(quantile(boot_app, c(0.025, 0.975)), 4)
-#>    2.5%   97.5%
-#> -0.0931  1.5482
-```
-
-=== step === concept
-::eyebrow Inflator one
-## Small samples push d up
-
-An interval that includes zero is bad enough. There is something worse hiding in a small sample, and it is not random: d does not just bounce around when the groups are small, it bounces around a point that is too high.
-
-The way to see that is to build a world where you know the truth. Set the real effect to exactly 0.5, run ten thousand studies of ten patients per group, and look at what the average study reports.
-
-```r
-set.seed(101)
-small_studies <- replicate(10000, {
-  control   <- rnorm(10, mean = 0, sd = 1)
-  programme <- rnorm(10, mean = 0.5, sd = 1)
-  cohens_d(programme, control)
-})
-
-round(mean(small_studies), 4)
-#> [1] 0.523
-
-set.seed(101)
-bigger_studies <- replicate(10000, {
-  control   <- rnorm(50, mean = 0, sd = 1)
-  programme <- rnorm(50, mean = 0.5, sd = 1)
-  cohens_d(programme, control)
-})
-
-round(mean(bigger_studies), 4)
-#> [1] 0.4996
-```
-
-`rnorm(10, mean = 0.5, sd = 1)` draws ten patients from a world where the programme really does move the average by half a spread, so every one of these ten thousand studies is honest, correctly run, and free of any funny business.
-
-At ten per group the average study reports 0.523 rather than 0.500, which is about five percent too high. At fifty per group it reports 0.4996, and the bias has vanished into the noise. The reason is in the denominator: with ten people you are estimating the spread from ten people, that estimate runs a shade low on average, and dividing by something too small makes d too big.
-
-```r
-hist(small_studies, breaks = 40, col = "#dbe7f3", border = "white",
-     main = "", xlab = "d reported by each 10-per-group study")
-abline(v = 0.5, lwd = 2, col = "#2563a8")
-abline(v = mean(small_studies), lwd = 2, lty = 2, col = "#b5631a")
-```
-
-The solid line is the truth and the dashed line is where the studies average out. They sit close together, and the dashed one is the one further to the right.
-
-=== step === concept
-::eyebrow The fix
-## Hedges' g, the correction
-
-Because the bias is systematic, it can be removed. Multiply d by a correction factor slightly below one, and what comes out is called **Hedges' g**.
-
-\[ J = 1 - \frac{3}{4(n_1+n_2-2)-1}, \qquad g = J \times d \]
-
-\( J \) depends on nothing but the two group sizes. When the groups are large, \( 4(n_1+n_2-2)-1 \) is enormous, so J is a whisker under one and g is d. When the groups are tiny, J bites.
-
-```r
-hedges_J <- function(n1, n2) 1 - 3 / (4 * (n1 + n2 - 2) - 1)
-
-round(c(J = hedges_J(786, 780), g = hedges_J(786, 780) * d_app), 5)
-#>       J       g
-#> 0.99952 0.11758
-
-round(c(J = hedges_J(29, 31), g = hedges_J(29, 31) * d_coach), 5)
-#>       J       g
-#> 0.98701 1.13040
-
-round(mean(small_studies * hedges_J(10, 10)), 4)
-#> [1] 0.5009
-```
-
-The app trial barely moves, from 0.11763 to 0.11758, because 1,566 people leave nothing to correct. The coach trial drops from 1.1453 to 1.1304 on 60 people. And the ten thousand tiny studies, which averaged 0.523 uncorrected, average 0.5009 once every one of them is multiplied by J. The correction works.
-
-So report g rather than d whenever a group has fewer than about twenty people, and expect the two to be identical when the groups are large. It costs one line and it is never wrong to apply.
-
-=== step === concept
-::eyebrow Inflator two
-## A small trial that got published is a biased trial
-
-Hedges' g fixes a bias in the arithmetic. The next one is a bias in which studies you get to read, and no correction factor touches it.
-
-Go back to the ten-per-group world where the true effect is 0.5. Most of those studies are too small to reach significance. The ones that do reach it are, by definition, the ones that got a lucky draw, and a lucky draw means a large d. Those are also the ones that get published.
-
-```r
-set.seed(202)
-tiny_trials <- replicate(10000, {
-  control   <- rnorm(10, mean = 0, sd = 1)
-  programme <- rnorm(10, mean = 0.5, sd = 1)
-  c(d = cohens_d(programme, control),
-    p = t.test(programme, control, var.equal = TRUE)$p.value)
-})
-
-d_values  <- tiny_trials["d", ]
-p_values  <- tiny_trials["p", ]
-published <- d_values[p_values < 0.05]
-
-round(100 * mean(p_values < 0.05), 2)
-#> [1] 18.79
-
-round(c(all_studies = mean(d_values), only_significant = mean(published)), 4)
-#>      all_studies only_significant
-#>           0.5257           1.2287
-```
-
-Only 19 percent of these honest little studies came back significant. Across all ten thousand the average d is 0.53, near the truth. Across the significant ones alone it is **1.23**, nearly two and a half times the real effect. Nobody cheated. The filter did all of it.
-
-```r
-edges <- seq(min(d_values), max(d_values), length.out = 45)
-hist(d_values, breaks = edges, col = "#e2e8f0", border = "white",
-     main = "", xlab = "d reported by each 10-per-group study")
-hist(published, breaks = edges, col = "#e6a17a", border = "white", add = TRUE)
-abline(v = 0.5, lwd = 2, col = "#2563a8")
-abline(v = mean(published), lwd = 2, lty = 2, col = "#b5631a")
-```
-
-The shaded subset is what a journal would print, and it sits almost entirely to the right of the truth.
-
-Now, does that bite the coach trial? Run the same simulation at the coach trial's actual design, 30 per group with a true effect of 1.1453.
-
-```r
-set.seed(303)
-coach_sized <- replicate(10000, {
-  control   <- rnorm(30, mean = 0, sd = 1)
-  programme <- rnorm(30, mean = 1.1453, sd = 1)
-  c(d = cohens_d(programme, control),
-    p = t.test(programme, control, var.equal = TRUE)$p.value)
-})
-
-d_big <- coach_sized["d", ]
-p_big <- coach_sized["p", ]
-
-round(100 * mean(p_big < 0.05), 2)
-#> [1] 99.17
-
-round(c(all_studies = mean(d_big), only_significant = mean(d_big[p_big < 0.05])), 4)
-#>      all_studies only_significant
-#>           1.1636           1.1697
-```
-
-Ninety-nine percent of those studies reach significance, so the filter has almost nothing to filter, and the published average is 1.1697 against 1.1636 overall. There is no inflation worth the name.
-
-That is the honest version of a warning usually handed out as a blanket rule. A small significant study is suspect; a study large enough that it was always going to reach significance is not. Which raises the obvious question: how large is large enough?
-
-=== step === concept
-::eyebrow The lever
-## What a d costs to detect
-
-Part 4 built this machinery, so we will not rebuild it. **Power** is the chance a study detects a real effect, and it rises with sample size and falls as the effect you are chasing gets smaller. The widget shows the shape.
+Switch between Cohen's three landmarks and watch the whole curve slide sideways. The marked point is the headcount that buys you an 80% chance of catching the effect, which is the usual target when a trial is designed.
 
 ::widget power-curve {}
 
-Slide between the three effect sizes and watch the curve slide left. A large effect reaches 80 percent power on a handful of people. A small one needs a crowd.
+A large effect is caught with a couple of dozen people an arm. A small one wants hundreds.
 
-Now the two trials on Amara's desk, at their own effect sizes.
-
-```r
-round(c(app = power.t.test(delta = d_app, sd = 1, power = 0.80)$n,
-        coach = power.t.test(delta = d_coach, sd = 1, power = 0.80)$n), 1)
-#>    app  coach
-#> 1135.4   13.0
-
-round(c(app_trial   = power.t.test(n = 780, delta = d_app, sd = 1)$power,
-        coach_trial = power.t.test(n = 30, delta = d_coach, sd = 1)$power), 4)
-#>   app_trial coach_trial
-#>      0.6412      0.9918
-```
-
-To have an 80 percent chance of catching an effect the size of the app's, you need about 1,135 people in each group. To catch one the size of the coach programme's, you need 13.
-
-Then look at what the two trials actually had. The app trial's 780 per arm was not enough for its own effect, so it ran at 64 percent power, meaning a trial that size misses an effect like this about a third of the time. The coach trial's 30 per arm ran at 99 percent. The enormous study was underpowered and the tiny one was not, purely because of the size of what each was chasing.
-
-That is also why the last step's warning does not touch the coach trial. At 99 percent power there is no filter left to bias anything.
-
-=== step === quiz
-::eyebrow Check yourself
-## Which published d would you distrust
-
-A colleague forwards Amara four more weight-programme papers. She knows only each one's d, its group sizes and its p-value. Which has the strongest reason to be inflated?
-
-::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
-- d = 1.4 from nine people per group, p = 0.04 ::ok That one has tiny groups and a p-value that only just scraped in, which is exactly what the simulation produced: at nine per group a study needs a lucky draw to reach significance at all, and a lucky draw is a large d. Hedges' g would shave a little off it, and the selection effect would still be there afterwards.
-- d = 1.4 from 400 people per group ::no The two things that inflate a published d are tiny groups, which bias the arithmetic upward, and a study that could only have been published if it got lucky. Large groups remove both problems at once, and an interval that stays well away from zero shows the estimate was pinned down rather than scraped in.
-- d = 0.2 from 2,000 people per group ::no The two things that inflate a published d are tiny groups, which bias the arithmetic upward, and a study that could only have been published if it got lucky. Large groups remove both problems at once, and an interval that stays well away from zero shows the estimate was pinned down rather than scraped in.
-- d = 1.4 reported with a 95 percent interval of 1.1 to 1.7 ::no The two things that inflate a published d are tiny groups, which bias the arithmetic upward, and a study that could only have been published if it got lucky. Large groups remove both problems at once, and an interval that stays well away from zero shows the estimate was pinned down rather than scraped in.
-
-=== step === concept
-::eyebrow Inflator three, part one
-## Divided by which spread?
-
-Here is the part that catches experienced readers. "Cohen's d" is not one calculation. It names a family, and which member you get depends on what went in the denominator, which papers frequently do not say.
-
-| Version | Divides by | Use it when |
-|---|---|---|
-| Pooled d | both groups' spreads combined | the standard two-group comparison |
-| Glass's delta | the control group's spread only | the programme changes the spread as well as the average |
-| Change-score d | the spread of the individual changes | almost never, for reasons the next step gives |
-
-Here are all three, on Amara's clinic. For the third one we need her before-and-after weights, so here are the coach arm's twelve patients weighed at the start and again at six months.
+Trial A's effect was smaller than any of the three landmarks, so let's put its own d on that scale and read the exact headcounts off base R while we are there.
 
 ```r
-before <- c(79.5, 88.2, 95.4, 77.0, 94.5, 92.4, 93.1, 106.5, 76.2, 108.5, 82.3, 77.3)
-after  <- c(73.7, 84.6, 88.7, 73.7, 90.9, 89.8, 87.8, 102.8, 65.4, 101.7, 73.9, 71.6)
+# How many people an arm does each effect size need for 80 percent power?
+d_values <- c(0.125, 0.2, 0.5, 0.8)
 
-round(c(pooled_d       = cohens_d(coach, usual),
-        glass_delta    = (mean(coach) - mean(usual)) / sd(usual),
-        change_score_d = mean(before - after) / sd(before - after)), 4)
-#>       pooled_d    glass_delta change_score_d
-#>         2.2684         2.1743         2.2995
+n_for_80 <- sapply(d_values, function(d)
+  ceiling(power.t.test(delta = d, sd = 1, sig.level = 0.05, power = 0.80)$n))
+
+data.frame(d = d_values, people_per_arm = n_for_80)
+#>       d people_per_arm
+#> 1 0.125           1006
+#> 2 0.200            394
+#> 3 0.500             64
+#> 4 0.800             26
+
+# the other direction: the chance each trial had of clearing the bar
+round(c(trial_A = power.t.test(n = 600, delta = 0.125, sd = 1, sig.level = 0.05)$power,
+        trial_B = power.t.test(n = 30, delta = 1.25, sd = 1, sig.level = 0.05)$power), 3)
+#> trial_A trial_B
+#>   0.581   0.997
 ```
 
-Three numbers, all called Cohen's d somewhere in the literature. The first two are close, because the coach arm and the usual-care arm happen to have similar spreads. The third is a different animal wearing the same name: it compares the coach patients with their own earlier selves, not with anybody else, so it is not answering the question the other two answer.
+There are the exact numbers: 26 people an arm for a large effect and 394 for a small one, fifteen times the crowd for the same 80% chance. Trial A's d of 0.125 wants 1,006 people in each arm. It ran 600, so it went in with a 58% chance of finding its own effect, barely better than a coin toss. Trial B was chasing a d of 1.25 with 30 people an arm, and it was near certain at 99.7%.
 
-It also happens to be the one that goes badly wrong, which is the next step.
-
-=== step === concept
-::eyebrow Inflator three, part two
-## The before-and-after trap
-
-Watch what happens when the change-score version is used to describe a programme's effect.
-
-```r
-change <- before - after
-round(change, 1)
-#>  [1]  5.8  3.6  6.7  3.3  3.6  2.6  5.3  3.7 10.8  6.8  8.4  5.7
-
-round(c(mean_change = mean(change), spread_of_changes = sd(change)), 4)
-#>       mean_change spread_of_changes
-#>            5.5250            2.4027
-```
-
-Those twelve numbers are the coach arm's `kg_lost` values, which is the point: the two records describe the same twelve people. On average they lost 5.5 kg, and the losses themselves varied by about 2.4 kg from patient to patient.
-
-Now the two ways to standardize that 5.5.
-
-```r
-spread_between_people <- sqrt((var(before) + var(after)) / 2)
-
-round(c(sd_before = sd(before), sd_after = sd(after), pooled = spread_between_people), 4)
-#> sd_before  sd_after    pooled
-#>   11.1432   12.0522   11.6066
-
-round(c(change_score_d   = mean(change) / sd(change),
-        between_person_d = mean(change) / spread_between_people), 4)
-#>   change_score_d between_person_d
-#>           2.2995           0.4760
-```
-
-**2.30 and 0.48**, from one set of twenty-four weights. The change-score version divides 5.525 by 2.4027, the spread of the losses. The between-person version divides the same 5.525 by 11.6066, the spread of the patients themselves, who ran from 76 kg to 108 kg before the programme started.
-
-The second denominator is the honest one for describing a programme's effect, because it is the same kind of spread a two-group trial divides by, so the answer is comparable to one. The first denominator measures something else entirely: how consistently the programme worked. A programme that took exactly 5.5 kg off every single patient would have a change spread near zero and a change-score d near infinity, which tells you it is reliable, not that it is powerful.
-
-So when you standardize a before-and-after result, divide by the spread between people. And when you read one, check which was used, because 2.30 and 0.48 are the same result.
-
-=== step === quiz
-::eyebrow Check yourself
-## Which d did that paper report
-
-Another paper in Amara's pile followed 20 people before and after, and reports "Cohen's d = 2.3" for an average loss of 5 kg. The starting weights in that group ran from 70 kg to 115 kg. What is the most likely explanation?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "advanced"}
-- The programme really is that effective ::no Do the rough arithmetic on the starting weights. A group running from 70 to 115 kg has a between-person spread somewhere around 11 or 12 kg, so a 5 kg average loss standardized that way lands near 0.4, nowhere near 2.3. The only denominator small enough to produce 2.3 is the spread of the individual changes, which is a measure of how consistent the programme was rather than how big its effect is.
-- The sample was too small for d to be meaningful ::no Do the rough arithmetic on the starting weights. A group running from 70 to 115 kg has a between-person spread somewhere around 11 or 12 kg, so a 5 kg average loss standardized that way lands near 0.4, nowhere near 2.3. The only denominator small enough to produce 2.3 is the spread of the individual changes, which is a measure of how consistent the programme was rather than how big its effect is.
-- They divided by the spread of the individual changes, not the spread between people ::ok Exactly the trap. You have just seen the identical pair of numbers on Amara's own coach arm: 2.2995 one way and 0.4760 the other, from one set of weights. A d above 2 from a before-and-after study should make you check the denominator every time.
-- They used Hedges' g by mistake ::no Do the rough arithmetic on the starting weights. A group running from 70 to 115 kg has a between-person spread somewhere around 11 or 12 kg, so a 5 kg average loss standardized that way lands near 0.4, nowhere near 2.3. The only denominator small enough to produce 2.3 is the spread of the individual changes, which is a measure of how consistent the programme was rather than how big its effect is.
-
-=== step === concept
-::eyebrow Inflator four
-## Who you sampled changes your d
-
-The last one needs nobody to make a mistake at all. Take one programme that reliably takes 5 kg off people, and run it in three different clinics.
-
-```r
-gap <- 5
-spreads <- c(narrow = 2.5, trial_like = 4.4, wide = 9.0)
-
-round(gap / spreads, 4)
-#>     narrow trial_like       wide
-#>     2.0000     1.1364     0.5556
-
-round(2 * pnorm(-(gap / spreads) / 2), 4)
-#>     narrow trial_like       wide
-#>     0.3173     0.5699     0.7812
-```
-
-Same 5 kg, three effect sizes: 2.00, 1.14 and 0.56. The first clinic recruited a narrow group of similar patients, the third took everybody who walked in, and the programme did the identical thing in all three.
-
-```r
-draw_clinic <- function(spread, label) {
-  x <- seq(-25, 30, length.out = 400)
-  plot(x, dnorm(x, mean = 0, sd = spread), type = "l", lwd = 2, col = "#2563a8",
-       xlab = "kilos lost", ylab = "", yaxt = "n",
-       main = paste0(label, ", d = ", round(5 / spread, 2)))
-  lines(x, dnorm(x, mean = 5, sd = spread), lwd = 2, col = "#b5631a")
-}
-
-par(mfrow = c(1, 3))
-draw_clinic(2.5, "narrow")
-draw_clinic(4.4, "trial-like")
-draw_clinic(9.0, "wide")
-```
-
-The gap between the two curves is exactly 5 kilos in every panel. What changes is how wide the curves are, and d only measures the gap relative to the width. So d is not a property of the treatment. It is a property of the treatment **and** the people you gave it to, and two studies of the same programme in different populations are not directly comparable however identical their methods.
-
-=== step === concept
-::eyebrow The running example
-## Why Amara's own d is bigger than the trial's
-
-Which brings us back to the oddity from step 16. Amara's clinic produced d = 2.27 for coach against usual care, and the published trial produced 1.15. That is twice the effect size. Did her patients do twice as well?
-
-```r
-round(c(gap_kg = mean(coach) - mean(usual),
-        spread = sqrt((11 * var(coach) + 11 * var(usual)) / 22),
-        d      = cohens_d(coach, usual)), 4)
-#> gap_kg spread      d
-#> 5.7083 2.5165 2.2684
-
-round(c(gap_kg = 5.0, spread = coach_sp, d = d_coach), 4)
-#> gap_kg spread      d
-#> 5.0000 4.3658 1.1453
-```
-
-Look at the kilos first. 5.71 against 5.00, which is almost the same programme doing almost the same thing. Now the spreads: 2.52 in her clinic against 4.37 in the trial. Her patients varied among themselves a little over half as much as the trial's volunteers did, so dividing by that smaller spread roughly doubles the effect size.
-
-Her clinic is a single practice, in one town, with patients who are more like each other than a national trial's recruits are. That is the last step happening for real, in her own data, with nobody doing anything wrong.
-
-What it means practically: she cannot write "our clinic achieved d = 2.27, double the published effect", because those two numbers are measured against different yardsticks. Her kilos are comparable. Her d is not.
+That is the whole economics of it. Trial A needed a crowd because it was hunting something tiny, and that crowd is exactly what dragged its p-value under 0.05 in the end.
 
 === step === tryit
-::eyebrow Your turn
-## Glass's delta on the clinic data
+## Your turn: does d change if you weigh in pounds?
 
-One more denominator, and this time you pick it. **Glass's delta** divides the gap by the control group's spread alone rather than the pooled one, which is what you want when the programme changes how much people vary as well as how much they lose.
+Everything now hangs on d, so it had better not depend on which scale the clinic happened to own. Let's check.
 
-Fill in the spread it should divide by and press Check.
+One kilo is 2.205 pounds. Convert both of trial A's arms to pounds, then run `cohens_d()` on the converted arms and see what comes back.
 
 ```r
-(mean(coach) - mean(usual)) / ____
+# a_ctl and a_trt hold trial A's two arms, in kilos lost.
+# One kilo is 2.205 pounds.
+# Convert each arm to pounds, then run cohens_d() on the two new vectors.
+# Three lines. Press Check when you have them.
 ```
-::check {"regex":"sd\\s*[(]\\s*usual\\s*[)]","gate":true,"difficulty":"intermediate","ok":"2.1743, against the pooled version's 2.2684. Close, because in this clinic the two arms happen to vary by similar amounts, 2.40 and 2.63. When a programme really does change the spread, the two versions come apart, and Glass's delta is the one to trust because an untouched control group gives you a yardstick the treatment cannot have bent.","no":"Glass's delta uses the control group only, and here the control group is `usual`, so the denominator is `sd(usual)`."}
+::check {"regex": "(cohens_d[\\s\\S]*2[.]205)|(2[.]205[\\s\\S]*cohens_d)", "gate": true, "difficulty": "beginner", "ok": "Right, d stays at 0.125. The gap grew to 1.10 pounds and the pooled spread grew to 8.82 pounds, so both the top and the bottom of the fraction were multiplied by the same 2.205 and the unit cancelled straight back out.", "no": "Convert each arm first, then hand the two new vectors over: a_trt_lb is a_trt times 2.205, a_ctl_lb is a_ctl times 2.205, then call cohens_d(a_trt_lb, a_ctl_lb)."}
 ::solution
 ```r
-round((mean(coach) - mean(usual)) / sd(usual), 4)
-#> [1] 2.1743
+# Convert both arms of trial A to pounds and recompute Cohen's d
+a_ctl_lb <- a_ctl * 2.205
+a_trt_lb <- a_trt * 2.205
+
+round(c(gap_lb = mean(a_trt_lb) - mean(a_ctl_lb),
+        sd_usual_lb = sd(a_ctl_lb),
+        sd_low_fat_lb = sd(a_trt_lb),
+        d_in_pounds = cohens_d(a_trt_lb, a_ctl_lb)), 3)
+#>        gap_lb   sd_usual_lb sd_low_fat_lb   d_in_pounds
+#>         1.102         8.820         8.820         0.125
 ```
 
-=== step === concept
-::eyebrow The rule
-## When kilos beat d
+The gap in pounds is 1.102, and both arms now scatter by 8.820, so the pooled spread on the bottom of the fraction is 8.820 too. Every one of those numbers is 2.205 times what it was in kilos, and 1.102 divided by 8.820 is the same 0.125 as before.
 
-You have now met every way a d can mislead you. It is an estimate, and its interval is usually wider than the abstract makes it sound. It runs high in small samples, it runs high again when a study only got published because it was significant, and it runs high a third time when the people studied resembled each other closely. On top of all that it moves outright depending on which spread you divided by. Put those together and a practical rule comes out of them.
-
-- **Lead with the raw difference and its interval** whenever the units mean something to your reader. Kilos, minutes, points on a scale everyone knows. This is the number a decision gets made on.
-- **Add the standardized version** so your result can be compared with studies on other scales, or pooled into a review.
-- **Always say which spread you divided by**, and whether it was a between-person spread. Without that, your d is not reproducible.
-- **Say who was in your sample**, because a narrow group inflates d and a wide one deflates it, and the reader cannot correct for what you do not tell them.
-
-Amara decides her practice notes will lead with kilos and carry d in brackets. That settles how to report a two-group comparison. Her clinic file, though, has three arms in it, and a column of active minutes, and a yes-or-no column about keeping the weight off, and none of those is a two-group comparison at all.
+This is why effect sizes travel. Two studies that measured the same thing on different scales still give comparable d values, and that is what lets people pool results across a whole pile of studies.
 
 === step === concept
-::eyebrow The family
-## One idea in four costumes
+## Hedges' g: the correction for small trials
 
-Every effect size in common use is one of two things: a **signal-to-noise ratio**, which is what d is, or a **share of variance explained**, which is what the rest of the family reports. Both answer the same question, how much of what you see is the thing you care about, and which one you use is decided by the shape of your data.
+There is one wrinkle in d worth knowing about, and it bites hardest on small trials like B.
 
-::widget process-flow {"steps":[{"title":"Two averages","sub":"d, or g when the groups are small"},{"title":"Several averages","sub":"eta squared, or omega squared for the population"},{"title":"Two continuous measurements","sub":"r, and r squared as a share of variance"},{"title":"Two categorical variables","sub":"Cramer V, or a risk difference in plain counts"}]}
-
-Amara's clinic file has all four questions in it. Three arms rather than two, so d does not fit. A column of weekly active minutes to set against kilos lost, which is two continuous measurements. And a yes-or-no column recording who kept the weight off at twelve months, which is two categorical variables. Take them one at a time.
-
-=== step === concept
-::eyebrow Several groups
-## Three groups: eta squared
-
-With three arms there is no single gap to measure, so the question changes shape. Instead of "how far apart are the two averages", you ask **how much of the variation in weight loss is explained by which arm somebody was in**.
-
-Everybody in the clinic lost a different amount, from a 5.2 kg gain to a 10.8 kg loss. Some of that spread is because the three programmes differ. The rest is because people differ. Split the total variation into those two piles, and the share sitting in the first pile is **eta squared**.
-
-\[ \eta^2 = \frac{SS_{between}}{SS_{total}} \]
-
-\( SS \) means sum of squares, which is variation added up: \( SS_{between} \) is how much the three group averages differ from the overall average, and \( SS_{total} \) is how much all 36 patients differ from it. `aov()` computes both.
+The pooled standard deviation is an estimate, built from whoever happened to enrol. With few people that estimate tends to come out a little too small, and too small a bottom makes the whole fraction, and so d, run a little too high. Larry Hedges worked out the fix: multiply d by a factor slightly below 1, and let that factor close in on 1 as the trial grows. The corrected number is called **Hedges' g**.
 
 ```r
-fit <- aov(kg_lost ~ arm)
-summary(fit)
-#>             Df Sum Sq Mean Sq F value   Pr(>F)    
-#> arm          2  203.4  101.72    14.6 2.87e-05 ***
-#> Residuals   33  230.0    6.97                     
+# Hedges' g: Cohen's d with the small-trial correction applied
+hedges_g <- function(x, y) {
+  n <- length(x) + length(y)
+  correction <- 1 - 3 / (4 * n - 9)
+  cohens_d(x, y) * correction
+}
+
+round(c(d = cohens_d(b_trt, b_ctl), g = hedges_g(b_trt, b_ctl)), 3)
+#>     d     g
+#> 1.250 1.234
+```
+
+Trial B has 60 people in total, so the correction factor works out at 0.987 and trims d from 1.250 down to 1.234. That is about one percent, and it changes nothing about how you would describe that plan.
+
+The size of the trim is the point, though. It is set entirely by the headcount: about 4% at 20 people, about 1% here at 60, and under half a percent past 200, where d and g agree to two decimal places and the difference stops mattering.
+
+[TIP]
+Report g rather than d when the two arms together come to 50 people or fewer. Above about 100 the two are the same number for reporting purposes, so use whichever your field expects.
+
+=== step === concept
+## Three plans instead of two: eta squared
+
+A year later the same team goes back and follows all three groups: the people who stayed on usual care, the people on the low-fat plan and the people on the meal replacement plan, thirty of each.
+
+And now Cohen's d has nothing to divide. With three groups there is no single gap any more, there are three of them, so the question has to be put differently. Out of all the variation in kilos lost across these ninety people, how much of it comes down to which plan they were on? That share is called **eta squared**, written as the Greek letter eta with a two on it.
+
+An analysis of variance splits the total variation into exactly those two piles, so we can read the share straight off it.
+
+```r
+# Follow all three plans for a year, then ask how much of the variation the plan explains
+set.seed(7)
+
+followup <- data.frame(
+  plan = rep(c("usual care", "low-fat", "meal replacement"), each = 30),
+  loss_kg = c(make_arm(30, 0.0, 4), make_arm(30, 0.5, 4), make_arm(30, 5.0, 4)),
+  kept_it_off = rep(rep(c("yes", "no"), 3), c(6, 24, 13, 17, 21, 9))
+)
+
+fit <- aov(loss_kg ~ plan, data = followup)
+anova_table <- summary(fit)[[1]]
+anova_table
+#>             Df Sum Sq Mean Sq F value    Pr(>F)
+#> plan         2    455   227.5  14.219 4.539e-06 ***
+#> Residuals   87   1392    16.0
 #> ---
 #> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-sums <- summary(fit)[[1]][["Sum Sq"]]
-round(c(between = sums[1], within = sums[2], eta_squared = sums[1] / sum(sums)), 4)
-#>     between      within eta_squared
-#>    203.4439    229.9617      0.4694
+ss_between <- anova_table$"Sum Sq"[1]
+ss_total   <- sum(anova_table$"Sum Sq")
+ms_error   <- anova_table$"Mean Sq"[2]
+df_between <- anova_table$Df[1]
+
+eta_squared   <- ss_between / ss_total
+omega_squared <- (ss_between - df_between * ms_error) / (ss_total + ms_error)
+
+round(c(eta_squared = eta_squared, omega_squared = omega_squared), 3)
+#>   eta_squared omega_squared
+#>         0.246         0.227
 ```
 
-```r
-stripchart(kg_lost ~ arm, method = "jitter", vertical = TRUE, pch = 19,
-           col = "#2563a8", ylab = "kilos lost at six months", xlab = "")
-points(1:3, tapply(kg_lost, arm, mean), pch = 4, cex = 2, lwd = 3, col = "#b5631a")
-```
+The `Sum Sq` column holds the two piles of variation. The 455 on the `plan` row is the part explained by which plan someone was on. The 1392 on the `Residuals` row is everything else, which is people on the same plan differing from each other. Add the two and you get 1847, the total.
 
-Eta squared is 0.4694, so which arm a patient was in accounts for about 47 percent of the variation in how much weight they lost. The other 53 percent is people being people, and the plot shows it: the three clouds sit at clearly different heights, and every one of them is tall.
+Eta squared is just the first pile over the whole thing, 455 divided by 1847, which comes to 0.246. About a quarter of the variation in weight lost is down to the plan, and the other three quarters is people being different from each other.
+
+Omega squared is eta squared with the same kind of small-sample correction that g applies to d. Eta squared runs a little high because it flatters whatever groups you happened to sample, so omega squared takes an allowance off and lands at 0.227. Cohen's benchmarks on this scale are 0.01 for small, 0.06 for medium and 0.14 for large, so a quarter of the variation is a large effect by any reading.
+
+[NOTE]
+Eta squared reads exactly like an R-squared, because it is one. Both answer the same question, what share of the variation this thing accounts for, and both run from 0 to 1.
 
 === step === concept
-::eyebrow The correction, again
-## Eta squared is optimistic too
+## Cramer's V and r: the rest of the family
 
-Eta squared has the same flaw d had. It describes the sample in front of you, including the part of the group difference that was luck, so it runs high as a guess about the wider world. **Omega squared** subtracts an estimate of that luck.
+The follow-up recorded two more things about each of those ninety people: whether they kept the weight off, a plain yes or no, and how many hours a week they exercised.
 
-\[ \omega^2 = \frac{SS_{between} - df_{between} \times MS_{error}}{SS_{total} + MS_{error}} \]
+Neither of those is a group average, so neither d nor eta squared fits. The shape of the columns picks the measure for you.
 
-\( df_{between} \) is the number of groups minus one, so 2 here, and \( MS_{error} \) is the average leftover variation per patient, the 6.97 in the `aov` printout. Multiply them and you get roughly how much between-group variation you would expect from pure chance, then take it off the top.
+Plan against kept-it-off is two categorical columns, and the effect size for that pair is **Cramer's V**. It starts from the chi-squared statistic, which measures how far a table of counts sits from the table you would expect if the two columns had nothing to do with each other, and rescales it onto a 0 to 1 range that stops growing with headcount. Kilos lost against exercise hours is two continuous columns, and the effect size there is **Pearson's r**, the ordinary correlation. That one already runs on a fixed scale from minus one to one, so it needs no rescaling at all.
 
 ```r
-dfs <- summary(fit)[[1]][["Df"]]
-mean_square_error <- sums[2] / dfs[2]
-omega_squared <- (sums[1] - dfs[1] * mean_square_error) / (sum(sums) + mean_square_error)
+# Cramer's V for two categorical columns, Pearson r for two continuous ones
+kept_table <- table(plan = followup$plan, kept_it_off = followup$kept_it_off)
+kept_table
+#>                   kept_it_off
+#> plan               no yes
+#>   low-fat          17  13
+#>   meal replacement  9  21
+#>   usual care       24   6
 
-round(c(eta_squared = sums[1] / sum(sums), omega_squared = omega_squared), 4)
-#>   eta_squared omega_squared
-#>        0.4694        0.4303
+chi <- suppressWarnings(chisq.test(kept_table))
+n_people <- sum(kept_table)
+k_smaller <- min(dim(kept_table))
+cramers_v <- sqrt(as.numeric(chi$statistic) / (n_people * (k_smaller - 1)))
+
+followup$exercise_hours <- 6 + 0.30 * followup$loss_kg + make_arm(90, 0, 1.0)
+r_loss_hours <- cor(followup$loss_kg, followup$exercise_hours)
+
+round(c(cramers_v = cramers_v, r = r_loss_hours, r_squared = r_loss_hours^2), 3)
+#> cramers_v         r r_squared
+#>     0.411     0.796     0.634
 ```
 
-47 percent becomes 43 percent. The gap between them shrinks as the sample grows, exactly like the gap between d and g, and for the same underlying reason. Report omega squared when you are making a claim about the world, eta squared when you are describing this dataset and nothing beyond it.
+Cramer's V comes back at 0.411 for plan against keeping it off, which is a strong link, and the table shows you why. 21 of the 30 on meal replacement kept it off, against 6 of the 30 on usual care.
+
+Pearson's r for kilos lost against exercise hours is 0.796. Square it and you get 0.634, which lands on exactly the same explained-variation scale as eta squared. So exercise hours account for 63% of the variation in kilos lost and the plan accounts for 25%, and because both are shares of the same total you can set them side by side and say which matters more.
+
+Here is the whole family on one card.
+
+| Measure | Use it when | Small | Medium | Large |
+|---|---|---|---|---|
+| Cohen's d, Hedges' g | two groups, one number measured on each person | 0.2 | 0.5 | 0.8 |
+| Eta squared, omega squared | three or more groups, one number measured on each person | 0.01 | 0.06 | 0.14 |
+| Cramer's V | two categorical columns | 0.10 | 0.30 | 0.50 |
+| Pearson's r | two continuous columns | 0.10 | 0.30 | 0.50 |
+
+The V benchmarks in that row are for the smallest tables, the two by twos. Wider tables need a smaller V for the same strength of link, so report the size of the table next to it.
+
+=== step === concept
+## How to state a result as two answers
+
+All of this comes down to one sentence you can say out loud in a meeting. Let's build it out of trial A, the awkward one.
+
+```r
+# Report trial A as two answers: how big the effect is, and whether it is real
+report_test <- t.test(a_trt, a_ctl)
+report_d <- cohens_d(a_trt, a_ctl)
+
+cat("gap        :", round(mean(a_trt) - mean(a_ctl), 2), "kg\n")
+cat("95% range  :", round(report_test$conf.int[1], 2), "to",
+    round(report_test$conf.int[2], 2), "kg\n")
+cat("Cohen's d  :", round(report_d, 3), interpret_d(report_d), "\n")
+cat("p-value    :", round(report_test$p.value, 3), "\n")
+#> gap        : 0.5 kg
+#> 95% range  : 0.05 to 0.95 kg
+#> Cohen's d  : 0.125 negligible
+#> p-value    : 0.031
+```
+
+Read those four lines out in order and you have said it:
+
+"The low-fat plan lost people half a kilo more than usual care, somewhere between 0.05 and 0.95 kg once you allow for sampling. That is a Cohen's d of 0.125, which is negligible. The p-value is 0.031."
+
+Notice the shape of it. The size comes first, in kilos, because kilos are what the person across the table cares about. The range comes next, so nobody mistakes half a kilo for an exact figure. Then d, which says how big that gap is against the ordinary variation between people. The p-value comes last, doing the one job it can do, which is to say the gap was hard to get by luck.
+
+Two questions, two answers. Is it real, yes. Is it big, no.
+
+[TIP]
+Order matters when you say this out loud. Lead with the p-value and everybody hears a win. Lead with the effect and its range, and the p-value drops into place as the footnote it always was.
 
 === step === quiz
-::eyebrow Check yourself
-## Eta squared or omega squared
+## Quick check: a huge trial with a tiny d
 
-Why is omega squared smaller than eta squared here?
+A colleague brings you a study of 40,000 people. The p-value is 0.003 and Cohen's d is 0.03. How would you report it?
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Omega squared uses fewer groups ::no Both use all three arms and all 36 patients. The difference is what they are describing. Eta squared answers "in this dataset, what share of the variation lines up with the arm", and some of that share is chance, because with twelve patients per arm the group averages would differ a bit even if all three programmes were identical. Omega squared estimates how much of the share is chance and removes it.
-- Eta squared counts the grouping's share of the variation in this particular sample, luck included ::ok With twelve patients per arm the three averages would differ somewhat even if the programmes were identical, and eta squared happily counts that accident as explained variation. Omega squared takes it back off, which is why it is the honest number to quote about the wider world.
-- Omega squared is a corrected p-value ::no Both use all three arms and all 36 patients. The difference is what they are describing. Eta squared answers "in this dataset, what share of the variation lines up with the arm", and some of that share is chance, because with twelve patients per arm the group averages would differ a bit even if all three programmes were identical. Omega squared estimates how much of the share is chance and removes it.
-- The two differ only when the sample is large ::no Both use all three arms and all 36 patients. The difference is what they are describing. Eta squared answers "in this dataset, what share of the variation lines up with the arm", and some of that share is chance, because with twelve patients per arm the group averages would differ a bit even if all three programmes were identical. Omega squared estimates how much of the share is chance and removes it.
-
-=== step === concept
-::eyebrow Two measurements
-## Two continuous things: r and R squared
-
-Amara also logged weekly active minutes for every patient. Now there are no groups at all, just two numbers per person, and the question becomes whether they move together.
-
-The **correlation**, written r, is already an effect size. It runs from -1 to 1, it has no units, and it says how tightly the two measurements track each other. The panel below plots her 36 patients and works r out from them.
-
-::widget chart-plotter {"data": [{"x": 35, "y": 0.5}, {"x": 107, "y": 0.2}, {"x": 119, "y": 4.6}, {"x": 100, "y": 0.8}, {"x": 54, "y": -1.1}, {"x": 92, "y": 1.7}, {"x": 53, "y": 0.1}, {"x": 87, "y": 0.4}, {"x": 44, "y": -3.6}, {"x": 86, "y": -5.2}, {"x": 44, "y": -2.5}, {"x": 64, "y": 1.9}, {"x": 112, "y": 3.7}, {"x": 81, "y": 1.7}, {"x": 106, "y": -3}, {"x": 118, "y": 7.2}, {"x": 150, "y": 0.1}, {"x": 142, "y": -1.3}, {"x": 94, "y": 1.8}, {"x": 125, "y": 3.8}, {"x": 49, "y": -1}, {"x": 84, "y": 0.9}, {"x": 94, "y": 4.9}, {"x": 81, "y": 1.3}, {"x": 167, "y": 5.8}, {"x": 111, "y": 3.6}, {"x": 195, "y": 6.7}, {"x": 172, "y": 3.3}, {"x": 125, "y": 3.6}, {"x": 86, "y": 2.6}, {"x": 86, "y": 5.3}, {"x": 128, "y": 3.7}, {"x": 151, "y": 10.8}, {"x": 167, "y": 6.8}, {"x": 156, "y": 8.4}, {"x": 127, "y": 5.7}], "geoms": ["point"], "x": "minutes", "y": "kg_lost"}
-
-Patients who logged more active minutes lost more weight. `cor.test` gives the number, and an interval around it.
-
-```r
-cor.test(minutes, kg_lost)
-#> 
-#> 	Pearson's product-moment correlation
-#> 
-#> data:  minutes and kg_lost
-#> t = 4.7762, df = 34, p-value = 3.344e-05
-#> alternative hypothesis: true correlation is not equal to 0
-#> 95 percent confidence interval:
-#>  0.3853568 0.7964059
-#> sample estimates:
-#>      cor 
-#> 0.633668 
-
-round(cor(minutes, kg_lost)^2, 4)
-#> [1] 0.4015
-```
-
-r = 0.63, with an interval from 0.39 to 0.80. Square it and you get **R squared = 0.4015**, which is the share of variation in weight loss that lines up with active minutes, and that is the same kind of number eta squared was. So r = 0.63 does not mean 63 percent of anything. It means 40 percent.
-
-One warning that belongs on the same page as the number. This is an association inside one clinic, and Amara did not assign minutes to anybody. Patients who were losing weight may well have felt like moving more. The effect size measures the strength of a pattern; it says nothing about which way the arrow points.
-
-=== step === concept
-::eyebrow Two categories
-## Two categorical things, and the number that beats Cramer's V
-
-The last column is a yes or no: did the patient keep the weight off at twelve months? Two categorical variables now, the arm and the outcome, and the natural summary is a table of counts.
-
-For a table like that the standard effect size is **Cramer's V**, which rescales the chi-squared statistic onto a 0 to 1 range so it stops depending on how many patients you had.
-
-\[ V = \sqrt{\frac{\chi^2}{n(k-1)}} \]
-
-\( \chi^2 \) is the chi-squared statistic, n is the total number of patients, and k is the smaller of the number of rows and the number of columns, so 2 here.
-
-```r
-kept_off <- matrix(c(2, 10, 5, 7, 9, 3), nrow = 3, byrow = TRUE,
-                   dimnames = list(c("usual", "app", "coach"),
-                                   c("kept it off", "regained")))
-kept_off
-#>       kept it off regained
-#> usual           2       10
-#> app             5        7
-#> coach           9        3
-
-test <- chisq.test(kept_off)
-cramers_v <- sqrt(as.numeric(test$statistic) / (sum(kept_off) * (min(dim(kept_off)) - 1)))
-round(c(chi_squared = as.numeric(test$statistic), cramers_v = cramers_v), 4)
-#> chi_squared   cramers_v
-#>      8.3250      0.4809
-```
-
-V = 0.48, on a scale where 0 is no association and 1 is a perfect one. It is a strength, and it is honest, and it is also nearly useless to a patient asking what their chances are.
-
-Now look at what does answer that question.
-
-```r
-round(c(coach = 9 / 12, usual = 2 / 12, risk_difference = 9 / 12 - 2 / 12), 4)
-#>           coach           usual risk_difference
-#>          0.7500          0.1667          0.5833
-
-round(as.numeric(fisher.test(kept_off[c("coach", "usual"), ])$conf.int), 2)
-#> [1]   1.54 190.85
-```
-
-Nine of twelve coach patients kept it off against two of twelve on usual care, so 75 percent against 17 percent, a **risk difference of 58 percentage points**. That is a sentence Amara can say in a consulting room, and no rescaled statistic improves on it.
-
-Now the second line, which is where the honesty comes in. It is the exact interval for the odds ratio, which for this table is 15, and it runs from 1.54 to 190.85. An effect size that looks overwhelming, computed on twenty-four people, has pinned down almost nothing.
-
-=== step === concept
-::eyebrow One family
-## They convert into each other
-
-d, r and eta squared look like different measures. They are the same information in different clothes, and you can prove it on Amara's own two arms.
-
-The textbook conversion from d to r is \( r = d/\sqrt{d^2+4} \). That 4 assumes the two groups are exactly the same size, and it is an approximation even then. The exact version keeps the real group sizes in it:
-
-\[ r = \frac{d}{\sqrt{d^2 + \frac{N(N-2)}{n_1 n_2}}} \]
-
-with N the total sample size. Here are both, against the ground truth, which is simply correlating the outcome with a 0-or-1 column saying which arm each patient was in.
-
-```r
-d <- cohens_d(coach, usual)
-N <- 24
-
-round(c(shortcut = d / sqrt(d^2 + 4),
-        exact    = d / sqrt(d^2 + N * (N - 2) / (12 * 12))), 4)
-#> shortcut    exact
-#>   0.7501   0.7641
-
-outcome  <- c(usual, coach)
-on_coach <- rep(c(0, 1), each = 12)
-round(cor(on_coach, outcome), 4)
-#> [1] 0.7641
-
-two_group_fit <- aov(outcome ~ factor(on_coach))
-two_sums <- summary(two_group_fit)[[1]][["Sum Sq"]]
-round(c(eta_squared = two_sums[1] / sum(two_sums), r_squared = cor(on_coach, outcome)^2), 4)
-#> eta_squared   r_squared
-#>      0.5839      0.5839
-```
-
-The exact formula hits `cor()` on the nose at 0.7641, and the shortcut misses by 0.014. Then eta squared and r squared come out identical at 0.5839, because with two groups they are literally the same calculation.
-
-So there is one quantity underneath, and four ways of writing it down. Which one you report is a question about your reader, not about your data.
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- The p-value is well under 0.05, so this is a strong finding and worth acting on. ::no
+- A d of 0.03 that small means the p-value must be wrong, so the result should be thrown out. ::no
+- The effect is hard to explain by luck and far too small to act on, and both halves get said out loud. ::ok Exactly right, and that is the whole habit. With 40,000 people even a d of 0.03 clears the bar easily, so the small p-value is telling you about the headcount as much as the diet.
+- With 40,000 people a p-value cannot be trusted, so only the effect size counts. ::no The two numbers answer two different questions and neither one cancels the other. The p-value says a gap this size would be hard to get by luck, which is true here. The d says the two crowds are three hundredths of a standard deviation apart, which is nothing anybody would notice. Report both and let the reader weigh them.
 
 === step === tryit
-::eyebrow Your turn
-## Pick the effect size the design calls for
+## Your turn: d and g for a 12-person rerun
 
-Amara wants to know how much of the variation in **weekly active minutes** is explained by which arm a patient was in. Three groups, one continuous outcome, so the design picks the measure for you: eta squared.
+The correction inside Hedges' g gets stronger as a trial gets smaller, so let's shrink one and watch it work.
 
-Fill in the outcome variable and press Check.
+Take the first 12 people from each arm of trial B, then run both `cohens_d()` and `hedges_g()` on those two shorter vectors and compare the answers.
 
 ```r
-minutes_fit <- aov(____ ~ arm)
-minutes_sums <- summary(minutes_fit)[[1]][["Sum Sq"]]
-round(minutes_sums[1] / sum(minutes_sums), 4)
+# b_trt and b_ctl hold trial B's two arms, 30 people each.
+# Take the first 12 people from each arm with head(), then run
+# cohens_d() and hedges_g() on the two shorter vectors.
+# Press Check when you have them.
 ```
-::check {"regex":"aov\\s*[(]\\s*minutes\\s*~","gate":true,"difficulty":"intermediate","ok":"0.4569, so which arm somebody was in explains about 46 percent of the variation in active minutes, which is close to the 47 percent it explained for weight lost. The population version, omega squared, comes out at 0.4171. Notice that no part of the choice was a matter of taste: three groups and a continuous outcome give you eta squared, and nothing else fits.","no":"The outcome here is the minutes column, so the model is `aov(minutes ~ arm)`. The grouping variable on the right is already filled in."}
+::check {"regex": "head[(]\\s*b_(trt|ctl)\\s*,\\s*12\\s*[)]", "gate": true, "difficulty": "intermediate", "ok": "Right: d = 1.267 and g = 1.223. Cutting each arm from 30 people to 12 drags the correction factor from 0.987 down to 0.966, so g now sits about 3.5% under d instead of about 1%.", "no": "Build the two short vectors first, then pass them on: small_trt is head(b_trt, 12), small_ctl is head(b_ctl, 12), then call cohens_d(small_trt, small_ctl) and hedges_g(small_trt, small_ctl)."}
 ::solution
 ```r
-minutes_fit  <- aov(minutes ~ arm)
-minutes_sums <- summary(minutes_fit)[[1]][["Sum Sq"]]
-minutes_dfs  <- summary(minutes_fit)[[1]][["Df"]]
-minutes_mse  <- minutes_sums[2] / minutes_dfs[2]
+# Recompute d and g on only the first 12 people in each arm of trial B
+small_trt <- head(b_trt, 12)
+small_ctl <- head(b_ctl, 12)
 
-round(c(eta_squared   = minutes_sums[1] / sum(minutes_sums),
-        omega_squared = (minutes_sums[1] - minutes_dfs[1] * minutes_mse) /
-                        (sum(minutes_sums) + minutes_mse)), 4)
-#>   eta_squared omega_squared
-#>        0.4569        0.4171
+round(c(d = cohens_d(small_trt, small_ctl), g = hedges_g(small_trt, small_ctl)), 3)
+#>     d     g
+#> 1.267 1.223
 ```
 
-=== step === concept
-::eyebrow The labels
-## Small, medium, large, and what Cohen actually meant
+Two things moved at once here, and they are worth separating.
 
-Sooner or later somebody will tell you that 0.2 is small, 0.5 is medium and 0.8 is large. Those numbers come from Jacob Cohen, who put them forward as rough conventions for researchers who had no better frame of reference, and who warned that they were meant relative to each other rather than as a standard. They have since been quoted as a standard roughly everywhere.
+Cohen's d went up, from 1.250 to 1.267, because 12 people are not the same as 30 people. This smaller slice happens to have a slightly wider gap and a slightly wider spread than the full arms did. That wobble is sampling, and it is exactly what makes small trials unreliable.
 
-Here is what they actually describe, using the translations from step 12.
-
-```r
-benchmarks <- c(small = 0.2, medium = 0.5, large = 0.8)
-
-round(2 * pnorm(-benchmarks / 2), 4)
-#>  small medium  large
-#> 0.9203 0.8026 0.6892
-
-round(pnorm(benchmarks / sqrt(2)), 4)
-#>  small medium  large
-#> 0.5562 0.6382 0.7142
-```
-
-| Label | d | Overlap between the groups | Chance the treated person did better |
-|---|---|---|---|
-| Small | 0.2 | 92 percent | 56 in 100 |
-| Medium | 0.5 | 80 percent | 64 in 100 |
-| Large | 0.8 | 69 percent | 71 in 100 |
-
-A "large" effect still leaves the two groups overlapping by more than two thirds, and the treated person wins only 71 times in 100. Read that again, because "large" sounds like a much stronger claim than it is.
-
-The modern criticism, argued hardest by Funder and Ozer, is twofold: real effects in most fields run well below Cohen's thresholds, so the labels end up grading almost everything as a failure, and a genuinely small effect that repeats across millions of people can matter enormously. By the labels the coach trial is large and the app trial does not even reach small. That is true, and it is not yet a decision.
-
-=== step === concept
-::eyebrow Size is not importance
-## A small effect that matters and a large one that does not
-
-Amara has to choose. She can put the app in front of all **1,900 patients** on her list, at no cost per patient, or she can fund **40 places** on the coach programme, which is what the budget covers. Multiply each effect by the people it can reach.
-
-```r
-app_total   <- 1900 * c(expected = 0.5, lower = 0.0786, upper = 0.9214)
-coach_total <- 40 * c(expected = 5.0, lower = 2.7423, upper = 7.2577)
-
-round(app_total, 1)
-#> expected    lower    upper
-#>    950.0    149.3   1750.7
-
-round(coach_total, 1)
-#> expected    lower    upper
-#>    200.0    109.7    290.3
-```
-
-```r
-totals <- c(as.numeric(app_total["expected"]), as.numeric(coach_total["expected"]))
-lower  <- c(as.numeric(app_total["lower"]),    as.numeric(coach_total["lower"]))
-upper  <- c(as.numeric(app_total["upper"]),    as.numeric(coach_total["upper"]))
-
-bars <- barplot(totals, names.arg = c("app, all 1,900", "coach, 40 places"),
-                col = c("#2563a8", "#b5631a"), ylim = c(0, 1900),
-                ylab = "total kilos lost across the group")
-arrows(bars, lower, bars, upper, angle = 90, code = 3, length = 0.08, lwd = 2)
-```
-
-The effect size everyone would call negligible delivers about 950 kg across the practice. The one everyone would call large delivers about 200 kg, because it only reaches 40 people. On expectation the app wins by nearly five to one.
-
-Read the error bars before you take that as a rule, though. The app's total could be anywhere from 149 kg to 1,751 kg, and the bottom of that range is below the coach programme's expected 200. The coach programme's own range, 110 to 290 kg, is narrow by comparison. So the app has the bigger expected haul and far more uncertainty attached to it.
-
-And there is a patient this arithmetic cannot see. Someone who needs to lose ten kilos gets nothing usable from half a kilo, whatever the total across the practice says. Reach makes small effects matter in aggregate; it does not make them matter to an individual. Both of those are true at once, and a version of this that keeps only one of them is misleading.
+Hedges' g went the other way, down to 1.223, because the correction factor fell from 0.987 to 0.966 when the total headcount dropped from 60 to 24. The smaller the trial, the harder g pulls d back toward zero, which is the correction doing its job.
 
 === step === quiz
-::eyebrow Check yourself
-## Real, big, important
+## Quick check: which measure fits which question?
 
-Which set of facts would justify recommending the app to the whole list rather than funding coach places?
+A colleague has the year-one follow-up open in front of them: which plan each person was on, whether they kept the weight off, and their weekly exercise hours. They want to know how strongly the plan is linked to whether people kept it off.
 
-::quiz {"correct": 4, "gate": true, "difficulty": "advanced"}
-- The app trial had far more participants ::no Sample size, a p-value and a standardized effect size all describe a study. None of them contains the two things a decision turns on: how many people the option can reach, and what each place costs. That is why the arithmetic in the last step multiplied the effect by the reach before comparing anything.
-- The app trial's p-value was significant ::no Sample size, a p-value and a standardized effect size all describe a study. None of them contains the two things a decision turns on: how many people the option can reach, and what each place costs. That is why the arithmetic in the last step multiplied the effect by the reach before comparing anything.
-- The coach programme's d is large, so it must be the better choice ::no Sample size, a p-value and a standardized effect size all describe a study. None of them contains the two things a decision turns on: how many people the option can reach, and what each place costs. That is why the arithmetic in the last step multiplied the effect by the reach before comparing anything.
-- The app reaches every patient at no cost per place, and its total, though uncertain, covers more kilos than 40 coach places can deliver ::ok Reach times effect, with the uncertainty carried along rather than dropped. That is a decision, and notice how much of it comes from outside the trials: the 1,900 patients on the list and the 40 places in the budget appear in no paper anywhere.
-
-=== step === concept
-::eyebrow The decision
-## What Amara decides
-::prose-only the reasoning itself is the content, and every number in it has already been computed and plotted in the preceding steps
-
-She does both, and she can say why.
-
-The app goes to the whole list, because it costs nothing per place and half a kilo across 1,900 people is worth having. She writes down that the total is uncertain, somewhere between 149 and 1,751 kg, and that she is not going to claim the middle of that range as a fact.
-
-The 40 funded coach places go to the patients who need a large loss, because for them a five kilo difference is the only one of the two that clears the bar she set at the beginning, which was about 4 kg.
-
-And she records one thing about her own clinic, so that nobody quotes it back at her later. Her coach arm produced d = 2.27 against the trial's 1.15, and that is not evidence her clinic runs the programme better. It is because her patients resemble each other more than the trial's volunteers did, which shrinks the denominator. In kilos the two results agree: 5.7 in her clinic, 5.0 in the trial.
-
-Three separate answers, in order: it is real, it is this big, and it is worth doing for these patients. The first came from a p-value, the second from an effect size, and the third from neither.
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- Cohen's d, since the point is to compare groups against each other. ::no
+- Eta squared, since there are three plans rather than two. ::no
+- Cramer's V, since both of those columns hold categories rather than numbers. ::ok Yes. Plan is a category and kept-it-off is a category, and V is the measure built for a table of counts. It came back at 0.411, a strong link.
+- Pearson's r, since the answer wanted is a single number between 0 and 1. ::no The shape of the two columns picks the measure, not what the answer should look like. Two categorical columns give Cramer's V. Three or more groups measured on a number give eta squared. Two groups measured on a number give d. Two continuous columns give r.
 
 === step === concept
-::eyebrow Writing it up
-## The paragraph she writes
-
-Here is what goes in the practice file.
-
-> Two published trials of weight programmes were compared. The SlimTrack app group lost 0.50 kg more than control (95 percent CI 0.08 to 0.92 kg; d = 0.12, 95 percent CI 0.02 to 0.22, standardized by the pooled within-group spread of 4.25 kg, n = 786 and 780). The coach programme group lost 5.00 kg more than control (95 percent CI 2.74 to 7.26 kg; d = 1.15, 95 percent CI 0.60 to 1.69, same standardizer, n = 29 and 31 trial volunteers). Applied to this practice, the app covers 1,900 patients for an expected 950 kg total (149 to 1,751 kg) and the 40 funded coach places an expected 200 kg (110 to 290 kg). Our own 36-patient clinic comparison gave a larger d of 2.27 for coach against usual care, on a similar raw difference of 5.7 kg; that is a narrower patient mix rather than a better result, so it should not be compared with the trial's d. Recommendation: offer the app list-wide and reserve the coach places for patients needing a loss above 4 kg.
-
-Six sentences, and four things it does on purpose.
-
-- **It leads with the raw difference and its interval.** Kilos first, every time, because kilos are what a patient and a budget both understand.
-- **It gives the standardized version and says which spread that used.** Without the denominator, d = 1.15 is not reproducible by anybody.
-- **It states the sample the number came from**, trial volunteers in one case and her own patients in the other, so a reader can judge whether the two are comparable. They are not, and it says so.
-- **It separates what was measured from what is being recommended.** Everything up to the last sentence is measurement, and the recommendation stands on its own where she can be asked to defend it.
-
-=== step === quiz
-::eyebrow Check yourself
-## Which write-up is finished
-
-The cover asked which of four write-ups looked like the strongest evidence. This one asks something harder: which of these four descriptions of the coach trial is a finished effect-size report?
-
-::quiz {"correct": 4, "gate": true, "difficulty": "advanced"}
-- The coach programme had a large effect, d = 1.15 ::no A finished report answers four questions: how big in real units, how precise, standardized by what, and measured on whom. A label answers none of them. A p-value answers none of them either, since it speaks to existence rather than size. And a bare d with an interval still leaves a reader unable to reproduce the number or judge whether their own patients resemble the sample.
-- The coach group lost 5.00 kg more than control, p < 0.001 ::no A finished report answers four questions: how big in real units, how precise, standardized by what, and measured on whom. A label answers none of them. A p-value answers none of them either, since it speaks to existence rather than size. And a bare d with an interval still leaves a reader unable to reproduce the number or judge whether their own patients resemble the sample.
-- d = 1.15, 95 percent CI 0.60 to 1.69 ::no A finished report answers four questions: how big in real units, how precise, standardized by what, and measured on whom. A label answers none of them. A p-value answers none of them either, since it speaks to existence rather than size. And a bare d with an interval still leaves a reader unable to reproduce the number or judge whether their own patients resemble the sample.
-- The coach group lost 5.00 kg more than control (95 percent CI 2.74 to 7.26), d = 1.15 standardized by the pooled within-group spread, in 60 trial volunteers ::ok That one carries the size in real units, the interval, the denominator and the sample. A reader can act on it, reproduce it, and judge whether their own patients look anything like those sixty volunteers.
-
-=== step === concept
-::eyebrow The habit
-## Four questions for any effect you are shown
-
-Part 5 closed with four questions to ask of any test. Here are the four to ask of any effect, and they are deliberately not the same four.
-
-::widget process-flow {"steps":[{"title":"How big, in real units?","sub":"the raw difference and its interval, before any standardizing"},{"title":"Divided by which spread?","sub":"pooled, control only, or the changes, which is a different question"},{"title":"From how many people?","sub":"small samples inflate, narrow samples inflate, neither announces itself"},{"title":"What does that size buy?","sub":"reach and cost, which no effect size contains"}]}
-
-**How big, in real units?** If a report gives you a d and no raw difference, the most useful number is missing. Ask for it.
-
-**Divided by which spread?** Pooled, control only, or the spread of the changes. You saw 2.30 and 0.48 come out of one set of twelve patients, so this is not a detail.
-
-**From how many people?** Fewer than about twenty per group and the arithmetic itself runs high, which Hedges' g fixes. A small study that only got published because it was significant runs high again, which nothing fixes. A narrow sample runs high a third time, and that one is invisible unless the paper describes who it recruited.
-
-**What does that size buy?** Multiply by the people it reaches, subtract what it costs, and carry the interval through the whole calculation. This is the question the effect size cannot answer and the only one anybody actually needs answered.
-
-=== step === concept
-::eyebrow Go deeper
 ## References
 
-Five places worth an hour if you want to push past where this part stops.
-
-- [Lakens, Calculating and reporting effect sizes to facilitate cumulative science, 2013](https://doi.org/10.3389/fpsyg.2013.00863) - the practical companion to today, with worked formulas for every measure here, including the before-and-after standardizer problem and intervals around effect sizes.
-- [Funder and Ozer, Evaluating effect size in psychological research: sense and nonsense, 2019](https://doi.org/10.1177/2515245919847202) - the paper that takes the small, medium and large labels apart, and argues that small effects which repeat are the ones that add up.
-- [Kelley and Preacher, On effect size, 2012](https://doi.org/10.1037/a0028086) - the careful definition of what an effect size actually is, and why one dataset legitimately supports several of them.
-- [Cumming, The new statistics: why and how, 2014](https://doi.org/10.1177/0956797613504966) - the case for leading a report with estimates and intervals rather than with a verdict, which is the reporting rule from step 29 argued at length.
-- [Ben-Shachar, Ludecke and Makowski, effectsize: estimation of effect size indices and standardized parameters, 2020](https://doi.org/10.21105/joss.02815) - the R package that computes every index in this part, for use outside the browser once you know what it is doing.
+- [Statistical Power Analysis for the Behavioral Sciences](https://doi.org/10.4324/9780203771587) - Cohen (1988), 2nd edition, Routledge. Where 0.2, 0.5 and 0.8 come from, and where Cohen himself warns against leaning on them.
+- [Calculating and reporting effect sizes to facilitate cumulative science](https://doi.org/10.3389/fpsyg.2013.00863) - Lakens (2013), Frontiers in Psychology 4:863. A practical guide to d, g and eta squared, including which one to report when.
+- [Effect size, confidence interval and statistical significance: a practical guide for biologists](https://doi.org/10.1111/j.1469-185X.2007.00027.x) - Nakagawa and Cuthill (2007), Biological Reviews 82, 591-605. The case for reporting effect sizes with intervals rather than p-values alone.
+- [The New Statistics: Why and How](https://doi.org/10.1177/0956797613504966) - Cumming (2014), Psychological Science 25(1), 7-29. The argument for leading with the size of an effect and its uncertainty.
+- [New effect size rules of thumb](https://doi.org/10.22237/jmasm/1257035100) - Sawilowsky (2009), Journal of Modern Applied Statistical Methods 8(2), 597-599. An extended set of landmarks, including very small and very large.
 
 === step === complete
-## Part 6 complete
+## Quick recap
 
-You started with two trials that carried the same stamp and ended with a decision that used neither stamp. The app trial's half a kilo and the coach trial's five kilos became d = 0.1176 and d = 1.1453, computed from published summary tables with no raw data anywhere, and those two numbers said in one line what two p-values could not say at all.
+You started with two diet trials that a test could not tell apart, and you can now separate them with a single number. What you built along the way:
 
-Then the new tool got taken apart. The coach trial's d turned out to be anywhere from 0.60 to 1.69, and ten thousand resamples of Amara's own clinic agreed with the formula that said so. Ten thousand honest little studies with a true effect of 0.5 averaged 0.523 because small samples squeeze the denominator, and Hedges' g pulled them back to 0.5009. Run that same world again and look only at the studies that reached significance, and their average d was 1.2287, nearly two and a half times the truth, and the same simulation run at the coach trial's real design showed no such inflation, which is how you check rather than assume. One set of twelve before-and-after weights produced 2.2995 or 0.4760 depending only on which spread went underneath. And Amara's own d of 2.27 turned out to be the trial's 1.15 measured on a narrower group of people.
+- A p-value blends the gap, the spread and the headcount. You held a half kilo effect perfectly still and watched p slide from 0.63 to 0.0000013 on volunteers alone.
+- Cohen's d is the gap divided by the pooled standard deviation, so it carries no unit. Trial A came out at 0.125, trial B at 1.250, exactly ten times as much.
+- Drawn to scale, d is how far apart two bell curves sit. At 0.125 they lie almost on top of each other, and at 1.25 they barely share any ground.
+- Cohen's 0.2, 0.5 and 0.8 are a starting point, not a verdict. A tiny d that reaches millions of people can beat a large one that nobody will stick with.
+- The shape of the data picks the measure: two groups give d or g, three or more give eta squared, two categorical columns give Cramer's V, two continuous columns give r.
 
-The family filled itself in from there. Three arms gave eta squared 0.4694 and omega squared 0.4303, active minutes against kilos gave r = 0.63 and 40 percent of the variation, twenty-four patients and a yes-or-no column gave Cramer's V of 0.48 and an odds-ratio interval running from 1.54 to 190.85. Then the exact conversion put d and r on top of each other at 0.7641, which is the whole family turning out to be one idea.
+And the sentence it was all for, said about trial A:
 
-The last move was the one the labels cannot make. Half a kilo across 1,900 patients is 950 kg, five kilos across 40 funded places is 200 kg, and neither the p-values nor the d values contained the 1,900 or the 40. So the answer came out in three parts: it is real, it is this big, and it is worth doing for these patients.
+"The low-fat plan lost people half a kilo more than usual care, somewhere between 0.05 and 0.95 kg. That is a Cohen's d of 0.125, which is negligible. The p-value is 0.031."
 
-One part of the course remains. Take the habit from the last step with you into it, because every question left is a question about a number somebody is asking you to act on.
+Is it real, and is it big. Two questions, two numbers, and from now on you report both. Have a great day.
