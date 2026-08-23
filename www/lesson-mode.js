@@ -140,6 +140,33 @@
     segsWrap.addEventListener('mouseout', function (e) {
       if (e.target && e.target.tagName === 'I') segTip.style.display = 'none';
     });
+    // Click a visited segment to jump back to that step (gating untouched:
+    // only steps at or before the furthest visited are reachable).
+    segsWrap.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || t.tagName !== 'I') return;
+      var k = segEls.indexOf(t);
+      if (k < 0 || k === i || k > (state.furthest || 0)) return;
+      if (locked && !gateHold) { renderProGate(); return; }
+      i = k;
+      render();
+    });
+    // Keyboard: ArrowRight/Enter continue, ArrowLeft back. Never while typing
+    // in the R editor or a form control, never with a modifier held.
+    document.addEventListener('keydown', function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      var a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+      if (a && a.closest && a.closest('.webr-editor')) return;
+      if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        if (a && a.tagName === 'BUTTON' && a !== contBtn) return;
+        if (a && a.tagName === 'A') return;
+        if (!contBtn.disabled) { e.preventDefault(); contBtn.click(); }
+      } else if (e.key === 'ArrowLeft') {
+        if (!backBtn.disabled) { e.preventDefault(); backBtn.click(); }
+      }
+    });
+    var lastStepTracked = -1;
     var curEl = app.querySelector('.lm-cur');
     var midEl = app.querySelector('.lm-mid');
     var backBtn = app.querySelector('.lm-back');
@@ -297,6 +324,9 @@
     // reopens at step 1 (review mode) so a finished lesson is never a dead-end.
     var completedLesson = (state.furthest || 0) >= total - 1;
     var i = completedLesson ? 0 : Math.min(state.furthest || 0, total - 1);
+    if (!completedLesson && i > 0) {
+      showNudgeToast('Picked up where you left off: step ' + (i + 1) + ' of ' + total + '.');
+    }
     // A locked viewer never resumes past the preview, whatever localStorage says.
     if (locked) i = Math.min(i, PREVIEW_STEPS - 1);
     var showingPaywall = false;
@@ -331,6 +361,17 @@
         }, 5200);
       } catch (e) {}
     }
+    function showXpPulse(n) {
+      try {
+        var el = document.createElement('div');
+        el.className = 'lm-xp-pulse';
+        el.textContent = '+' + n + ' XP';
+        app.appendChild(el);
+        setTimeout(function () { el.classList.add('on'); }, 20);
+        setTimeout(function () { el.classList.remove('on'); }, 1900);
+        setTimeout(function () { el.remove(); }, 2400);
+      } catch (e) {}
+    }
     function showAwardModal(badge) {
       myHandle().then(function (h) {
         try {
@@ -359,6 +400,9 @@
     function handleAttemptExtras(res) {
       if (!res) return;
       try {
+        if (typeof res.xp_awarded_now === 'number' && res.xp_awarded_now > 0) {
+          showXpPulse(res.xp_awarded_now);
+        }
         if (res.new_badges && res.new_badges.length) {
           showAwardModal(res.new_badges[0]);
         } else if (res.nudge) {
@@ -560,6 +604,10 @@
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
       segEls.forEach(function (e, k) { e.className = k < i ? 'done' : (k === i ? 'cur' : ''); });
       curEl.textContent = i + 1;
+      if (i !== lastStepTracked) {
+        lastStepTracked = i;
+        try { if (typeof gtag === 'function') gtag('event', 'lesson_step_shown', { lesson: curSlug, step: i + 1, total: total }); } catch (e) {}
+      }
       midEl.textContent = locked
         ? 'Preview · step ' + (i + 1) + ' of ' + total
         : 'Step ' + (i + 1) + ' of ' + total;
