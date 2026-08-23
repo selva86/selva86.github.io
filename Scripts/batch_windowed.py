@@ -336,8 +336,8 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         import shutil
         n = 0
         for name in os.listdir(archive):
-            if '.prev' in name:
-                continue              # rotated older copies, never restored to the tree
+            if '.prev' in name or name.endswith('.rejected'):
+                continue              # rotated older copies and preserved rejected builds stay put
             dst = os.path.join(ROOT, name.replace('__', os.sep))
             # OVERWRITE: after a failed rebuild the tree may hold the rejected
             # new build at this path; the archive copy is the live truth.
@@ -451,6 +451,12 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         if os.path.exists(canon_md):
             split = lambda p: re.split(r'^=== step ===.*$', io.open(p, encoding='utf-8').read(), flags=re.M)[1:]
             new_steps, old_steps = split(lesson_md), split(canon_md)
+            # References steps are exempt: same-topic rebuilds legitimately
+            # cite the same canonical sources (this pair alone measured
+            # 0.62-0.72 across four otherwise-independent builds).
+            is_refs = lambda t: bool(re.search(r'^## References\s*$', t, flags=re.M))
+            new_steps = [t for t in new_steps if not is_refs(t)]
+            old_steps = [t for t in old_steps if not is_refs(t)]
             if owner_cover_used and new_steps:
                 new_steps = new_steps[1:]   # the cover is the owner's verbatim text by design
             # autojunk=False + whitespace-normalized: with autojunk on (the
