@@ -1,11 +1,11 @@
 ---
-title: "ACF and PACF: how to read the plots for ARIMA orders"
+title: "ARIMA from Zero Lesson 2: ACF and PACF: how to read the plots for ARIMA orders"
 slug: "ARIMA-Mini-2"
-description: "Read ACF and PACF plots the way a forecaster does. What every bar measures, which ones count, and how the two shapes hand you the p and q of an ARIMA."
-keywords: "ACF and PACF, how to read an ACF plot, PACF plot, ARIMA orders, choosing p and q, autocorrelation, partial autocorrelation, autocorrelation in R, ARIMA order selection"
-mathjax: false
+description: "Read ACF and PACF plots the way a forecaster does: what one bar measures, why the dashed band decides, and how a cutoff hands you the p and q of an ARIMA."
+keywords: "ACF and PACF, how to read ACF and PACF plots, ARIMA orders, partial autocorrelation, autocorrelation function, identify p and q, AR and MA order, correlogram"
+mathjax: true
 webr: true
-date: "2026-08-21"
+date: "2026-08-24"
 post_type: "LESSON"
 course_id: "arima-from-zero"
 course_title: "ARIMA from Zero"
@@ -16,614 +16,717 @@ course_prev: "ARIMA-Mini-1"
 course_next: ""
 curriculum_id: "0.0.10"
 lesson_access: "windowed"
-catalog_blurb: "How to read the two plots that tell you an ARIMA model's orders."
+catalog_blurb: "How to read the two plots that give you an ARIMA order."
 ---
 
 === step === cover
 ::eyebrow ARIMA from Zero
 ## ACF and PACF: how to read the plots for ARIMA orders
 
-Let's say you run a coffee shop, and for months your daily sales have been telling you something plain. A busy day tends to be followed by another busy day.
+Anand runs a coffee shop two streets from my office, and he worked something out on his own. A busy day at his place is usually followed by another busy day.
 
-You already believe that much. What you cannot tell just by looking is how far the echo reaches. Does a busy Monday still push Thursday up, or has it died out by Tuesday?
+He is right about that. What he cannot tell me is how far back the pull runs. Does a heavy Monday still show up in Thursday's till, or has it worn off by Tuesday?
 
-It is a fair question, and the answer is already sitting in the numbers you have.
+It is a fair question, and it is the exact question two plots were invented to answer.
 
-Here is what it looks like. We took 120 trading days of cups sold, lined the series up against itself one day back, two days back, three and four, and then measured how tightly each pairing moves together.
+The ACF and the PACF measure how strongly today's sales line up with one day ago, two days ago, three days ago, and so on down the line. Those correlations are what decide how many AR and MA terms a model needs. One tall bar at lag 1 and nothing after it is the series telling you that only yesterday matters.
 
-::widget correlation-heatmap {"vars": ["today", "1 day back", "2 days back", "3 days back", "4 days back"], "matrix": [[1, 0.67, 0.43, 0.28, 0.14], [0.67, 1, 0.67, 0.43, 0.28], [0.43, 0.67, 1, 0.67, 0.43], [0.28, 0.43, 0.67, 1, 0.67], [0.14, 0.28, 0.43, 0.67, 1]]}
+We are going to read them on 150 days of Anand's cup sales, then on a shop that leans on two days instead of one, a shop driven by shocks, a counter whose trade drifts, and a shop that repeats itself every week. By the end you will recognise the shapes on sight.
 
-Read the top row. Today against yesterday comes out at 0.67. Against two days back it drops to 0.43, then 0.28, then 0.14. So the echo is real, and it fades as you walk backwards.
+Three things have to happen, in this order.
 
-That row of numbers has a name. It is called the ACF. There is a second reading called the PACF, and it asks a sharper version of the same question: once you already know what yesterday did, does Monday still add anything of its own?
+::widget process-flow {"steps":[{"title":"Make the series readable","sub":"a drifting series has to be differenced before either plot means anything"},{"title":"See which plot stops dead","sub":"one plot drops inside the band and stays; the other keeps fading"},{"title":"Count the bars outside","sub":"the count on the plot that stopped is the order you are after"}]}
 
-Those two answers are what hand you the AR and MA terms of an ARIMA model. So we are not going to memorise any rules here. We are going to build both readings out of the shop's own numbers, one at a time, until you can look at any pair of plots and say out loud what the data is asking for.
+Everything from here is doing exactly that, with real numbers on the screen.
 
 === step === concept
-## 120 days of cups sold at one coffee shop
+## The coffee shop series we are going to read
 
-Before we read a single bar, we need a series where you and I both already know the right answer. Otherwise every reading that follows is just a claim with nothing behind it.
+Let's build Anand's 150 days first, because every number that follows comes out of them.
 
-So we are going to build the shop's 120 days on purpose, out of one rule said out loud. A normal day is 210 cups. Whatever gap yesterday had above or below 210, today keeps 0.7 of it, and then the day gets a fresh surprise on top: new faces, the weather, a delivery van parked across the door.
+Each day starts at 0.7 of the day before and adds that day's own fresh noise. The 180 is the shop's usual level, the 12 is how big an ordinary day-to-day surprise is, and the rounding is there because nobody sells two thirds of a cup.
 
-Written out, the rule is this: today = 210 + 0.7 times (yesterday minus 210) + a random nudge. Notice that nothing in it reaches further back than yesterday. That is going to matter a great deal in a few minutes.
-
-Press Run to build the shop's 120 days and look at them.
+Press Run.
 
 ```r
-# Build 120 days of cups sold at the coffee shop and plot the series
-set.seed(6)
-cups <- numeric(120)
-cups[1] <- 210
+# Build 150 days of cup sales at Anand's shop and plot them
+set.seed(11)
+cups <- round(180 + arima.sim(list(ar = 0.7), n = 150, sd = 12))
 
-for (i in 2:120) {
-  gap_yesterday <- cups[i - 1] - 210
-  cups[i] <- 210 + 0.7 * gap_yesterday + rnorm(1, mean = 0, sd = 14)
-}
-cups <- round(cups)
+cups[1:12]
+#>  [1] 172 166 162 167 166 174 177 178 176 168 169 161
 
-head(cups, 8)
-#> [1] 210 214 204 218 240 231 230 206
-
-plot(cups, type = "l", col = "steelblue", lwd = 2,
-     main = "Cups sold, 120 trading days",
-     xlab = "Trading day", ylab = "Cups sold")
+plot(cups, type = "l", col = "#1f7a55", lwd = 1.6,
+     main = "Cups sold at Anand's shop, 150 days",
+     xlab = "Day", ylab = "Cups sold")
 ```
 
-`set.seed(6)` pins the random nudges so your numbers come out the same as mine. The loop then walks the days one at a time, and `rnorm(1, mean = 0, sd = 14)` draws that day's surprise: nothing on average, but usually about 14 cups either side.
+Look at the line rather than the numbers. It does not bounce around 180 at random. It goes on runs: a stretch down in the 160s, then a climb, then a spell up near 200. That clustering is what Anand noticed from behind the counter.
 
-Now look at the line it drew. It moves between 169 and 268 cups without ever heading anywhere in particular. Busy days arrive in runs, and then the shop goes quiet for a stretch. Those runs are the echo we are after, and measuring them is the whole job.
+And because we built the series ourselves, we already know the true answer: one day back, at 0.7. Everything from here is us recovering that fact from the numbers alone, so you can trust the method later on a series where nobody knows the answer.
 
 === step === concept
-## How much does today look like yesterday?
+## What autocorrelation measures: today against yesterday
 
-Let's start with the simplest version of the question. How much does today look like yesterday?
+Let's start with the smallest version of Anand's question. Forget two days back and three days back for a moment, and ask only this: does a busy day tend to be followed by another busy day?
 
-There is nothing fancy in the answer. Write the 120 days out twice, slide the second copy down by one row, and now every day sits beside the day before it. You get 119 pairs, because day 1 has no day in front of it to pair with.
+There are 150 days, so 149 pairs of yesterday and today. Every pair is a dot below, with yesterday's cups across and today's cups up.
 
-Then take the ordinary correlation of those two columns.
+::widget chart-plotter {"data":[{"x":172,"y":166},{"x":166,"y":162},{"x":162,"y":167},{"x":167,"y":166},{"x":166,"y":174},{"x":174,"y":177},{"x":177,"y":178},{"x":178,"y":176},{"x":176,"y":168},{"x":168,"y":169},{"x":169,"y":161},{"x":161,"y":153},{"x":153,"y":150},{"x":150,"y":167},{"x":167,"y":152},{"x":152,"y":150},{"x":150,"y":165},{"x":165,"y":167},{"x":167,"y":190},{"x":190,"y":179},{"x":179,"y":175},{"x":175,"y":157},{"x":157,"y":164},{"x":164,"y":180},{"x":180,"y":169},{"x":169,"y":183},{"x":183,"y":178},{"x":178,"y":152},{"x":152,"y":171},{"x":171,"y":183},{"x":183,"y":184},{"x":184,"y":193},{"x":193,"y":186},{"x":186,"y":174},{"x":174,"y":182},{"x":182,"y":183},{"x":183,"y":189},{"x":189,"y":184},{"x":184,"y":188},{"x":188,"y":204},{"x":204,"y":197},{"x":197,"y":182},{"x":182,"y":209},{"x":209,"y":199},{"x":199,"y":170},{"x":170,"y":179},{"x":179,"y":200},{"x":200,"y":184},{"x":184,"y":170},{"x":170,"y":166},{"x":166,"y":179},{"x":179,"y":185},{"x":185,"y":182},{"x":182,"y":172},{"x":172,"y":177},{"x":177,"y":192},{"x":192,"y":190},{"x":190,"y":179},{"x":179,"y":185},{"x":185,"y":170},{"x":170,"y":178},{"x":178,"y":178},{"x":178,"y":182},{"x":182,"y":174},{"x":174,"y":165},{"x":165,"y":197},{"x":197,"y":184},{"x":184,"y":168},{"x":168,"y":177},{"x":177,"y":168},{"x":168,"y":153},{"x":153,"y":176},{"x":176,"y":165},{"x":165,"y":181},{"x":181,"y":174},{"x":174,"y":182},{"x":182,"y":177},{"x":177,"y":194},{"x":194,"y":176},{"x":176,"y":194},{"x":194,"y":183},{"x":183,"y":177},{"x":177,"y":181},{"x":181,"y":188},{"x":188,"y":184},{"x":184,"y":158},{"x":158,"y":172},{"x":172,"y":180},{"x":180,"y":168},{"x":168,"y":187},{"x":187,"y":198},{"x":198,"y":203},{"x":203,"y":215},{"x":215,"y":210},{"x":210,"y":174},{"x":174,"y":175},{"x":175,"y":170},{"x":170,"y":168},{"x":168,"y":175},{"x":175,"y":176},{"x":176,"y":179},{"x":179,"y":209},{"x":209,"y":192},{"x":192,"y":203},{"x":203,"y":205},{"x":205,"y":195},{"x":195,"y":207},{"x":207,"y":215},{"x":215,"y":211},{"x":211,"y":217},{"x":217,"y":196},{"x":196,"y":189},{"x":189,"y":172},{"x":172,"y":178},{"x":178,"y":166},{"x":166,"y":164},{"x":164,"y":168},{"x":168,"y":167},{"x":167,"y":144},{"x":144,"y":151},{"x":151,"y":163},{"x":163,"y":150},{"x":150,"y":165},{"x":165,"y":151},{"x":151,"y":156},{"x":156,"y":162},{"x":162,"y":171},{"x":171,"y":178},{"x":178,"y":203},{"x":203,"y":192},{"x":192,"y":193},{"x":193,"y":170},{"x":170,"y":181},{"x":181,"y":186},{"x":186,"y":192},{"x":192,"y":177},{"x":177,"y":188},{"x":188,"y":206},{"x":206,"y":217},{"x":217,"y":197},{"x":197,"y":188},{"x":188,"y":186},{"x":186,"y":177},{"x":177,"y":185},{"x":185,"y":185},{"x":185,"y":168},{"x":168,"y":170},{"x":170,"y":156},{"x":156,"y":160}],"geoms":["point"],"x":"yesterday","y":"today"}
+
+The cloud leans upward. The number in the corner of the chart is an ordinary Pearson correlation on those 149 pairs, r = 0.67, and nothing about it is special to time series. It is the same correlation you would compute between height and weight.
+
+Here is the same thing without the picture.
 
 ```r
-# Pair every day with the day before it, then take the ordinary correlation
-n <- length(cups)
+# Line up today's sales against yesterday's and correlate the 149 pairs
+n         <- length(cups)
 today     <- cups[2:n]
 yesterday <- cups[1:(n - 1)]
 
-length(today)
-#> [1] 119
-
 round(cor(yesterday, today), 3)
-#> [1] 0.663
+#> [1] 0.669
 ```
 
-`cor()` here is the same correlation you would run on height against weight. Nothing about time series changes what it means: 1 is a perfect straight-line link, and 0 is no link at all.
+That is autocorrelation in one sentence: an ordinary correlation between a series and a copy of itself shifted back a day. Shift the copy back two days and you get the lag-2 autocorrelation, and so on for every lag you care about.
 
-And the answer is 0.663. That is the lag-1 reading from the grid's top row, now built in front of you instead of handed to you. So a busy day really is followed by a busy day more often than not.
+The version R actually uses is written like this, where \(y_t\) is the sales on day \(t\), \(\bar{y}\) is the average over all 150 days, and \(k\) is how far back you shift the copy:
 
-Below are those 119 pairs drawn out, with yesterday along the bottom and today up the side. Press Run this chart and it will build the real plot from them.
+\[ r_k = \frac{\sum_{t=k+1}^{n} (y_t - \bar{y})(y_{t-k} - \bar{y})}{\sum_{t=1}^{n} (y_t - \bar{y})^2} \]
 
-::widget chart-plotter {"data": [{"x":210,"y":214},{"x":214,"y":204},{"x":204,"y":218},{"x":218,"y":240},{"x":240,"y":231},{"x":231,"y":230},{"x":230,"y":206},{"x":206,"y":217},{"x":217,"y":216},{"x":216,"y":199},{"x":199,"y":227},{"x":227,"y":205},{"x":205,"y":216},{"x":216,"y":209},{"x":209,"y":201},{"x":201,"y":204},{"x":204,"y":230},{"x":230,"y":209},{"x":209,"y":205},{"x":205,"y":237},{"x":237,"y":236},{"x":236,"y":209},{"x":209,"y":237},{"x":237,"y":213},{"x":213,"y":214},{"x":214,"y":197},{"x":197,"y":200},{"x":200,"y":236},{"x":236,"y":248},{"x":248,"y":229},{"x":229,"y":214},{"x":214,"y":219},{"x":219,"y":200},{"x":200,"y":188},{"x":188,"y":211},{"x":211,"y":208},{"x":208,"y":218},{"x":218,"y":238},{"x":238,"y":227},{"x":227,"y":199},{"x":199,"y":190},{"x":190,"y":190},{"x":190,"y":190},{"x":190,"y":194},{"x":194,"y":202},{"x":202,"y":194},{"x":194,"y":195},{"x":195,"y":225},{"x":225,"y":221},{"x":221,"y":220},{"x":220,"y":216},{"x":216,"y":221},{"x":221,"y":209},{"x":209,"y":227},{"x":227,"y":206},{"x":206,"y":222},{"x":222,"y":197},{"x":197,"y":179},{"x":179,"y":187},{"x":187,"y":195},{"x":195,"y":203},{"x":203,"y":213},{"x":213,"y":197},{"x":197,"y":178},{"x":178,"y":183},{"x":183,"y":194},{"x":194,"y":196},{"x":196,"y":187},{"x":187,"y":183},{"x":183,"y":199},{"x":199,"y":197},{"x":197,"y":194},{"x":194,"y":199},{"x":199,"y":194},{"x":194,"y":194},{"x":194,"y":189},{"x":189,"y":193},{"x":193,"y":214},{"x":214,"y":224},{"x":224,"y":237},{"x":237,"y":266},{"x":266,"y":248},{"x":248,"y":268},{"x":268,"y":250},{"x":250,"y":217},{"x":217,"y":195},{"x":195,"y":220},{"x":220,"y":214},{"x":214,"y":208},{"x":208,"y":198},{"x":198,"y":175},{"x":175,"y":191},{"x":191,"y":213},{"x":213,"y":225},{"x":225,"y":222},{"x":222,"y":195},{"x":195,"y":213},{"x":213,"y":202},{"x":202,"y":196},{"x":196,"y":186},{"x":186,"y":180},{"x":180,"y":190},{"x":190,"y":197},{"x":197,"y":187},{"x":187,"y":193},{"x":193,"y":195},{"x":195,"y":197},{"x":197,"y":209},{"x":209,"y":204},{"x":204,"y":193},{"x":193,"y":189},{"x":189,"y":183},{"x":183,"y":169},{"x":169,"y":197},{"x":197,"y":195},{"x":195,"y":208},{"x":208,"y":209},{"x":209,"y":217},{"x":217,"y":201}], "geoms": ["point"], "x": "yesterday", "y": "today"}
-
-The cloud of points tilts upward, and that same correlation is printed beside it. So this is what 0.663 actually looks like.
-
-=== step === concept
-## The echo at two, three and four days back is the ACF
-
-Now let's push the same question further back. Slide the second copy down by two rows instead of one and you are pairing today with two days ago. Slide it by three, then four, then twenty. Each slide hands you one more correlation.
-
-The size of the slide is called the lag. So lag 1 is yesterday, lag 2 is the day before that, and lag 20 is three working weeks ago.
-
-That whole sequence of answers, one correlation per lag, is the autocorrelation function. Everybody calls it the ACF. You will never have to slide those columns by hand, because `acf()` does every lag in one go.
+Put \(k = 1\) into that and run it beside `acf()`, which is the function that does the whole calculation for you.
 
 ```r
-# Get the correlation at every lag at once, first as numbers and then as a plot
-acf(cups, plot = FALSE, lag.max = 4)
-#> 
-#> Autocorrelations of series 'cups', by lag
-#> 
-#>     0     1     2     3     4 
-#> 1.000 0.663 0.430 0.276 0.139 
+# Recompute the lag-1 value the way acf() does, centred on the whole series
+cup_mean <- mean(cups)
 
-acf(cups, main = "ACF of cups sold")
+round(sum((today - cup_mean) * (yesterday - cup_mean)) / sum((cups - cup_mean)^2), 3)
+#> [1] 0.665
+
+round(acf(cups, plot = FALSE)$acf[2], 3)
+#> [1] 0.665
 ```
 
-Let's read that output. Lag 0 pairs the series with an unshifted copy of itself, so it is always 1.000 and it tells you nothing. Lag 1 is 0.663, which is the very number we built by hand a moment ago.
-
-Now read the fade: 0.430, then 0.276, then 0.139. A busy day can still be heard four days later, and it gets fainter with every step back.
-
-In the plot, each vertical bar is one of those numbers, with the lag along the bottom. The two dashed blue lines are the part everyone squints at, so let's pin down exactly what they are.
+Both give 0.665, where `cor()` gave 0.669. The small gap is bookkeeping. `cor()` centres the 149 yesterdays on their own average and the 149 todays on theirs, then divides by their two separate spreads. `acf()` centres everything on the single average of all 150 days and divides by the single total. Same idea, and 0.665 is the version every ARIMA tool works from.
 
 === step === concept
-## What counts as a real spike and what is just wiggle
+## The whole ACF at once, and what the dashed lines mean
 
-Here is the awkward part about correlations. If you took 120 days of pure noise, a shop with no memory at all, the bars would still not come out at zero. They would jitter around it.
-
-So a bar being bigger than zero proves nothing on its own. What we need is a line that says: anything shorter than this is the jitter that noise hands you anyway.
-
-That line is `1.96 / sqrt(n)`, where n is how many observations you have. It is where the dashed lines sit on every ACF and PACF plot that R draws for you.
+Doing that by hand for every lag would take the afternoon. `acf()` computes the whole set in one call and draws it.
 
 ```r
-# Work out the band this series uses to separate a real spike from wiggle
-round(c(band = 1.96 / sqrt(length(cups))), 3)
-#>  band 
-#> 0.179 
+# Draw every lag at once for the cup sales and work out the band
+acf(cups, main = "ACF of Anand's daily cup sales")
+
+round(acf(cups, plot = FALSE)$acf[2:8], 3)
+#> [1] 0.665 0.486 0.402 0.275 0.181 0.145 0.030
+
+1.96 / sqrt(length(cups))
+#> [1] 0.1600333
 ```
 
-For our 120 days the band comes out at 0.179. A bar taller than 0.179, or lower than minus 0.179, counts as real. A bar inside it counts as nothing.
+Every bar on that plot is one lag: 0.665 at lag 1, 0.486 at lag 2, 0.402 at lag 3, and onward. The bar standing at 1.000 on the far left is lag 0, a series correlated with itself, and it carries no information at all.
 
-So let's go back and grade the ACF we just drew. Lag 1 at 0.663 is way outside. Lag 2 at 0.430 and lag 3 at 0.276 clear it too. Lag 4 at 0.139 does not, so we treat that one as noise.
+Now the part everyone squints at. The two dashed blue lines are not decoration. They mark the range inside which a bar is no different from the wiggle pure noise would give you, and they sit at plus and minus this:
 
-Now run your eye all the way to the right of that plot, where one lone bar out near lag 20 dips just past the lower line. R draws twenty bars here, and the band is drawn so that roughly one bar in twenty strays past it by luck alone. So a single bar standing on its own a long way from lag 1, with nothing but noise on either side of it, is not a term to go and fit. The bars worth counting sit near the start and arrive in a run.
+\[ \frac{1.96}{\sqrt{n}} \]
+
+Here \(n\) is the number of observations, so for 150 days the band is 0.160. That turns plot reading from a feeling into a comparison. Lags 1 through 5 all clear 0.160. Lag 6, at 0.145, is already inside it, and lag 7 is 0.030, which is nothing.
+
+Look further right on that same plot and a few short bars poke past the lower line out around lags 18 to 20. The dashed lines are drawn where 95 out of every 100 bars of pure noise would sit, so on a plot this long a few strays outside are ordinary. Read the shape near the start, where the structure lives, and do not chase one small bar far out on the right.
+
+So Anand gets a first answer. The pull is still measurable five days back, and it fades a little more each day. A heavy Monday really does show up faintly in Thursday's till.
 
 [NOTE]
-The band moves with the length of the series, and it moves a lot. At 120 days it is 0.179. At 500 days it would be 0.088, so a bar of 0.13 would count there and it would not count here. Always read a plot against its own band, and never against a number you remember from another plot.
+The band belongs to the series, not to the plot. With 150 days it sits at 0.160; with 40 days it widens to 0.310. The very same bar can count on one series and be noise on another, so always read a plot against its own band and never against a number you remember.
 
 === step === quiz
-## Quick check: which bars actually count?
+## Quick check: which bars on an ACF count?
 
-The shop's ACF reads 0.663 at lag 1, then 0.430, then 0.276, then 0.139, and the band for these 120 days is 0.179. Which bars count as real?
+Anand's ACF came back with 0.181 at lag 5 and 0.145 at lag 6, and the band for his 150 days is 0.160.
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- All four, because every one of them is above zero. ::no
-- Only lag 1, because it is by far the tallest bar on the plot. ::no
-- Lags 1, 2 and 3, because 0.663, 0.430 and 0.276 all clear 0.179, and 0.139 does not. ::ok Exactly. Grading a bar is one comparison: is it outside this series' own band, or inside it? How tall it looks next to the other bars has nothing to do with it.
-- None of them, because none of them reaches 1.000. ::no A bar counts when it falls outside the band for that series, which is 0.179 here. Being above zero is not enough, since noise alone produces bars above zero all the time. Being the tallest is not it either, and 1.000 only ever happens at lag 0, where the series is compared with itself.
+- Both count, because both are positive and the ACF is still on its way down at that point. ::no
+- Neither counts, because both are tiny next to the 0.665 at lag 1. ::no
+- Lag 5 counts and lag 6 does not, because 0.181 is outside the 0.160 band and 0.145 is inside it. ::ok That is the whole test. A bar is either in or out of its band, and nothing else about it matters: not its sign, not how it compares to lag 1, not whether the plot looks like it is still falling.
+- You cannot say without more days, since 0.181 and 0.145 are too close to call. ::no The band is the only comparison being made. A bar outside it is a correlation worth taking seriously, a bar inside it is noise, and 0.160 is where that line sits for 150 days. Being close to the line does not make a bar undecidable, and being small next to lag 1 does not make it noise.
 
 === step === concept
-## Why the two-days-back bar is not what it looks like
+## Why the ACF has a lag-2 bar when there is no two-day term
 
-The ACF says today and two days ago correlate at 0.430. It is tempting to read that as: the day before yesterday has a hold of its own on today.
+Something in that table should be bothering you.
 
-Hold on, because there is a simpler explanation. Today leans on yesterday at 0.663. And yesterday leans on the day before it at 0.663 as well. So part of that two-day link may be no link at all, just yesterday passing the message along.
+We built these days from one instruction: today is 0.7 of yesterday plus a fresh surprise. There is no two-day term anywhere in that recipe. The day before yesterday never gets a vote. And yet the lag-2 bar came back at 0.486, well outside the band.
 
-How much would the passing along on its own produce? Let's multiply the two together and see whether that accounts for the whole thing.
+Here is where it comes from. Today leans on yesterday. Yesterday leaned on the day before. So the day before yesterday reaches today by going through yesterday, arriving at 0.7 of 0.7, which is 0.49.
 
-```r
-# Compare the lag-2 echo that pure pass-through would give with the bar we measured
-acf_cups <- acf(cups, plot = FALSE, lag.max = 2)$acf
+Three days back it arrives at 0.7 of 0.7 of 0.7, which is 0.343.
 
-round(c(passed_through_yesterday = acf_cups[2] * acf_cups[2],
-        bar_we_actually_got      = acf_cups[3]), 3)
-#> passed_through_yesterday      bar_we_actually_got 
-#>                    0.439                    0.430 
-```
-
-`acf_cups[2]` is the lag-1 value and `acf_cups[3]` is lag 2, because the first slot in that vector holds lag 0.
-
-Passing along on its own predicts 0.439. We measured 0.430. For our purposes those are the same number, which means the lag-2 bar is fully explained by the route through yesterday. There is nothing left over for a direct link.
-
-So a tall ACF bar does not prove a direct connection at that lag, and the ACF has no way of telling the two apart. To separate them we need a different measurement.
-
-=== step === concept
-## Holding yesterday still to see what Monday adds
-
-The fix is the one you would reach for in any regression. If you want to know what two days back is worth on its own, put both days into the same model and make them compete for the credit.
-
-Then read the coefficient on two days back. It answers a precise question: with yesterday already accounted for, does the day before yesterday still move today?
-
-So let's build the two shifted columns and fit it.
+In general, a series that carries \(\phi\) of the previous day has an autocorrelation of \(\phi^k\) at lag \(k\). Let's put that prediction next to what the shop actually did.
 
 ```r
-# Fit today on yesterday and two days back, so each is judged with the other held still
-lag1 <- c(NA, cups[1:119])
-lag2 <- c(NA, NA, cups[1:118])
-
-echo_fit <- lm(cups ~ lag1 + lag2)
-round(summary(echo_fit)$coefficients, 3)
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   71.153     15.951   4.461    0.000
-#> lag1           0.675      0.094   7.218    0.000
-#> lag2          -0.018      0.094  -0.193    0.847
+# Compare the ACF of the sales against 0.7 raised to the power of the lag
+data.frame(
+  lag          = 1:5,
+  passed_along = round(0.7^(1:5), 3),
+  acf_of_cups  = round(acf(cups, plot = FALSE)$acf[2:6], 3)
+)
+#>   lag passed_along acf_of_cups
+#> 1   1        0.700       0.665
+#> 2   2        0.490       0.486
+#> 3   3        0.343       0.402
+#> 4   4        0.240       0.275
+#> 5   5        0.168       0.181
 ```
 
-`lag1` is the cups column shifted down one row, padded with `NA` at the top because day 1 has no day before it. `lag2` is the same idea shifted down two. `lm()` drops the rows holding an `NA` on its own and fits the rest.
-
-The last column, `Pr(>|t|)`, is the p-value: roughly, how ordinary this coefficient would look if the true one were zero. Small means the effect is hard to write off as luck. Large means we cannot tell it from zero.
-
-Read the `lag1` row: 0.675, with a p-value printed as 0.000. Yesterday matters, and 0.675 sits right next to the 0.7 we built into the shop.
-
-Now read `lag2`: minus 0.018, with a p-value of 0.847. Once yesterday is held still, two days back adds nothing you could tell apart from zero. The whole of that 0.430 was the message being passed along, exactly as we suspected.
-
-=== step === concept
-## The bars you get when the echo is stripped out
-
-That regression is exactly what a partial autocorrelation is, and `pacf()` runs it for you at every lag. At lag k it fits today on all the lags up to k, and then it reports only the coefficient on lag k itself.
-
-Partial is the important word there. It means the part that belongs to this lag alone, after the shorter lags have taken their share. And the whole sequence of those answers is the PACF.
-
-```r
-# Ask what each lag adds on its own, once the shorter lags are held still
-pacf(cups, plot = FALSE, lag.max = 6)
-#> 
-#> Partial autocorrelations of series 'cups', by lag
-#> 
-#>      1      2      3      4      5      6 
-#>  0.663 -0.015 -0.006 -0.067  0.027  0.065 
-
-pacf(cups, main = "PACF of cups sold")
-```
-
-Lag 1 reads 0.663, the same value the ACF gave, and that is no coincidence. At lag 1 there is nothing in between to strip out, so the two readings have to agree.
-
-Now watch what happens after it. Minus 0.015, then minus 0.006, then minus 0.067, then 0.027, then 0.065. Every one of them is well inside the 0.179 band, and they stay inside all the way out to lag 20. The plot falls off a cliff after lag 1 and it never climbs back.
-
-Notice also that the table starts at lag 1 rather than lag 0. That is because a series against an unshifted copy of itself has no shorter lag to hold still, so it has nothing left to tell you.
-
-=== step === tryit
-## Your turn: does three days back add anything?
-
-You have watched two days back come up empty once yesterday was held still. Now let's check three.
-
-A third shifted column is already built for you below. Put all three lags into one model, then read the row for `lag3`.
-
-```r
-# Add a third lag to the regression and see what it is worth on its own
-lag3 <- c(NA, NA, NA, cups[1:117])
-
-# Fit cups on lag1, lag2 and lag3, then print the coefficient table
-# rounded to three places. Two lines. Press Check when you have them.
-```
-::check {"regex": "lm[(][^)]*lag3", "gate": true, "difficulty": "beginner", "ok": "Right. Three days back comes in at minus 0.006 with a p-value of 0.954, so it adds nothing at all once yesterday is in the model. Yesterday keeps 0.677 and holds the entire story on its own.", "no": "Put all three columns into one model and let them compete: `three_fit <- lm(cups ~ lag1 + lag2 + lag3)`, then `round(summary(three_fit)$coefficients, 3)`."}
-::solution
-```r
-# Fit all three lags together and read the lag3 row
-three_fit <- lm(cups ~ lag1 + lag2 + lag3)
-round(summary(three_fit)$coefficients, 3)
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   71.401     17.406   4.102    0.000
-#> lag1           0.677      0.094   7.176    0.000
-#> lag2          -0.015      0.114  -0.132    0.896
-#> lag3          -0.006      0.094  -0.058    0.954
-```
-
-Yesterday holds at 0.677. Two days back and three days back both sit at effectively zero, with p-values of 0.896 and 0.954. That is the same verdict `pacf()` gave us in one line, which is reassuring, because it means the function is running this very regression for you and not doing something mysterious.
-
-=== step === quiz
-## Quick check: the two lag-2 bars measure different things
-
-The ACF put lag 2 at 0.430. The PACF put lag 2 at minus 0.015. Both are correct readings of the same 120 days. What is the difference between them?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- They measure the same quantity, so a gap that large means one of the two functions has gone wrong. ::no
-- The ACF bar counts everything linking today to two days ago, including whatever travels through yesterday. The PACF bar counts only what two days back adds once yesterday is held still. ::ok That is it. One is the total link and the other is the direct link. Here the total was almost entirely made of the indirect route, which is why stripping that route out left nothing behind.
-- The ACF bar is the raw correlation and the PACF bar is the same correlation with the mean subtracted first. ::no
-- The PACF bar is always the smaller of the two, because partial means a fraction of the whole. ::no The ACF measures the total link between today and a day k back, indirect routes included. The PACF measures only the direct part, after the days in between are held still. Both of them use the mean, and neither is guaranteed to be the smaller one: a PACF bar can be bigger than its ACF twin, and it can come out negative while the ACF twin is positive.
-
-=== step === concept
-## Only yesterday matters, and that is p
-
-Let's put the shop's two plots one above the other. Stacked like that, the pattern is impossible to miss.
-
-```r
-# Show both plots together: one trails away, the other cuts off
-par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
-acf(cups,  main = "ACF: it trails away")
-pacf(cups, main = "PACF: one bar, then nothing")
-par(mfrow = c(1, 1))
-```
-
-The ACF slides down slowly, 0.663 to 0.430 to 0.276 to 0.139, fading toward the band without ever stopping short. When bars shrink by degrees like that, we say the plot tails off.
-
-The PACF does the opposite. One bar at 0.663, and then everything is inside the band and stays there. When bars drop inside the band at some lag and never come back out, we say the plot cuts off, and this one cuts off after lag 1.
-
-That pairing has a name. A series where today is built out of its own recent values is called autoregressive, written AR(p), and p is how many of its own past days it needs. The signature never varies: for an AR(p), the ACF tails off and the PACF cuts off at lag p.
-
-Here the PACF cuts off after lag 1, so p = 1. And that is the truth, because we wrote the shop a rule that reaches back exactly one day.
-
-So let's go back to the question the shop's numbers raised. Does a busy Monday still push Thursday? No, it does not. Monday pushes Tuesday, Tuesday pushes Wednesday, and that is the whole of the chain. The ACF made it look as though Monday reached Thursday directly, at 0.139. The PACF showed us that the message was only ever being handed along.
+The middle column is what pure relaying predicts. The right column is what the till actually recorded. They track each other lag for lag, and the small gaps are sampling wobble on 150 days.
 
 [KEY INSIGHT]
-The AR order lives in the PACF, and you read it by counting: p is the last lag whose PACF bar stands outside the band before the plot collapses. The ACF is what tells you there is memory at all. The PACF is what tells you how deep it runs.
+The ACF cannot tell a direct link from a relayed one. It adds them together, which is why it fades geometrically instead of stopping, even when the recipe holds exactly one term. Anand's ACF clears the band for five lags in a row. The true answer is one.
+
+That leaves an obvious question. Is there a way to ask about two days back while holding yesterday fixed? There is, and that is the whole reason the PACF exists.
 
 === step === concept
-## A second kind of memory: a day of buzz that fades tomorrow
+## What the PACF strips out, and how R computes it
 
-Not every series remembers by leaning on its own past levels. And the other kind of memory changes which plot you read.
+The partial autocorrelation asks the same question with a condition attached. How much does the day before yesterday tell you about today, over and above what yesterday has already told you?
 
-So picture a different stretch of the same shop. The local paper mentions you, or the weather turns, and that day gets a jolt. The jolt is not a level the shop settles into, it is a one-off event. But it does spill over, because whoever came in for the buzz brings a friend tomorrow, and after that it is spent.
+There is a familiar tool that answers exactly that, and it is regression. Put today on the left and both earlier days on the right:
 
-So each day's cups are 210, plus today's surprise, plus 0.8 of yesterday's surprise. Now notice what is missing from that rule. Yesterday's cups are nowhere in it. Only yesterday's surprise carries over.
+\[ y_t = c + \alpha_1 y_{t-1} + \alpha_2 y_{t-2} + \varepsilon_t \]
+
+In any regression, a coefficient is read holding the other predictors fixed. So \(\alpha_2\) is precisely what we want: the pull from two days back once yesterday has taken its share. That coefficient is the partial autocorrelation at lag 2. The same holds at any lag: regress today on every lag up to \(k\), and the coefficient on the \(k\)-th is the partial autocorrelation at lag \(k\).
+
+That is not a rough description of what `pacf()` does. It is what the quantity is, so let's compute it both ways and compare.
 
 ```r
-# Build a stretch where each day carries today's surprise plus part of yesterday's
-set.seed(3)
-shock <- rnorm(121, mean = 0, sd = 14)
-buzz  <- round(210 + shock[2:121] + 0.8 * shock[1:120])
+# Get the lag-2 partial two ways: from a regression, and from pacf()
+lag_frame <- data.frame(
+  today = cups[3:n],
+  lag_1 = cups[2:(n - 1)],
+  lag_2 = cups[1:(n - 2)]
+)
 
-head(buzz, 8)
-#> [1] 195 210 197 200 213 212 227 205
+round(coef(lm(today ~ lag_1 + lag_2, data = lag_frame)), 3)
+#> (Intercept)       lag_1       lag_2 
+#>      53.638       0.612       0.088 
 
-plot(buzz, type = "l", col = "darkorange", lwd = 2,
-     main = "Cups sold, the buzz stretch",
-     xlab = "Trading day", ylab = "Cups sold")
+round(pacf(cups, plot = FALSE)$acf[1:3], 3)
+#> [1] 0.665 0.077 0.094
 ```
 
-`shock` holds 121 surprises. `shock[2:121]` is today's and `shock[1:120]` is yesterday's, lined up so that each day is paired with the surprise that came before it.
+Read the two outputs together. The regression puts 0.088 on `lag_2`, and `pacf()` reports 0.077 at lag 2. It is the same quantity reached two different ways.
 
-To the naked eye this line looks much the same as the first stretch, moving between 171 and 238 cups. Two completely different rules can produce series that look alike on a chart, and that is exactly why nobody judges this by eye.
+They are not identical, and the reason is worth a sentence. The regression can only use the 148 days that have two full days behind them, and it fits a free intercept. `pacf()` starts from the sample autocorrelations of all 150 days and runs a recursion that assumes one constant mean. Different bookkeeping, and on a real series the two land close.
+
+Now read what the number says. It is 0.077 against a band of 0.160. Once yesterday is held fixed, the day before yesterday has nothing left to add. Almost the whole 0.486 that the ACF reported at lag 2 was yesterday's correlation being passed along.
+
+=== step === tryit
+## Your turn: get the lag-2 partial from a regression
+
+Anand only kept the till rolls for the first 60 days of that run, and he wants to know whether the same verdict holds on a stretch that short.
+
+The lag columns are lined up for you below. Fit the regression, read the coefficient on `lag_2`, and work out the band for 60 days.
+
+```r
+# The first 60 days at Anand's shop, lined up as today, yesterday and two days back
+first_60 <- cups[1:60]
+
+short_frame <- data.frame(
+  today = first_60[3:60],
+  lag_1 = first_60[2:59],
+  lag_2 = first_60[1:58]
+)
+
+# Fit today on both lag columns and read the coefficient on lag_2.
+# Then work out the band for 60 observations.
+# Two lines. Press Check when you have them.
+```
+::check {"regex": "lm\\s*[(][^)]*lag_2", "gate": true, "difficulty": "intermediate", "ok": "Right. The lag_2 coefficient is -0.042 and the band for 60 days is 0.253, so it is nowhere close to counting. A quarter of the data, a band nearly twice as wide, and the same verdict: with yesterday in the model, two days back adds nothing.", "no": "Fit `lm(today ~ lag_1 + lag_2, data = short_frame)` and wrap it in `coef()` to see the three numbers. The one you want sits under lag_2. The band is `1.96 / sqrt(60)`."}
+::solution
+```r
+# Fit the two-lag regression on the 60-day stretch and compare it with that stretch's band
+round(coef(lm(today ~ lag_1 + lag_2, data = short_frame)), 3)
+#> (Intercept)       lag_1       lag_2 
+#>      74.218       0.623      -0.042 
+
+round(1.96 / sqrt(60), 3)
+#> [1] 0.253
+```
+
+Notice that the `lag_1` coefficient barely moved, 0.623 here against 0.612 on the full run, while the band went from 0.160 out to 0.253. Fewer observations do not change what the shop does. They only make you less sure about it.
 
 === step === concept
-## When the ACF cuts and the PACF trails away, that is q
+## The coffee shop PACF: one bar outside the band
 
-Let's run both readings on the buzz stretch and watch what happens to the two shapes.
+We have the lag-2 partial. Let's get the whole set and draw it.
 
 ```r
-# Read both plots on the buzz stretch and watch the two shapes swap over
-acf(buzz, plot = FALSE, lag.max = 5)
-#> 
-#> Autocorrelations of series 'buzz', by lag
-#> 
-#>     0     1     2     3     4     5 
-#> 1.000 0.473 0.008 0.042 0.092 0.066 
+# Draw the PACF of the cup sales and check every bar against the band
+pacf(cups, main = "PACF of Anand's daily cup sales")
 
-pacf(buzz, plot = FALSE, lag.max = 5)
-#> 
-#> Partial autocorrelations of series 'buzz', by lag
-#> 
-#>      1      2      3      4      5 
-#>  0.473 -0.279  0.237 -0.068  0.078 
-
-par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
-acf(buzz,  main = "ACF: one bar, then nothing")
-pacf(buzz, main = "PACF: it trails away")
-par(mfrow = c(1, 1))
+round(pacf(cups, plot = FALSE)$acf[1:8], 3)
+#> [1]  0.665  0.077  0.094 -0.075 -0.026  0.032 -0.141  0.082
 ```
 
-The two shapes have traded places. The ACF has one bar at 0.473 and then 0.008, then 0.042, then 0.092, all of them straight inside the 0.179 band, and they stay inside all the way out to lag 20, where the biggest stray reaches only 0.134. So the ACF cuts off after lag 1.
+The band has not moved, because it belongs to the series and the series is the same 150 days: 0.160.
 
-The PACF is the one fading now, and it fades by alternating: 0.473, then minus 0.279, then 0.237, then minus 0.068. Bars that swing either side of zero while they shrink are still tailing off, because tailing off is about the gradual shrink and not about staying positive. One bar further out, at lag 6, pokes just past the band at minus 0.199, which is the sort of stray you get when you look at twenty bars at once.
+Lag 1 stands at 0.665, four times the band. Lag 2 is 0.077, lag 3 is 0.094, and the tallest thing after that is -0.141 at lag 7, which is still inside the line. That is one bar out, and nothing after it.
 
-A series built out of recent surprises rather than recent values is called a moving average, written MA(q), and q is how many surprises back it reaches. Its signature is the mirror image of the AR one: the ACF cuts off at lag q and the PACF tails off.
+Say that back in Anand's language. Once you know yesterday, no earlier day adds anything you did not already have. Only yesterday matters.
 
-Our ACF cuts off after lag 1, so q = 1. And that is right again, because the rule we wrote carries exactly one day of surprise.
+And that settles the question he started with. The correlation reaches five days back, but the influence does not. Monday turns up in Thursday's till only because Monday shaped Tuesday and Tuesday shaped Wednesday.
+
+=== step === concept
+## Cutting off and tailing off: the two shapes you are looking for
+
+Two words carry the whole method, so let's pin them down on the series you already know.
+
+```r
+# Put the two plots of the same 150 days side by side
+old_par <- par(mfrow = c(1, 2))
+acf(cups,  main = "ACF: tails off")
+pacf(cups, main = "PACF: cuts off")
+par(old_par)
+```
+
+A plot **tails off** when its bars shrink lag after lag, sinking toward the band and sometimes flipping sign on the way down. The ACF on the left does that: 0.665, 0.486, 0.402, 0.275, 0.181, and only then inside.
+
+A plot **cuts off** when its bars drop inside the band after some lag and stay there. The PACF on the right does that: 0.665, then 0.077, and everything after it sitting inside the line.
+
+Same 150 days, and two completely different pictures, because the two functions ask different questions. One adds up direct and relayed pull together, and the other reports only what is left after the shorter lags have had their turn.
+
+[KEY INSIGHT]
+Neither plot means much on its own. It is the pairing that names the process: one cuts off while the other tails off, and which one cuts off tells you which kind of term you need. Read the two side by side, every time.
+
+=== step === concept
+## How to read the AR order p from the PACF
+
+An autoregressive process of order p, written AR(p), builds each day out of the last p days. Anand's shop is an AR(1): one day back, at 0.7.
+
+Here is the rule, and the reason it has to be true. Regress today on p lags and every coefficient up to the p-th is real, because the recipe genuinely uses those days. Add a further lag beyond p and its coefficient has nothing left to explain, because the recipe stops there. The PACF is exactly that set of coefficients, so an AR(p) has a PACF that cuts off after lag p, while its ACF tails off through relaying.
+
+Let's watch the rule count to two. Anand's cousin runs a place beside a college where the queue takes two days to clear, so today there carries 0.5 of yesterday and 0.3 of the day before.
+
+```r
+# Build a shop whose sales lean on the last two days, then read both plots
+set.seed(21)
+cups_two_day <- round(180 + arima.sim(list(ar = c(0.5, 0.3)), n = 300, sd = 12))
+
+old_par <- par(mfrow = c(1, 2))
+acf(cups_two_day,  main = "ACF: still tailing off")
+pacf(cups_two_day, main = "PACF: two bars, then nothing")
+par(old_par)
+
+round(pacf(cups_two_day, plot = FALSE)$acf[1:6], 3)
+#> [1]  0.664  0.321 -0.056 -0.029 -0.007  0.011
+
+round(acf(cups_two_day, plot = FALSE)$acf[2:7], 3)
+#> [1] 0.664 0.620 0.465 0.381 0.295 0.240
+
+round(1.96 / sqrt(300), 3)
+#> [1] 0.113
+```
+
+There are 300 days here, so the band tightens to 0.113. Lag 1 at 0.664 and lag 2 at 0.321 clear it comfortably. Lag 3 at -0.056 is inside, and everything after it is flat. The PACF cuts off after lag 2, so p = 2, which is exactly the recipe we handed it.
+
+Meanwhile the ACF is doing what an ACF always does. Its first six values, 0.664, 0.620, 0.465, 0.381, 0.295 and 0.240, are a long geometric slide, and on the plot that slide stays above the band for many lags after those. Count bars there and you would put p in double figures.
+
+[KEY INSIGHT]
+p is the number of PACF bars outside the band before it drops inside and stays there. That number is the one you hand to a model as `order = c(p, 0, 0)`.
 
 === step === quiz
-## Quick check: which plot carries which order?
+## Quick check: which plot carries the AR order?
 
-Someone hands you a series whose ACF slides down gently over many lags, while its PACF has three tall bars outside the band and then collapses inside it. What can you read, and from where?
+The college shop's PACF ran 0.664, 0.321, -0.056, -0.029, -0.007, 0.011, and its ACF ran 0.664, 0.620, 0.465, 0.381, 0.295, 0.240. The band for 300 days is 0.113.
 
-::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
-- p = 3, read off the PACF, because the PACF is the plot that cuts off here. ::ok Yes. The cutting plot is the one that carries an order, and a cutting PACF gives you p. The tailing ACF is your confirmation that this is an AR series, not a place to count bars.
-- q = 3, read off the PACF, because three bars stand outside the band there. ::no
-- p = 3, read off the ACF, because AR memory is what the ACF was built to show. ::no
-- Nothing can be read, because the two plots disagree with each other. ::no The order always comes off the plot that CUTS OFF, never the one that trails away. A cutting PACF gives p, a cutting ACF gives q, and the two plots showing different shapes is the normal and useful case rather than a problem. Here the PACF cuts after three bars, so p = 3.
-
-=== step === concept
-## Fitting the order you read and checking what is left over
-
-Reading the order off the plots is only half the job. The other half is fitting it and then proving that nothing readable was left behind.
-
-So let's fit the AR(1) we read off the shop's plots, and then run the ACF on whatever the model could not explain. Those leftovers are called the residuals: for each day, the cups that actually sold minus the cups the model expected.
-
-```r
-# Fit the AR(1) we read off the plots, then check what it could not explain
-fit <- arima(cups, order = c(1, 0, 0))
-fit
-#> 
-#> Call:
-#> arima(x = cups, order = c(1, 0, 0))
-#> 
-#> Coefficients:
-#>          ar1  intercept
-#>       0.6580   207.6962
-#> s.e.  0.0676     3.6008
-#> 
-#> sigma^2 estimated as 187.8:  log likelihood = -484.67,  aic = 975.35
-
-leftover <- acf(residuals(fit), plot = FALSE, lag.max = 6)$acf[2:7]
-names(leftover) <- paste0("lag", 1:6)
-round(leftover, 3)
-#>   lag1   lag2   lag3   lag4   lag5   lag6 
-#>  0.017 -0.003  0.036 -0.061 -0.056  0.082 
-
-Box.test(residuals(fit), lag = 10, type = "Ljung-Box", fitdf = 1)
-#> 
-#> 	Box-Ljung test
-#> 
-#> data:  residuals(fit)
-#> X-squared = 2.8156, df = 9, p-value = 0.9712
-```
-
-The three numbers in `order = c(1, 0, 0)` are p, d and q in that order, so this asks for one AR term, no differencing and no MA term. The fitted `ar1` comes back at 0.658, against the 0.7 we built into the shop.
-
-Now comes the check that actually matters. Every one of those six bars sits well inside 0.179, the biggest being 0.082, so the model has taken the memory out and left plain noise behind. A tall bar out there would have meant a missing term.
-
-The Ljung-Box test does that same check in one number instead of by eye. It asks whether the first ten residual bars, taken together, are bigger than noise alone would produce. `fitdf = 1` tells it that we spent one parameter estimating `ar1`, which is why it reports 9 degrees of freedom rather than 10.
-
-A p-value of 0.971 says the leftovers cannot be told apart from noise. High is what you want here. Anything under 0.05 would be the test telling you that your model has left something readable on the table.
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- The ACF, and the answer is 6, since six of its bars sit outside the band. ::no
+- The PACF, and the answer is 2, since two of its bars sit outside the band before it drops inside and stays there. ::ok Yes. The PACF is the plot that stopped, and where it stopped is p. The ACF is tailing off, so its bars were never going to stop, and counting them tells you nothing about the order.
+- Whichever of the two has more bars outside the band, which here is the ACF. ::no
+- Both of them, and you take the larger of the two counts. ::no The AR order lives in the PACF and only in the PACF. The ACF here is sliding down geometrically because each day's pull gets relayed forward, so it will always have more bars outside the band than there are terms in the recipe. More bars is not more order.
 
 === step === concept
-## The four shapes and the model each one names
+## How an MA term works, and why the ACF cuts off at q
 
-You have now watched both of the pure shapes turn up on real series. There are only four combinations in all, and the table below is the entire map.
+Not every series is built out of its own past values. Some are built out of their own past surprises, and those behave completely differently.
 
-| What the ACF does | What the PACF does | The model, and where the order comes from |
-|---|---|---|
-| Tails off | Cuts off after lag p | AR(p). Count the PACF bars outside the band. |
-| Cuts off after lag q | Tails off | MA(q). Count the ACF bars outside the band. |
-| Tails off | Tails off | ARMA(p, q). Neither plot names an order, so fit a few small candidates and compare. |
-| Stays high, falls in a near-straight line | One big bar at lag 1 | Not readable yet. Difference the series first. |
+Picture a different shop. Every day something unplanned happens there: a coach party walks in, or it rains all afternoon. Call that day's unplanned part its shock.
 
-The third row is the one that catches people out, so let's actually do it rather than talk about it. An ARMA is a series carrying both kinds of memory at once, a few of its own past days and a few of its own past surprises, and when both plots fade that is what you are looking at. There is nothing left to count. You fit two or three small candidates and let a score choose between them.
+At this shop a shock does not land and vanish. Roughly 0.8 of it spills into tomorrow, because the coach party comes back for a second round and yesterday's rained-off customers turn up today instead.
 
-That score is the AIC. It rewards a model for fitting the data, and it charges that model for every extra term it carries. Lower is better. Here it is on the shop, comparing the model we read off the plots against one with an extra MA term bolted on.
+So today's sales are the usual 180, plus today's shock, plus 0.8 of yesterday's shock. Notice what is missing.
 
-```r
-# Score the model we read off the plots against a bigger one
-fit_ar1  <- arima(cups, order = c(1, 0, 0))
-fit_arma <- arima(cups, order = c(1, 0, 1))
+Nothing here looks at yesterday's sales. It looks at yesterday's surprise. That is a moving average term, written MA(1). In general an MA(q) day carries the last q days of shocks, and that q is the order you will read off the ACF, the way p is read off the PACF.
 
-round(c(AR1 = AIC(fit_ar1), ARMA11 = AIC(fit_arma)), 2)
-#>    AR1 ARMA11 
-#> 975.35 977.31 
-```
-
-The AR(1) scores 975.35 and the ARMA(1,1) scores 977.31, so the simpler model wins. The extra term bought so little fit that the charge for carrying it came to more than the gain.
-
-That is what the AIC is for. It is not there to replace reading the plots. It is there to settle the cases where the plots refuse to answer.
-
-=== step === concept
-## Bars that refuse to fall, and the trend hiding behind them
-
-Now let's take one more stretch of the same shop, and this one breaks everything you have just learned. That is exactly why we are looking at it.
-
-The shop went through a growth run. Word got round, and each day added a little on top of the day before and then kept it. Cups ran between a low of 174 and a high of 347 across the 120 days, and the line never comes back down to where it started.
+Let's build it from an explicit list of shocks, so you can see for yourself that no lag of sales is hiding anywhere.
 
 ```r
-# Build the shop's growth stretch and read its ACF
-set.seed(1)
-grow <- round(180 + cumsum(rnorm(120, mean = 0.7, sd = 6)))
+# Build days that carry today's surprise plus part of yesterday's
+set.seed(31)
+shock <- rnorm(151, 0, 10)
 
-plot(grow, type = "l", col = "darkgreen", lwd = 2,
-     main = "Cups sold, the growth stretch",
-     xlab = "Trading day", ylab = "Cups sold")
+cups_shocks <- round(180 + shock[-1] + 0.8 * shock[-151])
 
-grow_acf <- acf(grow, plot = FALSE, lag.max = 6)$acf[2:7]
-names(grow_acf) <- paste0("lag", 1:6)
-round(grow_acf, 3)
-#>  lag1  lag2  lag3  lag4  lag5  lag6 
-#> 0.970 0.939 0.907 0.878 0.849 0.819 
+0.8 / (1 + 0.8^2)
+#> [1] 0.4878049
 
-acf(grow, main = "ACF of the growth stretch")
+round(acf(cups_shocks, plot = FALSE)$acf[2:6], 3)
+#> [1]  0.497  0.024 -0.020 -0.061  0.049
 ```
 
-`cumsum()` adds each day's change onto the running total, so the level never comes back to where it started.
+`shock[-1]` drops the first shock, so what is left is today's. `shock[-151]` drops the last, so lined up beside it, what is left is yesterday's. Every day is those two pieces and nothing else.
 
-Now look at those bars: 0.970, then 0.939, then 0.907, then 0.878. They are barely moving. Drawn out, they make a slow ramp that walks down in a near-straight line instead of dropping away.
+Now the mechanism, which is the clearest one in this whole business. Today and yesterday share a shock, because yesterday's surprise sits inside both of them. So they are correlated.
 
-That shape is not memory. It is trend. Today is near 300 cups and so was last week, so of course the two correlate, because both of them are simply high. Counting bars here would tell you the shop remembers a month back, which is nonsense.
+Today and the day before yesterday share nothing at all, because today holds the shocks from today and yesterday, while that day held the shocks from itself and the day before. No shared piece, no correlation, and the ACF has to be zero from lag 2 onward.
 
-The repair is differencing. Instead of working with the cups themselves, you work with the daily change, which is today minus yesterday. How many times you have to do that is the d in ARIMA, sitting between p and q.
+How big is the lag-1 correlation? Each day is one whole shock plus 0.8 of another, and the shared piece is worth 0.8 of a shock's variance out of the \(1 + 0.8^2\) that every day carries:
+
+\[ r_1 = \frac{\theta}{1 + \theta^2} = \frac{0.8}{1 + 0.64} = 0.488 \]
+
+The shop came back with 0.497. After that its ACF reads 0.024, -0.020, -0.061, all comfortably inside the 0.160 band for 150 days. The ACF cut off after lag 1, so q = 1.
+
+And the PACF? Let's draw both and put the exact answer underneath.
+
+```r
+# Draw both plots for the shock-driven shop beside the exact values for this recipe
+old_par <- par(mfrow = c(1, 2))
+acf(cups_shocks,  main = "ACF: one bar, then nothing")
+pacf(cups_shocks, main = "PACF: fading, sign flipping")
+par(old_par)
+
+round(pacf(cups_shocks, plot = FALSE)$acf[1:6], 3)
+#> [1]  0.497 -0.297  0.164 -0.178  0.255 -0.172
+
+round(ARMAacf(ma = 0.8, lag.max = 6, pacf = TRUE), 3)
+#> [1]  0.488 -0.312  0.221 -0.165  0.127 -0.099
+```
+
+That last output does not come from the data at all. `ARMAacf()` computes what this recipe's PACF is in theory, with no sampling noise in it. Look at what it does: 0.488, then -0.312, then 0.221, alternating in sign, shrinking, and never actually reaching zero. That is a tail-off, and the sample PACF above it is doing the same thing with 150 days of wobble on top.
+
+So the MA fingerprint is the mirror image of the AR one. The ACF cuts off at q, and the PACF tails off.
 
 [WARNING]
-A near-straight, slowly falling ACF means stop. Nothing on either plot is worth counting until the series has been differenced and the slow decay is gone. Difference once, look again, and only difference a second time if the ramp is still standing. Over-differencing has a tell of its own: the lag-1 bar swings strongly negative. Difference this growth stretch twice and it drops to minus 0.524, which is the signal to undo the last one.
-
-=== step === quiz
-## Quick check: name the model from its two plots
-
-Both of the shop's readable stretches ran on 120 days, so both used a band of 0.179.
-
-The first stretch gave an ACF of 0.663, 0.430, 0.276, 0.139 and a PACF of 0.663 followed by bars that all sat inside the band. The second gave an ACF of 0.473 followed by bars inside the band, and a PACF of 0.473, minus 0.279, 0.237. What are they?
-
-::quiz {"correct": 1, "gate": true, "difficulty": "advanced"}
-- The first is AR(1) and the second is MA(1). ::ok Exactly right. The first has a cutting PACF, so its order is a p, and it cuts after one bar. The second has a cutting ACF, so its order is a q, and it also cuts after one bar. The same depth of memory, two different kinds of it.
-- The first is MA(1) and the second is AR(1). ::no
-- Both are AR(1), because both have a tall lag-1 bar in the ACF. ::no
-- The first is AR(3), because three of its ACF bars clear the 0.179 band. ::no Work through it one plot at a time. Find the plot that cuts off: in the first stretch that is the PACF, so the order is a p, and in the second it is the ACF, so the order is a q. Then count the bars outside 0.179 on the cutting plot only, which gives 1 in both cases. Counting the ACF bars of the first stretch is the classic slip, because those three bars are the tail rather than the order.
+Read the order off the plot that cuts off, never off the plot that tails off. p lives in the PACF, q lives in the ACF. Because the two signatures are mirror images of each other, it is easy to land on the wrong plot and start counting bars that were never going to stop.
 
 === step === tryit
-## Your turn: read the order of Lake Huron's water levels
+## Your turn: read q from the ACF of a two-shock series
 
-Now let's try this on data that nobody staged for you. `LakeHuron` ships with R, and it holds the water level of Lake Huron in feet, measured once a year from 1875 to 1972, which is 98 numbers in all.
+There is a third shop on a road with heavy passing trade, and there a surprise takes two days to work its way through instead of one.
 
-Read its order the way you just read the shop's. The band and the PACF plot are set up for you below. Count the bars standing outside the band, fit that AR order, and then check the leftovers with a Ljung-Box test.
+Four hundred days are simulated for you below. Print the ACF values and this series' own band, then say what q is.
 
 ```r
-# Read the AR order of Lake Huron water levels, then fit what you read
-round(1.96 / sqrt(length(LakeHuron)), 3)
-pacf(LakeHuron, main = "PACF of Lake Huron water levels")
+# 400 days at a shop where a surprise takes two days to work through
+set.seed(41)
+cups_practice <- round(180 + arima.sim(list(ma = c(0.7, 0.5)), n = 400, sd = 12))
 
-# Count the PACF bars standing outside that band before the plot collapses.
-# That count is your p. Fit it and store the fit in huron_fit, using
-# arima(LakeHuron, order = c(p, 0, 0)) with your number in place of p.
-# Then run Box.test on residuals(huron_fit) with lag = 10, the Ljung-Box
-# type, and fitdf set to your p. Press Check when you have the fit.
+# Print the first six ACF values and the band for 400 observations.
+# Then read q off them: the last lag still outside the band.
+# Two lines. Press Check when you have them.
 ```
-::check {"regex": "order\\s*=\\s*c[(]\\s*2\\s*,\\s*0\\s*,\\s*0", "gate": true, "difficulty": "advanced", "ok": "That is the reading. The PACF gives 0.832 at lag 1 and minus 0.267 at lag 2, both outside the 0.198 band, and lag 3 falls back inside at 0.131. So p = 2, and the AR(2) fit leaves residuals the Ljung-Box test scores at 0.653: nothing readable left behind.", "no": "Read the PACF against 0.198 and count how many bars stand outside it before the plot collapses. That count goes straight into the fit, as `huron_fit <- arima(LakeHuron, order = c(p, 0, 0))`."}
+::check {"regex": "[^p]acf\\s*[(]\\s*cups_practice|^acf\\s*[(]\\s*cups_practice", "gate": true, "difficulty": "beginner", "ok": "That is it. Lag 1 at 0.613 and lag 2 at 0.296 clear the 0.098 band, lag 3 at 0.039 drops inside, and lags 4, 5 and 6 stay there with it. The ACF cuts off after lag 2, so q = 2, and a surprise on that road really does take two days to clear.", "no": "Ask for the values rather than the picture: `round(acf(cups_practice, plot = FALSE)$acf[2:7], 3)`. Then get the band with `1.96 / sqrt(400)` and count how many bars beat it."}
 ::solution
 ```r
-# The PACF cuts off after lag 2, so fit an AR(2) and check what is left
-pacf(LakeHuron, plot = FALSE, lag.max = 5)
-#> 
-#> Partial autocorrelations of series 'LakeHuron', by lag
-#> 
-#>      1      2      3      4      5 
-#>  0.832 -0.267  0.131  0.034  0.062 
+# Read the ACF of the two-shock shop against its own band
+round(acf(cups_practice, plot = FALSE)$acf[2:7], 3)
+#> [1]  0.613  0.296  0.039  0.026  0.019 -0.026
 
-huron_fit <- arima(LakeHuron, order = c(2, 0, 0))
-huron_fit
-#> 
-#> Call:
-#> arima(x = LakeHuron, order = c(2, 0, 0))
+round(1.96 / sqrt(400), 3)
+#> [1] 0.098
+```
+
+Two shocks in a day means two days apart can still share something, while three days apart share nothing. So the ACF has bars at lags 1 and 2 and then falls off a cliff. It is the same mechanism as before with the window opened one day wider.
+
+=== step === concept
+## What to do when both plots tail off
+
+Real trade is rarely one pure mechanism. A shop can have both things going on: sales that lean on yesterday's sales, and shocks that spill into the next day. That is an ARMA, and its two plots are much harder to read.
+
+```r
+# Build a shop with both an AR and an MA part, then read both plots against the exact values
+set.seed(51)
+cups_mixed <- round(180 + arima.sim(list(ar = 0.6, ma = 0.4), n = 400, sd = 12))
+
+round(acf(cups_mixed, plot = FALSE)$acf[2:6], 3)
+#> [1]  0.722  0.383  0.169  0.046 -0.018
+
+round(pacf(cups_mixed, plot = FALSE)$acf[1:5], 3)
+#> [1]  0.722 -0.289  0.047 -0.044 -0.013
+
+round(ARMAacf(ar = 0.6, ma = 0.4, lag.max = 6)[-1], 3)
+#>     1     2     3     4     5     6 
+#> 0.756 0.454 0.272 0.163 0.098 0.059 
+
+round(ARMAacf(ar = 0.6, ma = 0.4, lag.max = 6, pacf = TRUE), 3)
+#> [1]  0.756 -0.276  0.109 -0.043  0.017 -0.007
+```
+
+Try reading the first two outputs the way we have been reading. The band for 400 days is 0.098. The ACF drops inside it after lag 3, so it looks like a cutoff at 3, giving q = 3. The PACF drops inside after lag 2, so it looks like a cutoff at 2, giving p = 2.
+
+Both readings cannot be right. The whole method rests on one plot cutting off while the other tails off, so when both appear to stop and disagree about where, the shape is telling you something else.
+
+The last two outputs are what is really underneath. Those are the exact functions for this recipe, computed straight from the coefficients with no sampling noise in them. Neither one stops.
+
+Both shrink toward zero forever and never arrive. What looked like a stop at 3 and a stop at 2 was the true curves sinking under the band at slightly different lags, plus 400 days of luck.
+
+Here is the contrast that matters, with Anand's shop underneath for comparison.
+
+```r
+# Put the mixed shop's two plots above Anand's, where one plot does stop
+old_par <- par(mfrow = c(2, 2))
+acf(cups_mixed,  main = "Mixed shop: ACF")
+pacf(cups_mixed, main = "Mixed shop: PACF")
+acf(cups,        main = "Anand's shop: ACF")
+pacf(cups,       main = "Anand's shop: PACF")
+par(old_par)
+```
+
+Compare the two PACF panels. Anand's drops off a cliff after one bar and then lies flat across the rest of the plot. The mixed shop's slides down slowly and keeps wandering near the line. A real stop against a slow slide is the difference you are looking for, and it is much easier to see in the picture than in a table of numbers.
+
+[NOTE]
+When both plots tail off, they have still done their job: they have told you the series needs both kinds of term. What they cannot do is number them. At that point p and q stop being things you read off a plot and become things you fit and compare.
+
+=== step === concept
+## When the ACF barely decays: difference first
+
+Everything so far assumed the shop has a settled level to come back to. Not every series does.
+
+Anand opened a second counter inside an office block, and its trade has drifted ever since. There is no fixed level, just a slow wander up and down over 200 days.
+
+```r
+# A drifting counter: read the ACF raw, then after one difference and after two
+set.seed(61)
+cups_growing <- round(180 + cumsum(rnorm(200, 0, 6)))
+
+old_par <- par(mfrow = c(1, 3))
+acf(cups_growing,             main = "Raw: barely decays")
+acf(diff(cups_growing),       main = "One difference")
+acf(diff(diff(cups_growing)), main = "Two differences")
+par(old_par)
+
+round(acf(cups_growing, plot = FALSE)$acf[2:6], 3)
+#> [1] 0.967 0.934 0.905 0.885 0.866
+
+round(acf(diff(cups_growing), plot = FALSE)$acf[2:5], 3)
+#> [1]  0.017 -0.093 -0.124  0.003
+
+round(acf(diff(diff(cups_growing)), plot = FALSE)$acf[2:5], 3)
+#> [1] -0.445 -0.040 -0.081  0.044
+```
+
+The raw ACF is unmistakable. It reads 0.967, 0.934, 0.905, 0.885, 0.866, sliding down in nearly a straight line and still enormous many lags out. That is not a busy-day echo. It is a series with no level to return to, so two days far apart look similar because the whole line moved together between them.
+
+`diff()` replaces each day with the change since the day before, and the number of times you do that is the d in ARIMA. One difference and the picture collapses: 0.017, -0.093, -0.124, all inside the band, which sits at 0.139 here. The changes are readable even though the level never was.
+
+Now the trap, which is the third output. Difference it a second time, which is easy to do out of caution, and lag 1 turns into -0.445.
+
+[WARNING]
+A large negative bar at lag 1 after differencing, somewhere near -0.5, means you differenced one time too many. More differencing is not the safer choice. It puts a correlation into the data that was never in the shop, and you then spend a model term explaining your own arithmetic.
+
+Difference until the slow slide is gone, and then stop.
+
+=== step === concept
+## Weekly cycles: the spike at lag 7
+
+There is one more shape worth recognising on sight, and it is not p or q at all.
+
+Anand's main shop trades on a calendar. Saturdays are heavy, Sundays are dead, and that pattern comes round every seven days regardless of what happened yesterday.
+
+```r
+# Build a shop with a fixed weekly pattern and read its ACF out to three weeks
+set.seed(71)
+weekday_lift <- c(-25, -18, -10, 5, 30, 45, -27)
+cups_weekly  <- round(180 + rep(weekday_lift, times = 21) + rnorm(147, 0, 8))
+
+acf(cups_weekly, lag.max = 21, main = "ACF of a shop with a weekly pattern")
+
+round(acf(cups_weekly, lag.max = 21, plot = FALSE)$acf[c(2, 3, 4, 8, 15, 22)], 3)
+#> [1]  0.310 -0.266 -0.457  0.864  0.809  0.775
+
+round(1.96 / sqrt(147), 3)
+#> [1] 0.162
+```
+
+`weekday_lift` is the shop's week running Monday to Sunday: 25 cups down on a Monday, 45 up on a Saturday, 27 down on a Sunday. `rep()` repeats that week 21 times, and the noise on top is an ordinary daily wobble.
+
+The six printed values are lags 1, 2, 3, then 7, 14 and 21. Lag 7 stands at 0.864, lag 14 at 0.809 and lag 21 at 0.775: three towers, one per week, all far above the 0.162 band. In between them lag 3 sits at -0.457, because three days after a Saturday is a Tuesday, and a Tuesday is about as quiet as a Saturday is busy.
+
+Tall bars at multiples of the period, with quiet or negative lags between them, is seasonality. The answer to it is not a larger p. It is a seasonal term, which applies this same cutoff-and-tail-off reading at lags 7, 14 and 21 instead of at 1, 2 and 3.
+
+=== step === concept
+## The whole read, from raw series to a confirmed model
+
+Let's put the whole thing together on the series we started with and get Anand an actual model.
+
+The read goes in this order:
+
+1. The ACF slides down gradually rather than clinging near 1, so the shop has a settled level and needs no differencing. That fixes d = 0.
+2. The PACF has one bar outside the band and nothing after it. It cuts off at lag 1, so p = 1.
+3. The ACF tails off rather than cutting off, so there is no MA order to read. That leaves q = 0.
+
+Those three numbers are the order of an ARIMA model, always written in that sequence as (p, d, q). Anand's is (1, 0, 0), and `Arima()` takes exactly that vector.
+
+```r
+# Fit the order the plots gave us
+library(forecast)
+
+fit <- Arima(cups, order = c(1, 0, 0))
+fit
+#> Series: cups 
+#> ARIMA(1,0,0) with non-zero mean 
 #> 
 #> Coefficients:
-#>          ar1      ar2  intercept
-#>       1.0436  -0.2495   579.0473
-#> s.e.  0.0983   0.1008     0.3319
+#>          ar1      mean
+#>       0.6685  178.5999
+#> s.e.  0.0605    2.7852
 #> 
-#> sigma^2 estimated as 0.4788:  log likelihood = -103.63,  aic = 215.27
-
-Box.test(residuals(huron_fit), lag = 10, type = "Ljung-Box", fitdf = 2)
-#> 
-#> 	Box-Ljung test
-#> 
-#> data:  residuals(huron_fit)
-#> X-squared = 5.9457, df = 8, p-value = 0.6533
+#> sigma^2 = 132.9:  log likelihood = -578.87
+#> AIC=1163.74   AICc=1163.9   BIC=1172.77
 ```
 
-Two bars clear the 0.198 band, at 0.832 and minus 0.267, and the third drops back inside at 0.131. So p = 2, and `arima()` returns an `ar1` of 1.044 and an `ar2` of minus 0.250. The water level leans on the two years before it, and that is a real physical memory rather than one we invented.
+The `ar1` coefficient came back at 0.6685, against the 0.7 we built the shop with. Its standard error is 0.0605, so the estimate sits eleven standard errors clear of zero, which is about as far from an accident as a coefficient gets. The mean, 178.6, is the shop's ordinary day.
 
-One residual bar, out at lag 9, reads 0.200 against a band of 0.198. Judge that by eye and you might start bolting on extra terms to chase it. The Ljung-Box test weighs all ten leftover bars together and scores 0.653, and that is the number to trust here, because across twenty bars one of them grazing the line is exactly what luck produces.
+A model that fits is not yet a model you trust. The last question is whether anything readable is left over. If the model caught all the structure, whatever it could not explain should be plain noise, with an ACF that stays inside its band.
+
+```r
+# Check whether anything readable is left in what the model could not explain
+checkresiduals(fit)
+#> 
+#> 	Ljung-Box test
+#> 
+#> data:  Residuals from ARIMA(1,0,0) with non-zero mean
+#> Q* = 9.0462, df = 9, p-value = 0.433
+#> 
+#> Model df: 1.   Total lags used: 10
+```
+
+The plot shows what the model missed day by day, the ACF of those misses, and how they are spread out. Every bar on that residual ACF sits inside the band.
+
+The Ljung-Box test puts a number on the same thing. It asks one question: taken all together, are those residual autocorrelations indistinguishable from zero? A large p-value is the good outcome here, and 0.433 says there is no evidence of anything left behind. The order we read off the PACF holds up.
+
+[KEY INSIGHT]
+The plots hand you a candidate, not a verdict. Fit it, then look at the residuals. If a residual bar pokes outside the band, or the Ljung-Box p-value comes in small, raise p or q by one and fit again.
+
+=== step === quiz
+## Quick check: name the process from its two plots
+
+Anand sends over 300 days from a branch and tells you nothing about how it behaves. Here are both of its plots as numbers.
+
+```r
+# An unlabelled branch: print both plots' values and the band
+set.seed(81)
+cups_quiz <- round(180 + arima.sim(list(ma = 0.7), n = 300, sd = 12))
+
+round(acf(cups_quiz, plot = FALSE)$acf[2:6], 3)
+#> [1]  0.430 -0.056  0.015  0.073  0.033
+
+round(pacf(cups_quiz, plot = FALSE)$acf[1:5], 3)
+#> [1]  0.430 -0.296  0.233 -0.086  0.065
+
+round(1.96 / sqrt(300), 3)
+#> [1] 0.113
+```
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- An AR(1), because the PACF has a big bar at lag 1, so p = 1. ::no
+- An MA(1), because the ACF cuts off after lag 1 while the PACF keeps going with alternating signs, so q = 1. ::ok Exactly. The ACF is the plot that stopped, so the order it carries is q, and one bar outside the band makes it q = 1. The PACF running 0.430, -0.296, 0.233, -0.086 is a textbook tail-off: shrinking and flipping sign, never settling.
+- An AR(3), because three PACF bars beat the 0.113 band, so p = 3. ::no
+- A mixed process needing both terms, since both plots have bars outside the band. ::no Look at which plot actually stops. The ACF goes 0.430 and then -0.056, 0.015, 0.073, all inside the 0.113 band and staying there, which is a clean cutoff after lag 1. The PACF goes 0.430, -0.296, 0.233, -0.086, shrinking and flipping sign without ever settling down, which is a tail-off. A cutoff in the ACF means the order is q, and one bar means q = 1.
 
 === step === tryit
-## Your turn: the shop's growth stretch, read properly
+## Your turn: read the orders for a series you have not seen
 
-The growth run is still sitting in `grow`, and we left it unreadable. So let's fix it, and then say what is left.
+This last one is the whole loop, on a branch nobody has told you anything about. There are three hundred days here, and this one does not sit still.
 
-Difference it once, draw the ACF of the differenced series, and read the bars against the band for that differenced series rather than the band for the original one.
+Work in this order: look at the ACF of the raw series, difference it if the slide is too slow to read, take p off the PACF of what is left, then fit that order and confirm it.
 
 ```r
-# The growth stretch needs differencing before any bar on it is worth reading
-# grow holds the shop's 120 growth days.
-# Difference it once and store that in grow_diff, then draw acf(grow_diff).
-# Print the band for grow_diff too, since differencing costs you a day.
-# Press Check when you have it.
+# 300 days from a branch Anand has just taken over
+library(forecast)
+
+set.seed(91)
+cups_mystery <- 180 + cumsum(arima.sim(list(ar = 0.6), n = 300))
+
+# 1. Read the ACF of cups_mystery. Does it decay, or does it barely move?
+# 2. Read the PACF of diff(cups_mystery) against the band for 299 changes.
+# 3. Fit the order you read with Arima(), then run checkresiduals() on the fit.
+# Press Check when you have the fit.
 ```
-::check {"regex": "diff[(]\\s*grow", "gate": true, "difficulty": "intermediate", "ok": "That is it. One difference and the ramp is gone: every bar now sits inside 0.18, and the biggest of the six printed only reaches minus 0.128. So d = 1, with no p and no q left to find, because a growth run made of random daily steps leaves pure noise behind once you take the daily change.", "no": "Work with the daily change instead of the level: `grow_diff <- diff(grow)`, then `acf(grow_diff)`."}
+::check {"regex": "order\\s*=\\s*c[(]\\s*1\\s*,\\s*1\\s*,\\s*0", "gate": true, "difficulty": "intermediate", "ok": "That is the full loop. The raw ACF barely moves off 1 (0.985, 0.967, 0.948), so one difference is needed and d = 1. The PACF of the differences has a single bar at 0.546 and nothing else standing up beside it, so p = 1 and q = 0. ARIMA(1,1,0) fits an ar1 of 0.557, and the Ljung-Box p-value of 0.599 says nothing readable is left.", "no": "Start with `round(acf(cups_mystery, plot = FALSE)$acf[2:7], 3)`. If those barely move off 1, difference once and read `pacf(diff(cups_mystery), plot = FALSE)` against `1.96 / sqrt(299)`. One bar outside means p = 1, and with one difference the order you want is `c(1, 1, 0)`."}
 ::solution
 ```r
-# Difference once, then re-read the ACF against the differenced series own band
-grow_diff <- diff(grow)
+# Difference once, read p from the PACF, then fit that order and confirm it
+round(acf(cups_mystery, plot = FALSE)$acf[2:7], 3)
+#> [1] 0.985 0.967 0.948 0.929 0.909 0.889
 
-round(1.96 / sqrt(length(grow_diff)), 3)
-#> [1] 0.18
+round(pacf(diff(cups_mystery), plot = FALSE)$acf[1:6], 3)
+#> [1]  0.546  0.022 -0.009  0.031 -0.072 -0.068
 
-acf(grow_diff, main = "ACF after one difference")
+round(1.96 / sqrt(299), 3)
+#> [1] 0.113
 
-diff_acf <- acf(grow_diff, plot = FALSE, lag.max = 6)$acf[2:7]
-names(diff_acf) <- paste0("lag", 1:6)
-round(diff_acf, 3)
-#>   lag1   lag2   lag3   lag4   lag5   lag6 
-#> -0.029  0.023 -0.062 -0.054 -0.128 -0.109 
+fit_mystery <- Arima(cups_mystery, order = c(1, 1, 0))
+fit_mystery
+#> Series: cups_mystery 
+#> ARIMA(1,1,0) 
+#> 
+#> Coefficients:
+#>          ar1
+#>       0.5570
+#> s.e.  0.0479
+#> 
+#> sigma^2 = 1.124:  log likelihood = -441.46
+#> AIC=886.93   AICc=886.97   BIC=894.33
+
+checkresiduals(fit_mystery)
+#> 
+#> 	Ljung-Box test
+#> 
+#> data:  Residuals from ARIMA(1,1,0)
+#> Q* = 7.3681, df = 9, p-value = 0.5989
+#> 
+#> Model df: 1.   Total lags used: 10
 ```
 
-`diff()` hands back 119 numbers instead of 120, because the first day has nothing to subtract from, and that is why the band widens a little to 0.18.
+Notice that the d you found never showed up as a bar on any plot. It came out of the shape of the raw ACF, and only once it was applied did the PACF underneath become readable at all.
 
-And the ramp is gone. Every bar is inside the band, nothing cuts off and nothing tails off, so there is no p and no q left to read here. The growth stretch is ARIMA(0,1,0): difference it once and you are done.
+=== step === quiz
+## Quick check: what does a strong negative bar at lag 1 mean?
+
+Two very different series can both show a tall negative bar at lag 1 of the ACF. One of them is telling you about the shop. The other is telling you about something you did to the data.
+
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- It always means an MA(1) term with a negative coefficient, so set q = 1 and carry on. ::no
+- It always means the series was differenced one time too many, so undo the last difference. ::no
+- It could be either, and what settles it is when the bar showed up: if it appeared only after a second difference it is over-differencing, and if it was already there on the raw series it is a real MA(1). ::ok Exactly right. The office counter needed one difference, and only when a second one went on top did its lag 1 drop to -0.445. The shock-driven shop had a lag-1 bar of 0.497 with no differencing at all, and that one was genuine. Same shape on the plot, two different causes, and the history of the series is what separates them.
+- It means the series is seasonal, since negative bars come from a repeating calendar pattern. ::no A bar on a plot has no memory of how the series got there, so no single reading of it is always right. The two causes are over-differencing and a genuine negative MA term, and you tell them apart by asking what you did to the series first. Seasonality is a different signature altogether: tall bars at multiples of the period, not one negative bar at lag 1.
 
 === step === concept
 ## References
 
-- [Forecasting: Principles and Practice, 3rd edition, section 2.8 Autocorrelation](https://otexts.com/fpp3/acf.html) - Hyndman and Athanasopoulos. What an autocorrelation is, and how the correlogram is drawn.
-- [Forecasting: Principles and Practice, 3rd edition, section 9.5 Non-seasonal ARIMA models](https://otexts.com/fpp3/non-seasonal-arima.html) - Hyndman and Athanasopoulos. The ACF and PACF signatures used to choose p and q.
-- [NIST/SEMATECH e-Handbook of Statistical Methods, 6.4.4.6 Box-Jenkins model identification](https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc4463.htm) - the cutoff versus tail-off identification table, written out as a procedure.
-- [Auto- and cross-covariance and correlation function estimation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html) - R Core Team, the documentation for `acf()` and `pacf()`, including the confidence band.
+- [Forecasting: Principles and Practice, Section 9.5, Non-seasonal ARIMA models](https://otexts.com/fpp3/non-seasonal-arima.html) - Hyndman and Athanasopoulos, 3rd edition. Where reading p off a PACF cutoff and q off an ACF cutoff is set out, together with the warning about mixed processes.
+- [Forecasting: Principles and Practice, Section 2.8, Autocorrelation](https://otexts.com/fpp3/acf.html) - Hyndman and Athanasopoulos, 3rd edition. The autocorrelation definition and the band drawn on every correlogram.
+- [Time Series Analysis: Forecasting and Control](https://doi.org/10.1002/9781118619193) - Box, Jenkins and Reinsel, Wiley, 4th edition (2008). The identification stage this whole method comes from.
+- [Time Series Analysis and Its Applications, Chapter 3](https://doi.org/10.1007/978-3-319-52452-8) - Shumway and Stoffer, 4th edition (2017). The partial autocorrelation defined as the regression coefficient we reproduced with `lm()`.
+- [Auto- and Cross- Covariance and -Correlation Function Estimation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html) - R Core Team. What `acf()` and `pacf()` compute, and where the dashed lines are drawn.
 
 === step === complete
-## What the shop's two plots say, and how to say it out loud
+## Quick recap
 
-You started with a hunch from the shop's daily numbers, and you finished with two plots you can read on any series. To pull it all together:
+You started with a question Anand asked from behind his counter, and you can now answer it with a number.
 
-- Every bar on either plot is an ordinary correlation between the series and its own past. The ACF measures the total link at that lag, indirect routes included. The PACF measures only what that lag adds once the shorter ones are held still.
-- A bar counts when it falls outside that series' own band, `1.96 / sqrt(n)`. For the shop's 120 days that was 0.179, and for Lake Huron's 98 years it was 0.198.
-- The order always comes off the plot that cuts off. A cutting PACF gives you p, with the ACF tailing off beside it. A cutting ACF gives you q, with the PACF tailing off beside it.
-- When both plots tail off, stop counting and let AIC pick between a few small candidates. When the ACF stays high and slides down in a near-straight line, difference the series first and read it again.
-- Fitting the order is not the end of it. Run the ACF on the residuals and a Ljung-Box test over the first ten bars, and only believe the model if the leftovers look like noise.
+Five shapes cover almost everything you will meet:
 
-So whenever somebody puts a pair of plots in front of you, here is the sentence to say:
+- **ACF tails off, PACF cuts off after lag p.** An AR(p). Read p from the PACF. Anand's gave one bar, so p = 1.
+- **ACF cuts off after lag q, PACF tails off.** An MA(q). Read q from the ACF. The shock-driven shop gave one bar, so q = 1.
+- **Both tail off.** Both kinds of term are needed, and the plots cannot number them. Fit a few small candidates and compare.
+- **ACF barely decays, sliding down from near 1.** Difference once and read the differenced series. A big negative bar at lag 1 afterwards means one difference too many.
+- **Tall bars at lag 7, 14 and 21.** A calendar pattern, which asks for a seasonal term rather than a larger p.
 
-"The ACF trails away and the PACF has one bar outside the band, so this is an AR(1). Today leans on yesterday and nothing further back, and once I fit it the leftovers are noise."
+Underneath all five sits the same band, 1.96 divided by the square root of the number of observations, computed for the series in front of you and never remembered from another plot.
 
-And that is also the shop's answer to the question we opened with. A busy Monday reaches Tuesday, and no further.
+So what does Anand get? His ACF fades over five days, but his PACF has one bar and then nothing at all. Only yesterday matters. That makes p = 1, and the fitted ARIMA(1,0,0) came back at 0.6685 with residuals the Ljung-Box test could find no fault with.
 
-Fitting a full ARIMA model end to end, and judging whether it is any good, is a topic for another day. Congratulations, you made it through. Have a great day!
+That is the whole method. Now go and read a correlogram of your own. You will find that you can.
