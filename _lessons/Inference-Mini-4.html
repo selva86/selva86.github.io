@@ -1,7 +1,7 @@
 ---
 title: "Power analysis: find the sample size you need"
-description: "A clinic can recruit 40 patients to find a 10-point drop in blood pressure. Work out whether 40 is really enough, and the exact number the study needs."
-keywords: "power analysis in R, statistical power, sample size calculation, power.t.test, how many patients does a study need, minimum detectable effect, effect size"
+description: "A clinic can recruit 40 patients to test an exercise program. Run that trial 2,000 times, watch how often it misses a real drop, then size it properly."
+keywords: "power analysis in R, statistical power, sample size calculation, power.t.test, minimum detectable effect, Cohen's d, post-hoc power, type II error"
 mathjax: true
 webr: true
 curriculum_id: "0.0.7"
@@ -23,49 +23,43 @@ catalog_blurb: "How many patients a study needs before it can find a real effect
 <div class="lesson-step-eyebrow">Inference from Zero</div>
 <h2>Power analysis: find the sample size you need</h2>
 
-<p>Today let's work out how many people a study needs before it is worth running at all.</p>
+<p>Let's say a community clinic wants to test an exercise program.</p>
 
-<p>Let's start at a community clinic that thinks it has found something good. Patients do twelve weeks of supervised exercise, three sessions a week, and the ones who stick with it walk out with their blood pressure around 10 points lower than the patients who carried on as usual.</p>
+<p>They believe twelve weeks of it pulls systolic blood pressure down by about 10 points, and they want to check that against ordinary care. They can afford 40 patients, so twenty go on the program and twenty carry on as usual.</p>
 
-<p>Now the clinic wants to prove it properly, with a real trial. It can recruit 40 patients, so 20 of them go to the exercise program and 20 carry on with usual care.</p>
+<p>Now, before a single patient is recruited, somebody has to answer this: is 40 enough?</p>
 
-<p>Forty is what the budget allows, so forty it is.</p>
+<p>It is an easy question to skip. You recruit the people you can afford, you run the test at the end, and you take whatever comes out. The trouble is that a trial too small to see a 10-point drop will report "no significant difference" even when the drop is sitting right there in the data. The clinic then shelves a program that works, and a year of effort ends in an answer nobody can use.</p>
 
-<p>But nobody in the room has asked the one question that decides whether the whole thing is worth running. Can 40 patients actually see a 10-point drop?</p>
-
-<p>That question has an answer, and you can get it before a single patient walks through the door. Skip it and the clinic can spend twelve weeks, forty people and its entire budget on a study that was never able to find the thing it went looking for.</p>
-
-<p>So how do we settle this?</p>
-
-<p>We are going to build the trial ourselves, with a 10-point drop wired in by hand so that we know for certain the drop is there. Then we run that same trial over and over on fresh patients, and simply count how often it manages to notice.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Wire in a drop that is real","sub":"20 patients on the program, 20 on usual care, a true 10-point gap built in by hand"},{"title":"Replay the trial ten thousand times","sub":"fresh patients every run, and keep the verdict each one reports"},{"title":"Count how often it finds the drop","sub":"that share is the power, and it is the number the clinic is missing"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>That is the whole idea. And once we have that number for the clinic, you will be able to work out the same one for any study somebody drops on your desk.</p>
+<p>Power analysis settles it up front. And we are not going to take that on faith, because we can build the clinic's trial ourselves and watch what it does. It comes down to three moves.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Assume the drop is real","sub":"the program truly lowers pressure by 10 points"},{"title":"Run the trial 2,000 times","sub":"same 40 patients, different people each run"},{"title":"Count how often it is found","sub":"the share that comes back significant is the power"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That is all there is to it. We come out of it with the number of patients the clinic needs, and with something more useful: which of the numbers behind that answer is the one worth arguing about.</p>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<h2>What the clinic has to work with</h2>
+<h2>The trial the clinic wants to run</h2>
 
-<p>Before we can ask whether 40 patients is enough, we have to be clear about what enough even means. Every sizing question comes down to the same three numbers, and the clinic already has all three of them sitting in its files.</p>
+<p>Let's get the numbers on the table first, because everything from here is built out of them.</p>
 
-<p>The first is the drop worth finding. Not the drop the clinic hopes for, and not the drop it expects, but the smallest drop that would actually change what the clinic does. Here that is 10 mmHg of systolic blood pressure. mmHg stands for millimetres of mercury, which is the number a doctor reads off the cuff, and systolic is the higher of the two readings they call out.</p>
+<p>The outcome is systolic blood pressure in mmHg, measured at week 12. Patients on usual care sit around 140. Patients on the program sit around 130, which is the 10-point drop the clinic is hoping to prove. Each arm, which is just what a trial calls one of its two groups, holds 20 patients, and inside an arm patients differ from one another by about 12 mmHg.</p>
 
-<p>The second is how much those readings scatter. Blood pressure is not a fixed property of a person. Measure the same patient on two different mornings and you get two different numbers. Across the clinic's own past records, patients' twelve-week changes scatter by about 15 mmHg, and that number is going to matter far more than you would expect.</p>
+<p>Those five numbers are the clinic's own assumptions about a world where the program works exactly as they expect. We are going to build that world and run their trial inside it.</p>
 
-<p>The third is simply how many people the clinic can get. That is 40, split 20 and 20.</p>
-
-<p>Let's put all three into R, so everything that follows can call them by name. Press Run.</p>
+<p>Press Run.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Put the clinic's three planning numbers on the table
-drop_worth_finding &lt;- 10   # mmHg: the smallest fall that would change what the clinic does
-spread             &lt;- 15   # mmHg: how much twelve-week changes scatter, from clinic records
-n_total            &lt;- 40   # patients the clinic can recruit, 20 to each arm
+    <div class="webr-editor" data-language="r"># Build one 40-patient trial in which the program really does lower pressure by 10 points
+set.seed(1)
+usual    &lt;- rnorm(20, mean = 140, sd = 12)   # 20 patients on usual care
+exercise &lt;- rnorm(20, mean = 130, sd = 12)   # 20 patients on the program
 
-c(drop = drop_worth_finding, spread = spread, patients = n_total)
-#&gt;     drop   spread patients 
-#&gt;       10       15       40 </div>
+round(c(usual_care = mean(usual),
+        exercise   = mean(exercise),
+        drop       = mean(usual) - mean(exercise)), 1)
+#&gt; usual_care   exercise       drop
+#&gt;      142.3      129.9       12.4</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -75,50 +69,76 @@ c(drop = drop_worth_finding, spread = spread, patients = n_total)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Those three numbers are the whole input. Everything from here is arithmetic on them.</p>
+<p><code>rnorm(20, mean = 140, sd = 12)</code> draws 20 patients whose pressures are centred on 140 and scattered around it with a spread of 12 mmHg. <code>set.seed(1)</code> fixes which 40 patients you get, so your numbers match mine.</p>
+
+<p>Notice the drop came out at 12.4 points, not 10. We built the world, so we know the truth is exactly 10, and the trial still overshot by 2.4 points purely because of who happened to walk in. That gap between what is true and what one trial reports is the thing we are here to pin down.</p>
+
+<p>Now hand the two arms to a t-test, which is the analysis the clinic would run at the end of the study.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Ask the t-test whether the two arms differ
+t.test(usual, exercise, var.equal = TRUE)
+#&gt;
+#&gt; 	Two Sample t-test
+#&gt;
+#&gt; data:  usual and exercise
+#&gt; t = 3.6504, df = 38, p-value = 0.0007846
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;   5.507303 19.220586
+#&gt; sample estimates:
+#&gt; mean of x mean of y
+#&gt;  142.2863  129.9223</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We built both arms with the same 12 mmHg spread, so <code>var.equal = TRUE</code> tells the test to assume what we already know to be true here.</p>
+
+<p>The line to read is <code>p-value = 0.0007846</code>. A result gets called significant when that number lands under 0.05, which is the bar the field settled on, and 0.0007846 is under it by a wide margin. So the clinic writes up a clear result and the program gets funded.</p>
+
+<p>So forty patients was enough and the trial worked. Question settled?</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<h2>Why two groups of twenty never line up neatly</h2>
+<h2>What happens when the same trial runs 2,000 times</h2>
 
-<p>That middle number, the 15, is the one people skip past, so let's slow down on it.</p>
+<p>Not quite, because that answer came out of one particular set of 40 people. The clinic gets one run of this study with whoever actually enrols, and they have no way of knowing in advance whether their 40 will behave like these 40.</p>
 
-<p>Suppose the exercise program works exactly as advertised and lowers blood pressure by 10 points for every single patient. You would still not see 10 in your data. In the twenty program patients we are about to build, one falls 24 points, another falls 4, and a third goes up by 20 because they had a rough fortnight at work. The program's real effect sits underneath all of that personal variation.</p>
+<p>So let's build 2,000 versions of the same clinic. In every single one the program truly lowers pressure by 10 points, the spread is still 12 mmHg, and there are still 20 patients per arm. The only thing that changes from one run to the next is which 40 people walked in the door.</p>
 
-<p>The standard deviation is just a way of writing that variation down as one number. Take every patient's twelve-week change, look at how far each one lands from the average change, and the standard deviation is roughly the typical size of that distance. A standard deviation of 15 mmHg means a patient sitting 15 points either side of their group's average is completely ordinary.</p>
-
-<p>Let's build the clinic's 40 patients and take a look at them. The function <code>rnorm(20, mean = 10, sd = spread)</code> draws 20 readings from a bell-shaped spread centred on 10 with a standard deviation of 15, and <code>set.seed(1)</code> fixes which 20 you get so your numbers match mine.</p>
+<p><code>run_trial()</code> below does one such trial and returns three things: the drop it observed, the spread it observed with the two arms pooled into one figure, and its p-value. <code>replicate()</code> calls that function 2,000 times and stacks the results into a data frame.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Simulate the 40 patients, with a real 10-point drop built into the program arm
-set.seed(1)
-trial &lt;- data.frame(
-  group = rep(c(&quot;usual&quot;, &quot;program&quot;), each = 20),
-  drop  = c(rnorm(20, mean = 0,  sd = spread),    # usual care: no true drop at all
-            rnorm(20, mean = 10, sd = spread))    # program: a true 10-point drop
-)
+    <div class="webr-editor" data-language="r"># Run the same 40-patient trial 2,000 times and keep every p-value
+run_trial &lt;- function() {
+  usual    &lt;- rnorm(20, mean = 140, sd = 12)
+  exercise &lt;- rnorm(20, mean = 130, sd = 12)
+  tt &lt;- t.test(usual, exercise, var.equal = TRUE)
+  c(drop   = mean(usual) - mean(exercise),
+    spread = sqrt((var(usual) + var(exercise)) / 2),
+    p      = tt$p.value)
+}
 
-usual_drops   &lt;- trial$drop[trial$group == &quot;usual&quot;]
-program_drops &lt;- trial$drop[trial$group == &quot;program&quot;]
+set.seed(7)
+sims &lt;- as.data.frame(t(replicate(2000, run_trial())))
 
-bins &lt;- seq(-40, 40, by = 5)
-hist(usual_drops, breaks = bins, ylim = c(0, 6), col = &quot;grey80&quot;, border = &quot;white&quot;,
-     main = &quot;Twelve-week blood pressure drop, 20 patients per arm&quot;,
-     xlab = &quot;Drop in blood pressure (mmHg)&quot;, ylab = &quot;Number of patients&quot;)
-hist(program_drops, breaks = bins, col = rgb(1, 0.55, 0, 0.55), border = &quot;white&quot;, add = TRUE)
-abline(v = mean(usual_drops),   col = &quot;grey30&quot;,      lwd = 3)
-abline(v = mean(program_drops), col = &quot;darkorange3&quot;, lwd = 3)
+hist(sims$p, breaks = 40, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;2,000 runs of a trial where the 10-point drop is always real&quot;,
+     xlab = &quot;p-value&quot;)
+abline(v = 0.05, col = &quot;red&quot;, lwd = 3)
 
-data.frame(
-  arm       = c(&quot;usual care&quot;, &quot;exercise program&quot;),
-  mean_drop = round(c(mean(usual_drops), mean(program_drops)), 1),
-  scatter   = round(c(sd(usual_drops),   sd(program_drops)),   1)
-)
-#&gt;                arm mean_drop scatter
-#&gt; 1       usual care       2.9    13.7
-#&gt; 2 exercise program       9.9    13.1</div>
+sum(sims$p &gt;= 0.05)
+#&gt; [1] 543</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -128,40 +148,32 @@ data.frame(
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Look at the two piles and the two thick lines marking their averages. The grey pile is usual care and the orange pile is the program, and they overlap almost completely. Plenty of patients on usual care did better than plenty of patients on the program.</p>
+<p>Each bar is a batch of trials, and its height says how many of the 2,000 came back with a p-value that size. Most of the pile is jammed against zero, which is what you would hope for when the effect is real. The red line marks 0.05.</p>
 
-<p>Now read the table. The usual care arm was built with no true drop in it whatsoever, and it still came back averaging 2.9 points. That is pure luck, twenty people who happened to drift down a little. The program arm was built with a true drop of 10 and came back at 9.9, close but not exact.</p>
+<p>Now read to the right of that line, where 543 trials landed. In every one of those the drop was genuinely present, the study was run correctly, the analysis was done correctly, and the answer that came back was "no significant difference".</p>
 
-<p>So the gap between the two averages is 7.0 points, not the 10 that we ourselves wired in. A group average is never the truth. It is one draw that lands somewhere near it.</p>
+<p>That is what a trial of 40 patients actually buys.</p>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="concept">
-<h2>What it takes for the trial to call the drop real</h2>
+<h2>What statistical power actually is</h2>
 
-<p>The clinic is not going to eyeball two histograms and announce a result. It will run a statistical test, and the test that compares two group averages is the t-test.</p>
-
-<p>A t-test takes the gap between the two averages, 7.0 points here, and asks one question: if the program did nothing at all, how often would ordinary luck hand you a gap this big or bigger? The answer comes back as a number between 0 and 1 called the p-value. A small p-value means luck would rarely manage this. A large one means luck does this all the time.</p>
-
-<p>Then comes the rule almost every field has settled on. If the p-value falls below 0.05, the trial calls the result real and reports it as statistically significant. If it lands at 0.05 or above, the trial reports nothing at all. Nothing about 0.05 is sacred. Somebody picked it, everybody kept it, and it is still the bar this result gets judged against.</p>
-
-<p>Let's put the clinic's 40 patients through it and see what comes back.</p>
+<p>Let's count both sides of that red line and turn the counts into shares.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Run the clinic's planned test on its 40 patients and read the verdict
-t.test(drop ~ group, data = trial)
-#&gt; 
-#&gt; 	Welch Two Sample t-test
-#&gt; 
-#&gt; data:  drop by group
-#&gt; t = 1.664, df = 37.917, p-value = 0.1044
-#&gt; alternative hypothesis: true difference in means between group program and group usual is not equal to 0
-#&gt; 95 percent confidence interval:
-#&gt;  -1.526352 15.616490
-#&gt; sample estimates:
-#&gt; mean in group program   mean in group usual 
-#&gt;              9.902927              2.857858 </div>
+    <div class="webr-editor" data-language="r"># Split the 2,000 trials into the ones that found the drop and the ones that missed it
+found  &lt;- sum(sims$p &lt;  0.05)
+missed &lt;- sum(sims$p &gt;= 0.05)
+
+c(found = found, missed = missed)
+#&gt;  found missed
+#&gt;   1457    543
+
+round(c(found = found / 2000, missed = missed / 2000), 4)
+#&gt;  found missed
+#&gt; 0.7285 0.2715</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -171,57 +183,51 @@ t.test(drop ~ group, data = trial)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The two arms are listed alphabetically, which is why program comes first. Their averages are the 9.9 and 2.9 you already saw, and the line that decides everything is <code>p-value = 0.1044</code>.</p>
+<p>1,457 of the 2,000 trials found the drop. 543 walked past it.</p>
 
-<p>That is above 0.05. So the trial reports nothing. Written up honestly, this study concludes that it found no significant difference between the exercise program and usual care.</p>
+<p>That 0.7285 is the number everything here is built on. <strong>Statistical power</strong> is the probability that a study comes back significant when the effect it is hunting for is genuinely there. So 40 patients gives this clinic about 73% power against a 10-point drop.</p>
 
-<p>Sit with that for a second. We built these patients ourselves. We put a real 10-point drop into the program arm with our own hands, so there is no question at all about whether the effect is there. And the trial still walked away empty.</p>
+<p>The other share is the one nobody quotes. 1 minus power is how often a real effect gets missed, 0.2715 here, or roughly 27 misses in every 100 trials. The miss has a name of its own, the <strong>Type II error rate</strong>, written as the Greek letter beta, and power is simply 1 minus beta.</p>
 
-<p>The confidence interval underneath says the same thing in another form: the true drop could plausibly be anywhere from minus 1.5 to plus 15.6 points. That range is wide enough to hold both "the program does nothing" and "the program is excellent", which is another way of saying 40 patients did not settle anything.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Power is a property of the study, not of the treatment. The exercise program works identically in all 2,000 runs. What changes is whether a study of this size can see it.</div></div>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what did that one trial prove?</h2>
+<h2>Quick check: what does 73% power mean?</h2>
 
-<p>The trial was handed a genuine 10-point drop, ran on 40 patients, and came back with p = 0.1044. What can you conclude from that single run?</p>
+<p>The clinic's trial has 73% power against a 10-point drop. Which sentence says what that means?</p>
 <section class="exercise" data-exercise-id="Inference-Mini-4-step5" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The exercise program does not lower blood pressure.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The simulation must be broken, because a drop that real should have shown up.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The trial failed to find a drop that was genuinely there, which tells you something about the trial and nothing about the program.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 0.05 bar is too strict, and a bar of 0.15 would have given the right answer.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly right. The 10-point drop was wired in by hand, so it was real for every second of that run. The study simply was not big enough to see it through the scatter.</div><div class="lesson-qfb lesson-qfb-no">A miss is not proof the program failed, it is not a bug in the data, and it is not a reason to move the bar after seeing the answer. Loosening the bar to 0.15 would just let three times as many false alarms through on programs that do nothing at all. What this run actually shows is a study too small for the drop it was chasing.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">73% of the patients who go on the exercise program will see their blood pressure fall.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">If the program really does lower pressure by 10 points, about 73 of every 100 trials this size come back significant, and the other 27 miss it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">There is a 73% chance the exercise program works.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">73% of the trials that come back significant have got the right answer.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is it. Power is counted over repeated trials of a given size, in a world where the effect is real, which is exactly what those 2,000 runs were.</div><div class="lesson-qfb lesson-qfb-no">Power says nothing about patients, and nothing about whether the program works. It assumes the effect is real and then reports how often a study of this size manages to detect it. In the 2,000 runs the program worked every single time, and 543 studies still missed it.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="6" data-step-type="concept">
-<h2>Run the same trial ten thousand times</h2>
+<h2>The same answer in one line with power.t.test()</h2>
 
-<p>One run cannot tell you how often a run succeeds. Maybe we were just unlucky. Maybe 40 patients works most of the time and we happened to catch the exception. To find that out, you have to run the study many times over.</p>
+<p>We spent 2,000 simulated trials to learn one number. There is a formula that gives it directly, and base R already carries it as <code>power.t.test()</code>, so there is nothing to install.</p>
 
-<p>That is easy here, because we are the ones building the patients. We can recruit a fresh 40, run the trial, write down the verdict, and do it all again as many times as we like. Every one of those trials has the same true 10-point drop wired into the program arm, so any failure to find it belongs to the study and to nothing else.</p>
-
-<p>So let's wrap one entire study in a function and replay it ten thousand times. <code>replicate(10000, ...)</code> runs the expression ten thousand times over and collects every answer into a vector.</p>
+<p>Hand it the three things that describe the clinic's trial: 20 patients per arm, a 10-point drop to look for, and a 12 mmHg spread between patients.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Replay the entire trial on fresh patients and keep the p-value from every run
-run_one_study &lt;- function(n_per_group) {
-  usual   &lt;- rnorm(n_per_group, mean = 0,  sd = spread)   # usual care: no true drop
-  program &lt;- rnorm(n_per_group, mean = 10, sd = spread)   # program: a true 10-point drop
-  t.test(program, usual)$p.value
-}
-
-set.seed(2026)
-p_values &lt;- replicate(10000, run_one_study(20))
-
-hist(p_values, breaks = 40, col = &quot;grey85&quot;, border = &quot;white&quot;,
-     main = &quot;10,000 replays of a trial that always has a real 10-point drop&quot;,
-     xlab = &quot;p-value the trial reported&quot;)
-abline(v = 0.05, col = &quot;red&quot;, lwd = 3)
-
-sum(p_values &lt; 0.05)
-#&gt; [1] 5295</div>
+    <div class="webr-editor" data-language="r"># Get the same power from the formula instead of from 2,000 simulated trials
+power.t.test(n = 20, delta = 10, sd = 12)
+#&gt;
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 20
+#&gt;           delta = 10
+#&gt;              sd = 12
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.7284655
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -231,22 +237,48 @@ sum(p_values &lt; 0.05)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The red line sits at 0.05, which is the bar a result has to beat. Everything piled up to the left of it is a trial that found the drop and reported it. Everything to the right is a trial that was handed a real effect and missed it.</p>
+<p><code>power = 0.7284655</code>, and our 2,000 trials gave 0.7285. Same number to four decimal places. The formula gets there instantly, and the simulation is what shows you where the number came from.</p>
 
-<p>There is a tall stack hard against the left edge, which is encouraging, and then a long low spread of failures running all the way out to 1. Counting up the successes gives 5,295.</p>
+<p>Now read the NOTE at the bottom. It is the easiest line here to skim past and the most expensive one to get wrong. The 20 we passed in is 20 <strong>per arm</strong>. This is a 40-patient study.</p>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="concept">
-<h2>Power is the share of trials that find the drop</h2>
+<h2>The four numbers every power calculation ties together</h2>
 
-<p>5,295 out of 10,000. Write that count as a share and you have the number the clinic has been missing all along.</p>
+<p><code>power.t.test()</code> is not really a power calculator. It is a solver for one equation with four moving parts in it:</p>
+
+<ol>
+
+<li><strong>n</strong>, how many patients are in each arm.</li>
+
+<li><strong>the effect</strong>, the drop worth catching (<code>delta</code>) measured against the spread you expect between patients (<code>sd</code>).</li>
+
+<li><strong>sig.level</strong>, the p-value bar the result has to clear, conventionally 0.05.</li>
+
+<li><strong>power</strong>, the chance of clearing that bar when the effect is real.</li>
+
+</ol>
+
+<p>Fix any three of those and the fourth is already decided. R makes you say which one you want by leaving it out, so we left <code>power</code> out and it came back filled in.</p>
+
+<p>Turn it around to see that the lock works in every direction. Give it the power we just computed and take <code>sig.level</code> out instead.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Turn the count of successful trials into a share, which is the power
-mean(p_values &lt; 0.05)
-#&gt; [1] 0.5295</div>
+    <div class="webr-editor" data-language="r"># Hand R the power and leave the significance level out instead
+power.t.test(n = 20, delta = 10, sd = 12, power = 0.7284655, sig.level = NULL)
+#&gt;
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 20
+#&gt;           delta = 10
+#&gt;              sd = 12
+#&gt;       sig.level = 0.04999991
+#&gt;           power = 0.7284655
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -256,99 +288,31 @@ mean(p_values &lt; 0.05)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>That share has a name. <strong>Power</strong> is the probability that a study reports an effect, given that the effect is genuinely there. The clinic's planned trial has a power of 0.53.</p>
+<p><code>sig.level = 0.04999991</code>, which is 0.05 give or take the numerical search R ran to land on it. We learned nothing new there, and that is the point: any three of the four pin the fourth.</p>
 
-<p>Read that definition once more, slowly, because every word in it is doing a job. Power is about the study, not about the program. It assumes the effect is real, and then asks whether a study this size will notice it. And it is a long-run share across many possible studies, which is why we had to build ten thousand of them before we could see it.</p>
-
-<p>Turn it around and it sounds worse. The trial misses 47 times in every 100, on an effect that is there every single time.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">At 20 patients per arm, this clinic is planning to spend twelve weeks and its whole budget on something barely better than a coin toss. Not because the exercise program is weak, but because the study is too small to see it.</div></div>
+<p>So the useful move is obvious. Leave out the one you actually want to know.</p>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="concept">
-<h2>How R computes power without any simulation</h2>
+<h2>How to solve for the sample size you need</h2>
 
-<p>Replaying the trial ten thousand times is the honest way to see what power is. However, it is not how anybody actually computes it.</p>
-
-<p>For a comparison of two group averages the answer has a closed form, and base R ships it as <code>power.t.test()</code>. There is nothing to install and nothing to load. Hand it the numbers and it gives you the power straight back.</p>
+<p>The clinic never asked what 40 patients buys them. They asked how many patients they need. So leave <code>n</code> out and tell R what power you want instead. The conventional target is 0.80.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Ask R for the power of the clinic's planned trial, no simulation involved
-power.t.test(n = 20, delta = drop_worth_finding, sd = spread, sig.level = 0.05)
-#&gt; 
-#&gt;      Two-sample t test power calculation 
-#&gt; 
-#&gt;               n = 20
+    <div class="webr-editor" data-language="r"># Solve for the sample size that reaches 80 percent power
+power.t.test(delta = 10, sd = 12, power = 0.80)
+#&gt;
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 23.60472
 #&gt;           delta = 10
-#&gt;              sd = 15
-#&gt;       sig.level = 0.05
-#&gt;           power = 0.5377573
-#&gt;     alternative = two.sided
-#&gt; 
-#&gt; NOTE: n is number in *each* group</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Four arguments went in, and each one is a plain fact about the clinic.</p>
-
-<ul>
-
-<li><code>n = 20</code> is the patients in <strong>each</strong> arm, not the total. R prints that reminder at the bottom of every result, because reading it as the whole study is the single most common way to get this wrong and end up with half the patients you needed.</li>
-
-<li><code>delta = 10</code> is the drop worth finding, written in the outcome's own units. Here that is mmHg, not some standardised score.</li>
-
-<li><code>sd = 15</code> is how much the readings scatter, in those same units.</li>
-
-<li><code>sig.level = 0.05</code> is the bar the p-value has to beat.</li>
-
-</ul>
-
-<p>The answer comes back as 0.5377573, so 0.54. Our ten thousand replays gave 0.5295. Those two numbers agree, and the small gap between them is exactly what you should expect. The formula is exact, while the simulation is only a tally of ten thousand runs, so it will wobble a little in the third decimal every time you rerun it with a different seed.</p>
-
-<p>So one line of base R gets you what the whole simulation got you, and neither one is more correct than the other. The simulation was worth building because it shows you what power actually is. The formula is the one you will reach for from here on.</p>
-</section>
-
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what does power of 0.54 promise the clinic?</h2>
-<section class="exercise" data-exercise-id="Inference-Mini-4-step9" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 54% chance the exercise program lowers blood pressure.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">If the program really does lower pressure by 10 points, this trial has a 54% chance of reporting it.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">About 54 out of every 100 patients on the program will see their pressure fall.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">There is a 46% chance the trial raises a false alarm on a program that does nothing.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">That is it. Power assumes the effect is there, and then asks whether a study this size will notice. It never claims the effect is there.</div><div class="lesson-qfb lesson-qfb-no">Power never says whether the program works, and it never counts patients. It runs the other way round: assume the drop is real, then ask how often a study this size reports it. A false alarm on a program that does nothing is a different quantity altogether, and that one is set by the 0.05 bar.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<h2>Asking R for the number of patients instead</h2>
-
-<p>So 40 patients buys the clinic a coin toss. The obvious next question is what it would take to do better, and the answer comes from the very same function run backwards.</p>
-
-<p>Here is the move that makes <code>power.t.test()</code> worth learning. Leave out the number you want, and put in the number you want to hit. Drop <code>n</code> from the call, hand it <code>power = 0.80</code> instead, and R gives you the patients.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Ask the same function the reverse question: how many patients buy 80% power?
-power.t.test(delta = drop_worth_finding, sd = spread, sig.level = 0.05, power = 0.80)
-#&gt; 
-#&gt;      Two-sample t test power calculation 
-#&gt; 
-#&gt;               n = 36.3058
-#&gt;           delta = 10
-#&gt;              sd = 15
+#&gt;              sd = 12
 #&gt;       sig.level = 0.05
 #&gt;           power = 0.8
 #&gt;     alternative = two.sided
-#&gt; 
+#&gt;
 #&gt; NOTE: n is number in *each* group</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -359,134 +323,76 @@ power.t.test(delta = drop_worth_finding, sd = spread, sig.level = 0.05, power = 
   <div class="webr-plot-output"></div>
 </div>
 
-<p>R says 36.3058 per arm. You cannot recruit three tenths of a patient, and rounding down would leave the study just short of its target, so you always round up. That is 37 patients in each arm, and 74 patients in total.</p>
+<p><code>n = 23.60472</code>. You cannot recruit 0.6 of a patient, and rounding down would leave the study under the power it asked for, so you always round up. That makes it 24 patients per arm, or 48 in total.</p>
 
-<p>Why 0.80? Because that is the number the field settled on, and it is worth being clear about what you are agreeing to when you use it. Power of 80% means accepting that one study in five will come back empty even though the effect is real. Nobody ever proved that one in five is the right price. Cohen suggested it decades ago as a reasonable default and it stuck. Trials that are expensive, or that only ever get run once, often hold out for 0.90 instead.</p>
+<p>That is the answer to the clinic's question, and it is worth saying slowly. 40 patients gives them 73% power and 48 gives them 80%. Eight extra people, decided before anything begins, is the whole difference between a trial that usually finds a real 10-point drop and one that misses it more than a quarter of the time.</p>
 
-<p>And there is the clinic's answer. It can recruit 40. The study it wants to run needs 74. Nobody had to be recruited, consented or measured to find that out.</p>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>power.t.test()</code> returns n per group, every time. Read 24 as the total and you recruit 12 per arm, which lands the trial at just under 50% power. That is a coin flip, from one line read the wrong way.</div></div>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
-<h2>Your turn: what would 90% certainty cost?</h2>
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: what would 90% power cost?</h2>
 
-<p>Power of 80% still means one study in five comes back empty on a drop that is real. Suppose the clinic's director hates those odds and wants to miss only one time in ten.</p>
+<p>The clinic sees 24 per arm and asks the obvious follow-up. Eighty percent still means one trial in five comes back empty. What would it take to get that down to one in ten?</p>
 
-<p>Work out what that costs. Same drop worth finding, same spread, same 0.05 bar, but hold out for 90% power instead of 80%. Then round up to whole patients and work out the total across both arms.</p>
-<section class="exercise" data-exercise-id="Inference-Mini-4-step11" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="power\s*=\s*0?\.9"><textarea class="lesson-tryit-input" spellcheck="false"># The clinic wants to miss a real 10-point drop only 1 time in 10, not 1 in 5.
-# drop_worth_finding is 10 and spread is 15, both already in this session.
-# Call power.t.test with the power argument set to 90% instead of 80%, and leave n out.
-# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes: 48.3 per arm, so 49 each and 98 patients in total. Cutting the miss rate from 1 in 5 to 1 in 10 costs the clinic 24 more patients on top of the 74 that 80% already needed.</span><span class="lesson-tryit-fb lesson-tryit-no">Take the call that returned 36.3 and change one thing: power = 0.90 in place of power = 0.80. Leave n out so R still solves for it.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># How many patients per arm buy 90% power instead of 80%
-power.t.test(delta = drop_worth_finding, sd = spread, sig.level = 0.05, power = 0.90)
-#&gt; 
-#&gt;      Two-sample t test power calculation 
-#&gt; 
-#&gt;               n = 48.26431
+<p>Change one argument in the call above and read the answer.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-4-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="power\s*=\s*0?\.9"><textarea class="lesson-tryit-input" spellcheck="false"># power.t.test solves for whichever argument you leave out.
+# The clinic wants 90 percent power now instead of 80, for the same
+# 10-point drop and the same 12 mmHg spread between patients.
+# Change one argument and read off the n it hands back.
+# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: n = 31.25, so 32 per arm and 64 in total. Ten more points of power cost 16 more patients, a third again on top of the 48.</span><span class="lesson-tryit-fb lesson-tryit-no">Keep delta and sd where they are, and change the power you are asking for: <code>power.t.test(delta = 10, sd = 12, power = 0.90)</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Sample size per arm for 90 percent power
+power.t.test(delta = 10, sd = 12, power = 0.90)
+#&gt;
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 31.25372
 #&gt;           delta = 10
-#&gt;              sd = 15
+#&gt;              sd = 12
 #&gt;       sig.level = 0.05
 #&gt;           power = 0.9
 #&gt;     alternative = two.sided
-#&gt; 
+#&gt;
 #&gt; NOTE: n is number in *each* group</code></pre></details></div>
 </section>
-<p>That comes to 48.3 patients per arm, so 49 in each arm and 98 in total. Notice the shape of that. The last ten points of certainty cost almost as much as the whole jump from a coin toss up to 80% did. Certainty gets steadily more expensive the more of it you buy.</p>
+<p>That is 32 per arm and 64 patients in total. The last bit of certainty is always the expensive one, which is a large part of why 0.80 became the habit.</p>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="concept">
-<h2>Give R four of the clinic's numbers, get the fifth back</h2>
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Where delta and sd come from, and why sd drives the number</h2>
 
-<p>You have now run the same function two different ways, so it is worth stopping for a moment on what is really going on here, because this one habit covers almost every sizing question anybody will hand you.</p>
+<p>Everything so far has rested on two numbers we simply assumed: a 10-point drop and a 12 mmHg spread. Those two carry the whole calculation, and they come from completely different places.</p>
 
-<p><code>power.t.test()</code> holds five quantities that are locked to each other. Give it any four and it solves for the one you left out. That is the whole design of it.</p>
+<p><code>delta</code> is a judgement call. It is not what the clinic hopes the program achieves, and it is not what some earlier study happened to report. It is the smallest drop that would change what the clinic does, decided from treatment guidelines and what the program costs to run. Ten points is the clinic saying that anything smaller would not be worth the twelve weeks.</p>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Argument</th>
-<th>What it is, in the clinic's words</th>
-<th>The clinic's value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>n</code></td>
-<td>Patients in each arm, never the total</td>
-<td>20 on offer, 37 needed</td>
-</tr>
-<tr>
-<td><code>delta</code></td>
-<td>The drop worth finding, in mmHg</td>
-<td>10</td>
-</tr>
-<tr>
-<td><code>sd</code></td>
-<td>How much the readings scatter, in mmHg</td>
-<td>15</td>
-</tr>
-<tr>
-<td><code>sig.level</code></td>
-<td>The bar the p-value has to beat</td>
-<td>0.05</td>
-</tr>
-<tr>
-<td><code>power</code></td>
-<td>How often a study this size finds a drop that is real</td>
-<td>0.54 at 20 per arm, 0.80 if sized for it</td>
-</tr>
-</tbody>
-</table>
+<p><code>sd</code> is a claim about the world, and somebody has to source it. It is how much patients differ from each other inside a single arm, and it comes from published data on similar patients or from the clinic's own records. It is also the easiest one to invent, and nothing warns you when it is wrong, because the calculation returns a confident number either way.</p>
 
-<p>Leave out <code>power</code> and you learn what the study you can afford would do. Leave out <code>n</code> and you learn what the study you want would cost. Those are the clinic's two real questions, and it now has both answers.</p>
+<p>Here is the part that catches people out. The two numbers never act separately. Only their ratio ever enters the calculation:</p>
 
-<p>Two rows in that table deserve a harder look, though. The 10 and the 15 were never measured in this trial. They were assumed before the trial even existed, and every number we computed from them carries whatever error is hiding inside them. So those two are what we push on next.</p>
-</section>
+<p>\[ d = \frac{\text{the drop you want to catch}}{\text{the spread between patients}} = \frac{10}{12} = 0.83 \]</p>
 
-<section class="lesson-step" data-step="13" data-step-type="widget">
-<h2>The drop only means something next to the spread</h2>
+<p>That ratio is called <strong>Cohen's d</strong>, and it is the effect measured in standard deviations instead of in mmHg. A 10-point drop among patients who vary by 12 is exactly the same detection problem as a 5-point drop among patients who vary by 6.</p>
 
-<p>A 10-point drop sounds like a fixed amount of evidence. It is not. Ten points is easy to spot in a clinic whose readings barely move, and close to invisible in one whose readings swing all over the place. The sample size follows that comparison, not the 10 on its own.</p>
-
-<p>What actually matters is the drop measured in spreads.</p>
-
-<p>\[ \text{effect size} = \frac{\text{drop worth finding}}{\text{spread of the readings}} = \frac{10}{15} = 0.67 \]</p>
-
-<p>That ratio is the effect size, and 0.67 says the gap between the two arms is about two thirds of one standard deviation. This particular ratio is known as Cohen's d, and the rough labels that go with it are 0.2 for a small effect, 0.5 for a medium one and 0.8 for a large one. So the clinic is chasing something a little above medium.</p>
-
-<p>Move the toggle below through those three sizes and watch what happens to the curve.</p>
-<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Read the curve left to right first. More patients per arm gives you more power, and there is no surprise in that. The interesting part is what the toggle does. A large effect reaches 80% power at about 25 patients per arm. A medium one needs about 64. A small one needs nearly 400. It is the same curve every time, and nothing but that ratio slides it across the page.</p>
-
-<p>That cuts both ways for the clinic. If its readings scattered by 10 instead of 15, the same 10-point drop would be an effect size of 1.0 and would need a fraction of the patients. The spread is not a background detail. It is half of the answer.</p>
-</section>
-
-<section class="lesson-step" data-step="14" data-step-type="concept">
-<h2>What if the program only drops it by 5 points?</h2>
-
-<p>The 10 was the clinic's estimate of what the program does, and estimates run optimistic. Suppose the truth is half that, a 5-point drop. What does the bill look like then?</p>
-
-<p>Your instinct probably says twice as many patients. It is considerably worse than that.</p>
-
-<p>Let's price four candidate drops in one go. The <code>sapply()</code> line runs that same <code>power.t.test()</code> call once for every drop in the list and collects the four answers, and <code>$n</code> picks out just the patients-per-arm number from each one.</p>
+<p>Hold the target at 10 points and move the spread alone.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># What each candidate drop would cost in patients, all at 80% power
-candidate_drops &lt;- c(5, 7.5, 10, 15)
-n_per_arm &lt;- sapply(candidate_drops, function(d)
-  power.t.test(delta = d, sd = spread, sig.level = 0.05, power = 0.80)$n)
+    <div class="webr-editor" data-language="r"># See how the required sample size moves when only the spread changes
+spreads &lt;- c(8, 10, 12, 15, 18)
 
 data.frame(
-  drop_mmHg      = candidate_drops,
-  n_per_arm      = round(n_per_arm, 1),
-  patients_total = 2 * ceiling(n_per_arm)
+  sd_mmHg   = spreads,
+  cohens_d  = round(10 / spreads, 2),
+  n_per_arm = sapply(spreads, function(s)
+                ceiling(power.t.test(delta = 10, sd = s, power = 0.80)$n))
 )
-#&gt;   drop_mmHg n_per_arm patients_total
-#&gt; 1       5.0     142.2            286
-#&gt; 2       7.5      63.8            128
-#&gt; 3      10.0      36.3             74
-#&gt; 4      15.0      16.7             34</div>
+#&gt;   sd_mmHg cohens_d n_per_arm
+#&gt; 1       8     1.25        12
+#&gt; 2      10     1.00        17
+#&gt; 3      12     0.83        24
+#&gt; 4      15     0.67        37
+#&gt; 5      18     0.56        52</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -496,53 +402,158 @@ data.frame(
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read the first and third rows together. Halving the drop from 10 points to 5 took the bill from 74 patients to 286, which is 3.9 times as many.</p>
+<p>Read the last column. Patients who vary by 8 mmHg need 12 per arm. Patients who vary by 18 need 52. Same program, same 10-point target, same 80% power, and the trial went from 24 patients to 104.</p>
 
-<p>That is not a quirk of these particular numbers. The count you need grows with one divided by the square of what you are chasing.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The recruitment budget is decided by how alike your patients are, which is a fact about the population and has nothing to do with the treatment. When a sample size gets challenged, the spread is the number you need an answer ready for.</div></div>
+</section>
 
-<p>\[ n \;\propto\; \frac{1}{\text{drop}^2} \]</p>
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: the spread doubles. What happens to n?</h2>
 
-<p>Halve the drop and the halving gets squared, because one divided by a half squared is four. Cut the drop to a third and you need nine times the patients. Read the table the other way and the same rule pays you back, which is why a generous 15-point drop can be found with just 34 people.</p>
+<p>A second clinic runs the same program on a rougher population, where patients vary by 24 mmHg instead of 12. They still want to catch a 10-point drop at 80% power. What happens to the 24 per arm?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-4-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It doubles, to 48 per arm, because the spread doubled.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It roughly quadruples, to about 92 per arm, because the sample size moves with the square of the spread over the drop.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It stays at 24, because the drop the clinic cares about has not changed.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It halves, to 12 per arm, since a wider spread makes the two arms easier to tell apart.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. Doubling the spread halves Cohen's d from 0.83 to 0.42, and halving d costs you four times the patients, not twice.</div><div class="lesson-qfb lesson-qfb-no">Read the table as a ratio rather than as five separate rows. Going from a spread of 12 to a spread of 18 is a factor of 1.5, and n went from 24 to 52, which is 1.5 squared. Double the spread and you pay four times over.</div></div>
+</section>
+</section>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Small effects are extremely expensive to study. The clinic's own table proves it. Same clinic, same equipment, same kind of patient, and the bill runs from 34 patients to 286 purely on the size of the thing being chased.</div></div>
+<section class="lesson-step" data-step="12" data-step-type="widget">
+<h2>How power climbs as the sample grows</h2>
+
+<p>A table of sample sizes hides the shape behind it. Switch between the three effect sizes below and watch where the curve sits.</p>
+<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The horizontal axis is patients per arm and the vertical axis is power. The marked point is where each curve crosses 80%, which is the n you would recruit.</p>
+
+<p>Two things in that picture matter.</p>
+
+<p>The first is the shape of a single curve. It climbs steeply out of the bottom left, then flattens off near the top. Down in the middle, every extra patient buys real ground. Up near 90%, it takes a crowd to move it at all, which is what you felt when 90% power cost 16 more patients than 80% did.</p>
+
+<p>The second is how far the whole curve slides when the effect changes. A large effect is caught by a couple of dozen patients per arm. A small one needs hundreds. The clinic's trial sits at d = 0.83, just past the large preset, which is why its numbers have been so comfortably small all along.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>The smallest drop 40 patients could reliably catch</h2>
+
+<p>There is one more way to turn the solver around, and it is the most useful one when the sample size is already fixed by a budget.</p>
+
+<p>Keep n at 20 per arm and the spread at 12 mmHg, ask for 80% power, and leave <code>delta</code> out instead.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find the smallest drop 20 patients per arm can catch 80 percent of the time,
+# then read this trial's power against a drop half again smaller
+power.t.test(n = 20, sd = 12, power = 0.80)$delta
+#&gt; [1] 10.90957
+
+power.t.test(n = 20, delta = 6, sd = 12)$power
+#&gt; [1] 0.3377084</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>10.9 mmHg. That is the smallest drop the clinic's 40-patient trial could reliably catch, and it has a name: the <strong>minimum detectable effect</strong>.</p>
+
+<p>Read what it says about the study. The 10-point drop the clinic actually cares about sits just underneath that bar, which is precisely why the power came out at 73% rather than 80%. And the second line prices out what lies further down. A 6-point drop, which would still be well worth having clinically, is found by this trial 0.34 of the time, so the clinic would walk past it in two studies out of three.</p>
+
+<p>That one number is the honest way to describe a fixed-budget study. You do not say "we have 40 patients". You say "we have a trial that can see 10.9 mmHg and is mostly blind below it".</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>Why power computed after the study is over tells you nothing</h2>
+
+<p>Here is the move that follows almost every null result. The trial comes back non-significant, somebody asks what the power was, and somebody else computes it from the study's own observed drop and observed spread. It is called <strong>post-hoc power</strong>, or observed power, and it is worth seeing exactly why it is empty.</p>
+
+<p>We have 2,000 finished trials sitting in <code>sims</code>. Let's do that to every one of them: take the drop that trial happened to observe, take the spread that trial happened to observe, and compute the power those two numbers imply. A few of the 2,000 saw pressure move the wrong way, so <code>abs()</code> keeps the size of the drop each one reported and throws away the sign.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Recompute each trial's power from that trial's own drop and spread
+posthoc &lt;- mapply(function(d, s) power.t.test(n = 20, delta = abs(d), sd = s)$power,
+                  sims$drop, sims$spread)
+
+plot(sims$p, posthoc, pch = 16, cex = 0.4, col = &quot;grey40&quot;,
+     main = &quot;Power worked out afterwards, against the p-value it came from&quot;,
+     xlab = &quot;p-value the trial reported&quot;, ylab = &quot;post-hoc power&quot;)
+abline(v = 0.05, col = &quot;red&quot;, lwd = 2)
+abline(h = 0.505, col = &quot;blue&quot;, lwd = 2, lty = 2)
+
+max(posthoc[sims$p &gt;= 0.05])
+#&gt; [1] 0.504723</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what came out. The points do not scatter into a cloud, they lie along a curve. Across all 2,000 trials, every one with a smaller p-value has a higher post-hoc power, without a single exception. Post-hoc power is not fresh information about the study. It is the p-value written on a different scale.</p>
+
+<p>The blue line makes that concrete. Among all 543 trials that came back non-significant, the highest post-hoc power any of them can report is 0.5047. A trial landing exactly on p = 0.05 works out to 0.5052, and everything worse than that is lower still.</p>
+
+<p>So a null result is guaranteed in advance to have low post-hoc power. That is true of every single one of them, whatever the reason it came out null. Offering that number as an explanation is just restating the p-value and calling it evidence.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Post-hoc power cannot separate the two reasons a trial came back null: too few patients, or too small an effect. It is computed from the same data that produced the p-value, so it can only ever agree with it.</div></div>
 </section>
 
 <section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
-<h2>Quick check: halve the drop, what happens to the patient count?</h2>
+<h2>Quick check: the trial came back null. Now what?</h2>
 
-<p>A trial has been sized to find a 10-point drop. The team then decides that a 5-point drop would matter too, and wants the study to catch that instead. Everything else about the design stays the same.</p>
+<p>The clinic ran its 40 patients and the t-test gave p = 0.31. A reviewer asks whether the study was big enough to trust that null. What belongs in the write-up?</p>
 <section class="exercise" data-exercise-id="Inference-Mini-4-step15" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It halves, since the trial is now chasing something half the size.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It stays about the same, because the scatter in the readings has not changed.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It rises to roughly four times as many, because the count grows with one over the drop squared.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It doubles, one for one with the halving of the drop.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Correct. The clinic's own table went from 74 patients for a 10-point drop to 286 for a 5-point one, which is 3.9 times as many.</div><div class="lesson-qfb lesson-qfb-no">The relationship is not one for one, and it does not stand still either. Sample size grows with one over the drop squared, so halving what you are chasing multiplies the count by about four, and cutting it to a third multiplies it by about nine. That squaring is the whole reason small effects are so costly to study.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The post-hoc power computed from the observed drop, so the reviewer can see for themselves that the study was underpowered.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The smallest drop the trial could reliably catch, 10.9 mmHg, together with the confidence interval the t-test already printed.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing about sizing. Report the p-value and let the reviewer judge.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The conclusion that the exercise program does not lower blood pressure.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Both of those were settled before any data arrived or fall straight out of the analysis, and both tell the reviewer what the study was able to see, rather than restating what it saw.</div><div class="lesson-qfb lesson-qfb-no">Post-hoc power is the p-value in disguise, and a null result always carries a low one, so it settles nothing. And p = 0.31 is not evidence that the program does nothing. What the reviewer needs is the size of effect the study could see and the range the data leaves open, which is the interval the t-test hands over for free.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="16" data-step-type="concept">
-<h2>What 40 patients could actually catch</h2>
+<h2>How to get a sample size when no formula fits</h2>
 
-<p>The clinic still has 40 patients and no more. The grant is closed and the budget is fixed, so that is the study it is going to run. That leaves us one last way to turn the question around.</p>
+<p><code>power.t.test()</code> earns its answer by assuming a very particular study: two arms, equal size, everybody measured at the end, a t-test to finish. Real trials rarely look like that.</p>
 
-<p>Instead of asking how many patients a 10-point drop needs, ask what drop 40 patients can reliably find. Same five quantities, same single function, except this time <code>delta</code> is the one we leave out and <code>n</code> goes back in.</p>
+<p>The clinic's trial will not either. They expect about 15 out of every 100 patients to leave before week 12, so recruit 24 per arm and you will not be analysing 24 per arm.</p>
+
+<p>When the design stops matching the formula, stop using the formula. Simulate the design you actually have, the same way we started: build the world where the effect is real, run the study thousands of times, and count the share that comes back significant. Here <code>runif(recruit) &gt; 0.15</code> is what removes the leavers, keeping each patient with probability 0.85.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># With 40 patients fixed, what is the smallest drop this trial could reliably catch?
-power.t.test(n = 20, sd = spread, sig.level = 0.05, power = 0.80)
-#&gt; 
-#&gt;      Two-sample t test power calculation 
-#&gt; 
-#&gt;               n = 20
-#&gt;           delta = 13.63696
-#&gt;              sd = 15
-#&gt;       sig.level = 0.05
-#&gt;           power = 0.8
-#&gt;     alternative = two.sided
-#&gt; 
-#&gt; NOTE: n is number in *each* group</div>
+    <div class="webr-editor" data-language="r"># Measure by simulation how much power survives a 15 percent dropout
+sim_power &lt;- function(recruit) {
+  found &lt;- replicate(2000, {
+    usual    &lt;- rnorm(recruit, mean = 140, sd = 12)
+    exercise &lt;- rnorm(recruit, mean = 130, sd = 12)
+    usual    &lt;- usual[runif(recruit) &gt; 0.15]      # 15 percent of them leave
+    exercise &lt;- exercise[runif(recruit) &gt; 0.15]
+    t.test(usual, exercise, var.equal = TRUE)$p.value &lt; 0.05
+  })
+  mean(found)
+}
+
+set.seed(11)
+recruits &lt;- c(24, 26, 28, 30)
+
+data.frame(recruited_per_arm = recruits,
+           power = sapply(recruits, sim_power))
+#&gt;   recruited_per_arm  power
+#&gt; 1                24 0.7250
+#&gt; 2                26 0.7705
+#&gt; 3                28 0.8000
+#&gt; 4                30 0.8315</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -552,132 +563,122 @@ power.t.test(n = 20, sd = spread, sig.level = 0.05, power = 0.80)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>R comes back with 13.6 mmHg. That is the smallest drop this trial can find four times out of five, and it has a name worth carrying around, the <strong>minimum detectable effect</strong>. It is what a study of a fixed size is honestly capable of seeing.</p>
+<p>Recruit the 24 per arm the formula asked for and dropout takes the power back down to 0.725. The 80% the clinic paid for is gone, and it is gone for a reason the formula was never told about.</p>
 
-<p>Now put the two numbers side by side. The program is believed to deliver about 10 points. The trial can reliably catch about 13.6. The clinic is trying to photograph something smaller than its camera can resolve.</p>
+<p>Recruit 28 per arm and it comes back to exactly 0.80. That is 56 patients enrolled to end up analysing about 48, which is the number we had all along.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A minimum detectable effect larger than the effect you care about is a red flag before a single patient is recruited. It means a null result will be uninterpretable: nobody will be able to tell whether the program failed or the study was simply too small to say.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Simulation is the general tool and the formula is the special case. Anything you can write down as R code you can size this way: dropout, unequal arms, three groups, a skewed outcome, a rank test. Build the world, run it thousands of times, count the wins.</div></div>
 </section>
 
-<section class="lesson-step" data-step="17" data-step-type="concept">
-<h2>Where the 10 and the 15 have to come from</h2>
+<section class="lesson-step" data-step="17" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which number does the clinic need to defend first?</h2>
 
-<p>Everything you have computed rests on two numbers that were assumed rather than measured. So it is worth being blunt about where each one is allowed to come from.</p>
-
-<p>The drop worth finding is a clinical judgement, not a statistical one. It is the smallest change that would alter what a doctor does, and the person who sets it is the clinician, not the analyst. Ten points was chosen because a fall that size changes prescribing, not because anyone expects the program to deliver exactly ten.</p>
-
-<p>The spread is an empirical fact, and you have to go and find it. The clinic's own records are the best source, since they come from the same equipment and the same kind of patient. Published trials on similar populations are the next best thing.</p>
-
-<p>The tempting third option is to run a small pilot, take its numbers, and plan the main study from those. Be careful there. Twenty people give you a very noisy estimate of both the drop and the spread, and a pilot that overshoots by luck leaves you with an undersized main study, which is the exact trap you were trying to avoid. Treat a pilot as a sanity check on feasibility, not as the source of your numbers.</p>
-
-<p>There is one more move to rule out, and it is the most common mistake in this whole subject. After a study comes back with nothing, it is tempting to take the drop you happened to observe, feed it back into a power calculation, and report the power you "had". That number is worthless. It is computed from the very result you are trying to explain, so it can only ever tell you what you already know. A small observed drop gives a low computed power, every single time, no matter what is true.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Power analysis is a planning tool, never a post-mortem. Compute it before you collect data, from a drop worth finding and a spread you sourced independently. Computing it afterwards from your own observed result is circular and tells you nothing you did not already have.</div></div>
+<p>A neighbouring clinic copies the whole plan, recruits the same 40 patients, and targets the same 10-point drop. Their patients are sicker and vary by 18 mmHg rather than 12. Which input should a reviewer press them on hardest?</p>
+<section class="exercise" data-exercise-id="Inference-Mini-4-step17" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The 0.05 significance level, since that is the bar the result has to clear.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The 80% power target, since a different target changes the answer.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 18 mmHg spread, because it takes their power at 40 patients down to about 40%, and reaching 80% would need 52 per arm instead of 24.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 10-point drop, since a smaller target would need more patients.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The spread is the only input here that is a claim about the world rather than a convention or a choice, and it is the one that moved the trial from 48 patients to 104.</div><div class="lesson-qfb lesson-qfb-no">The target drop and the power level are decisions the clinic gets to make and defend in plain language, and the significance level is a convention nobody is really arguing about. The spread is different. It is an empirical claim, it can be wrong, and because n moves with its square, being wrong about it is expensive. At 18 mmHg the same 40 patients find a real 10-point drop only about 40% of the time.</div></div>
+</section>
 </section>
 
-<section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what should the clinic write in its protocol?</h2>
+<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
+<h2>Your turn: size the trial for a 5-point drop</h2>
 
-<p>Recruitment is capped at 40 patients and that is final. The clinic now has to write down, in advance, what this study is and is not able to do. Which line is the honest one?</p>
+<p>The clinic's funder pushes back. A 10-point drop is a lot to promise, and they want the trial sized so it could still catch a 5-point drop, with the same 12 mmHg spread and the same 80% power.</p>
+
+<p>Work out how many patients per arm that takes.</p>
 <section class="exercise" data-exercise-id="Inference-Mini-4-step18" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">State that the trial has 80% power, since 80% is what every protocol reports.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Drop the usual care arm and put all 40 patients on the program, doubling the group that matters.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">State that with 20 patients per arm the trial can reliably detect a drop of about 13.6 mmHg, and that a 10-point drop sits below what this design can catch.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Run the trial as planned, then compute the power afterwards from whatever drop turns up.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. That sentence is both true and useful: it tells a reader in advance precisely what a null result from this trial would and would not mean.</div><div class="lesson-qfb lesson-qfb-no">Two of these promise a reader something the study cannot deliver, one throws away the comparison the study exists to make, and power computed after the fact is circular. The honest protocol states the smallest drop the design can catch, states it up front, and lets the reader judge.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="19" data-step-type="tryit" data-gate="1">
-<h2>Your turn: the readings scatter more than we thought</h2>
-
-<p>Someone finally pulls the clinic's records properly, and the twelve-week changes turn out to scatter by 20 mmHg, not 15. The drop worth finding has not moved, the 0.05 bar has not moved, and the clinic still wants 80% power.</p>
-
-<p>Work out what that wider scatter does to the number of patients, then hold it up against the 74 the clinic thought it needed.</p>
-<section class="exercise" data-exercise-id="Inference-Mini-4-step19" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="sd\s*=\s*20"><textarea class="lesson-tryit-input" spellcheck="false"># The clinic's records put the spread at 20 mmHg, not the 15 we assumed.
-# Same drop worth finding (10), same bar (0.05), same 80% power target.
-# Call power.t.test with the sd argument set to that wider spread, and leave n out.
-# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 63.8 per arm, so 64 each and 128 patients. Five extra points of scatter took the study from 74 patients to 128, and the exercise program never changed at all.</span><span class="lesson-tryit-fb lesson-tryit-no">Reuse the call that returned 36.3 per arm and change one argument: sd = 20 in place of sd = 15. Leave n out so R solves for it.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># How many patients per arm if the readings scatter by 20 mmHg instead of 15
-power.t.test(delta = drop_worth_finding, sd = 20, sig.level = 0.05, power = 0.80)
-#&gt; 
-#&gt;      Two-sample t test power calculation 
-#&gt; 
-#&gt;               n = 63.76576
-#&gt;           delta = 10
-#&gt;              sd = 20
+<div class="lesson-tryit" data-check-regex="delta\s*=\s*5"><textarea class="lesson-tryit-input" spellcheck="false"># The solve-for-n call takes delta, sd and power, and returns n per arm.
+# Keep sd = 12 and power = 0.80, and size the trial for a 5-point drop
+# instead of a 10-point one.
+# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: n = 91.39, so 92 per arm and 184 patients in total. Halving the drop took the trial from 48 patients to 184, because 5 over 12 is half the ratio that 10 over 12 was, and halving the ratio costs four times the patients.</span><span class="lesson-tryit-fb lesson-tryit-no">Same call as before with one number changed: <code>power.t.test(delta = 5, sd = 12, power = 0.80)</code>. Leave sd and power where they are.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Sample size per arm for a 5-point drop at 80 percent power
+power.t.test(delta = 5, sd = 12, power = 0.80)
+#&gt;
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 91.38944
+#&gt;           delta = 5
+#&gt;              sd = 12
 #&gt;       sig.level = 0.05
 #&gt;           power = 0.8
 #&gt;     alternative = two.sided
-#&gt; 
+#&gt;
 #&gt; NOTE: n is number in *each* group</code></pre></details></div>
 </section>
-<p>Now look back at the table of candidate drops. A 7.5-point drop at a spread of 15 needed 63.8 per arm as well, which is the identical number.</p>
-
-<p>That is not a coincidence. Ten points against a spread of 20 is an effect size of 0.5, and 7.5 points against a spread of 15 is also 0.5. The calculation never cared about the drop or the spread on their own. It only ever cared about the ratio between them.</p>
+<p>That is 92 per arm and 184 in total. Put that n beside the one for a spread of 24 mmHg and you will find the same 91.38944, because 5 over 12 and 10 over 24 are the same ratio. Only the ratio ever mattered.</p>
 </section>
 
-<section class="lesson-step" data-step="20" data-step-type="tryit" data-gate="1">
-<h2>Your turn: check the 37 really buys 80%</h2>
+<section class="lesson-step" data-step="19" data-step-type="tryit" data-gate="1">
+<h2>Your turn: simulate the power a 15% dropout leaves you</h2>
 
-<p>The formula said that 37 patients per arm buys 80% power. That is a claim, and you already have everything sitting in the session to test it.</p>
+<p>The funder settles on the original 10-point target, so the clinic is back to recruiting 24 patients per arm. Before signing off, they want the dropout checked directly rather than taken from a table.</p>
 
-<p><code>run_one_study()</code> takes a number of patients per arm, builds two fresh groups with a real 10-point drop, runs the t-test and hands back the p-value. Replay it ten thousand times at 37 patients per arm, then take the share of those runs that come in under 0.05. If the formula is right, that share should land close to 0.80.</p>
-<section class="exercise" data-exercise-id="Inference-Mini-4-step20" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="run_one_study[(]\s*37\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># run_one_study(n) builds a fresh trial with a real 10-point drop and returns its p-value.
-# Set the seed to 2026 first, so your answer matches mine.
-# Replay it 10,000 times at 37 patients per arm, then take the share below 0.05.
-# Three lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">It comes back at 0.7991, near enough to 0.80 to call it a match. One line of formula and ten thousand simulated trials agree, which is exactly what you want to see before spending a budget on the strength of one of them.</span><span class="lesson-tryit-fb lesson-tryit-no">The same three lines as the replay you ran before, with 37 in place of 20: set.seed(2026), then p_at_37 is replicate(10000, run_one_study(37)), then mean(p_at_37 < 0.05).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Check by brute force that 37 patients per arm really does buy 80% power
-set.seed(2026)
-p_at_37 &lt;- replicate(10000, run_one_study(37))
-mean(p_at_37 &lt; 0.05)
-#&gt; [1] 0.7991</code></pre></details></div>
+<p>Write the loop yourself. Recruit 24 per arm from the same two populations, drop each patient with probability 0.15, run the t-test on whoever is left, and report the share of 2,000 runs that came back under 0.05. Start with <code>set.seed(11)</code> so your answer matches.</p>
+<section class="exercise" data-exercise-id="Inference-Mini-4-step19" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-tryit" data-check-regex="runif[\s\S]*t[.]test"><textarea class="lesson-tryit-input" spellcheck="false"># Build 2,000 trials of 24 recruits per arm, using rnorm(24, mean = 140, sd = 12)
+# for usual care and rnorm(24, mean = 130, sd = 12) for the program.
+# Keep a patient when runif(24) &gt; 0.15, t-test the survivors with
+# var.equal = TRUE, and take the share of p-values under 0.05.
+# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: 0.725, the same number the dropout table gave for 24 per arm. Recruiting exactly the formula's number and then losing 15 percent of it is a real and very common way to end up with a trial that cannot do the job it was sized for.</span><span class="lesson-tryit-fb lesson-tryit-no">Three moves inside one <code>replicate()</code>: draw both arms with <code>rnorm()</code>, cut each one down with <code>usual[runif(24) &gt; 0.15]</code>, then test the survivors with <code>t.test(usual, exercise, var.equal = TRUE)</code> and compare its <code>$p.value</code> against 0.05. Wrap the whole thing in <code>mean()</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Simulate the power that 24 recruits per arm leave after 15 percent drop out
+set.seed(11)
+found &lt;- replicate(2000, {
+  usual    &lt;- rnorm(24, mean = 140, sd = 12)
+  exercise &lt;- rnorm(24, mean = 130, sd = 12)
+  usual    &lt;- usual[runif(24) &gt; 0.15]
+  exercise &lt;- exercise[runif(24) &gt; 0.15]
+  t.test(usual, exercise, var.equal = TRUE)$p.value &lt; 0.05
+})
+
+mean(found)
+#&gt; [1] 0.725</code></pre></details></div>
 </section>
-<p>Both roads lead to the same place. The closed form got there in one line and the simulation got there in ten thousand, and that agreement is what lets you trust a single <code>power.t.test()</code> call when there is no time to simulate anything.</p>
+<p>The clinic sized for 0.80 and would have run at 0.725. Recruiting 28 per arm is what buys the target back.</p>
 </section>
 
-<section class="lesson-step" data-step="21" data-step-type="concept">
-<h2>References before you write the protocol</h2>
+<section class="lesson-step" data-step="20" data-step-type="concept">
+<h2>References</h2>
 
 <ul>
 
-<li><a href="https://doi.org/10.4324/9780203771587">Statistical Power Analysis for the Behavioral Sciences</a> - Cohen (1988), 2nd edition, Lawrence Erlbaum. Where the small, medium and large effect size labels come from, and where the 80% convention started.</li>
+<li><a href="https://doi.org/10.4324/9780203771587">Statistical Power Analysis for the Behavioral Sciences</a> - Cohen, J. (1988), 2nd edition, Routledge. Where Cohen's d comes from, along with the 0.2, 0.5 and 0.8 conventions the presets on the power curve use.</li>
 
-<li><a href="https://doi.org/10.1198/000313001300339897">The Abuse of Power: The Pervasive Fallacy of Power Calculations for Data Analysis</a> - Hoenig and Heisey (2001), The American Statistician 55(1), 19-24. The case against computing power after the fact, worked through properly.</li>
+<li><a href="https://doi.org/10.1198/000313001300339897">The Abuse of Power: The Pervasive Fallacy of Power Calculations for Data Analysis</a> - Hoenig, J. M. and Heisey, D. M. (2001), The American Statistician 55(1), 19-24. The paper that works out why post-hoc power is a restatement of the p-value.</li>
 
-<li><a href="https://doi.org/10.1038/nrn3475">Power failure: why small sample size undermines the reliability of neuroscience</a> - Button and colleagues (2013), Nature Reviews Neuroscience 14, 365-376. What happens to an entire field when studies routinely run at the clinic's 0.53.</li>
+<li><a href="https://doi.org/10.1177/1745691614551642">Beyond Power Calculations: Assessing Type S and Type M Errors</a> - Gelman, A. and Carlin, J. (2014), Perspectives on Psychological Science 9(6), 641-651. What an underpowered study does to the effect sizes it does manage to report.</li>
 
-<li><a href="https://doi.org/10.1525/collabra.33267">Sample Size Justification</a> - Lakens (2022), Collabra: Psychology 8(1), 33267. How to defend the drop and the spread you fed the calculation, which is the part reviewers really push on.</li>
+<li><a href="https://doi.org/10.1038/nrn3475">Power failure: why small sample size undermines the reliability of neuroscience</a> - Button, K. S. and colleagues (2013), Nature Reviews Neuroscience 14, 365-376. A field-wide audit of what happens when this calculation gets skipped.</li>
 
 <li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html">Power calculations for two-sample t tests</a> - R Core Team, the documentation for <code>power.t.test()</code>.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="22" data-step-type="complete">
-<h2>What the clinic now knows about its 40 patients</h2>
+<section class="lesson-step" data-step="21" data-step-type="complete">
+<h2>Quick recap</h2>
 
-<p>The clinic walked in with 40 patients and a hunch. Here is what it walks out with.</p>
+<p>You built statistical power out of 2,000 trials before ever meeting the formula, and then answered the clinic's question properly. To pull it together:</p>
 
 <ul>
 
-<li><strong>Power is the share of studies that find an effect that is really there.</strong> You built that share by hand out of ten thousand replays of a trial with a genuine 10-point drop, and only 5,295 of them noticed. That is a power of 0.53.</li>
+<li>Power is the share of studies that find a real effect. You counted the clinic's: 1,457 out of 2,000, or 73%.</li>
 
-<li><strong>One function links five numbers.</strong> <code>power.t.test()</code> holds the patients per arm, the drop worth finding, the spread of the readings, the 0.05 bar and the power together. Give it any four and it hands back the fifth.</li>
+<li>1 minus power is the miss rate, the Type II error rate. At 40 patients the clinic misses a genuine 10-point drop 27 times in every 100.</li>
 
-<li><strong>The clinic's real answer is 74 patients.</strong> Thirty seven per arm buys 80% power for a 10-point drop at a spread of 15, and ten thousand simulated trials came back at 0.7991 to confirm it.</li>
+<li>n, the effect, the significance level and power are locked together. Give R any three and it returns the fourth, which is how <code>power.t.test(delta = 10, sd = 12, power = 0.80)</code> turns "is 40 enough" into 24 per arm and 48 in total.</li>
 
-<li><strong>Small effects cost far more than anybody expects.</strong> The count grows with one over the drop squared, so halving the target from 10 points to 5 pushed the bill from 74 patients to 286.</li>
+<li>Only the ratio of the drop to the spread matters, and n moves with its square. Halve that ratio and you pay four times over, which is why 92 per arm answered both the 5-point drop and the doubled spread.</li>
 
-<li><strong>Forty patients can only reliably catch about 13.6 points.</strong> That is the honest line for the protocol, and it says plainly that a 10-point drop is out of this study's reach.</li>
+<li>Power computed after the study is finished is the p-value in different clothing. Report the minimum detectable effect and the confidence interval instead.</li>
+
+<li>When the design leaves the formula behind, simulate it. Fifteen percent dropout cost the clinic 0.075 of power, and recruiting 28 per arm bought it back.</li>
 
 </ul>
 
-<p>So the next time somebody asks whether a study is big enough, you have one sentence to give back:</p>
+<p>So when somebody hands you a study plan and asks whether the sample is big enough, you now know it is really three questions. What drop is worth catching, how much do the patients vary, and how often are you willing to miss? Answer those and the sample size answers itself.</p>
 
-<p>"Tell me the smallest effect that would change your decision, and how much your measurements scatter, and I will tell you how many people you need before you recruit a single one."</p>
-
-<p>That is the whole of power analysis. Congratulations, you made it through. Have a great day!</p>
+<p>Congratulations, you made it through. Have a great day.</p>
 </section>
 
 {% endraw %}
