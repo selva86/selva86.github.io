@@ -88,7 +88,13 @@
       '<div class="lm-body">' +
         '<nav class="lm-rail" aria-label="Lessons in this course"></nav>' +
         '<div class="lm-main">' +
-          '<div class="lm-segs">' + steps.map(function () { return '<i></i>'; }).join('') + '</div>' +
+          '<div class="lm-segs">' + steps.map(function (s) {
+            var st = s.getAttribute('data-step-type') || '';
+            var h2 = s.querySelector('h2');
+            var tip = h2 ? h2.textContent.replace(/\s+/g, ' ').trim() : '';
+            return '<i' + ((st === 'quiz' || st === 'tryit') ? ' data-practice=""' : '') +
+                   (tip ? ' data-tip="' + esc(tip) + '"' : '') + '></i>';
+          }).join('') + '</div>' +
           '<div class="lm-stage"></div>' +
           '<div class="lm-stepper">' +
             '<button class="lm-back" disabled>&larr; Back</button>' +
@@ -115,6 +121,25 @@
     document.documentElement.style.overflow = 'hidden';   // the page scroll lives on <html>; locking body alone leaves a stray scrollbar behind the overlay
 
     var segEls = Array.prototype.slice.call(app.querySelectorAll('.lm-segs i'));
+    // Segment tooltip: hovering a progress segment names its step.
+    var segTip = document.createElement('div');
+    segTip.className = 'lm-seg-tip';
+    app.appendChild(segTip);
+    var segsWrap = app.querySelector('.lm-segs');
+    segsWrap.addEventListener('mouseover', function (e) {
+      var t = e.target;
+      if (!t || t.tagName !== 'I' || !t.getAttribute('data-tip')) return;
+      segTip.textContent = t.getAttribute('data-tip');
+      segTip.style.display = 'block';
+      var r = t.getBoundingClientRect(), a = app.getBoundingClientRect();
+      segTip.style.top = (r.bottom - a.top + 8) + 'px';
+      segTip.style.left = '0px';
+      var x = r.left + r.width / 2 - a.left - segTip.offsetWidth / 2;
+      segTip.style.left = Math.max(10, Math.min(x, a.width - segTip.offsetWidth - 10)) + 'px';
+    });
+    segsWrap.addEventListener('mouseout', function (e) {
+      if (e.target && e.target.tagName === 'I') segTip.style.display = 'none';
+    });
     var curEl = app.querySelector('.lm-cur');
     var midEl = app.querySelector('.lm-mid');
     var backBtn = app.querySelector('.lm-back');
