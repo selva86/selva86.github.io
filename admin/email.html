@@ -170,6 +170,16 @@
       <div id="emailcards"></div>
       <h2 class="sect">The daily lesson series <em>every sequence email: edit, preview, test - saves go live on the next send, no deploy</em></h2>
       <div class="card" style="overflow-x:auto"><table id="t-seq"></table></div>
+      <h2 class="sect">Send order and switches <em>drag rows to reorder the daily walk; untick an email to skip it - Save applies from the next run</em></h2>
+      <div class="card">
+        <div id="plan-note" class="trigwhy" style="margin-bottom:8px"></div>
+        <div id="t-plan"></div>
+        <div style="margin-top:12px">
+          <button class="btn" id="plan-save" disabled>Save plan</button>
+          <button class="btn small" id="plan-revert">Revert to default order</button>
+          <span id="plan-msg" class="trigwhy" style="margin-left:10px"></span>
+        </div>
+      </div>
     </div>
 
     <div class="foot" id="foot"></div>
@@ -657,6 +667,84 @@
   var edKey = null;
   var edwrap = document.getElementById('edwrap');
 
+
+  // ================= send order and switches =================
+  var planCustom = false, planDirty = false;
+  function planSetDirty(d){ planDirty = d; var b = document.getElementById('plan-save'); if (b) b.disabled = !d; }
+  function loadPlan(){
+    fetch('/api/admin/seq-plan', hdrs())
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d){ planCustom = !!d.custom; renderPlan(d.plan || []); } })
+      .catch(function(){});
+  }
+  function renderPlan(rows){
+    var el = document.getElementById('t-plan'); if (!el) return;
+    var note = document.getElementById('plan-note');
+    if (note) note.textContent = planCustom ? 'Custom plan active (stored in KV; the brain reads it every run).' : 'Default plan: registry order, every email on.';
+    el.innerHTML = rows.map(function(r){
+      var chip = r.kind === 'lesson'
+        ? (r.slug ? '<span class="chip on">lesson: ' + esc(r.slug) + '</span>' : '<span class="chip">lesson not built yet</span>')
+        : '<span class="chip">public page</span>';
+      return '<div class="plan-row" draggable="true" data-seq="' + r.seq + '" data-kind="' + esc(r.kind) + '"' +
+        ' data-slug="' + esc(r.slug || '') + '" data-course="' + esc(r.course || '') + '" data-cl="' + (r.course_lessons || 0) + '"' +
+        ' style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line,#e3e8ef);border-radius:9px;margin:5px 0;background:var(--panel,#fff);' + (r.enabled ? '' : 'opacity:.45;') + '">' +
+        '<span style="cursor:grab;user-select:none;font-size:15px" title="Drag to reorder">&#8801;</span>' +
+        '<input type="checkbox" class="plan-on"' + (r.enabled ? ' checked' : '') + ' title="On / off">' +
+        '<b style="min-width:26px;text-align:right">#' + r.seq + '</b>' +
+        '<span style="flex:1">' + esc(r.subject) + '</span>' + chip +
+        '</div>';
+    }).join('');
+  }
+  (function(){
+    var wrap = document.getElementById('t-plan'); if (!wrap) return;
+    var dragging = null;
+    wrap.addEventListener('dragstart', function(e){ var row = e.target.closest('.plan-row'); if (row){ dragging = row; e.dataTransfer.effectAllowed = 'move'; } });
+    wrap.addEventListener('dragover', function(e){
+      if (!dragging) return; e.preventDefault();
+      var over = e.target.closest('.plan-row');
+      if (!over || over === dragging) return;
+      var rect = over.getBoundingClientRect();
+      var before = (e.clientY - rect.top) < rect.height / 2;
+      wrap.insertBefore(dragging, before ? over : over.nextSibling);
+    });
+    wrap.addEventListener('drop', function(e){ e.preventDefault(); if (dragging){ dragging = null; planSetDirty(true); } });
+    wrap.addEventListener('dragend', function(){ if (dragging){ dragging = null; planSetDirty(true); } });
+    wrap.addEventListener('change', function(e){
+      var cb = e.target.closest('.plan-on'); if (!cb) return;
+      var row = cb.closest('.plan-row');
+      if (!cb.checked && row.dataset.kind === 'lesson'){
+        var msg = 'Turning this email off orphans its lesson' +
+          (row.dataset.slug ? ' (' + row.dataset.slug + ')' : '') +
+          ': free subscribers never receive its unlock key, so they cannot open that lesson' +
+          (row.dataset.course ? ', and the ' + row.dataset.course + ' badge (' + row.dataset.cl + ' lessons, all required) becomes unearnable for them' : '') +
+          '. Pro users are unaffected. Turn it off anyway?';
+        if (!confirm(msg)){ cb.checked = true; return; }
+      }
+      row.style.opacity = cb.checked ? '' : '.45';
+      planSetDirty(true);
+    });
+    document.getElementById('plan-save').addEventListener('click', function(){
+      var rows = Array.prototype.slice.call(wrap.querySelectorAll('.plan-row'));
+      var plan = rows.map(function(r){ return { seq: parseInt(r.dataset.seq, 10), enabled: r.querySelector('.plan-on').checked }; });
+      var h = hdrs(); h.method = 'PUT'; h.headers['Content-Type'] = 'application/json'; h.body = JSON.stringify({ plan: plan });
+      var m = document.getElementById('plan-msg'); m.textContent = 'Saving...';
+      fetch('/api/admin/seq-plan', h)
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+        .then(function(x){
+          if (x.ok){ planCustom = true; renderPlan(x.d.plan || []); planSetDirty(false); m.textContent = 'Saved. Applies from the next daily run.'; }
+          else { m.textContent = (x.d && x.d.message) || 'Save failed.'; }
+        })
+        .catch(function(){ m.textContent = 'Save failed.'; });
+    });
+    document.getElementById('plan-revert').addEventListener('click', function(){
+      if (!confirm('Discard the custom plan and go back to the registry order with every email on?')) return;
+      var h = hdrs(); h.method = 'DELETE';
+      fetch('/api/admin/seq-plan', h)
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ if (d){ planCustom = false; renderPlan(d.plan || []); planSetDirty(false); document.getElementById('plan-msg').textContent = 'Back to the default plan.'; } });
+    });
+  })();
+
   function loadSeq(){
     fetch('/api/admin/email-copy', hdrs())
       .then(function(r){ return r.ok ? r.json() : null; })
@@ -748,6 +836,7 @@
   (tokenExpiresSoon(tok) ? keeper : Promise.resolve()).then(function(){
     load();
     loadSeq();
+    loadPlan();
     setInterval(load, 60000);
   });
 })();

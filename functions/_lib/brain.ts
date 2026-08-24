@@ -24,7 +24,7 @@ import { resolvePass } from "./pass";
 import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
-import { seqSendable, seqUrl, renderSeqEmail, getSeqCopy, SEQ_ITEMS, MAX_SEQ } from "./nurture";
+import { seqSendable, seqUrl, renderSeqEmail, getSeqCopy, getSeqPlan, SEQ_ITEMS } from "./nurture";
 
 export interface BrainEnv {
   DB: D1Database;
@@ -226,6 +226,10 @@ export async function runBrain(
   // to the recap. seq 0 (write-your-first-script) goes only to level_r=new
   // users; everyone else starts at seq 1. ----------------------------------
   if (flags.seq && dailyRun && new Date(now * 1000).getUTCDay() !== 0) {
+    // The admin plan decides which emails are on and in what order.
+    const seqPlan = await getSeqPlan(env.KV);
+    const seqOrder: number[] = [];
+    for (const p of seqPlan) if (p.enabled) seqOrder.push(p.seq);
     const rows = await env.DB.prepare(
       `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
               u.signup_gate, u.signup_slug, u.email_status, u.email_progress,
@@ -239,15 +243,15 @@ export async function runBrain(
         "SELECT email_key FROM sent_emails WHERE user_id = ?1 AND email_key LIKE 'seq:%'",
       ).bind(u.id).all<{ email_key: string }>()).results ?? [];
       const have = new Set(sentSeqs.map((r) => parseInt(r.email_key.slice(4), 10)));
+      // Next email = the first ENABLED plan entry this user has not received.
+      // Reorders and switches apply cleanly mid-sequence: nobody repeats an
+      // email, and a disabled one is simply never their next.
       let next = -1;
-      if (!have.size) {
-        next = u.level_r === "new" ? 0 : 1;
-      } else {
-        const frontier = Math.max(...[...have]);
-        next = frontier + 1;
-        if (next === 1 && !have.has(0)) next = 1; // seq 0 users advance normally
+      for (const s of seqOrder) {
+        if (s === 0 && (have.size > 0 || u.level_r !== "new")) continue; // seq 0 is only ever a FIRST email, and only for new-to-R users
+        if (!have.has(s)) { next = s; break; }
       }
-      if (next > MAX_SEQ || !SEQ_ITEMS[next]) continue;
+      if (next < 0 || !SEQ_ITEMS[next]) continue;
       if (!seqSendable(next)) continue; // frontier hold: lesson not built yet
       candidates.push({
         u, key: `seq:${next}`, template: `seq:${next}`, category: "nurture", priority: 8,

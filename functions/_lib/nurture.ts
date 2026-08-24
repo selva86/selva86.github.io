@@ -17,6 +17,34 @@ export const SEQ_ITEMS: Record<number, SeqItem> = {};
 for (const it of MINI.sequence) SEQ_ITEMS[it.seq] = it;
 export const MAX_SEQ = Math.max(...MINI.sequence.map((i) => i.seq));
 
+// The admin-editable send plan: KV "seq-plan" holds an ordered list of
+// {seq, enabled}. Absent or malformed -> the registry order, everything on.
+// Unknown seqs are dropped; registry seqs missing from a saved plan are
+// appended enabled, so a newly added email is never silently lost.
+export interface SeqPlanEntry { seq: number; enabled: boolean }
+export async function getSeqPlan(kv: { get(key: string): Promise<string | null> }): Promise<SeqPlanEntry[]> {
+  const def = MINI.sequence.map((it) => ({ seq: it.seq, enabled: true }));
+  try {
+    const raw = await kv.get("seq-plan");
+    if (!raw) return def;
+    const saved = JSON.parse(raw) as Array<{ seq?: unknown; enabled?: unknown }>;
+    if (!Array.isArray(saved)) return def;
+    const known = new Set(MINI.sequence.map((i) => i.seq));
+    const seen = new Set<number>();
+    const out: SeqPlanEntry[] = [];
+    for (const p of saved) {
+      const n = Number(p && p.seq);
+      if (!known.has(n) || seen.has(n)) continue;
+      seen.add(n);
+      out.push({ seq: n, enabled: p.enabled !== false });
+    }
+    for (const it of MINI.sequence) if (!seen.has(it.seq)) out.push({ seq: it.seq, enabled: true });
+    return out.length ? out : def;
+  } catch {
+    return def;
+  }
+}
+
 // Is this seq number sendable right now? Lessons need a BUILT slug; public
 // treats need only copy. Missing copy always blocks.
 export function seqSendable(seq: number): boolean {
