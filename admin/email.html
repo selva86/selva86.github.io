@@ -38,7 +38,8 @@
   h2.sect{font-size:16px;margin:24px 0 10px}
   h2.sect em{color:var(--mut);font-style:normal;font-weight:400;font-size:12.5px}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
-  td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line);vertical-align:top}
+  td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+  td.num,th.num{word-break:normal;overflow-wrap:normal}
   th{color:var(--mut);font-weight:600;border-top:0;font-size:12px}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .hidden{display:none}
@@ -680,9 +681,12 @@
   function planSetDirty(d){ planDirty = d; var b = document.getElementById('plan-save'); if (b) b.disabled = !d; }
   function loadSeqPlan(){
     fetch('/api/admin/seq-plan', hdrs())
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if (d){ planCustom = !!d.custom; renderSeqPlan(d.plan || []); } })
-      .catch(function(){});
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(d){ planCustom = !!d.custom; renderSeqPlan(d.plan || []); })
+      .catch(function(e){
+        var el = document.getElementById('t-seqplan');
+        if (el) el.innerHTML = '<div style="color:var(--bad)">Could not load the send plan (' + esc(String(e.message || e)) + '). <a href="" onclick="loadSeqPlan();return false">Retry</a></div>';
+      });
   }
   function renderSeqPlan(rows){
     var el = document.getElementById('t-seqplan'); if (!el) return;
@@ -690,15 +694,19 @@
     if (note) note.textContent = planCustom ? 'Custom plan active (stored in KV; the brain reads it every run).' : 'Default plan: registry order, every email on.';
     el.innerHTML = rows.map(function(r){
       var chip = r.kind === 'lesson'
-        ? (r.slug ? '<span class="chip on">lesson: ' + esc(r.slug) + '</span>' : '<span class="chip">lesson not built yet</span>')
-        : '<span class="chip">public page</span>';
+        ? (r.slug ? '<span class="chip on" style="flex:none">lesson: ' + esc(r.slug) + '</span>' : '<span class="chip" style="flex:none">lesson not built yet</span>')
+        : '<span class="chip" style="flex:none">public page</span>';
       return '<div class="plan-row" draggable="true" data-seq="' + r.seq + '" data-kind="' + esc(r.kind) + '"' +
         ' data-slug="' + esc(r.slug || '') + '" data-course="' + esc(r.course || '') + '" data-cl="' + (r.course_lessons || 0) + '"' +
-        ' style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line,#e3e8ef);border-radius:9px;margin:5px 0;background:var(--panel,#fff);' + (r.enabled ? '' : 'opacity:.45;') + '">' +
-        '<span style="cursor:grab;user-select:none;font-size:15px" title="Drag to reorder">&#8801;</span>' +
+        ' style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line,#e3e8ef);border-radius:9px;margin:5px 0;background:var(--card,#fff);cursor:grab;' + (r.enabled ? '' : 'opacity:.45;') + '">' +
+        '<span title="Drag anywhere on the row to reorder" style="user-select:none;color:var(--mut);font-size:16px;letter-spacing:1px">&#8942;&#8942;</span>' +
+        '<span style="display:flex;flex-direction:column;gap:2px">' +
+          '<button type="button" class="btn small plan-up" title="Move up" style="padding:0 7px;line-height:1.3">&#9650;</button>' +
+          '<button type="button" class="btn small plan-down" title="Move down" style="padding:0 7px;line-height:1.3">&#9660;</button>' +
+        '</span>' +
         '<input type="checkbox" class="plan-on"' + (r.enabled ? ' checked' : '') + ' title="On / off">' +
-        '<b style="min-width:26px;text-align:right">#' + r.seq + '</b>' +
-        '<span style="flex:1">' + esc(r.subject) + '</span>' + chip +
+        '<b style="min-width:26px;text-align:right;flex:none">#' + r.seq + '</b>' +
+        '<span style="flex:1;min-width:0;overflow-wrap:anywhere">' + esc(r.subject) + '</span>' + chip +
         '</div>';
     }).join('');
   }
@@ -716,6 +724,14 @@
     });
     wrap.addEventListener('drop', function(e){ e.preventDefault(); if (dragging){ dragging = null; planSetDirty(true); } });
     wrap.addEventListener('dragend', function(){ if (dragging){ dragging = null; planSetDirty(true); } });
+    wrap.addEventListener('click', function(e){
+      var up = e.target.closest('.plan-up'), down = e.target.closest('.plan-down');
+      if (!up && !down) return;
+      var row = e.target.closest('.plan-row');
+      if (up && row.previousElementSibling) wrap.insertBefore(row, row.previousElementSibling);
+      if (down && row.nextElementSibling) wrap.insertBefore(row.nextElementSibling, row);
+      planSetDirty(true);
+    });
     wrap.addEventListener('change', function(e){
       var cb = e.target.closest('.plan-on'); if (!cb) return;
       var row = cb.closest('.plan-row');
