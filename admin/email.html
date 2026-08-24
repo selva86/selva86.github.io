@@ -139,7 +139,7 @@
           <table id="t-states"></table>
         </div>
         <div class="card"><h2>Signups by gate <em>which door they came through</em></h2><table id="t-gates"></table></div>
-        <div class="card"><h2>Today's plan <em>what the brain would send right now, and why</em></h2><table id="t-plan"></table></div>
+        <div class="card"><h2>Today's plan <em>what the brain would send right now, and why - <button class="btn small" id="plan-rerun" style="vertical-align:1px">Refresh plan</button></em></h2><table id="t-plan"></table></div>
       </div>
       <h2 class="sect">Hot leads <em>raise-your-hand signals from signed-in users</em></h2>
       <div class="cols">
@@ -173,7 +173,7 @@
       <h2 class="sect">Send order and switches <em>drag rows to reorder the daily walk; untick an email to skip it - Save applies from the next run</em></h2>
       <div class="card">
         <div id="plan-note" class="trigwhy" style="margin-bottom:8px"></div>
-        <div id="t-plan"></div>
+        <div id="t-seqplan"></div>
         <div style="margin-top:12px">
           <button class="btn" id="plan-save" disabled>Save plan</button>
           <button class="btn small" id="plan-revert">Revert to default order</button>
@@ -636,15 +636,22 @@
   }
 
   function load(){
+    if (document.hidden) return;   // a backgrounded tab stops polling (D1 read diet)
     fetch('/api/admin/email-stats', hdrs())
       .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(d){ gate.classList.add('hidden'); dash.classList.remove('hidden'); render(d); })
       .catch(function(e){ gate.innerHTML = String(e).indexOf('403')>-1 || String(e).indexOf('401')>-1 ? 'This dashboard is restricted.' : 'Failed to load ('+esc(e.message||e)+'). <a href="">Retry</a>'; });
+  }
+  // The brain dry-run walks EVERY user (554 rows and growing) - never on a
+  // timer. Once on open, then only via the Refresh-plan button.
+  function loadPlan2(){
     fetch('/api/admin/email-plan?force_daily=1', hdrs())
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(p){ if (p) renderPlan(p); })
       .catch(function(){});
   }
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) load(); });
+  document.addEventListener('click', function(e){ if (e.target && e.target.id === 'plan-rerun') loadPlan2(); });
 
   var msg = document.getElementById('actmsg');
   function act(label, promise){
@@ -671,14 +678,14 @@
   // ================= send order and switches =================
   var planCustom = false, planDirty = false;
   function planSetDirty(d){ planDirty = d; var b = document.getElementById('plan-save'); if (b) b.disabled = !d; }
-  function loadPlan(){
+  function loadSeqPlan(){
     fetch('/api/admin/seq-plan', hdrs())
       .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if (d){ planCustom = !!d.custom; renderPlan(d.plan || []); } })
+      .then(function(d){ if (d){ planCustom = !!d.custom; renderSeqPlan(d.plan || []); } })
       .catch(function(){});
   }
-  function renderPlan(rows){
-    var el = document.getElementById('t-plan'); if (!el) return;
+  function renderSeqPlan(rows){
+    var el = document.getElementById('t-seqplan'); if (!el) return;
     var note = document.getElementById('plan-note');
     if (note) note.textContent = planCustom ? 'Custom plan active (stored in KV; the brain reads it every run).' : 'Default plan: registry order, every email on.';
     el.innerHTML = rows.map(function(r){
@@ -696,7 +703,7 @@
     }).join('');
   }
   (function(){
-    var wrap = document.getElementById('t-plan'); if (!wrap) return;
+    var wrap = document.getElementById('t-seqplan'); if (!wrap) return;
     var dragging = null;
     wrap.addEventListener('dragstart', function(e){ var row = e.target.closest('.plan-row'); if (row){ dragging = row; e.dataTransfer.effectAllowed = 'move'; } });
     wrap.addEventListener('dragover', function(e){
@@ -731,7 +738,7 @@
       fetch('/api/admin/seq-plan', h)
         .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
         .then(function(x){
-          if (x.ok){ planCustom = true; renderPlan(x.d.plan || []); planSetDirty(false); m.textContent = 'Saved. Applies from the next daily run.'; }
+          if (x.ok){ planCustom = true; renderSeqPlan(x.d.plan || []); planSetDirty(false); m.textContent = 'Saved. Applies from the next daily run.'; }
           else { m.textContent = (x.d && x.d.message) || 'Save failed.'; }
         })
         .catch(function(){ m.textContent = 'Save failed.'; });
@@ -741,7 +748,7 @@
       var h = hdrs(); h.method = 'DELETE';
       fetch('/api/admin/seq-plan', h)
         .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ if (d){ planCustom = false; renderPlan(d.plan || []); planSetDirty(false); document.getElementById('plan-msg').textContent = 'Back to the default plan.'; } });
+        .then(function(d){ if (d){ planCustom = false; renderSeqPlan(d.plan || []); planSetDirty(false); document.getElementById('plan-msg').textContent = 'Back to the default plan.'; } });
     });
   })();
 
@@ -835,9 +842,10 @@
   var keeper = startKeeper();
   (tokenExpiresSoon(tok) ? keeper : Promise.resolve()).then(function(){
     load();
+    loadPlan2();
     loadSeq();
-    loadPlan();
-    setInterval(load, 60000);
+    loadSeqPlan();
+    setInterval(load, 300000);
   });
 })();
 </script>
