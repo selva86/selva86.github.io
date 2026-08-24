@@ -1,11 +1,11 @@
 ---
 title: "ARIMA diagnostics: the two checks before you trust a forecast"
 slug: "ARIMA-Mini-4"
-description: "An ARIMA printout never tells you what the model missed, but its leftovers do. Run the eyeball check and the Ljung-Box test on 180 days of coffee sales."
-keywords: "ARIMA diagnostics, residual diagnostics in R, Ljung-Box test, Box.test fitdf, ACF of residuals, white noise residuals, checking an ARIMA model, forecast residuals"
+description: "A fitted ARIMA can look healthy and still miss the pattern that matters. Run the residual plot and the Ljung-Box test, then repair a model that fails both."
+keywords: "ARIMA diagnostics, Ljung-Box test, residual diagnostics in R, white noise residuals, residual ACF, checking an ARIMA model, forecast residuals, Box.test fitdf"
 mathjax: true
 webr: true
-date: "2026-08-22"
+date: "2026-08-24"
 post_type: "LESSON"
 course_id: "arima-from-zero"
 course_title: "ARIMA from Zero"
@@ -16,637 +16,611 @@ course_prev: "ARIMA-Mini-3"
 course_next: ""
 curriculum_id: "0.0.18"
 lesson_access: "windowed"
-catalog_blurb: "The two checks that tell you whether a fitted forecast model missed something."
+catalog_blurb: "The two checks that tell you whether a fitted model missed something."
 ---
 
 === step === cover
 ::eyebrow ARIMA from Zero
 ## ARIMA diagnostics: the two checks before you trust a forecast
 
-Let's say you run a coffee shop and you have six months of daily cup counts sitting in a spreadsheet. You fit an ARIMA to them, the printout comes back with ordinary looking coefficients, and nothing on the screen suggests a problem.
+Let's say you have just fitted an ARIMA model to eleven years of airline passenger counts, January 1949 through December 1959. The output comes back looking perfectly ordinary. It gives you coefficients, standard errors and an AIC, and it says nothing at all about what the model missed.
 
-Nothing on that screen ever will. A model printout tells you what the model found. It never tells you what the model walked straight past.
+So how would you find out?
 
-So here is a habit worth building. Once the model has made its predictions, put the forecasts aside for a minute and look at what is left over. That is, for each day, take what actually happened and subtract what the model had guessed for that same day.
+You look at what is left over. Take one month, subtract what the model predicted for that month from what actually happened, and keep the difference. Do that for every month and you have a column of leftovers, and that is the only place the model's mistakes ever show up.
 
-If the model really did capture the pattern, those leftovers should look like pure static. No shape, no drift, no rhythm, nothing you could predict.
+The whole idea is this. If the model truly captured the pattern, those leftovers should look like pure static: no shape, no rhythm, nothing you could predict. If there is still a pattern sitting in them, the model missed something, and the forecasts will pay for it.
 
-And if a pattern is still sitting in them, then the model missed something real, and every forecast it makes from here on is going to pay for it.
+The good news is that finding out takes about a minute. There are two checks and you run them in this order.
 
-There are two checks that find this out. One is an eyeball check on a couple of plots, and the other is a formal test called the Ljung-Box test. Between them they take about a minute, and they regularly catch models that looked perfectly fine. Today we run both.
+::widget process-flow {"steps":[{"title":"Take the residuals","sub":"actual minus predicted, one number for every month"},{"title":"Look at them","sub":"a time plot and an autocorrelation plot, read by eye"},{"title":"Test them","sub":"one test pools every lag into a single p-value"}]}
 
-::widget process-flow {"steps":[{"title":"Take the leftovers","sub":"what happened each day, minus what was predicted"},{"title":"Look at them","sub":"once over time, once against their own past"},{"title":"Test them","sub":"one Ljung-Box p-value that pools it all"}]}
-
-I build the shop's numbers by hand, with something hidden inside them on purpose, so that when the checks speak up we can turn around and confirm they were right.
+The first one is an eyeball check and the second is a formal test called Ljung-Box. Between them they catch plenty of models that looked fine, and we are about to run both on a model that looked fine and was not.
 
 === step === concept
-## 180 days of coffee sales, and the ARIMA fitted to them
+## The fitted model, and what its printout leaves out
 
-Let's get the series on the table first, because everything after this is computed from it.
+Let's get the data and the model on the table first, because everything after this is measured against them.
 
-The shop has been open for 180 trading days. Sales climb slowly over those six months, from a bit under 300 cups a day to a bit under 400, with the usual daily wobble on top of that climb. And I am putting one more thing in on purpose, which is a weekly rhythm: Friday runs about 4 cups above a plain weekday, Saturday about 9 and Sunday about 5. That is the thing I want the two checks to find later.
+`AirPassengers` is built into R: monthly totals of international airline passengers, in thousands, from January 1949 to December 1960. We fit on the 132 months up to the end of 1959 and hold 1960 back, unseen, so we can score the forecasts later against months that actually happened.
 
-Press Run.
-
-```r
-# Build the shop's 180 trading days of cups sold and plot them
-set.seed(4)
-dow  <- rep(c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"), length.out = 180)
-bump <- c(Mon = 0, Tue = 0, Wed = 0, Thu = 0, Fri = 4, Sat = 9, Sun = 5)
-cups <- as.numeric(round(280 + cumsum(arima.sim(list(ar = 0.55), n = 180, sd = 3) + 0.7) + bump[dow]))
-
-plot(cups, type = "l", col = "steelblue", lwd = 2,
-     main = "Cups sold at the shop, 180 trading days",
-     xlab = "Trading day", ylab = "Cups sold")
-
-c(day_1 = cups[1], day_180 = cups[180], days = length(cups))
-#>   day_1 day_180    days
-#>     284     391     180
-```
-
-The shop sold 284 cups on day 1 and 391 on day 180, and you can see that climb in the line easily enough. The weekly rhythm is in there too. However, at this scale it is buried in the daily wobble, which is exactly the situation you are usually in with a real series.
-
-Now let's fit a model to it. An ARIMA(1, 1, 1) takes one difference to flatten the climb, uses one autoregressive term and one moving average term, and knows nothing whatsoever about calendars.
+The order is ARIMA(2,1,1), which is two autoregressive terms, one difference, and one moving-average term. Press Run.
 
 ```r
-# Fit an ARIMA(1,1,1) to the cup counts and read what it reports
-fit_plain <- arima(cups, order = c(1, 1, 1))
+# Fit a plain ARIMA(2,1,1) to the 1949 to 1959 passenger counts
+library(forecast)
+
+passengers_train <- window(AirPassengers, end = c(1959, 12))
+passengers_1960  <- window(AirPassengers, start = c(1960, 1))
+
+fit_plain <- Arima(passengers_train, order = c(2, 1, 1))
 fit_plain
-#>
-#> Call:
-#> arima(x = cups, order = c(1, 1, 1))
-#>
+#> Series: passengers_train 
+#> ARIMA(2,1,1) 
+#> 
 #> Coefficients:
-#>           ar1     ma1
-#>       -0.1086  0.5837
-#> s.e.   0.1211  0.0908
-#>
-#> sigma^2 estimated as 19.35:  log likelihood = -519.3,  aic = 1044.6
+#>          ar1      ar2      ma1
+#>       1.0698  -0.4734  -0.8402
+#> s.e.  0.0824   0.0782   0.0461
+#> 
+#> sigma^2 = 758.6:  log likelihood = -619.13
+#> AIC=1246.26   AICc=1246.58   BIC=1257.76
 ```
 
-Read that printout for a second and try to spot the problem in it.
+Read that output and nothing jumps out as wrong. There are three coefficients, each one several times larger than its own standard error, so all three are doing real work. The AIC is 1246.26, and that number only means something when you hold it up against another model.
 
-You cannot. The two coefficients are ordinary sized numbers with ordinary sized standard errors. `sigma^2` is the variance of the model's own errors, and 19.35 is just a number until you have something to compare it against. The AIC is 1044.6, which also means nothing on its own.
-
-So every line here describes what the model fitted. Not one of them describes what the model ignored.
+And that is exactly the problem with it. The output tells you what the model found. It cannot tell you what the model missed, because the model never saw that either.
 
 === step === concept
-## The gap between what happened and what the model guessed
+## What a residual actually is
 
-The proper word for a leftover is **residual**, and it has a precise meaning that is worth getting exactly right.
+A residual is a gap. Take one month, ask the model what it predicts for that month using only the months before it, and subtract that prediction from what actually happened. The number left over is the residual for that month.
 
-So take day 100. The model looks at every day up to day 99, makes its best guess for day 100, and then you find out what actually happened that day. The residual for day 100 is the second number minus the first. It is a one day ahead miss, measured after the fact, on data the model has already seen.
+Because each prediction looks only one month ahead, residuals are also called one-step-ahead forecast errors. There is one for every month the model was fitted on, so 132 of them here.
 
-That is a different thing from a forecast error for next week, which you cannot know yet. And it is a different thing again from an error in a coefficient. It is a miss, in cups, on one particular day.
-
-The `residuals()` function hands you all 180 of them at once. And the easiest way to see what they are is to put them beside the numbers they came from.
+The function `residuals()` hands you all 132. Let's line the first six up beside the real counts and the model's predictions, so you can watch the subtraction happen.
 
 ```r
-# Line up the first six days as what happened, what the model guessed, and the gap
-res_plain    <- residuals(fit_plain)
-fitted_plain <- cups - res_plain
+# Line up the first six months: what happened, what the model said, and the gap
+res_plain <- residuals(fit_plain)
 
-head(data.frame(day       = 1:180,
-                actual    = cups,
-                predicted = round(as.numeric(fitted_plain), 1),
-                leftover  = round(as.numeric(res_plain), 1)))
-#>   day actual predicted leftover
-#> 1   1    284     283.7      0.3
-#> 2   2    286     284.2      1.8
-#> 3   3    288     286.8      1.2
-#> 4   4    289     288.5      0.5
-#> 5   5    298     289.2      8.8
-#> 6   6    306     302.1      3.9
+first_six <- data.frame(
+  month     = c("Jan 1949", "Feb 1949", "Mar 1949", "Apr 1949", "May 1949", "Jun 1949"),
+  actual    = as.numeric(passengers_train)[1:6],
+  predicted = round(as.numeric(fitted(fit_plain))[1:6], 1),
+  residual  = round(as.numeric(res_plain)[1:6], 1)
+)
+first_six
+#>      month actual predicted residual
+#> 1 Jan 1949    112     111.9      0.1
+#> 2 Feb 1949    118     112.8      5.2
+#> 3 Mar 1949    132     120.9     11.1
+#> 4 Apr 1949    129     135.3     -6.3
+#> 5 May 1949    121     124.0     -3.0
+#> 6 Jun 1949    135     116.8     18.2
 ```
 
-Read across row 5. The shop sold 298 cups that day and the model had guessed 289.2, so the model came up 8.8 cups short. That 8.8 is the leftover for day 5.
+Check the last row by hand. In June 1949, 135 thousand passengers flew and the model had called 116.8, so the residual is 135 minus 116.8, which is 18.2 thousand passengers the model did not see coming.
 
-Now notice the second line of the code. The model's prediction for a day is just that day's actual value minus its residual, which is the same equation rearranged. There is nothing else in a residual.
+A positive residual means the month beat the model and a negative one means the month came in under it. That is all the sign means.
 
-[KEY INSIGHT]
-A residual is a one day ahead forecast error that you already know the answer to. So any pattern still living in the residuals is pattern you could have forecast and did not. That one sentence is the reason everything that follows works.
-
-=== step === quiz
-## Quick check: what a leftover actually is
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- The gap between a coefficient the model estimated and its true value. ::no
-- What actually happened on a given day, minus what the model predicted for that same day. ::ok Exactly. It is measured one day at a time, after the fact, on days the model has already seen. Row 5 of the table was 298 minus 289.2, which is 8.8 cups.
-- The gap between the forecast for tomorrow and whatever tomorrow turns out to be. ::no
-- Whatever is left of the series after the differencing step has flattened the climb. ::no A residual is not about coefficients, not about tomorrow, and not about differencing. It is one day's miss: the actual value minus the value the model predicted for that same day, which is why you can compute all 180 of them the moment the model is fitted.
+Everything from here on works on that last column.
 
 === step === concept
-## What pure static looks like, and what trouble looks like
+## White noise: the four traits your leftovers should have
 
-Before we look at the shop's leftovers, it helps to know what we are looking for. There are three shapes worth being able to recognise on sight, so let's draw made up leftovers of each kind and put them one above the other.
+On their own, 132 residuals are just numbers. To judge them you need a standard to compare against, and that standard has a name: white noise.
+
+White noise is a series with no usable pattern in it at all. It has four traits, and every diagnostic you are about to run is really a test for one of them.
+
+1. **Centred on zero.** The errors are not consistently high or consistently low, so the model is not leaning one way.
+2. **Steady spread.** The errors are about as wide in the last year as in the first, not calm early and wild later.
+3. **No correlation from one error to the next.** Knowing this month's error tells you nothing about next month's.
+4. **Roughly bell shaped.** Most errors sit near zero and big ones are rare. This one is a bonus trait: you need it for honest prediction intervals, not for the forecast itself.
+
+The third trait is the one that carries the most weight, and here is why. If today's error helps you predict tomorrow's, then there was information in the data that the model could have used and did not. Leftover correlation is leftover signal.
+
+So let's see what the standard actually looks like. The top panel below is our residuals. The bottom panel is 132 draws from `rnorm()` with the same spread, which are white noise because we built them that way.
 
 ```r
-# Draw three sets of made-up leftovers: flat static, a widening funnel, a weekly rhythm
-set.seed(21)
-demo_funnel <- rnorm(180) * seq(1, 6, length.out = 180)
-demo_flat   <- rnorm(180)
-demo_rhythm <- rnorm(180) + 3 * sin(2 * pi * (1:180) / 7)
+# Put our residuals above 132 draws of genuine random noise
+set.seed(1)
+pure_noise <- rnorm(132, sd = sd(res_plain))
 
-par(mfrow = c(3, 1), mar = c(4, 4, 3, 1))
-plot(demo_flat, type = "h", col = "grey45",
-     main = "Pure static: flat, even, centred on zero",
-     xlab = "Day", ylab = "Leftover")
-abline(h = 0, col = "steelblue", lwd = 2)
-plot(demo_funnel, type = "h", col = "grey45",
-     main = "A widening funnel: the misses grow as time passes",
-     xlab = "Day", ylab = "Leftover")
-abline(h = 0, col = "steelblue", lwd = 2)
-plot(demo_rhythm[1:60], type = "o", pch = 16, col = "grey45",
-     main = "A repeating rhythm: the same shape every seven days",
-     xlab = "Day", ylab = "Leftover")
-abline(h = 0, col = "steelblue", lwd = 2)
+par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
+plot(as.numeric(res_plain), type = "l", col = "steelblue",
+     main = "Our residuals", xlab = "Month", ylab = "Passengers (thousands)")
+abline(h = 0, col = "grey40", lty = 2)
+plot(pure_noise, type = "l", col = "grey35",
+     main = "Genuine white noise, same spread", xlab = "Month", ylab = "Passengers (thousands)")
+abline(h = 0, col = "grey40", lty = 2)
 par(mfrow = c(1, 1))
 ```
 
-The top panel is what you want to see. The bars sit on either side of zero, they are about as tall on the left as they are on the right, and knowing one of them tells you nothing at all about the next one.
+The bottom panel wanders around zero and never settles into anything. The top panel does not behave like that at all. So the job now is to say exactly how it differs, and what to do about it.
 
-The middle panel is a funnel. The misses start small and end large, so the model is far more reliable early on than it is later, and any single number you quote for its accuracy is going to be wrong at both ends.
+=== step === tryit
+## Your turn: are these residuals centred, with a steady spread?
 
-The bottom panel is a rhythm, and it is drawn over the first six weeks only, because across all 180 days the wave packs too tightly to see. Count the peaks and there is one every seven days. If you knew today's leftover you could make a decent guess at the one seven days from now, which means the model left something behind that it could have used.
+Two of the four traits take one line of arithmetic each, so start there.
 
-So those are the three verdicts your eye can hand you: fine, spread growing, or pattern repeating.
-
-=== step === concept
-## The leftovers, plotted day by day
-
-Now let's look at the real ones. It is the same plot, this time with the shop's own 180 misses in it.
+`res_plain` holds the 132 residuals. Get their mean, which answers the first trait, and their standard deviation, which is the usual measure of spread and answers the second.
 
 ```r
-# Plot the shop leftovers day by day and summarise their centre and spread
-plot(as.numeric(res_plain), type = "h", col = "grey45",
-     main = "The 180 leftovers, day by day",
-     xlab = "Trading day", ylab = "Cups (actual minus predicted)")
-abline(h = 0, col = "steelblue", lwd = 2)
-
-round(c(mean = mean(res_plain), sd = sd(res_plain)), 2)
-#> mean   sd
-#> 0.42 4.38
+# res_plain holds the 132 residuals from the fitted model.
+# Trait one: is their mean near zero?
+# Trait two: how wide is their spread?
+# Two lines, one with mean() and one with sd().
+# Press Check when you have them.
+```
+::check {"regex": "sd\\s*[(]\\s*res_plain\\s*[)]", "gate": true, "difficulty": "beginner", "ok": "That is it. A mean of 6.04 sitting next to counts in the hundreds, and a spread of 26.54. Both of those look fine, which is precisely the trouble with them.", "no": "You want two summaries of the same vector. Put `round(mean(res_plain), 2)` on one line and `round(sd(res_plain), 2)` on the next."}
+::solution
+```r
+# Check the first two white-noise traits, one number each
+round(mean(res_plain), 2)
+#> [1] 6.04
+round(sd(res_plain), 2)
+#> [1] 26.54
 ```
 
-This one passes. The bars sit on both sides of the zero line rather than drifting above it or below it, and the band they fill is about as wide at day 170 as it was at day 10. There is no funnel here.
+A mean of 6.04 against monthly counts in the hundreds is close enough to zero, so the first trait passes. The standard deviation is 26.54, and on its own that is neither good news nor bad news, it is simply how wide the errors are.
 
-The two numbers agree with the picture. The average miss is 0.42 cups, and next to a typical miss of 4.38 cups that is close enough to zero to say the model is not running consistently high or low.
+Now notice what those two numbers cannot do. Each one is a single summary of all eleven years at once, and collapsing eleven years into one number throws away the order the months came in.
 
-On this plot, the eye finds nothing at all.
-
-And that is exactly why the second check exists. A weekly rhythm of four or five cups, sitting inside a wobble of four and a half cups, is not something a human eye can pick out of 180 grey bars. So we have to ask the leftovers a sharper question.
+A mean of 6.04 would read the same whether the errors were scattered at random or arranged in a neat repeating wave. One standard deviation cannot tell you the errors were small in 1949 and large in 1959. That is how a bad model gets away with it. It passes the checks that throw time away and fails the ones that keep it.
 
 === step === concept
-## Does today's leftover know anything about last week's?
+## The first check: the residual time plot
 
-Here is that sharper question, and it is the one that does the real work.
+The first check is the simplest thing you can do with a column of numbers. Put them in the order they happened, plot them, and look.
 
-Take the 180 leftovers, shift the whole series along by one day, and see how strongly the shifted copy moves with the original. That number is the **autocorrelation at lag 1**. Then do it again shifted by two days, which gives you lag 2, and so on. Each one is an ordinary correlation, running from minus 1 to plus 1, between the leftovers and their own past.
+Three things are worth looking for, and any one of them is a fail:
 
-If the leftovers really are static, every one of those correlations should sit near zero. Notice that I said near zero and not exactly zero, because with only 180 numbers you pick up a bit of correlation by luck alone. And the width of that luck is known:
+- **Drift.** The residuals sit above zero for a long stretch and below it for another, which means there is a trend in the data that the model never absorbed.
+- **A widening funnel.** The swings are narrow at the start and wide at the end, so the errors are growing along with the series.
+- **A repeating hump.** The same shape comes back at the same interval, which means a cycle the model never learned.
 
-\[ \text{noise band} = \frac{1.96}{\sqrt{n}} \]
-
-With \(n = 180\) that comes to 0.146. So any bar sitting inside 0.146 is indistinguishable from nothing at all. The `acf()` function computes every lag at once and draws that band for you as a pair of dashed lines.
+Here are ours, with a dashed line at zero to read them against. Underneath the plot we measure the spread separately over the first five years and the last five.
 
 ```r
-# Plot the leftovers against their own past and print the width of the noise band
-band <- 1.96 / sqrt(length(res_plain))
-round(band, 3)
-#> [1] 0.146
+# Plot the residuals in time order and measure their spread in two eras
+plot(res_plain, type = "l", col = "steelblue",
+     main = "Residuals from ARIMA(2,1,1), 1949 to 1959",
+     xlab = "Year", ylab = "Passengers (thousands)")
+abline(h = 0, col = "grey40", lty = 2)
 
-acf(res_plain, lag.max = 20,
-    main = "How much each leftover knows about an earlier one")
-
-acf_vals <- acf(res_plain, lag.max = 20, plot = FALSE)$acf[-1]
-round(acf_vals[c(7, 14)], 3)
-#> [1] 0.499 0.454
+r <- as.numeric(res_plain)
+c(first_five_years = round(sd(r[1:60]), 2),
+  last_five_years  = round(sd(r[73:132]), 2))
+#> first_five_years  last_five_years 
+#>            15.32            34.67 
 ```
 
-Ignore the bar at lag 0. That one is every series correlated with itself, so it is always exactly 1 and it carries no information.
+Two of the three are here. The line climbs above zero and drops below it in the same months every year, over and over. There is the repeating hump, a twelve-month cycle the model never learned.
 
-Now look at lag 7. It stands at 0.499, which is more than three times the height of the band. Lag 14 is nearly as tall at 0.454. Between them the bars mostly stay small, and a few dip below the band on the low side.
-
-Read that out loud and it turns into a sentence about the shop. A leftover today moves with the leftover from seven days ago, strongly and week after week. The eye told us these misses were static. They are not static at all. They run on a weekly clock.
+And the swings widen. 15.32 against 34.67 says the errors in the last five years are more than twice as wide as in the first five, and there is the funnel. The airline more than doubled in size over those eleven years and the model's mistakes grew right along with it.
 
 [NOTE]
-`$acf[-1]` drops the lag 0 entry so the numbers you handle line up with the lags you care about, which makes `acf_vals[7]` the value at lag 7. Forgetting that `[-1]` is the single most common way to read the wrong bar.
+The mean of 6.04 was never wrong. It was just averaging a series that runs above zero for part of every year and below it for the rest, and an average cannot see that.
 
 === step === concept
-## The model is wrong the same way every Friday and every Sunday
+## Autocorrelation at lag 12, worked out by hand
 
-A bar at lag 7 tells you there is a seven day clock running. It does not tell you which days it is getting wrong. So to find that out, let's average the leftovers by weekday.
+Your eye says twelve months. Let's get a number for it.
+
+An autocorrelation at lag 12 asks one question: how strongly does the residual series line up with itself when you slide it twelve months? Pair every month with the month a year earlier, and if a big residual in July 1955 tends to sit beside a big residual in July 1956, that number comes out large and positive.
+
+The arithmetic has the same shape as an ordinary correlation, with one twist to it. Both halves of every pair are centred on the mean of the whole series, and the total is divided by the sum of squares of the whole series rather than of the two overlapping pieces. That is how `acf()` in R defines it, and it is why the number it gives is not quite what `cor()` on two sliced vectors would give.
+
+\[ r_{12} = \frac{\sum_{t=13}^{n} (e_t - \bar{e})(e_{t-12} - \bar{e})}{\sum_{t=1}^{n} (e_t - \bar{e})^{2}} \]
+
+Here \(e_t\) is the residual for month \(t\), \(\bar{e}\) is the mean of all 132 of them, and \(n\) is 132. The top line runs over the 120 pairs that survive once you slide the series by twelve. Let's do it in R.
 
 ```r
-# Average the leftover for each day of the week
-weekday <- factor(dow, levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
-round(tapply(as.numeric(res_plain), weekday, mean), 1)
-#>  Mon  Tue  Wed  Thu  Fri  Sat  Sun
-#> -1.3  1.6 -0.4  0.6  4.5  3.8 -5.9
+# Work out the lag-12 autocorrelation of the residuals by hand
+n <- length(r)
+centred <- r - mean(r)
+
+numerator   <- sum(centred[13:n] * centred[1:(n - 12)])
+denominator <- sum(centred^2)
+
+round(numerator / denominator, 3)
+#> [1] 0.781
 ```
 
-There it is, in cups. On an average Friday the model guesses 4.5 cups too low. On an average Saturday it is 3.8 cups too low. And on an average Sunday it swings the other way and guesses 5.9 cups too high.
+0.781. Read it the way you would read any correlation, and it is a strong one: a big miss last July goes with a big miss this July, a small one with a small one, year after year.
 
-That is not bad luck, and it is not a run of odd weekends. It is the same mistake, in the same direction, every single week for six months, because the model was never told that the week exists. It only ever saw a column of numbers in order.
+That is not an error the model could have avoided by being luckier. It is a pattern, sitting in the leftovers, that a better model would have used.
 
-Now, there is something here worth pausing on. I put 4, 9 and 5 extra cups into Friday, Saturday and Sunday when I built the series, and yet the leftovers report 4.5, 3.8 and minus 5.9. Those do not match, and they should not. An ARIMA(1, 1, 1) works on day to day differences, so it partly chases Saturday's jump one day late and then overshoots into Sunday. So the leftovers are not the pattern you hid. They are whatever the model failed to absorb of it.
+=== step === concept
+## The residual ACF and its noise band
+
+Doing that by hand once is worth it. Doing it twenty-four times is not, and `acf()` gives you every lag in one go.
+
+The plot it draws puts one vertical bar at each lag. Lag 1 is the correlation between neighbouring months, lag 12 is the one we just computed, and the plot runs out to lag 24, which is two years back.
+
+The two dashed lines are what turn the picture into a decision. They sit at 1.96 divided by the square root of the number of residuals, which is the range a correlation from genuinely random data would stay inside about 95% of the time. A bar inside the band is noise. A bar outside it is not.
+
+```r
+# Draw the residual ACF and count the bars that break the noise band
+acf(r, lag.max = 24, main = "Residual ACF, ARIMA(2,1,1)")
+
+band <- 1.96 / sqrt(n)
+bars <- acf(r, lag.max = 24, plot = FALSE)$acf[-1]
+
+round(band, 3)
+#> [1] 0.171
+round(bars[c(12, 24)], 3)
+#> [1] 0.781 0.620
+sum(abs(bars) > band)
+#> [1] 6
+```
+
+The band sits at 0.171. The bar at lag 12 reaches 0.781, more than four times the band, and the bar at lag 24 reaches 0.620. Six of the twenty-four bars break the band altogether.
+
+The two tall ones are at twelve months and twenty-four months, which are the seasonal lags for monthly data. The residuals repeat every year, and then repeat again at two years, which is the same yearly cycle turning up a second time.
 
 [KEY INSIGHT]
-Anything you can describe in a sentence like "it is wrong by about 5 cups every Sunday" is forecastable. You could add 5 cups to every Sunday by hand and beat the model. So when a check tells you the leftovers have a rhythm, it is telling you how much money the model is leaving on the table.
+Every bar outside that band is forecastable structure the model left behind. A bar of 0.781 at lag 12 says you could predict most of this month's error from the error twelve months ago, and a model that lets you do that is not finished.
 
 === step === quiz
-## Quick check: reading a bar that breaks the band
+## Quick check: what the bar at lag 12 is telling you
 
-The shop's leftovers gave an autocorrelation of 0.499 at lag 7, against a band of 0.146. What does that bar tell you?
+The bar at lag 12 came out at 0.781 with the band at 0.171. What does that tall bar actually say?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- Not much on its own. Draw twenty bars and one or two will always poke out by chance. ::no
-- Leftovers seven days apart still move together, so the model repeats the same miss on the same weekday and could have predicted it. ::ok That is it. A bar this far outside the band is not luck, it is structure, and structure in the leftovers is structure the model could have used.
-- That the sales series has a weekly pattern in it, which is normal for a shop and not a problem. ::no
-- That the forecasts run too high, because the bar is on the positive side. ::no The band at 0.146 is drawn exactly where pure luck lives for 180 observations, and 0.499 is more than three times that, so chance is not a serious explanation. The sign of the bar says nothing about running high or low either. What the bar reports is that the leftovers can still be predicted from their own past, and a weekly pattern in the sales is only a problem when the model failed to absorb it, which is precisely what these leftovers are telling you.
-
-=== step === tryit
-## Your turn: count the bars that break the band
-
-Two of those bars were obviously tall. Now let's put a number on the whole picture instead of trusting an impression.
-
-Work over the first 14 lags, which is two full weeks. Compute the band yourself, pull the autocorrelations out of `acf()` with `plot = FALSE`, drop the lag 0 entry, and count how many of them sit further from zero than the band in either direction.
-
-```r
-# res_plain holds the 180 leftovers of the model that was never told about the week
-ex_band <- 1.96 / sqrt(length(res_plain))
-# Now get the first 14 autocorrelations with acf(res_plain, lag.max = 14, plot = FALSE)$acf[-1]
-# and count how many are further from zero than ex_band.
-# Two lines. Press Check when you have them.
-```
-::check {"regex": "sum\\s*[(]\\s*abs\\s*[(].+[)]\\s*>\\s*(ex_)?band", "gate": true, "difficulty": "beginner", "ok": "Five of the first fourteen, at lags 5, 7, 9, 12 and 14. The two tall ones are 7 and 14, one week apart and two weeks apart, which is the signature of a rhythm the model never learned.", "no": "Store the autocorrelations first, then count them: `ex_acf <- acf(res_plain, lag.max = 14, plot = FALSE)$acf[-1]`, then `sum(abs(ex_acf) > ex_band)`."}
-::solution
-```r
-# Count how many of the first 14 autocorrelations sit outside the noise band
-ex_band <- 1.96 / sqrt(length(res_plain))
-ex_acf  <- acf(res_plain, lag.max = 14, plot = FALSE)$acf[-1]
-
-sum(abs(ex_acf) > ex_band)
-#> [1] 5
-which(abs(ex_acf) > ex_band)
-#> [1]  5  7  9 12 14
-```
-
-Five out of the fourteen break the band. If these leftovers were pure static you would expect about one of them to, because the band is drawn to let 5% through by design.
+- That the passenger counts have a yearly season, which was obvious from the raw series before any model was fitted. ::no
+- That the model left a yearly rhythm behind in its errors, so there was a pattern available that it did not use. ::ok Exactly. The season was always in the data. What matters is that it is still in the leftovers after the model has had its turn, which means the model never used it.
+- That the residuals are too large on average, so the model is leaning upward. ::no
+- That twelve is the number of differences to apply next. ::no The ACF here is drawn on the residuals, not on the passenger counts. The raw series is seasonal and always was, so that on its own is not news, and a tall bar says nothing about the average size of the errors or about how much differencing to do. What it says is that the season survived the model and is still sitting in the errors.
 
 === step === concept
-## The Ljung-Box test turns fourteen bars into one number
+## The second check: the Ljung-Box test
 
-Counting bars by hand is fine when you have one model. It stops being fine the moment you are comparing four candidate models, or fitting one model per store per week. And it always leaves you arguing about whether a bar that just grazes the line should count.
+Reading twenty-four bars and deciding how many are too many is a judgement call, and you would have to make it fresh for every model you fit. The second check replaces the whole thing with one number.
 
-So there is a test that asks the whole question at once: taken together, are these autocorrelations all close enough to zero to be luck? It squares each one, weights it, and adds them up into a single number written \(Q^*\).
+The Ljung-Box test asks a single pooled question: taken together, are the first few autocorrelations close enough to zero to be chance? It is called a portmanteau test, because it packs many lags into one statistic.
 
-\[ Q^* = n(n+2) \sum_{k=1}^{h} \frac{\hat{\rho}_k^{2}}{n-k} \]
+Like any test it starts from a null hypothesis, and this is the part that catches people out. The null here is that the residuals ARE white noise. So a small p-value rejects white noise and hands you the bad news. A large one means the test found nothing wrong, and that is the outcome you want.
 
-Every symbol in there is something you already have. \(n\) is the number of leftovers, which is 180 here. \(h\) is how many lags you pool, and \(\hat{\rho}_k\) is the autocorrelation at lag \(k\), which is the exact set of numbers you just counted. The squaring is what makes the sign stop mattering, so a bar at minus 0.28 pushes the total up just as hard as one at plus 0.28.
+That runs backwards to most tests you have used, where a small p-value is the result you wanted. Here you are hoping to fail to reject.
 
-There are two decisions to make before you run it.
-
-1. **How many lags to pool.** A common convention is 10 lags for a series with no season in it, and twice the length of the season when there is one. We are hunting a seven day rhythm, so 14 covers two full turns of it.
-2. **How many coefficients you fitted.** That is the `fitdf` argument, and it matters far more than a small argument like that looks. Our model fitted two, one AR term and one MA term.
+Besides the residuals themselves, the call takes three settings. `lag` says how many lags to pool, and for monthly data the usual choice is twice the seasonal period, so 24. `type` picks the version of the statistic. `fitdf` is how many terms the model estimated from this same data, three here. Why the test needs that number, and why it is three, is the next thing we work out.
 
 ```r
-# Pool the first 14 autocorrelations into one Ljung-Box verdict
-lb_plain <- Box.test(res_plain, lag = 14, type = "Ljung-Box", fitdf = 2)
-lb_plain
-#>
+# Pool the first 24 residual autocorrelations into one test
+Box.test(res_plain, lag = 24, type = "Ljung-Box", fitdf = 3)
+#> 
 #> 	Box-Ljung test
-#>
+#> 
 #> data:  res_plain
-#> X-squared = 139, df = 12, p-value < 2.2e-16
+#> X-squared = 200.44, df = 21, p-value < 2.2e-16
 ```
 
-`Box.test()` prints the statistic under the label `X-squared`. That is the same \(Q^*\) the formula defines, just labelled the way R labels every statistic it compares against a chi-squared distribution.
-
-So the fourteen bars have collapsed into one number, 139, and a p-value so small that R gives up reporting it precisely and prints it as below 2.2e-16.
-
-That p-value is the verdict, and reading it the right way round is the part that trips almost everybody up.
-
-=== step === concept
-## Why the test has to know how many coefficients you fitted
-
-The `fitdf = 2` in that call is small and easy to forget, and forgetting it changes the answer.
-
-Here is why it exists. You did not know the right model in advance. You estimated `ar1` and `ma1` from this very data, and the fitting process picked the values that make the leftovers look as uncorrelated as it could manage. So the leftovers were already tuned, a little, in the direction of passing this very test. And if the test judged them as though nothing had been estimated, it would be marking its own homework.
-
-The fix is to spend some degrees of freedom on it. The test judges \(Q^*\) against a chi-squared distribution, and the shape of that distribution is set by its degrees of freedom, which is the number of lags minus the number of terms you fitted.
-
-For `fitdf` you count the AR and MA terms, which are the first and the last number in `ARIMA(1, 1, 1)`, and the seasonal ones too when there are any. You never count a mean, a drift or an intercept, because those are not autoregressive or moving average terms.
-
-Our model has one AR term and one MA term, so `fitdf = 2`, and the degrees of freedom become 14 minus 2, which is 12. Let's run it both ways and put the two 5% cutoffs beside them.
-
-```r
-# Run the same test with and without the two fitted coefficients declared
-Box.test(res_plain, lag = 14, type = "Ljung-Box", fitdf = 2)
-#>
-#> 	Box-Ljung test
-#>
-#> data:  res_plain
-#> X-squared = 139, df = 12, p-value < 2.2e-16
-Box.test(res_plain, lag = 14, type = "Ljung-Box", fitdf = 0)
-#>
-#> 	Box-Ljung test
-#>
-#> data:  res_plain
-#> X-squared = 139, df = 14, p-value < 2.2e-16
-
-round(c(cutoff_at_df_12 = qchisq(0.95, df = 12),
-        cutoff_at_df_14 = qchisq(0.95, df = 14)), 2)
-#> cutoff_at_df_12 cutoff_at_df_14
-#>           21.03           23.68
-```
-
-The statistic itself does not budge. It is 139 in both calls, because `fitdf` plays no part in computing it.
-
-What moves is the bar it has to clear. At 12 degrees of freedom a statistic has to reach 21.03 before the test calls it surprising at the 5% level. At 14 that bar sits higher, at 23.68. So declaring your two coefficients lowers the bar, and a lower bar makes the test harder to pass.
-
-[WARNING]
-Leave `fitdf` at its default of 0 and the test always flatters your model. It can never make a good model look bad, only make a bad model look acceptable, which is the worse direction for a mistake to run in. Here it changes nothing, because 139 clears both bars easily, but on a borderline model it decides the verdict.
-
-=== step === concept
-## Why a small p-value is the bad news here
-
-Every hypothesis test starts by assuming something boring, and then asks how strange your data would look inside that assumption. The boring assumption here is called the **null hypothesis**, and for Ljung-Box it says this:
-
-> The leftovers have no autocorrelation at all, out to the lag you tested.
-
-That is white noise. And that is the thing you are hoping is true.
-
-So the direction you read this in is flipped, compared with most tests you meet. A large p-value means the data sits comfortably inside the boring story, so nothing was found and the model survives. A small p-value means the data would be strange inside the boring story, so the boring story gets rejected, and here that means pattern remains.
-
-A small p-value is bad news. Say that one twice, because it is the opposite of the habit most people bring to a p-value.
-
-A picture makes it concrete. The curve below is what \(Q^*\) does when the leftovers really are static and 12 degrees of freedom are in play. It usually lands somewhere near 12, which is just its degrees of freedom over again, and only 5% of the time does it get past 21.03, which is the shaded slice on the right.
-
-```r
-# Draw the curve the pooled statistic is compared against, with the 5 percent tail shaded
-cutoff <- qchisq(0.95, df = 12)
-
-curve(dchisq(x, df = 12), from = 0, to = 40, lwd = 2, col = "steelblue",
-      main = "What the statistic does when nothing is left over (12 degrees of freedom)",
-      xlab = "Value of the pooled statistic", ylab = "How often that value turns up")
-tail_x <- seq(cutoff, 40, length.out = 200)
-polygon(c(cutoff, tail_x, 40), c(0, dchisq(tail_x, df = 12), 0),
-        col = "#e8a33d", border = NA)
-abline(v = cutoff, lwd = 2, lty = 2)
-text(cutoff, 0.035, paste0(" 5 percent cutoff = ", round(cutoff, 2)), pos = 4)
-arrows(x0 = 30, y0 = 0.065, x1 = 39.5, y1 = 0.065, length = 0.12, lwd = 2)
-text(30, 0.065, "our statistic lands out here ", pos = 2)
-
-round(c(cutoff = cutoff, our_statistic = as.numeric(lb_plain$statistic)), 2)
-#>        cutoff our_statistic
-#>         21.03        139.00
-```
-
-The chart runs to 40 and our statistic is 139, which is why it needed an arrow instead of a line. It sits three and a half times past the right hand edge of the picture. And how often a number that far out turns up by chance is exactly what the p-value below 2.2e-16 is reporting.
-
-So this verdict is not a close one. The model has failed, and it failed on the one thing an ARIMA exists to do, which is to leave nothing forecastable behind.
-
-=== step === concept
-## Giving the model the week it was missing
-
-A failed check is a lot more useful than a passed one, because it names its own repair. The bar was at lag 7 and the weekday table pointed straight at Friday and Sunday, so the missing piece is a seven day season.
-
-You add one with the `seasonal` argument. Writing `order = c(0, 1, 1)` with `period = 7` means two things in plain words: compare each day with the same weekday a week earlier, which is the 1 in the middle, and let the model carry one seasonal moving average term, which is the 1 on the right.
-
-That is one extra fitted term, so `fitdf` goes from 2 to 3.
-
-```r
-# Refit with a weekly term, then run both checks on the new leftovers
-fit_week <- arima(cups, order = c(1, 1, 1),
-                  seasonal = list(order = c(0, 1, 1), period = 7))
-res_week <- residuals(fit_week)
-
-acf(res_week, lag.max = 20,
-    main = "The same picture once the model is told about the week")
-
-Box.test(res_week, lag = 14, type = "Ljung-Box", fitdf = 3)
-#>
-#> 	Box-Ljung test
-#>
-#> data:  res_week
-#> X-squared = 9.8569, df = 11, p-value = 0.5433
-```
-
-Now compare that plot with the one we had before. The towers at 7 and 14 are gone, and every single bar sits inside the dashed band. The eye is satisfied.
-
-And the test agrees with it. The pooled statistic dropped from 139 to 9.86, which is an unremarkable value to see on 11 degrees of freedom, and the p-value came back at 0.5433. Nothing was found. Both checks pass.
+The p-value comes back below 2.2e-16, which is R's way of printing a number too small to write out. There is no judgement call left to make. If these residuals really were white noise, a statistic this large would essentially never turn up.
 
 [NOTE]
-Passing means only that these leftovers carry no rhythm the test could find out to 14 lags. It is not a certificate that the model is right, and the sentence it earns you is "there is nothing more this check can tell me", not "ship it and stop looking".
+`type = "Ljung-Box"` matters. The default in `Box.test()` is the older Box-Pierce statistic, which is the same idea with weaker behaviour on short series. Ljung-Box is the one to ask for.
 
-=== step === tryit
-## Your turn: run the test without the adjustment
+=== step === concept
+## What Q* adds up, and how it turns into a p-value
 
-Now let's find out what a forgotten `fitdf` would have cost on a model whose verdict is not obvious.
+One number just stood in for twenty-four, so let's open it up and see what went in.
 
-`res_week` holds the repaired leftovers, and they just passed at p = 0.5433 with `fitdf = 3`. Run the very same test on them at `lag = 14`, but set `fitdf = 0`, which is what you get if you leave the argument out entirely. Then compare the two df values and the two p-values.
+The statistic is called Q*, and `Box.test()` prints it under the label X-squared. It squares each of the first h autocorrelations, weights the ones at longer lags a little more heavily, and adds them up.
+
+\[ Q^{*} = n(n+2) \sum_{k=1}^{h} \frac{r_{k}^{2}}{n-k} \]
+
+Here \(n\) is the number of residuals, \(h\) is how many lags you pool, and \(r_k\) is the residual autocorrelation at lag \(k\). Squaring is what stops a negative correlation cancelling a positive one, so every departure from zero counts, whichever way it points.
+
+That total is then compared against a chi-squared distribution, which is the shape a sum of squared quantities takes when nothing is going on. The degrees of freedom are not h, though. You did not know the true model, you estimated it, and each estimated term uses up a little of the data's freedom to wiggle, so the count is h minus the number of terms the model estimated.
+
+Our ARIMA(2,1,1) estimated three of them: two autoregressive terms and one moving-average term. The differencing does not count, because nothing was estimated for it. That is the 3 in `fitdf = 3`, and 24 minus 3 is the df of 21 the output showed.
 
 ```r
-# res_week holds the leftovers of the model that was given the week
-# Run the same Ljung-Box test on res_week at lag = 14, this time with fitdf = 0.
+# Rebuild the Ljung-Box statistic and its p-value from the autocorrelations
+lags  <- 1:24
+Qstar <- n * (n + 2) * sum(bars[lags]^2 / (n - lags))
+round(Qstar, 2)
+#> [1] 200.44
+
+degrees <- 24 - 3
+pchisq(Qstar, df = degrees, lower.tail = FALSE)
+#> [1] 2.961794e-31
+```
+
+There it is, 200.44, the same statistic the test reported, built out of nothing but the twenty-four bars you already had. Then `pchisq()` with `lower.tail = FALSE` gives the area to the right of it, which is the p-value.
+
+That is the exact number the test reported as smaller than 2.2e-16: a decimal point followed by thirty zeros before the digits start. If the residuals had no pattern left in them, a Q* this large would be that rare.
+
+=== step === tryit
+## Your turn: run the test at 12 lags instead of 24
+
+The lag you test at is a real decision, not a formality. Pool too few lags and a seasonal spike further out never enters the sum. Pool too many and one genuine signal gets watered down by a crowd of empty lags.
+
+Ours had big bars at both lag 12 and lag 24, so pooling 24 caught the pair of them. Run the same test over 12 lags instead and see whether the verdict moves. The model estimated three terms either way.
+
+```r
+# res_plain holds the residuals from the ARIMA(2,1,1) model.
+# Run the same Ljung-Box test, but pool 12 lags instead of 24.
+# The model still estimated three terms.
 # One line. Press Check when you have it.
 ```
-::check {"regex": "fitdf\\s*=\\s*0", "gate": true, "difficulty": "intermediate", "ok": "There it is. The statistic does not move at all, 9.86 either way. Only the yardstick moves: 11 degrees of freedom becomes 14, and the p-value climbs from 0.5433 to 0.7726. Forgetting fitdf never makes a model look worse than it is, only better.", "no": "One line, the same `Box.test()` call on `res_week` with `lag = 14` and the Ljung-Box type, adding `fitdf = 0` to it."}
+::check {"regex": "Box[.]test[\\s\\S]*lag\\s*=\\s*12", "gate": true, "difficulty": "beginner", "ok": "Right. Q* falls to 118.08 on 9 degrees of freedom, and the p-value is still under 2.2e-16. Halving the lags changed the arithmetic and changed nothing about the answer.", "no": "Take the call you just ran and move one argument: `Box.test(res_plain, lag = 12, type = \"Ljung-Box\", fitdf = 3)`."}
 ::solution
 ```r
-# Run the same test on the repaired leftovers without declaring the fitted coefficients
-Box.test(res_week, lag = 14, type = "Ljung-Box", fitdf = 0)
-#>
+# Run the same test over 12 lags instead of 24
+Box.test(res_plain, lag = 12, type = "Ljung-Box", fitdf = 3)
+#> 
 #> 	Box-Ljung test
-#>
-#> data:  res_week
-#> X-squared = 9.8569, df = 14, p-value = 0.7726
+#> 
+#> data:  res_plain
+#> X-squared = 118.08, df = 9, p-value < 2.2e-16
 ```
 
-It is the same 9.86, and the p-value goes from 0.5433 to 0.7726. On this model the verdict survives either way. But on a model sitting at 0.04 with the adjustment in place, that same slip lifts it over 0.05, and you ship something you should have fixed.
+Q* drops from 200.44 to 118.08, which makes sense, because twelve fewer squared correlations are going into the sum. The degrees of freedom drop with it, from 21 to 9, since 12 minus the three estimated terms is 9.
 
-=== step === concept
-## What the missing week was costing every day-ahead forecast
+The verdict does not move an inch. When a model misses something as loud as a whole season, you do not have to pick the lag carefully to catch it. Where the choice starts to matter is on borderline models, and the safe habit for monthly data is twice the seasonal period, so that the twelve-month and twenty-four-month bars are both in the pool.
 
-A failed diagnostic can feel like a formality until somebody puts a price on it. So let's put a price on this one, in cups, for the shop.
+=== step === widget
+## What leftover autocorrelation costs a forecast
 
-There are two numbers worth comparing between the model that knew about the week and the model that did not. The first is the typical size of a one day ahead miss. The second is the width of the 95% interval the model quotes around tomorrow's forecast.
+Our model fails both checks. Before we repair it, look at what failing costs you, because it is not what most people expect.
+
+Drag the dial below. At every setting it fits a straight trend line to sixty points, a couple of thousand times over, and the setting is how strongly each error is correlated with the one before it. Watch the two lines as you move it.
+
+::widget assumption-dial {"assumption": "autocorrelation"}
+
+The line marked interval coverage is the share of all those studies whose 95% interval really did contain the true slope. It is supposed to sit at 95%, and as you push the dial to the right it falls away. The other line is R-squared, the fit statistic you would quote, and it holds up. If anything it climbs, because errors that move together in a smooth wave are easier to fit than errors that jump about.
+
+That combination is the trap. The number you would look at to judge the model goes up while the number that says how far to trust it goes down.
+
+Our own model does exactly this. Here is what it forecast for July 1960, with its 95% interval, next to the month that actually happened.
 
 ```r
-# Compare the two models on a typical day-ahead miss and on the width of a forecast interval
-miss_plain <- mean(abs(res_plain))
-miss_week  <- mean(abs(res_week))
-se_plain   <- as.numeric(predict(fit_plain, n.ahead = 1)$se)
-se_week    <- as.numeric(predict(fit_week,  n.ahead = 1)$se)
+# Ask the failing model for its July 1960 forecast and its 95% interval
+fc_plain <- forecast(fit_plain, h = 12)
 
-round(c(typical_miss_without_week = miss_plain,
-        typical_miss_with_week    = miss_week,
-        interval_width_without    = 2 * 1.96 * se_plain,
-        interval_width_with       = 2 * 1.96 * se_week), 1)
-#> typical_miss_without_week    typical_miss_with_week    interval_width_without
-#>                       3.6                       2.2                      17.2
-#>       interval_width_with
-#>                      11.3
+c(forecast = round(as.numeric(fc_plain$mean)[7], 1),
+  lo95     = round(as.numeric(fc_plain$lower[7, 2]), 1),
+  hi95     = round(as.numeric(fc_plain$upper[7, 2]), 1),
+  actual   = as.numeric(passengers_1960)[7])
+#> forecast     lo95     hi95   actual 
+#>    430.6    319.8    541.5    622.0 
 ```
 
-The average day ahead miss falls from 3.6 cups to 2.2, so roughly four in every ten cups of error were the missing week and nothing else. The interval narrows from 17.2 cups wide to 11.3. It is the same data, the same six months and the same shop. The only thing that changed was telling the model that Saturday exists.
-
-And that is the general shape of it. Leftover rhythm is forecastable signal, so it shows up twice: once as bigger misses, and once as intervals that have to be wider to cover a model that keeps being wrong in a way it could have avoided.
-
-The dial below runs the same disease in a setting where the damage is easy to measure exactly. It fits a straight trend line thousands of times over, and each time it checks whether the 95% interval it quoted actually contained the truth. Drag the severity up and each error becomes more tied to the one before it. That is autocorrelation, the same thing the bar at lag 7 was reporting.
-
-::widget assumption-dial {"assumption": "autocorrelation", "start": 0}
-
-Watch the two readouts move in opposite directions. Coverage falls away from the 95% it promised, while the fit statistic holds still or even improves. That is the whole trap in one picture: correlated errors make a model look better on the summary line and leave its uncertainty statement badly wrong.
+The model put July 1960 between 319.8 and 541.5 thousand passengers, and it attached 95% confidence to that range. July came in at 622. The month is not near the edge of the interval, it is more than 80 thousand passengers clear of the top of it.
 
 === step === concept
-## A funnel sails straight through the Ljung-Box test
+## The repair, and the same two checks again
 
-There is one more thing you need before you can lean on any of this, and it is the reason the eyeball check keeps its place.
+A failing diagnostic is not a dead end. It is a to-do list, because each thing the time plot showed points straight at its own fix.
 
-Ljung-Box only ever looks for one fault. It pools autocorrelations, so it answers the question "is there a rhythm here?" and no other question at all. Hand it leftovers whose spread grows steadily and it has nothing to say about them, because a growing spread does not produce autocorrelation.
+The twelve-month hump asks for a seasonal term. The model has a moving-average term that reaches back one month. What it needs is one that also reaches back a whole year, so that a July error can inform the following July. In R that is the `seasonal` argument, and `seasonal = c(0, 1, 1)` adds a seasonal difference and a seasonal moving-average term at the twelve-month period.
 
-Let's take the funnel from earlier and put it through the test.
+The widening swings ask for a log. Taking logs turns growth that multiplies into growth that adds: if the errors are roughly a fixed percentage of the level, then on the log scale they are roughly a fixed size, which is the steady spread we want. `lambda = 0` is how `Arima()` asks for a log, and it puts the forecasts back on the passenger scale for you afterwards.
+
+Let's make both changes at once, then run both checks again on the new residuals.
 
 ```r
-# Plot the widening leftovers and ask Ljung-Box for a verdict on them
-plot(demo_funnel, type = "h", col = "grey45",
-     main = "Leftovers whose spread keeps growing",
-     xlab = "Day", ylab = "Leftover")
-abline(h = 0, col = "steelblue", lwd = 2)
+# Refit with a seasonal term and a log, then run both checks again
+fit_season <- Arima(passengers_train, order = c(0, 1, 1),
+                    seasonal = c(0, 1, 1), lambda = 0)
+res_season <- residuals(fit_season)
 
-round(c(sd_first_30 = sd(demo_funnel[1:30]), sd_last_30 = sd(demo_funnel[151:180])), 2)
-#> sd_first_30  sd_last_30
-#>        1.37        5.52
+acf(as.numeric(res_season), lag.max = 24, main = "Residual ACF, seasonal model")
 
-Box.test(demo_funnel, lag = 14, type = "Ljung-Box")
-#>
+new_bars <- acf(as.numeric(res_season), lag.max = 24, plot = FALSE)$acf[-1]
+round(new_bars[c(12, 23)], 3)
+#> [1] -0.042  0.193
+sum(abs(new_bars) > band)
+#> [1] 1
+
+Box.test(res_season, lag = 24, type = "Ljung-Box", fitdf = 2)
+#> 
 #> 	Box-Ljung test
-#>
-#> data:  demo_funnel
-#> X-squared = 15.285, df = 14, p-value = 0.359
+#> 
+#> data:  res_season
+#> X-squared = 21.011, df = 22, p-value = 0.5201
 ```
 
-The misses in the last month are four times as wide as the misses in the first month, 5.52 against 1.37, and you can see that in the plot without measuring anything. The test hands back p = 0.359 and finds nothing wrong.
+Lag 12 has gone from 0.781 to -0.042, which is well inside the band of 0.171. Six bars used to break the band. Now one does, at lag 23, and it barely gets out at 0.193. A band drawn to hold 95% of pure noise lets about one bar in twenty escape by chance, so one out of twenty-four is nothing to chase.
 
-Both of those readings are correct. There genuinely is no rhythm in that series, and a rhythm is all the test was ever asked about. It is simply blind to the fault that is actually there.
+Notice that `fitdf` is 2 now, not 3. This model estimates two terms, one moving-average and one seasonal moving-average. The two differences are not estimated from the data at all, so they never count, and neither does the log, because we chose it rather than fitted it.
 
-A funnel is worth catching because it breaks your intervals rather than your forecasts. Quote one interval width for a model like this and it is too wide early on and far too narrow later, exactly when the stakes are highest. The usual repairs are modelling the logarithm of the series instead of the series itself, or fitting a model that lets the variance change over time.
+And the p-value is 0.5201. If these residuals were white noise, a statistic this big or bigger would show up in about half of all fits, which is as ordinary as a result gets. Both checks pass.
+
+=== step === concept
+## 1960, forecast against fact
+
+A passing check is a promise about the future, not a measurement of it. That is why we held 1960 back, so we could take the measurement.
+
+Neither model has seen a single month of 1960. Here is what each of them said, drawn against what actually happened, with the average size of the miss printed underneath.
+
+```r
+# Score both models against the twelve months of 1960 they never saw
+fc_season <- forecast(fit_season, h = 12)
+actual_1960 <- as.numeric(passengers_1960)
+
+plot(actual_1960, type = "b", pch = 16, ylim = c(370, 660),
+     main = "1960, forecast against fact",
+     xlab = "Month of 1960", ylab = "Passengers (thousands)")
+lines(as.numeric(fc_plain$mean), type = "b", pch = 1, col = "firebrick")
+lines(as.numeric(fc_season$mean), type = "b", pch = 1, col = "steelblue")
+legend("topleft", bty = "n", lty = 1, pch = c(16, 1, 1),
+       col = c("black", "firebrick", "steelblue"),
+       legend = c("What happened", "Failing model", "Repaired model"))
+
+c(plain    = round(mean(abs(actual_1960 - as.numeric(fc_plain$mean))), 1),
+  seasonal = round(mean(abs(actual_1960 - as.numeric(fc_season$mean))), 1))
+#>    plain seasonal 
+#>     65.2     13.3 
+```
+
+The failing model is the flat one. It sits between 430 and 451 thousand passengers for all twelve months, because a model with no seasonal term has no way of knowing that July is different from February. The repaired model rises and falls with the real year.
+
+July is where it hurts. The failing model called 430.6 against an actual 622, so it was 191 thousand passengers short in a single month. The repaired model called 622.2 and missed by 0.2.
+
+Across all twelve months, the average miss is 65.2 thousand passengers against 13.3. That gap is what the two checks were pointing at the whole time. The ACF said a year-long rhythm had been left behind, and this is the bill for it.
+
+=== step === concept
+## How to run both checks in one line
+
+We did all of that in pieces so you could see what each piece does. In daily use there is one function that does the lot.
+
+`checkresiduals()` draws the time plot, the ACF and a histogram of the residuals in a single figure, and prints the Ljung-Box test underneath. It reads the lag and the degrees of freedom off the model itself, so you do not have to remember either.
+
+That last part is easy to take on trust, so let's test it. The second call below is the same test with the subtraction skipped, `fitdf = 0`, as though nothing had been estimated.
+
+```r
+# Run both checks in one call, then see what a wrong fitdf does to the p-value
+checkresiduals(fit_season)
+#> 
+#> 	Ljung-Box test
+#> 
+#> data:  Residuals from ARIMA(0,1,1)(0,1,1)[12]
+#> Q* = 21.011, df = 22, p-value = 0.5201
+#> 
+#> Model df: 2.   Total lags used: 24
+
+Box.test(res_season, lag = 24, type = "Ljung-Box", fitdf = 0)
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  res_season
+#> X-squared = 21.011, df = 24, p-value = 0.6381
+```
+
+The first result is exactly what we worked out by hand: Q* of 21.011 on 22 degrees of freedom and a p-value of 0.5201. The two extra lines spell out the choices it made for you, `Model df: 2` being the `fitdf` and `Total lags used: 24` being the lag. One cosmetic difference: `checkresiduals()` calls the statistic Q* while `Box.test()` calls the same number X-squared.
+
+In the second result the statistic has not moved, because the statistic never depended on the degrees of freedom. Only the yardstick moved, to 24, and the p-value drifted from 0.5201 to 0.6381.
+
+Here the model passes either way, so it looks harmless. It is not. Forgetting `fitdf` always makes the test more lenient, so the model it eventually lets through is the borderline one that should have gone back for work.
+
+[TIP]
+Let `checkresiduals()` pick the lag and the degrees of freedom, and reach for `Box.test()` only when you want to override them. The wrapper already knows your model's order and its seasonal period, which removes the most common way people end up quoting a wrong p-value.
+
+=== step === concept
+## What a passing p-value does not prove
+
+The repaired model passed. Now be precise about what that buys you.
+
+The Ljung-Box test looks for one thing: correlation between the errors at different lags. That is all it looks for. Anything else wrong with your residuals is invisible to it.
+
+Here is a series built to make the point. Every value is an independent draw from `rnorm()`, so no value has any connection to the one before it. The only thing that changes is the spread, which climbs steadily from 4 at the start to 20 at the end.
+
+```r
+# Build a series with no correlation at all but a spread that keeps climbing
+set.seed(1)
+funnel_demo <- rnorm(132, sd = seq(4, 20, length.out = 132))
+
+plot(funnel_demo, type = "l", col = "steelblue",
+     main = "Independent draws with a growing spread",
+     xlab = "Month", ylab = "Value")
+abline(h = 0, col = "grey40", lty = 2)
+
+Box.test(funnel_demo, lag = 24, type = "Ljung-Box")
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  funnel_demo
+#> X-squared = 24.741, df = 24, p-value = 0.42
+```
+
+A p-value of 0.42. The test finds nothing wrong, and it is right not to, because there genuinely is no autocorrelation here, and autocorrelation is the only thing it was ever asked about.
+
+Now look at the plot. The funnel is plain to see: quiet at the left, wild at the right. Residuals shaped like that will not break the point forecast, but they will wreck the prediction intervals, because one spread is being quoted for a series whose spread keeps changing.
 
 [WARNING]
-A large Ljung-Box p-value licenses one sentence and one only: no leftover rhythm was found out to the lag tested. It says nothing about growing spread, nothing about a wrong shape, and nothing about whether the model is right. Run your eyes over the plot every time.
+A large Ljung-Box p-value means the model left no correlation behind. It does not mean the model is right, and it says nothing at all about a spread that changes over time, which is why the time plot is never the check you skip.
 
 === step === quiz
-## Quick check: the ACF is clean but the spread keeps growing
+## Practice: which of these models would you ship?
 
-Let's say you fit a model to two years of daily orders. Every bar of the leftovers' ACF sits inside the band, and Ljung-Box comes back at p = 0.36. The plot of those leftovers over time, though, is clearly wider on the right than it is on the left.
+Four models, four diagnostic summaries. Which one would you forecast with?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The leftovers are white noise, so the model has passed and the forecasts can be trusted. ::no
-- The test and the plot contradict each other, so one of the two must have been computed wrongly. ::no
-- Only that no rhythm was found. The widening spread is invisible to this test, so the intervals are still wrong even though the p-value is large. ::ok Exactly right. The two checks answer different questions, and here only one of them has been answered.
-- The model should be rejected, because p = 0.36 fails at the 0.05 level. ::no A large p-value is a pass for this test, not a fail, so nothing was rejected. And the plot is not contradicting anything: Ljung-Box pools autocorrelations, so a growing spread gives it no signal to find. The model has cleared the rhythm check and failed the eye, which means the point forecasts may be fine while every interval it quotes is the wrong width.
+- Ljung-Box p = 0.31 and every bar inside the band, but the time plot fans out from narrow at the start to three times as wide at the end. ::no
+- Ljung-Box p = 0.0004, one bar far outside the band at lag 12, and a hump repeating every twelve months in the time plot. ::no
+- Ljung-Box p = 0.44, every bar inside the band, and a time plot that bounces around zero at a steady width from start to finish. ::ok Yes. Both checks agree and neither has anything to report, which is the only combination that clears a model to forecast with.
+- Ljung-Box p = 0.68 and every bar inside the band, but the test was run with fitdf left at 0 on a model that estimated three terms. ::no Read the p-value, the ACF and the time plot together, because each one sees something the other two cannot. A fan in the time plot is a changing spread, which the test cannot detect, and a p-value of 0.0004 with a tall bar at lag 12 is a missed season. The last one may well turn out fine, but you cannot say so yet: with fitdf at 0 the test was run too leniently, so set fitdf to 3 and run it again before deciding.
 
 === step === quiz
-## Quick check: what the p-value did and did not say
+## Practice: reading an ACF you have not seen before
 
-The repaired shop model came back with a pooled statistic of 9.86 on 11 degrees of freedom and p = 0.5433. Which reading of that is right?
+A colleague hands you the residual ACF of a monthly model. One bar at lag 1 sits at 0.52, well outside the band. Every other bar out to lag 24, including lag 12 and lag 24, sits comfortably inside it, and the Ljung-Box test comes back at p = 0.002. What did the model miss?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- There is a 54% chance that the leftovers are white noise. ::no
-- The pooled autocorrelation is no bigger than you would routinely get from leftovers with no rhythm in them, so this check found nothing to fix. ::ok Yes. It starts by assuming there is no rhythm and reports how ordinary our leftovers would be inside that assumption. It never puts a probability on the model being right.
-- A small p-value would have been the good news, since small p-values mean strong evidence for a model. ::no
-- Dropping fitdf back to 0 would change nothing, since the statistic comes out at 9.86 either way. ::no A p-value never gives the probability that something is true; it says how ordinary your data would look if the boring story held. Here the boring story is the one you want, which is why small is bad news and large is a pass. And fitdf does change the answer even though the statistic sits still: the same 9.86 read against 11 degrees of freedom gives 0.5433, and against 14 it gives 0.7726.
+- A yearly season, so add a seasonal moving-average term at the twelve-month period. ::no
+- Short memory: this month's error still predicts next month's, so an ordinary autoregressive or moving-average term is what it needs. ::ok That is the read. Lag 1 is this month against last month, so the leftover pattern is a one-month one, and the fix is an ordinary term rather than a seasonal one.
+- Nothing worth fixing, because one bar out of twenty-four breaking the band is what chance alone produces. ::no
+- A spread that changes over time, so take logs and refit. ::no Where the bar sits is the whole message. Lag 1 is this month against last month, so the miss is short memory rather than a season, and a seasonal term would be aimed at lag 12, which is already clean. One bar out of twenty-four can be chance, but not one this far out with the test at p = 0.002, and a log repairs a changing spread, which an ACF does not measure at all.
 
 === step === tryit
-## Your turn: run both checks on a second shop
+## Practice: diagnose a model end to end
 
-This is the last one, and it is the whole routine end to end, on numbers you have not seen.
+One last one, and this is the whole loop in a single try.
 
-The block below builds a second and smaller shop, with 126 trading days and one day of the week that runs busier than the rest. Your job is the full sequence. Fit `arima(cups2, order = c(1, 1, 1))`, plot the ACF of its leftovers, run `Box.test()` at `lag = 14` with the right `fitdf`, then name the repair those two checks point at, apply it, and run both checks again on the new leftovers.
+Fit the seasonal model again with exactly the same orders, but leave the log out this time: no `lambda` argument at all. Then run both checks on it and decide whether you would ship it. Use 24 lags and `fitdf = 2`, since this model estimates the same two terms as the logged one.
 
 ```r
-# Build a second coffee shop: 126 trading days of cups sold, one busy day midweek
-set.seed(11)
-dow2  <- rep(c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"), length.out = 126)
-bump2 <- c(Mon = 0, Tue = 0, Wed = 8, Thu = 0, Fri = 0, Sat = 0, Sun = 0)
-cups2 <- as.numeric(round(150 + cumsum(arima.sim(list(ar = 0.5), n = 126, sd = 2.5) + 0.5) + bump2[dow2]))
-
-# Your turn, four moves: fit, read the ACF, test with the right fitdf,
-# then repair and run both checks again.
-# Press Check when the repaired model has passed.
+# passengers_train holds the 132 training months.
+# Fit ARIMA(0,1,1) with seasonal = c(0, 1, 1) into fit_nolog, and no lambda.
+# Then plot its residuals over time, measure their spread across the first
+# five years and the last five, and run the Ljung-Box test at 24 lags with
+# fitdf = 2. Press Check when you have it.
 ```
-::check {"regex": "period\\s*=\\s*7[\\s\\S]*fitdf\\s*=\\s*3", "gate": true, "difficulty": "advanced", "ok": "That is the routine. The plain model leaves 5 bars outside the band with lag 7 at 0.596, and Ljung-Box returns 121.15 on 12 degrees of freedom with a p-value below 2.2e-16. Add the weekly term and the statistic falls to 6.66 with p = 0.8256, and not one bar breaks the band.", "no": "The repair is the same one the first shop needed: add seasonal = list(order = c(0, 1, 1), period = 7) to the arima call. That makes three fitted terms, so the confirming test needs fitdf = 3."}
+::check {"regex": "seasonal[\\s\\S]*fitdf\\s*=\\s*2", "gate": true, "difficulty": "intermediate", "ok": "Good. p = 0.0713 clears the 0.05 bar, but only just, and the spread still climbs from 8.49 to 11.05 across the eleven years. This is a model to look at twice rather than ship.", "no": "Fit it with `Arima(passengers_train, order = c(0, 1, 1), seasonal = c(0, 1, 1))` and no lambda, then test the residuals with `Box.test(residuals(fit_nolog), lag = 24, type = \"Ljung-Box\", fitdf = 2)`."}
 ::solution
 ```r
-# Run both checks on the second shop, then repair the model and run them again
-fit2 <- arima(cups2, order = c(1, 1, 1))
-res2 <- residuals(fit2)
+# Fit the seasonal model without the log, then run both checks on it
+fit_nolog <- Arima(passengers_train, order = c(0, 1, 1), seasonal = c(0, 1, 1))
+res_nolog <- as.numeric(residuals(fit_nolog))
 
-acf(res2, lag.max = 20, main = "Second shop: leftovers of the model without a week")
+plot(res_nolog, type = "l", col = "steelblue",
+     main = "Residuals, seasonal model without the log",
+     xlab = "Month", ylab = "Passengers (thousands)")
+abline(h = 0, col = "grey40", lty = 2)
 
-band2 <- 1.96 / sqrt(length(res2))
-acf2  <- acf(res2, lag.max = 14, plot = FALSE)$acf[-1]
-round(c(band = band2, lag_7 = acf2[7], lag_14 = acf2[14]), 3)
-#>   band  lag_7 lag_14
-#>  0.175  0.596  0.598
-sum(abs(acf2) > band2)
-#> [1] 5
+c(first_five_years = round(sd(res_nolog[1:60]), 2),
+  last_five_years  = round(sd(res_nolog[73:132]), 2))
+#> first_five_years  last_five_years 
+#>             8.49            11.05 
 
-Box.test(res2, lag = 14, type = "Ljung-Box", fitdf = 2)
-#>
+Box.test(residuals(fit_nolog), lag = 24, type = "Ljung-Box", fitdf = 2)
+#> 
 #> 	Box-Ljung test
-#>
-#> data:  res2
-#> X-squared = 121.15, df = 12, p-value < 2.2e-16
-
-fit2_week <- arima(cups2, order = c(1, 1, 1),
-                   seasonal = list(order = c(0, 1, 1), period = 7))
-res2_week <- residuals(fit2_week)
-
-acf(res2_week, lag.max = 20, main = "Second shop: leftovers once the week is in the model")
-Box.test(res2_week, lag = 14, type = "Ljung-Box", fitdf = 3)
-#>
-#> 	Box-Ljung test
-#>
-#> data:  res2_week
-#> X-squared = 6.6634, df = 11, p-value = 0.8256
-
-weekday2 <- factor(dow2, levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
-round(tapply(as.numeric(res2), weekday2, mean), 1)
-#>  Mon  Tue  Wed  Thu  Fri  Sat  Sun
-#>  0.7  0.4  8.0 -6.1 -1.5  0.7  0.8
+#> 
+#> data:  residuals(fit_nolog)
+#> X-squared = 32.37, df = 22, p-value = 0.0713
 ```
 
-The first ACF has a tower at lag 7 of 0.596 and another at lag 14 of 0.598, with 5 of the first 14 bars outside a band of 0.175. And the weekday table names the day. The plain model guesses 8.0 cups too low on Wednesday and 6.1 cups too high on Thursday, which is the same one day overshoot the first shop showed.
+The seasonal terms did most of the work, so the yearly rhythm is gone and the test comes back at 0.0713. Against the usual 0.05 bar that is a pass, but it is a pass by a hair, and the logged version scored 0.5201 on the very same series.
 
-After the repair, no bar breaks the band and the pooled statistic is 6.66 with p = 0.8256. It is a different shop with a different busy day, and it took the same two checks and the same repair.
+Then there is the part the test cannot see. The spread still climbs from 8.49 in the first five years to 11.05 in the last five, because without the log the errors keep growing with the airline. That is the second white-noise trait failing while the p-value looks acceptable.
+
+So the verdict is: not yet. Put the log back and both numbers improve at once.
 
 === step === concept
 ## References
 
-- [On a measure of lack of fit in time series models](https://doi.org/10.1093/biomet/65.2.297) - Ljung and Box (1978), Biometrika 65(2), 297-303. The paper the test is named after, and the source of the weighting the formula uses.
-- [Distribution of residual autocorrelations in autoregressive integrated moving average time series models](https://doi.org/10.1080/01621459.1970.10481180) - Box and Pierce (1970), Journal of the American Statistical Association 65(332), 1509-1526. The earlier statistic, and where the degrees of freedom adjustment for fitted terms comes from.
-- [Forecasting: Principles and Practice, section 5.4, Residual diagnostics](https://otexts.com/fpp3/diagnostics.html) - Hyndman and Athanasopoulos. The standard free reference for what leftovers should look like and how to check them.
-- [Box-Pierce and Ljung-Box tests](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/box.test.html) - R Core Team, the documentation for `Box.test()`, including the exact meaning of `fitdf`.
-- [ARIMA modelling of time series](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html) - R Core Team, the documentation for `arima()`, including the `seasonal` argument used for the repair.
+- [On a measure of lack of fit in time series models](https://doi.org/10.1093/biomet/65.2.297) - Ljung and Box (1978), Biometrika 65(2), 297-303. The paper the test and the Q* statistic come from.
+- [Distribution of residual autocorrelations in autoregressive-integrated moving average time series models](https://doi.org/10.1080/01621459.1970.10481180) - Box and Pierce (1970), Journal of the American Statistical Association 65(332), 1509-1526. Where the degrees-of-freedom subtraction for estimated terms is derived.
+- [Forecasting: Principles and Practice, section 5.4, Residual diagnostics](https://otexts.com/fpp3/diagnostics.html) - Hyndman and Athanasopoulos, 3rd edition. The workflow followed here.
+- [Box-Pierce and Ljung-Box Tests](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/box.test.html) - R Core Team, the documentation for `Box.test()`, including the `fitdf` argument.
+- [checkresiduals](https://pkg.robjhyndman.com/forecast/reference/checkresiduals.html) - Hyndman and colleagues, the forecast package reference for the one-line check.
 
 === step === complete
-## The two checks, in the order you run them
+## Quick recap
 
-You took a fitted model that looked perfectly healthy on its printout, pulled out its leftovers, and found six months of Fridays and Sundays that it had been getting wrong the same way every single week. Then you fixed it and watched the typical miss drop from 3.6 cups to 2.2.
+You took a model that looked completely healthy, found what it had missed, repaired it, and then measured what the repair was worth against a year the model had never seen. Two checks did all of that.
 
-The routine is short enough to run every time:
+- **Take the residuals.** Each one is the actual month minus what the model predicted for that same month, one step ahead. There were 132 of them.
+- **Look at them.** The time plot showed a hump repeating every twelve months and swings that widened as the airline grew. The ACF put a number on the hump: 0.781 at lag 12, against a noise band of 0.171.
+- **Test them.** Ljung-Box pooled all twenty-four autocorrelations into a single statistic, Q* of 200.44, with a p-value under 2.2e-16. Small is the bad news here, because the null it rejects is the good outcome.
+- **Repair, then check again.** A seasonal term for the yearly hump and a log for the widening swings brought lag 12 to -0.042 and the p-value to 0.5201. The average miss across 1960 fell from 65.2 thousand passengers to 13.3.
+- **Know what a pass does not buy.** The test looks for correlation and nothing else, so a series whose spread climbed from 4 to 20 passed it at p = 0.42.
 
-1. **Plot the leftovers over time.** You want a flat, even band centred on zero. A drift means bias, a funnel means the spread is changing, and neither of those shows up in the test that follows.
-2. **Plot them against their own past with `acf()`.** Any bar outside \(1.96/\sqrt{n}\) is structure the model left behind, and the lag it sits at names the rhythm: 7 for a week, 12 for monthly data, 4 for quarters.
-3. **Run `Box.test()` with the Ljung-Box type.** Pool enough lags to cover the rhythm you are hunting, and set `fitdf` to the number of AR and MA terms you fitted, seasonal ones included.
-4. **Read the p-value the right way round.** Large means nothing was found and you carry on. Small means pattern remains and the model needs work.
-5. **Let a failure name its own repair.** A bar at lag 7 asks for a weekly term. Then run both checks again on the new leftovers and confirm.
+So when someone asks whether a model is good enough to forecast with, the answer is not the AIC. It is this: there is nothing left in the residuals, and here are the plot and the p-value that say so.
 
-And here is the sentence to say out loud when someone asks whether the model is any good, filled in with the shop's numbers:
-
-"Its leftovers show no rhythm out to two weeks, at a Ljung-Box p-value of 0.54, and the plot over time is flat and even, so there is nothing more these checks can find."
-
-Now notice what that sentence does not claim. It does not say the model is correct, and it does not say the forecasts will be accurate. It says only that two specific faults were looked for and not found. That is the most an honest diagnostic ever gives you, and it is still worth a great deal more than a printout with no complaints on it.
+It costs a minute, and it catches the models that look fine. Nice work getting through it.
