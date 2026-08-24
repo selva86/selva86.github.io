@@ -38,6 +38,7 @@ export interface TemplateData {
   course_title?: string;       // 1b
   next_lesson_url?: string;    // falls back to the DA roadmap
   reset_date?: string;         // cap-hit
+  join_url?: string;           // invite-series one-click opt-in (signed)
   unsubscribe_url?: string;    // one-click, HMAC-signed
   // Per-recipient tracking context (brain fills it): the same HMAC signature
   // as the unsubscribe link. When present, the HTML body gets the open pixel
@@ -206,6 +207,14 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
       first_name: firstName(d),
       reset_date: d.reset_date || "the 1st",
       pricing_url: utm("/pricing.html", "cap"),
+    }),
+  },
+  "invite-series": {
+    key: "invite-series", category: "nurture", reason: "an invitation to the daily lesson series",
+    linkTokens: ["join_url"], required: ["join_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      join_url: d.join_url || SITE,
     }),
   },
   "flip": {

@@ -261,6 +261,37 @@ export async function runBrain(
     }
   }
 
+  // ---- daily-series invitation (nurture, DAILY; one-time per user, gated
+  // on flag:invite-series). Capped per run so the base is invited over
+  // several daily runs - a deliberate deliverability warmup ramp. The
+  // sent_emails key doubles as the once-only guard. --------------------------
+  if (dailyRun && (await env.KV.get("flag:invite-series")) === "on") {
+    const INVITE_CAP = 150;
+    const rows = await env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
+              u.signup_gate, u.signup_slug, u.email_status, u.email_progress
+       FROM users u
+       WHERE u.deleted_at IS NULL AND u.email_progress = 1 AND u.email_nurture = 0
+         AND (u.email_status IS NULL OR u.email_status = 'ok')
+         AND NOT EXISTS (SELECT 1 FROM sent_emails s
+                         WHERE s.user_id = u.id AND s.email_key = 'invite-series')
+       ORDER BY u.created_at
+       LIMIT ${INVITE_CAP}`,
+    ).all<UserRow>();
+    for (const u of rows.results ?? []) {
+      const sig = await userSig(env, u.id);
+      if (!sig) continue;
+      candidates.push({
+        u, key: "invite-series", template: "invite-series", category: "nurture", priority: 6,
+        data: {
+          first_name: u.display_name,
+          join_url: `${SITE}/api/email/join-series?u=${encodeURIComponent(u.id)}&t=${sig}`,
+        },
+        why: "one-time invitation to the daily lesson series",
+      });
+    }
+  }
+
   // ---- arbitrate + send ---------------------------------------------------
   const decisions: Decision[] = [];
   const byUser = new Map<string, Candidate[]>();
