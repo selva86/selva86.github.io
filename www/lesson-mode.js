@@ -13,6 +13,16 @@
 
   var PREVIEW_STEPS = 2;            // free preview before the Pro paywall
   var RESUME_KEY = 'rsc-lesson-v1:' + location.pathname;
+  // A u&t token in the URL means this open arrived from a sequence email.
+  // One GA4 event marks the arrival (the funnel step between the email
+  // click and lesson_step_shown). The token stays in the URL on purpose:
+  // signed-out readers need it to survive a reload within the window.
+  try {
+    var _q = new URLSearchParams(location.search);
+    if (_q.get('u') && _q.get('t') && typeof gtag === 'function') {
+      gtag('event', 'email_lesson_open', { lesson: location.pathname.slice(1).replace(/[.]html?$/i, '') });
+    }
+  } catch (e) {}
 
   function ready(fn) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);

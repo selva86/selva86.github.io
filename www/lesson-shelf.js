@@ -71,7 +71,7 @@
   // PAUSED until the daily-lesson series launches (owner, 2026-08-18):
   // flip OPTIN_LIVE to true on launch day to restore the dashboard routing
   // and the retry card.
-  var OPTIN_LIVE = false;
+  var OPTIN_LIVE = true;
 
   function checkOptin(tok){
     if (!OPTIN_LIVE || !tok || optin) return;
