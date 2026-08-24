@@ -1,13 +1,12 @@
 ---
 title: "Mann-Whitney U test: when and how to run it"
 slug: "Which-Test-Mini-3"
-catalog_blurb: "What to run when one extreme value drags the average around."
-description: "One partner earns twenty times the rest and the t-test goes quiet. Compare two payrolls by rank instead, run the test in R, and report the gap in dollars."
-keywords: "Mann-Whitney U test, wilcox.test in R, Wilcoxon rank sum test, nonparametric two sample test, ranks instead of means, outlier robust test, rank biserial correlation"
-date: "2026-08-22"
+description: "One founder earns twenty times her colleagues, the averages mislead and the t-test finds nothing. Rank the salaries instead, and read W, p and the effect size."
+keywords: "Mann-Whitney U test, wilcox.test in R, Wilcoxon rank sum test, nonparametric two sample test, rank biserial correlation, comparing groups by ranks, outliers and the t-test"
+mathjax: false
+webr: true
+date: "2026-08-24"
 post_type: "LESSON"
-curriculum_id: "0.0.20"
-lesson_access: "windowed"
 course_id: "which-test"
 course_title: "Which Test Do I Run?"
 course_lesson: "3"
@@ -15,765 +14,587 @@ course_total: "11"
 course_landing: "/dashboard.html"
 course_prev: "Which-Test-Mini-2"
 course_next: ""
-webr: true
-mathjax: false
+curriculum_id: "0.0.20"
+lesson_access: "windowed"
+catalog_blurb: "When one extreme value drags the average around, compare ranks instead."
 ---
 
 === step === cover
-::eyebrow Part 3 of 11
+::eyebrow Which Test Do I Run?
 ## Mann-Whitney U test: when and how to run it
 
-Ravi runs operations at a consultancy that has just merged with a smaller rival, and he has two payrolls open on his desk. Twelve people came across from Harrow, twelve from Linden, and by Monday everybody has to sit on one pay scale.
+Let's say you have two job offers on the table and you want to know which of the two companies actually pays better.
 
-So he does the obvious thing first. He averages each payroll and sees which number is bigger. Harrow comes to $70,292 a year and Linden to $146,625. On that number alone, Linden looks like the firm that pays more than twice as well.
+So you get hold of the salaries of the twelve people on the team you would be joining at each place. That is twelve numbers from Harlow Systems and twelve from Cadence Labs.
 
-Then he scrolls to the bottom of the Linden sheet and finds the founding partner on $1,150,000.
+Cadence looks like the easy winner. Its average salary is 196,583 against Harlow's 96,500, which is more than double.
 
-That is one person earning twenty times what a typical Linden employee earns, and every other name on that sheet is under $63,000. Here is what that one salary does to the picture when you draw both payrolls.
+Then you read down the Cadence list and find the founder sitting in it, on 1,520,000. That is twenty times the typical salary there, and once you have seen her, the average stops meaning very much.
 
-::widget chart-plotter {"x": "firm", "y": "salary", "geoms": ["boxplot"], "data": [{"x": "Harrow", "y": 61000}, {"x": "Harrow", "y": 63000}, {"x": "Harrow", "y": 64500}, {"x": "Harrow", "y": 66500}, {"x": "Harrow", "y": 69500}, {"x": "Harrow", "y": 70000}, {"x": "Harrow", "y": 70500}, {"x": "Harrow", "y": 72000}, {"x": "Harrow", "y": 74000}, {"x": "Harrow", "y": 76000}, {"x": "Harrow", "y": 77500}, {"x": "Harrow", "y": 79000}, {"x": "Linden", "y": 47000}, {"x": "Linden", "y": 49500}, {"x": "Linden", "y": 50500}, {"x": "Linden", "y": 53000}, {"x": "Linden", "y": 55000}, {"x": "Linden", "y": 56000}, {"x": "Linden", "y": 56500}, {"x": "Linden", "y": 58000}, {"x": "Linden", "y": 59500}, {"x": "Linden", "y": 62000}, {"x": "Linden", "y": 62500}, {"x": "Linden", "y": 1150000}]}
+So you run a t-test to settle it properly, and it hands back p = 0.42. Nothing to see here. The averages point at Cadence, the test points nowhere, and neither of them is answering the question you asked.
 
-Both firms are squashed into a flat mark along the bottom, because the axis has to stretch all the way to $1,150,000 to fit one person on it. The average is doing the same thing to Ravi's answer, and it is why a t-test on these salaries comes back saying it cannot tell the two firms apart.
+The Mann-Whitney U test answers it by refusing to work with the salaries at all. It works with their positions instead. The founder stops being 1,520,000 and becomes just the highest paid person in the room, one place above whoever comes next, and her huge salary loses all its power.
 
-The Mann-Whitney U test gets around this by throwing the amounts away and keeping only the order. Line all 24 people up by pay, and the partner is simply the highest paid of the 24. That is all they can ever be, whether they earn $1,150,000 or a hundred times that.
+There are only three moves involved.
 
-By the end of this you will be able to:
+::widget process-flow {"steps":[{"title":"Pool the salaries","sub":"put all 24 people, both companies, into one list"},{"title":"Rank them","sub":"replace every salary with its position, 1 up to 24"},{"title":"Count the wins","sub":"how many of the 144 head-to-head pairings each side takes"}]}
 
-- say why one extreme salary drags the average and quiets the t-test
-- build the test's statistic by hand and match the number R prints
-- run the test on two groups and say where its p-value comes from
-- say what the test actually claims about the two firms, and when you may write "median"
-- report the result with a dollar gap and a size, not a bare p-value
-
-You need nothing beyond the ability to read a short R script. Everything else gets built from scratch, starting with the 24 salaries themselves.
+That is the whole test. The rest is those three moves carried out on the real 24 salaries: when to reach for it, how to run it in one line, and what you are allowed to claim afterwards.
 
 === step === concept
-## The two payrolls, typed into R
+## The two salary lists, side by side
 
-Every number that follows comes out of the same 24 salaries, so let's put them into R before anything else. There are twelve for Harrow and twelve for Linden, both sorted from lowest to highest.
+Let's put the numbers on the table first, because everything we work out from here comes out of them.
+
+There are twenty four people in all, twelve at each company. Harlow's salaries run from 78,000 up to 121,000. Cadence's eleven ordinary salaries run from 62,000 to 90,000, and then there is the founder on 1,520,000.
 
 Press Run.
 
 ```r
-# Type in both payrolls and stack them into one labelled data frame
-harrow <- c(61000, 63000, 64500, 66500, 69500, 70000,
-            70500, 72000, 74000, 76000, 77500, 79000)
-
-linden <- c(47000, 49500, 50500, 53000, 55000, 56000,
-            56500, 58000, 59500, 62000, 62500, 1150000)
-
+# Build the 24 salaries and put each company's mean beside its median
 pay <- data.frame(
-  firm   = factor(rep(c("Linden", "Harrow"), each = 12),
-                  levels = c("Linden", "Harrow")),
-  salary = c(linden, harrow)
+  company = factor(rep(c("Harlow", "Cadence"), each = 12),
+                   levels = c("Harlow", "Cadence")),
+  salary  = c(78000, 82000, 85000, 88000, 91000, 95000,
+              96000, 100000, 103000, 108000, 111000, 121000,
+              62000, 66000, 69000, 71000, 74000, 76000,
+              79000, 81000, 84000, 87000, 90000, 1520000)
 )
 
-data.frame(harrow = harrow, linden = linden)
-#>    harrow  linden
-#> 1   61000   47000
-#> 2   63000   49500
-#> 3   64500   50500
-#> 4   66500   53000
-#> 5   69500   55000
-#> 6   70000   56000
-#> 7   70500   56500
-#> 8   72000   58000
-#> 9   74000   59500
-#> 10  76000   62000
-#> 11  77500   62500
-#> 12  79000 1150000
+harlow  <- pay$salary[pay$company == "Harlow"]
+cadence <- pay$salary[pay$company == "Cadence"]
+
+data.frame(company = c("Harlow", "Cadence"),
+           mean    = c(mean(harlow), mean(cadence)),
+           median  = c(median(harlow), median(cadence)))
+#>   company     mean median
+#> 1  Harlow  96500.0  95500
+#> 2 Cadence 196583.3  77500
 ```
 
-Row 12 is the whole story. Harrow's top earner is on $79,000, a normal step up from the person below them. Linden's top earner is on $1,150,000, which is not.
+Read those two rows against each other, because they disagree.
 
-The `pay` data frame stacks those same 24 salaries into a single column, with a label saying which firm each one came from. `factor()` turns the labels into a proper category, and `levels = c("Linden", "Harrow")` fixes the order R reads the two firms in, Linden first. That changes nothing about the salaries. It only decides which firm R subtracts from which when you hand it the whole data frame instead of the two vectors.
+By the mean, Cadence pays more than twice what Harlow pays: 196,583 against 96,500. By the median, the person standing in the middle at Cadence earns 77,500, which is 18,000 less than the person standing in the middle at Harlow.
+
+Both numbers are correct. They measure different things, and only one of them has the founder's salary inside it.
+
+=== step === widget
+## What the two companies look like when you plot them
+
+Two numbers side by side only take you so far. Plot the same 24 salaries and the trouble shows up straight away.
+
+The buttons switch between a boxplot and the raw points, and Run draws the real chart in R.
+
+::widget chart-plotter {"data":[{"x":"Harlow","y":78000},{"x":"Harlow","y":82000},{"x":"Harlow","y":85000},{"x":"Harlow","y":88000},{"x":"Harlow","y":91000},{"x":"Harlow","y":95000},{"x":"Harlow","y":96000},{"x":"Harlow","y":100000},{"x":"Harlow","y":103000},{"x":"Harlow","y":108000},{"x":"Harlow","y":111000},{"x":"Harlow","y":121000},{"x":"Cadence","y":62000},{"x":"Cadence","y":66000},{"x":"Cadence","y":69000},{"x":"Cadence","y":71000},{"x":"Cadence","y":74000},{"x":"Cadence","y":76000},{"x":"Cadence","y":79000},{"x":"Cadence","y":81000},{"x":"Cadence","y":84000},{"x":"Cadence","y":87000},{"x":"Cadence","y":90000},{"x":"Cadence","y":1520000}],"geoms":["boxplot","point"],"x":"company","y":"salary"}
+
+Look at what one person does to the picture. The founder sits near the top of the salary axis on her own, and to fit her on the same scale everybody else has been squashed into a thin band along the bottom. That band holds twenty three real salaries spread from 62,000 to 121,000, and you can barely tell them apart.
+
+An average has no choice but to take that top point in. A rank does not.
 
 === step === concept
-## The average says Linden pays twice as much
+## Why one salary moves the mean but not the middle
 
-Ravi's first instinct is everybody's first instinct: average each payroll and compare. Let's do that, and put two other summaries beside it so we can watch them disagree.
+The mean and the median react to that top point so differently that it is worth being clear about why.
+
+The mean shares every dollar out across all twelve people. Add one dollar to the founder and a twelfth of it lands on the average. Add 1,430,000 to her and roughly 120,000 of it lands on the average.
+
+The median never touches the amounts at all. It sorts the twelve people and asks who is standing in the middle, and the founder is standing at the far end whatever she earns.
+
+Watch both numbers while her pay moves.
 
 ```r
-# Summarise each payroll by average, middle salary and spread
-firm_summary <- data.frame(
-  firm   = c("Harrow", "Linden"),
-  mean   = c(mean(harrow), mean(linden)),
-  median = c(median(harrow), median(linden)),
-  sd     = c(sd(harrow), sd(linden))
-)
-
-firm_summary
-#>     firm      mean median         sd
-#> 1 Harrow  70291.67  70250   5762.174
-#> 2 Linden 146625.00  56250 316017.773
+# Move the founder pay to three different levels and watch the mean and the median
+for (founder_pay in c(90000, 1520000, 15000000)) {
+  twelve <- c(cadence[1:11], founder_pay)
+  cat("founder =", formatC(founder_pay, format = "d", big.mark = ","),
+      "| mean =", formatC(round(mean(twelve)), format = "d", big.mark = ","),
+      "| median =", formatC(median(twelve), format = "d", big.mark = ","), "\n")
+}
+#> founder = 90,000 | mean = 77,417 | median = 77,500
+#> founder = 1,520,000 | mean = 196,583 | median = 77,500
+#> founder = 15,000,000 | mean = 1,319,917 | median = 77,500
 ```
 
-The `mean` column says Linden pays $146,625 against Harrow's $70,292, so Linden wins by more than double. The `median` column, which is just the salary sitting in the middle of each payroll, says Harrow pays $70,250 against Linden's $56,250, so Harrow wins by about $14,000. That is the same 24 people giving two opposite answers.
+The median holds at 77,500 through all three runs. The mean starts at 77,417, sitting right beside the median because eleven ordinary salaries are all it is carrying. Give the founder her real 1,520,000 and the mean jumps to 196,583. Pay her 15,000,000 and it reaches 1,319,917, a figure that describes nobody at the company.
 
-The `sd` column shows where the trouble comes in. Standard deviation measures how spread out a set of numbers is, and Linden's is $316,018 against Harrow's $5,762. That makes Linden look like a payroll scattered across a third of a million dollars, when eleven of its twelve salaries actually sit inside a $15,500 band.
+=== step === concept
+## What a t-test says about these two companies
 
-Now let's hand the raw salaries to a t-test, which is the usual way of asking whether two groups differ on average.
+The obvious move at this point is a two-sample t-test, so let's run one and see what it makes of the salaries.
+
+A t-test is a fraction with two parts. On top is the gap between the two averages. Underneath is an estimate of how much those averages would wobble from one sample to the next, and that estimate is built out of the spread inside each group. A big gap divided by a small wobble gives a large t and a small p-value.
 
 ```r
-# Ask a t-test whether the two payrolls differ on average
-t.test(linden, harrow)
-#> 
+# Ask a t-test whether the two companies pay differently
+t.test(harlow, cadence)
+#>
 #> 	Welch Two Sample t-test
-#> 
-#> data:  linden and harrow
-#> t = 0.83661, df = 11.007, p-value = 0.4206
+#>
+#> data:  harlow and cadence
+#> t = -0.83131, df = 11.021, p-value = 0.4234
 #> alternative hypothesis: true difference in means is not equal to 0
 #> 95 percent confidence interval:
-#>  -124471.9  277138.5
+#>  -365003.3  164836.6
 #> sample estimates:
-#> mean of x mean of y 
-#> 146625.00  70291.67 
+#> mean of x mean of y
+#>   96500.0  196583.3
 ```
 
-The line to read is `p-value = 0.4206`. In plain words, the t-test cannot separate these two payrolls at all.
+Read the estimates at the bottom first. The t-test has 96,500 against 196,583, so as far as it is concerned Cadence pays 100,083 more per person. That is the founder's 1,520,000 doing the talking.
 
-Look at the confidence interval underneath to see how badly. It runs from Linden paying $124,472 less to Linden paying $277,139 more, a range so wide that it holds every answer you could imagine, including no difference whatsoever.
+Now read the top. t = -0.83131 and p = 0.4234. Against the usual 0.05 threshold that is a flat no: no evidence of any difference in average pay.
 
-How did one salary do that? The partner did it twice over. Their salary pushed Linden's average up, which makes the gap between the averages look enormous, and it pushed Linden's spread up, which is the number the t-test divides that gap by. Raise the top and the bottom of a fraction together and the fraction barely moves. That is why one huge value usually makes a t-test quieter rather than louder.
-
-=== step === quiz
-## Quick check: what one salary did to the t-test
-
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- It made the difference between the firms significant, because $1,150,000 is a big number and big numbers push p-values down. ::no
-- It broke the t-test, which is why the p-value came back as unusable as 0.4206. ::no
-- It raised Linden's average and Linden's spread at the same time, and the t-test divides the gap between averages by that spread, so the test lost its ability to see anything. ::ok Exactly. One extreme value moves the top and the bottom of the same fraction, which is why an outlier tends to silence a t-test rather than excite it.
-- It shifted Linden's average upward, and that is the whole of what it did to the test. ::no The partner's salary did two things at once, not one. It lifted Linden's average to $146,625, and it lifted Linden's standard deviation to $316,018. A t-test measures the gap between averages in units of that spread, so the two movements cancelled each other out and p came back at 0.4206. Nothing about the test broke, and nothing about it became more significant.
-
-=== step === concept
-## Line all 24 people up by pay and number them
-
-Here is the move the entire test is built on, and it is simpler than its name suggests.
-
-Stop working with the salaries. Put all 24 people into one queue sorted from lowest paid to highest paid, and give each person the number of the place they are standing in. The lowest paid person is 1, the next is 2, and the highest paid is 24. That number is called a person's **rank**.
-
-R does this with `rank()`, which takes a set of numbers and returns each one's position in the sorted order.
-
-```r
-# Pool all 24 salaries into one queue and read off each person's place in it
-pooled <- c(linden, harrow)
-
-data.frame(firm = pay$firm, salary = pooled, place = rank(pooled))
-#>      firm  salary place
-#> 1  Linden   47000     1
-#> 2  Linden   49500     2
-#> 3  Linden   50500     3
-#> 4  Linden   53000     4
-#> 5  Linden   55000     5
-#> 6  Linden   56000     6
-#> 7  Linden   56500     7
-#> 8  Linden   58000     8
-#> 9  Linden   59500     9
-#> 10 Linden   62000    11
-#> 11 Linden   62500    12
-#> 12 Linden 1150000    24
-#> 13 Harrow   61000    10
-#> 14 Harrow   63000    13
-#> 15 Harrow   64500    14
-#> 16 Harrow   66500    15
-#> 17 Harrow   69500    16
-#> 18 Harrow   70000    17
-#> 19 Harrow   70500    18
-#> 20 Harrow   72000    19
-#> 21 Harrow   74000    20
-#> 22 Harrow   76000    21
-#> 23 Harrow   77500    22
-#> 24 Harrow   79000    23
-```
-
-Look at the shape of that `place` column for a second. Linden holds places 1 to 9, then Harrow's lowest paid person takes place 10, then Linden takes 11 and 12, and Harrow holds everything from 13 upward. Nine of the bottom ten places belong to Linden.
-
-And the partner's $1,150,000 has turned into the number 24. Twenty-four is the highest number on offer, because there are 24 people in the queue.
-
-That is the point of the whole exercise. Watch what happens if the partner earned a hundred million instead.
-
-```r
-# Pay the partner 100 million and read their place in the queue again
-linden_big     <- linden
-linden_big[12] <- 100000000
-
-rank(c(linden_big, harrow))[12]
-#> [1] 24
-
-c(mean_before = mean(linden), mean_after = mean(linden_big))
-#> mean_before  mean_after 
-#>      146625     8384125 
-```
-
-One number changed and the two summaries went in completely different directions. Linden's average leapt from $146,625 to $8,384,125, a figure that describes nobody on the payroll. The partner's rank sat exactly where it was, at 24, because there is still nobody above them and there are still 24 people in the queue.
-
-[KEY INSIGHT]
-Ranks put a ceiling on how much any one person can matter. However far out an extreme value sits, it can only ever be the highest number in the queue, which is worth one place. That is the property Ravi needs, and the whole test is built on it.
-
-=== step === concept
-## Who out-earns whom, across all 144 matchups
-
-Ranks turned 24 salaries into 24 places in a queue. Now we need a single number saying which firm sits higher up that queue, and the way to build it is to run every possible head-to-head comparison.
-
-Take one person from Linden and one from Harrow, and ask one question: does the Linden person earn more? Twelve Linden people against twelve Harrow people gives 144 such pairs, and every pair has a winner.
-
-That question only ever uses the order. Whether one salary beats another depends on which of the two stands further along the queue, never on how far apart they are, so counting matchups is still working with places rather than amounts, even though the numbers on screen are still dollars.
-
-`outer()` runs all 144 comparisons in a single line. Hand it two vectors and a comparison, and it returns a grid with one row per Linden person and one column per Harrow person, holding TRUE wherever the Linden person earns more.
-
-```r
-# Compare every Linden person against every Harrow person, then count Linden's wins
-wins <- outer(linden, harrow, ">")
-
-dim(wins)
-#> [1] 12 12
-
-sum(wins)
-#> [1] 14
-```
-
-The grid is 12 by 12, so 144 matchups, and `sum()` counts each TRUE as 1. A Linden person won 14 of them.
-
-Fourteen out of 144, and that count is the U statistic. It is the whole test. Now look at who those 14 wins belong to.
-
-```r
-# Count each Linden person's wins, in the order they sit on the payroll
-rowSums(wins)
-#>  [1]  0  0  0  0  0  0  0  0  0  1  1 12
-```
-
-Read it from the left. The nine lowest paid Linden people lose all twelve of their matchups. The next two win one apiece, against Harrow's lowest paid person. The partner, sitting in the twelfth position, wins all twelve.
-
-So twelve of Linden's fourteen wins are one person's. Set the partner aside and the other eleven Linden people won 2 of their 132 matchups between them. That is what "Harrow pays better" looks like when you count it person by person, and it is what the average was hiding.
-
-=== step === quiz
-## Quick check: what the number 14 counts
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- The 14 people whose salaries overlap between the two firms. ::no
-- The number of Linden-against-Harrow pairings, out of all 144, in which the Linden person earns more. ::ok Yes. It is a count of winning matchups, which is why it can run anywhere from 0 to 144, and why 14 sits so far down that range.
-- A dollar amount of some kind, since salaries are what we started with. ::no
-- The partner's place in the queue of 24 salaries. ::no The grid held 144 matchups, one for every Linden person paired against every Harrow person, and 14 of them went Linden's way. It counts pairings, not people, not dollars, and not anybody's place in the queue. The partner's place in the queue is 24, and their contribution to this count is the 12 matchups they won.
-
-=== step === concept
-## What R prints, and why it says Wilcoxon
-
-You do not have to build that count by hand every time. `wilcox.test()` does it for you, and returns a p-value with it.
-
-```r
-# Run the Mann-Whitney U test on the two payrolls
-wilcox.test(linden, harrow)
-#> 
-#> 	Wilcoxon rank sum exact test
-#> 
-#> data:  linden and harrow
-#> W = 14, p-value = 0.0003713
-#> alternative hypothesis: true location shift is not equal to 0
-```
-
-The line to look at is `W = 14`. That is the same 14 you counted out of the 144 matchups, and R found it without you building a grid.
-
-The name on that output trips people up, so it is worth a sentence. Frank Wilcoxon published this test in 1945 by adding up one group's ranks. Henry Mann and Donald Whitney published it in 1947 by counting winning pairs, the way we just did. The two numbers are different views of the same thing, so R prints Wilcoxon's name and Mann and Whitney's counting statistic together.
-
-Here is the arithmetic that ties them.
-
-```r
-# Get the same statistic from the rank sums instead of the matchups
-rank_sums <- tapply(rank(pay$salary), pay$firm, sum)
-
-rank_sums
-#> Linden Harrow 
-#>     92    208 
-
-rank_sums[["Linden"]] - 12 * 13 / 2
-#> [1] 14
-```
-
-Linden's twelve ranks add up to 92 and Harrow's to 208, and the two together make 300, which is what you get by adding up 1 through 24.
-
-The number being subtracted, `12 * 13 / 2`, is 78, and that is the smallest rank sum twelve people could possibly have. It is places 1 through 12, which is what Linden would hold if every Linden salary sat below every Harrow salary. So subtracting 78 asks how far above rock bottom Linden landed, and the answer is 14, the same 14 the matchups gave.
-
-Most of the time your data will be in a data frame rather than two vectors, and there is a formula form for that.
-
-```r
-# Run the same test straight from the data frame
-wilcox.test(salary ~ firm, data = pay)
-#> 
-#> 	Wilcoxon rank sum exact test
-#> 
-#> data:  salary by firm
-#> W = 14, p-value = 0.0003713
-#> alternative hypothesis: true location shift is not equal to 0
-```
-
-Read `salary ~ firm` as "salary, split by firm". It prints `W = 14` because Linden is the first level of the `firm` factor, so R counts Linden's wins. Had Harrow been first, R would have counted Harrow's 130 wins and printed `W = 130` instead. The p-value is identical either way, and only the direction of the count changes.
-
-=== step === concept
-## Where p = 0.0003713 comes from
-
-The p-value here is not read off a curve or looked up in a table. It is counted, exactly, out of every arrangement the 24 salaries could have taken.
-
-Suppose pay had nothing at all to do with which firm you worked at. Then which twelve of the 24 places in the queue ended up belonging to Linden was pure luck, and every possible split of the places is equally likely. `dwilcox()` gives the chance of each W under exactly that assumption, so we can draw all of them at once.
-
-```r
-# Draw every W that a pure-luck split of the queue could produce, and mark ours
-plot(0:144, dwilcox(0:144, 12, 12), type = "h", col = "grey75",
-     main = "Every W a pure-luck split of the 24 salaries could give",
-     xlab = "W (Linden wins, out of 144 matchups)",
-     ylab = "Chance of that W")
-abline(v = 14, col = "red", lwd = 3)
-```
-
-The grey pile is what luck alone does. It bunches around 72, which is half of 144, because a split with no pattern in it hands each firm about half the matchups. The red line is Ravi's result at 14, far out in the left tail where the bars have almost no height left.
-
-Now let's count that tail instead of eyeballing it.
-
-```r
-# Count the equally-likely splits, and how many are this lopsided or worse
-choose(24, 12)
-#> [1] 2704156
-
-pwilcox(14, 12, 12) * choose(24, 12)
-#> [1] 502
-
-2 * pwilcox(14, 12, 12)
-#> [1] 0.0003712804
-```
-
-There are 2,704,156 ways to choose which twelve of the 24 places go to Linden, and `choose(24, 12)` is that count. Of all those millions of arrangements, only 502 give Linden 14 matchup wins or fewer.
-
-So 502 out of 2,704,156, or 0.0001856, is how often luck alone would bury Linden this deep. Doubling it covers the mirror-image case where Harrow is the firm at the bottom, and 0.0003713 is the p-value R printed.
-
-[NOTE]
-"Exact" in the output line `Wilcoxon rank sum exact test` means literally this: R enumerated the possibilities rather than approximating them. That is only practical for small groups with no repeated values, which is exactly what Ravi has.
-
-=== step === tryit
-## Your turn: pay the partner 100 million
-
-`linden_big` holds the Linden payroll with the founding partner on $100,000,000 instead of $1,150,000. Everything else about it is unchanged.
-
-Run a t-test on `linden_big` against `harrow` and print only its p-value, then run `wilcox.test()` on the same two vectors. Before you press Run, write down what you expect each one to do.
-
-```r
-# linden_big is the Linden payroll with the founding partner on 100 million.
-# Run t.test on linden_big against harrow and print only its p-value,
-# then run wilcox.test on the same two vectors.
-# Two lines. Press Check when you have them.
-```
-::check {"regex": "wilcox[.]test\\s*[(]\\s*linden_big", "gate": true, "difficulty": "beginner", "ok": "That is it. The t-test drifted to 0.3396, further from significance than it already was, while the rank test did not move by a hair: W is still 14 and p is still 0.0003713.", "no": "Two lines. The first is t.test(linden_big, harrow)$p.value and the second is wilcox.test(linden_big, harrow)."}
-::solution
-```r
-# Rerun both tests with the founding partner on 100 million
-t.test(linden_big, harrow)$p.value
-#> [1] 0.3396283
-
-wilcox.test(linden_big, harrow)
-#> 
-#> 	Wilcoxon rank sum exact test
-#> 
-#> data:  linden_big and harrow
-#> W = 14, p-value = 0.0003713
-#> alternative hypothesis: true location shift is not equal to 0
-```
-
-Multiplying one salary by almost 87 moved the t-test's p-value from 0.4206 to 0.3396, and left the rank test where it was, down to the last digit. Nothing in the queue changed, because the partner was already at the top of it.
-
-=== step === concept
-## What the test claims about the two firms
-
-This is the part people get wrong in write-ups more than any other, so let's be precise about what a small p-value here entitles Ravi to say.
-
-The assumption the test starts from is this: pick one Linden person at random and one Harrow person at random, and the Linden person is exactly as likely to out-earn the Harrow person as the other way round. A p-value of 0.0003713 says that assumption fits the data badly. What Ravi has earned the right to say is that Linden salaries tend to sit below Harrow salaries.
-
-Notice that this says nothing about medians, and nothing about averages. It is a statement about which firm keeps turning up higher when you pick two people and compare them.
-
-That distinction matters here more than usual. Look at the shape of the two payrolls, plotted on a log scale so that eleven ordinary Linden salaries and one partner can share an axis.
-
-```r
-# Plot all 24 salaries on a log scale so the partner and everyone else fit on one axis
-library(ggplot2)
-
-ggplot(pay, aes(x = firm, y = salary)) +
-  geom_point(size = 3, alpha = 0.7, colour = "steelblue") +
-  scale_y_log10(labels = function(x) paste0("$", format(x, big.mark = ",", scientific = FALSE))) +
-  labs(title = "Every salary on both payrolls",
-       x = NULL, y = "Salary (log scale)") +
-  theme_minimal(base_size = 13)
-```
-
-Harrow is a tight column of twelve dots. Linden is a tight column of eleven dots with one dot floating high above the rest, and even a log scale cannot pull it back into the group.
-
-Those are not the same shape. A rank test may be read as a statement about medians only when the two groups have the same shape and one is simply shifted sideways from the other, because in that case "tends to sit higher" and "has a higher median" become the same claim. A payroll with one salary twenty times the others is not a sideways shift of a payroll without one.
+The founder is sitting in both halves of that fraction. She adds about 120,000 to Cadence's average, and she blows up Cadence's standard deviation too, which is exactly what the wobble estimate is built from. Eleven salaries between 62,000 and 90,000 plus one at 1,520,000 produce a spread so wide that a gap of 100,083 is nothing special inside it. The confidence interval says as much outright: the true difference in averages is somewhere between minus 365,003 and plus 164,837, which rules out almost nothing.
 
 [WARNING]
-"The medians differ" is not what a small p-value from this test establishes. It establishes that one group tends to sit higher than the other. Ravi's two medians do differ, and he can say so, but that is something he reads off the salaries themselves, not something this p-value proved for him.
+Nothing broke here. The t-test answered the question it was asked, which is whether two averages differ, on a sample where one person owns most of one of those averages. The question itself stopped being useful the moment that salary landed in the data.
 
 === step === quiz
-## Quick check: may you write that the medians differ?
+## Quick check: why did the t-test come back with nothing?
 
-Ravi has p = 0.0003713 and the dot plot of both payrolls in front of him. Which sentence is he entitled to write?
+The t-test on those 24 salaries returned p = 0.4234, and a real difference in pay went undetected. What actually went wrong?
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The test compares medians, so a p-value this small means the two medians are significantly different. ::no
-- Linden salaries tend to sit below Harrow salaries. The two medians do differ as well, but he reads that off the payrolls rather than off this p-value. ::ok Right, and that is the careful wording worth memorising. The p-value bought him "tends to sit lower"; the medians are a separate description of data he happens to also have.
-- Linden's average pay is significantly lower than Harrow's, since the test found a significant difference. ::no
-- Nothing at all, because the two payrolls are shaped so differently that the test result cannot be used. ::no Two of these read the p-value as a verdict on a summary number, either the median or the average, and it is neither: it is a verdict on how often one firm's people out-earn the other's. The last one throws a perfectly good result away. Different shapes limit how you word the conclusion; they do not invalidate the test.
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- Twelve people per company is too small a sample for a t-test to detect anything. ::no
+- The two groups are different sizes, and a two-sample t-test cannot handle that. ::no
+- One salary sits so far above the rest that it inflates Cadence's spread, and the t-test divides the gap in averages by that spread. ::ok That is it. The founder pushed the top of the fraction up by about 120,000 and the bottom of it up by far more, so the ratio came out close to zero.
+- The founder's salary is bad data, so the fix is to delete her row and run the t-test again. ::no Sample size was not the problem, and the two groups are twelve each, so unequal sizes were not either. The founder is not an error to be deleted: she really works there and really earns that. The failure is arithmetic. One huge value inflates the spread the t-test divides by, so a real gap in pay disappears into the noise estimate.
 
 === step === concept
-## Why a failed normality test is the wrong reason to switch
+## When to reach for a rank test
 
-Plenty of write-ups reach this test by a route that looks sensible and is not. It goes like this: run a normality test, watch it fail, switch to ranks. A normality test checks whether a set of numbers looks like it came from the usual bell-shaped curve, and `shapiro.test()` is the one R ships. Let's run it on Ravi's data and see what it would have told him.
+So when should you stop trusting a mean and rank the numbers instead? Three situations come up over and over, and the salaries are the first of them.
+
+1. **One or two values run away from the rest.** Salaries, house prices, revenue per customer, minutes spent on a page. One founder, one mansion, one enormous account, one person who left the tab open all weekend. The mean chases that value and the spread widens even faster, which is exactly what you just watched happen.
+2. **The numbers are only an order.** Survey ratings from 1 to 7, pain scores, satisfaction levels, finishing places in a race. The gap between 6 and 7 is not the same size as the gap between 1 and 2, so averaging them is arithmetic on labels. Ranking them is what those numbers were always for.
+3. **The groups are too small to argue about shape.** With eight or twelve people per group you cannot see whether the data are anywhere near normal, and you cannot lean on the central limit theorem to rescue the average either, because it needs more observations than that to do its work.
+
+One thing the rank test still insists on: the observations have to be independent. Twenty four different people, each contributing one salary, is fine. The same twelve people measured before and after a pay review is not, because those readings come in pairs, and pairs go to the Wilcoxon signed rank test instead.
+
+Two things it does not insist on: normally distributed data, and any particular shape for either group. It will run whatever the two distributions look like. The shapes do decide how you are allowed to word the conclusion afterwards, and we will come back to that.
+
+=== step === concept
+## Ranking every salary in one line
+
+The move itself is small. Pool all 24 salaries into one list, sort them from lowest to highest, then hand out positions: 1 to the lowest paid person of the 24, and 24 to the highest.
+
+Press "Show what changed" to watch the positions arrive, and Run to do the same thing in R.
+
+::widget table-transform {"code":"df %>% mutate(rank = rank(salary))","caption":"rank() replaces each salary with its position in the pooled list of 24.","before":{"cols":["company","salary"],"rows":[["Cadence",62000],["Cadence",66000],["Cadence",69000],["Cadence",71000],["Cadence",74000],["Cadence",76000],["Harlow",78000],["Cadence",79000],["Cadence",81000],["Harlow",82000],["Cadence",84000],["Harlow",85000],["Cadence",87000],["Harlow",88000],["Cadence",90000],["Harlow",91000],["Harlow",95000],["Harlow",96000],["Harlow",100000],["Harlow",103000],["Harlow",108000],["Harlow",111000],["Harlow",121000],["Cadence",1520000]]},"after":{"cols":["company","salary","rank"],"rows":[["Cadence",62000,1],["Cadence",66000,2],["Cadence",69000,3],["Cadence",71000,4],["Cadence",74000,5],["Cadence",76000,6],["Harlow",78000,7],["Cadence",79000,8],["Cadence",81000,9],["Harlow",82000,10],["Cadence",84000,11],["Harlow",85000,12],["Cadence",87000,13],["Harlow",88000,14],["Cadence",90000,15],["Harlow",91000,16],["Harlow",95000,17],["Harlow",96000,18],["Harlow",100000,19],["Harlow",103000,20],["Harlow",108000,21],["Harlow",111000,22],["Harlow",121000,23],["Cadence",1520000,24]]}}
+
+In R the whole operation is one function call, and `rank()` does the sorting for you. Here are the four highest positions.
 
 ```r
-# Test each payroll for normality
-shapiro.test(harrow)
-#> 
-#> 	Shapiro-Wilk normality test
-#> 
-#> data:  harrow
-#> W = 0.96886, p-value = 0.8985
+# Replace every salary with its position in the pooled ranking of all 24
+pooled_ranks <- rank(pay$salary)
+ranked <- data.frame(company = pay$company, salary = pay$salary, rank = pooled_ranks)
 
-shapiro.test(linden)
-#> 
-#> 	Shapiro-Wilk normality test
-#> 
-#> data:  linden
-#> W = 0.34113, p-value = 1.479e-06
+head(ranked[order(-ranked$rank), ], 4)
+#>    company  salary rank
+#> 24 Cadence 1520000   24
+#> 12  Harlow  121000   23
+#> 11  Harlow  111000   22
+#> 10  Harlow  108000   21
 ```
 
-Harrow passes comfortably at 0.8985 and Linden fails at 0.000001479, so this route would have landed Ravi on the right test. It is still the wrong reason, in three separate ways.
+Look at the top two rows. The founder on 1,520,000 takes rank 24. The Harlow engineer on 121,000 takes rank 23. A gap of 1,399,000 dollars between those two people has just become a gap of one position.
 
-1. **A t-test never asked the salaries to be normal.** What it asks is that the average of twelve salaries behaves like a draw from a normal curve, and with enough people that happens even when the raw numbers are lopsided. Twelve is not enough people when one of them earns twenty times the rest. So the problem is that one salary, not the verdict of a normality test.
-2. **Choosing a test after looking at the data changes what the test is worth.** The 5% error rate you think you are buying assumes the test was decided before the data arrived. Pick between two tests based on a preliminary check, and the real error rate is no longer the one printed on the tin.
-3. **The two tests answer different questions.** A t-test asks whether the average salaries differ. This one asks which firm's people tend to out-earn the other's. Switching between them because of a normality check quietly switches the claim you end up making.
-
-So what counts as a good reason? There are two, and both are settled before anybody looks at the data.
-
-- A few extreme values must not be allowed to decide the answer. Ravi knows a merged payroll almost always has a founding partner on it, and he does not want that one person choosing the pay scale for the other 23.
-- The outcome is ordinal, meaning it has an order but no meaningful arithmetic. Survey answers running from "strongly disagree" to "strongly agree" are the standard case: you can rank them, but the distance from 3 to 4 is not a real quantity you can average.
+She is still the highest paid person of the 24. She simply cannot be more than one place above whoever comes next.
 
 === step === concept
-## What ranks cost when the salaries are well behaved
+## Adding up each company's ranks
 
-Working with ranks throws information away, so there has to be a price. Let's find out what it is by running Ravi's merger 2,000 times in a world where neither firm has a founding partner.
-
-Both payrolls in this world are ordinary and equally spread, twelve people each, with a real $6,000 gap between the firms. Every round draws fresh salaries and runs both tests on them, and we count how often each one spots the gap.
+Once every person carries a position instead of a salary, comparing the two companies is just addition.
 
 ```r
-# Run 2,000 clean mergers and see how often each test finds the real 6,000 dollar gap
-set.seed(42)
+# Add up each company's ranks and compare them with an even split
+harlow_ranks  <- pooled_ranks[pay$company == "Harlow"]
+cadence_ranks <- pooled_ranks[pay$company == "Cadence"]
 
-sim <- replicate(2000, {
-  a <- rnorm(12, mean = 70000, sd = 6000)
-  b <- rnorm(12, mean = 76000, sd = 6000)
-  c(t_test    = t.test(a, b)$p.value,
-    rank_test = wilcox.test(a, b)$p.value)
+c(harlow = sum(harlow_ranks), cadence = sum(cadence_ranks),
+  all_ranks = sum(1:24), even_split = sum(1:24) / 2)
+#>     harlow    cadence  all_ranks even_split
+#>        199        101        300        150
+```
+
+The 24 positions always add up to 300, whatever the salaries happen to be, because they are always the numbers 1 through 24. If the two companies paid alike, the high positions and the low ones would fall on both sides fairly evenly, and each company's ranks would total somewhere near 150.
+
+Harlow's ranks total 199 and Cadence's total 101. Harlow is holding almost all of the high positions, and that is the whole finding, stated without a single salary figure in it.
+
+=== step === concept
+## U is a count of head-to-head wins
+
+199 carries the signal, but on its own it is awkward to read, because its floor depends on how many people are in the group. The twelve people at Harlow could not possibly total less than 1 + 2 + ... + 12 = 78, even if they were the twelve lowest paid of the 24. For a group of n people that floor is always n multiplied by (n + 1), divided by 2.
+
+Subtract the floor and what is left is U.
+
+`U = 199 - (12 * 13) / 2 = 199 - 78 = 121`
+
+Here is the part worth slowing down for, because it is the reason the test exists at all.
+
+That 121 is not an abstract statistic. It is a count of something you can go and count yourself.
+
+Line up every Harlow person against every Cadence person and you get 12 times 12 = 144 head-to-head pairings. In each pairing ask the only question that matters: which of these two earns more? U is the number of pairings the Harlow person wins.
+
+Let's check that by counting the wins directly and comparing the two.
+
+```r
+# Turn Harlow rank sum into U, then count the same wins pair by pair
+n1 <- length(harlow)
+n2 <- length(cadence)
+
+u_harlow <- sum(harlow_ranks) - n1 * (n1 + 1) / 2
+wins <- outer(harlow, cadence, ">")
+
+c(from_ranks = u_harlow, from_pairs = sum(wins), pairings = n1 * n2)
+#> from_ranks from_pairs   pairings
+#>        121        121        144
+```
+
+`outer(harlow, cadence, ">")` builds the full 12 by 12 grid of those matchups and marks TRUE wherever the Harlow person out-earns the Cadence person. Counting the TRUEs gives 121, the same number the rank arithmetic gave.
+
+[KEY INSIGHT]
+U is a plain count. Out of the 144 possible Harlow versus Cadence matchups, the Harlow person earns more in 121 of them. Nothing in that count cares how far apart any two salaries are, only which of the two is bigger.
+
+That last sentence is why a runaway salary has no power here. Pay the founder ten times what she already earns and count again.
+
+```r
+# Pay the founder ten times more and count the wins on both sides again
+cadence_rich <- c(cadence[1:11], 15000000)
+
+c(harlow_wins  = sum(outer(harlow, cadence_rich, ">")),
+  founder_wins = sum(cadence_rich[12] > harlow))
+#>  harlow_wins founder_wins
+#>          121           12
+```
+
+U is still 121. The founder wins twelve pairings, one against each person at Harlow, and she was already winning all twelve of them at 1,520,000. There is no thirteenth Harlow person for the extra millions to beat.
+
+=== step === tryit
+## Your turn: count the pairs Cadence wins
+
+Every one of the 144 pairings has a winner, so the two counts have to add up to all 144. Run the same count the other way round, then add the two together and see what you get.
+
+```r
+# harlow and cadence hold the twelve salaries from each company.
+# Count how many of the 144 pairings the Cadence person wins,
+# then add that count to the 121 that Harlow wins.
+# Two lines. Press Check when you have them.
+```
+::check {"regex": "outer[(]\\s*cadence\\s*,\\s*harlow", "gate": true, "difficulty": "beginner", "ok": "Right: 23 wins for Cadence, and 121 + 23 = 144. Every pairing is claimed by one side or the other, which is why U counted from one side tells you U from the other.", "no": "Reuse the same outer() call from the grid above, with cadence first and harlow second, and keep the greater-than sign in quotes as the third argument. Then add that count to sum(outer(harlow, cadence, ...))."}
+::solution
+```r
+# Count the pairings the Cadence person wins, then add the two counts
+sum(outer(cadence, harlow, ">"))
+#> [1] 23
+sum(outer(harlow, cadence, ">")) + sum(outer(cadence, harlow, ">"))
+#> [1] 144
+```
+
+Twelve of Cadence's 23 wins belong to the founder alone, one against each person at Harlow. The other eleven people at Cadence take eleven pairings between them, out of the 132 they turn up in.
+
+=== step === concept
+## Running the whole test with wilcox.test()
+
+Everything so far was to show you what the number really is. In practice you get all of it out of one line.
+
+```r
+# Run the Mann-Whitney U test on the two salary vectors
+mw <- wilcox.test(harlow, cadence)
+mw
+#>
+#> 	Wilcoxon rank sum exact test
+#>
+#> data:  harlow and cadence
+#> W = 121, p-value = 0.003637
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+There are three things to read off that output.
+
+**W = 121.** That is the U you counted by hand. R prints it under Wilcoxon's letter W rather than Mann and Whitney's U, but it is the same count of the same 144 pairings.
+
+**"Wilcoxon rank sum exact test".** R names the test after Frank Wilcoxon, who published the rank sum version in 1945. Mann and Whitney published U two years later and showed the two statistics sit a fixed distance apart, so the two names describe one test. If an R output says Wilcoxon rank sum, you have run a Mann-Whitney U test. The word "exact" means R worked through the possibilities one by one rather than approximating.
+
+**p-value = 0.003637.** That is small. We are going to build that number by hand in a minute, so it stops being something the function simply asserts.
+
+Most of the time your data already sits in a data frame, and then the formula form saves you the two lines of subsetting.
+
+```r
+# Run the same test straight off the data frame, with a formula
+wilcox.test(salary ~ company, data = pay)
+#>
+#> 	Wilcoxon rank sum exact test
+#>
+#> data:  salary by company
+#> W = 121, p-value = 0.003637
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+Same W, same p-value. Read `salary ~ company` as "salary broken down by company", and `data = pay` tells R where to find both columns.
+
+[NOTE]
+Which company R treats as group one is decided by the order of the factor levels. The company column was built with `levels = c("Harlow", "Cadence")`, so Harlow goes first and W counts Harlow's wins. Left to itself R sorts levels alphabetically, which puts Cadence first and prints W = 23 with exactly the same p-value. The test does not change, only the direction of the count flips.
+
+=== step === concept
+## Where that p-value comes from
+
+Where does 0.003637 actually come from? The logic is the same as for any p-value: assume the boring story, then find out how often it produces a result as lopsided as yours.
+
+The boring story here is that the two companies pay alike. Under that story the company name written beside each person is just a sticker, with no bearing on what they earn. So peel all 24 stickers off, deal them out again at random, twelve to a side, and work out U for the group that happened to collect the Harlow stickers. Do that ten thousand times and you have ten thousand versions of a world where the two companies really do pay the same.
+
+```r
+# Deal the company labels out at random 10,000 times and recompute U each time
+set.seed(1)
+null_u <- replicate(10000, {
+  shuffled <- sample(pay$company)
+  sum(pooled_ranks[shuffled == "Harlow"]) - n1 * (n1 + 1) / 2
 })
 
-rowMeans(sim < 0.05)
-#>    t_test rank_test 
-#>    0.6525    0.6195 
+hist(null_u, breaks = 40, col = "grey85", border = "white",
+     main = "10,000 shuffles of the company labels",
+     xlab = "U (pairings won by the 12 people labelled Harlow)")
+abline(v = u_harlow, col = "red", lwd = 3)
+
+mean(abs(null_u - 72) >= abs(u_harlow - 72))
+#> [1] 0.0038
 ```
 
-`rnorm(12, mean = 70000, sd = 6000)` draws twelve salaries from a well behaved bell curve, so this is the t-test's home ground, the exact situation it was designed for. `rowMeans(sim < 0.05)` then reports the share of the 2,000 rounds in which each test came back under 0.05.
+The grey pile holds the U values from those ten thousand shuffles. It is centred near 72, which is half of 144, and that is what you would expect: when the labels are random, each side wins about half the pairings.
 
-The t-test found the gap 65.3% of the time. The rank test found it 62.0% of the time. On the t-test's own turf, working with ranks instead of dollars costs about three detections in every hundred.
+The red line is the real result, U = 121. It is out in the thin right-hand tail, where very few shuffles reached.
 
-That is the whole price, and it is small. In exchange, one founding partner cannot walk in and take the answer away from you.
-
-=== step === quiz
-## Quick check: normality test failed, now what?
-
-A colleague runs a normality test on their two groups, one group fails it, and they ask you what to do.
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- Always run a normality test first and switch to a rank test whenever it fails. That is what the check is for. ::no
-- Always use the rank test, since it assumes nothing about normality and so can never be wrong. ::no
-- Nothing, if they already had a reason for the test they picked. The reasons that hold up are that a few extreme values must not decide the answer, or that the outcome is ordinal, and both are settled before anybody sees the data. ::ok Yes. The choice rests on what the data is and what question is being asked, not on the p-value of a preliminary check.
-- Transform the numbers until they pass the normality check, then run the t-test on the transformed values. ::no Letting a preliminary check choose your test, or letting it choose your transformation, means the test was picked after looking at the data, and the error rate you think you are buying no longer holds. Defaulting to ranks every time is not free either: on well behaved data it detects a real gap slightly less often than a t-test does.
+The number underneath counts that tail properly. Shuffles landing at least as far from 72 as 121 does, counting both directions, turned up 38 times in 10,000. That is 0.0038. And `wilcox.test()` reported 0.003637 without shuffling anything at all, because with twelve against twelve it can work through every possible split exactly.
 
 === step === concept
-## When this is the wrong test to run
+## What a significant result lets you say
 
-This test compares two independent groups. Change either of those two words and you need something else.
+p = 0.003637 is small, so something real is going on. Now be careful about what you claim next, because this is where most write-ups slip.
 
-The first case is data that is not independent, meaning the same people measured twice. Suppose Ravi takes eight Harrow employees and compares this year's salary against last year's. Each person appears in both columns, so the columns are linked, and the right test is the signed-rank test, which `paired = TRUE` selects.
+What the test compared was who wins the pairings. So the claim it supports is exactly that one: pick a person at random from each company, and the Harlow person is more likely to be the higher earner. The standard phrasing is "salaries at Harlow tend to be higher than at Cadence", and that sentence is always safe.
 
-```r
-# Compare the same eight people a year apart with the paired version of the test
-last_year <- harrow[1:8]
-this_year <- last_year + c(2000, 1500, 3000, 1000, 2500, 1200, 4000, 1800)
+What a small p-value on its own does not buy you is the sentence "Harlow's median is higher". The test only becomes a test of medians when the two distributions have the same shape and differ merely by a shift. These two plainly do not: Harlow's twelve salaries sit in a tidy band, while Cadence's eleven ordinary salaries sit lower with a single value 1,520,000 away from them.
 
-wilcox.test(this_year, last_year, paired = TRUE)
-#> 
-#> 	Wilcoxon signed rank exact test
-#> 
-#> data:  this_year and last_year
-#> V = 36, p-value = 0.007813
-#> alternative hypothesis: true location shift is not equal to 0
-```
-
-The statistic is called `V` rather than `W` because it is built differently. It ranks the eight raises by size and adds up the ranks of the ones that went upward, which comes to 36 here because all eight raises were positive.
-
-The second case is more than two groups. Three merged firms need the Kruskal-Wallis test, which is this same rank idea stretched across any number of groups, and R runs it with `kruskal.test()`.
-
-The third case is when the question really is about average dollars. If Ravi's board asks what the total salary bill will be, ranks cannot answer that, because a total depends on the actual amounts and the partner's $1,150,000 is genuinely part of it. It is tempting to reach for a log transform to rescue the t-test in that situation, so let's see how that goes.
+R will still hand you an interval if you ask for one.
 
 ```r
-# Try to rescue the t-test by comparing log salaries instead
-t.test(log(linden), log(harrow))
-#> 
-#> 	Welch Two Sample t-test
-#> 
-#> data:  log(linden) and log(harrow)
-#> t = 0.056455, df = 11.193, p-value = 0.956
-#> alternative hypothesis: true difference in means is not equal to 0
-#> 95 percent confidence interval:
-#>  -0.5466083  0.5754496
-#> sample estimates:
-#> mean of x mean of y 
-#>  11.17172  11.15730 
-```
-
-That comes back at p = 0.956, which is even less informative than the 0.4206 we started with. Logs pull in a long tail nicely, but the partner is not a long tail. They are one point sitting on its own, and after taking logs they are still the largest value by a wide margin, still holding Linden's average up.
-
-=== step === concept
-## The gap in dollars, and how often Linden wins
-
-A p-value tells Ravi the difference is not a fluke. It does not tell him how much money is on the table, and that is the number the board will ask for. Add `conf.int = TRUE` and the test hands it over.
-
-```r
-# Ask the same test for the size of the gap, not just the p-value
-mw <- wilcox.test(linden, harrow, conf.int = TRUE)
-
-mw
-#> 
+# Ask the test for an interval around the pay gap
+wilcox.test(harlow, cadence, conf.int = TRUE)
+#>
 #> 	Wilcoxon rank sum exact test
-#> 
-#> data:  linden and harrow
-#> W = 14, p-value = 0.0003713
+#>
+#> data:  harlow and cadence
+#> W = 121, p-value = 0.003637
 #> alternative hypothesis: true location shift is not equal to 0
 #> 95.5 percent confidence interval:
-#>  -19500  -8000
+#>   7000 29000
 #> sample estimates:
-#> difference in location 
-#>                 -14000 
+#> difference in location
+#>                  17500
 ```
 
-Linden pays about $14,000 less, and the plausible range runs from $8,000 less to $19,500 less. The interval says 95.5% rather than 95% because the test is built on whole matchups, which come in discrete steps, so R reports the level it can actually deliver rather than rounding the claim.
-
-That $14,000 is not the difference between the two medians, even though it lands on exactly that figure here. It is the middle of all 144 pairwise gaps, which we can check by hand.
+The 17,500 labelled "difference in location" is the Hodges-Lehmann estimate: take all 144 Harlow-minus-Cadence differences and pick the middle one. That is a median of differences, and it is worth checking that it is not the same thing as the difference between the two medians.
 
 ```r
-# Confirm the estimate by hand: the middle of all 144 pairwise dollar gaps
-gaps <- outer(linden, harrow, "-")
-
-length(gaps)
-#> [1] 144
-
-median(gaps)
-#> [1] -14000
+# Compare the reported gap with the median of all 144 pairwise differences
+c(pairwise_median = median(outer(harlow, cadence, "-")),
+  median_gap      = median(harlow) - median(cadence))
+#> pairwise_median      median_gap
+#>           17500           18000
 ```
 
-Take every Linden person, subtract every Harrow person's salary, sort the 144 answers and take the middle one. That is where the $14,000 comes from, and it is called the Hodges-Lehmann estimate after the two statisticians who worked it out in 1963.
+The two numbers come out at 17,500 and 18,000. They are close enough to be mistaken for each other, and different enough to show they are not the same quantity. Report the 17,500 as a typical difference between a Harlow person and a Cadence person, and the interval says that typical difference lies somewhere between 7,000 and 29,000.
 
-Because it is a middle value of gaps, one enormous salary cannot drag it anywhere.
+Why 95.5 percent rather than a round 95? Because with twelve against twelve the exact interval can only stop at certain achievable confidence levels, and R gives you the first achievable one above 95.
 
-```r
-# Check that the estimate survives the partner earning 100 million
-wilcox.test(linden_big, harrow, conf.int = TRUE)$estimate
-#> difference in location 
-#>                 -14000 
-```
+=== step === quiz
+## Quick check: which sentence reports this result correctly?
 
-Alongside the dollar gap, report how one-sided the comparison was. The plainest version is the win share we already counted.
+The test on the salaries returned W = 121 and p = 0.003637. Which of these sentences would you be willing to write down?
 
-```r
-# Express the same result as a win share and as a rank-biserial correlation
-win_share <- sum(wins) / length(wins)
-
-win_share
-#> [1] 0.09722222
-
-1 - 2 * win_share
-#> [1] 0.8055556
-```
-
-A Linden person out-earns a Harrow person in 9.7% of the 144 matchups, which is about as plain a statement of size as you can make. The second number, 0.806, is the same thing on a standard scale called the rank-biserial correlation. It runs from -1 to 1, sits at 0 when the two firms split the matchups evenly, and reaches 1 when one firm wins every single one. At 0.806 Harrow is close to a clean sweep.
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- Harlow's mean salary is higher than Cadence's, and the test has now confirmed it. ::no
+- If the two companies paid alike, a split of the pairings this lopsided would turn up about 4 times in 1,000, so salaries at Harlow tend to be higher than at Cadence. ::ok Exactly right. It states the assumption first, then how ordinary the data would be inside that assumption, and then the only claim the pairings support.
+- There is a 0.4 percent chance that the two companies pay alike. ::no
+- The test has established that Harlow's median salary is the higher of the two. ::no Harlow's mean is the lower of the two, 96,500 against 196,583, and this test never looked at means anyway. The p-value is not the chance the companies pay alike; it is how often randomly dealt labels would produce a split this lopsided. And a claim about medians needs the two distributions to have matching shapes, which these two do not. What survives is the pairwise claim.
 
 === step === concept
-## Ties, and the half numbers they put in W
+## The effect size: how big the gap is
 
-Real salary data is full of round figures, so two people landing on exactly the same number is common rather than rare. Let's create that situation deliberately by rounding every salary to the nearest $2,500, the way a published pay band would.
+p = 0.003637 says the pattern is hard to blame on luck. It says nothing at all about size. W is already sitting there ready to answer that one.
+
+W was a count out of 144 possible pairings. Divide it by 144 and it turns into a share.
 
 ```r
-# Round both payrolls to the nearest 2,500 and look at the queue again
-harrow_r <- round(harrow / 2500) * 2500
-linden_r <- round(linden / 2500) * 2500
+# Turn W into the share of pairings Harlow wins, then into rank-biserial r
+win_share     <- unname(mw$statistic) / (n1 * n2)
+rank_biserial <- win_share - (1 - win_share)
 
-rank(c(linden_r, harrow_r))
-#>  [1]  1.0  2.5  2.5  4.0  5.5  5.5  7.5  7.5  9.5 12.0 12.0 24.0  9.5 12.0 14.0
-#> [16] 15.0 17.0 17.0 17.0 19.0 20.5 20.5 22.0 23.0
+round(c(win_share = win_share, rank_biserial = rank_biserial), 4)
+#>     win_share rank_biserial
+#>        0.8403        0.6806
 ```
 
-Half numbers have appeared. Two people rounded to $50,000 would have taken places 2 and 3, and since there is no way to say which of them comes first, `rank()` gives them both the average of those two places, 2.5. Three people on $70,000 share places 16, 17 and 18, so all three get 17.
+The win share comes out at 0.8403. Pick one person at random from each company and 84 times in 100 the Harlow person is the one earning more. That single sentence is the most useful thing anyone can tell you about these two companies, and it is far more concrete than any p-value.
 
-Those halves flow straight into W.
+The second number, 0.6806, is the rank-biserial correlation: the share Harlow wins minus the share Cadence wins, 0.8403 minus 0.1597. It runs from -1, where the other group takes every pairing, through 0 for an even split, up to +1 where this group takes every pairing. By the usual convention anything past 0.5 counts as a large effect. Report whichever of the two your field expects, because both are built from the same 121 wins and carry the same information.
+
+=== step === concept
+## Ties, small samples and one-sided questions
+
+Three wrinkles show up as soon as you run this test on data somebody actually collected.
+
+**Ties.** Two people earning exactly the same amount cannot be given different positions, so R hands them both the average of the two positions they cover between them. Suppose one Harlow analyst is on 90,000, the same as one Cadence engineer.
 
 ```r
-# Rebuild W from the rounded payrolls: outright wins, plus half a win for each tie
-sum(outer(linden_r, harrow_r, ">"))
-#> [1] 14
+# Put one Harlow analyst on exactly the salary one Cadence engineer already earns
+tied_harlow <- harlow
+tied_harlow[5] <- 90000
 
-sum(outer(linden_r, harrow_r, "=="))
-#> [1] 3
-
-wilcox.test(linden_r, harrow_r, exact = FALSE)
-#> 
+rank(c(tied_harlow, cadence))[c(5, 23)]
+#> [1] 15.5 15.5
+wilcox.test(tied_harlow, cadence, exact = FALSE)
+#>
 #> 	Wilcoxon rank sum test with continuity correction
-#> 
-#> data:  linden_r and harrow_r
-#> W = 15.5, p-value = 0.001186
+#>
+#> data:  tied_harlow and cadence
+#> W = 120.5, p-value = 0.005573
 #> alternative hypothesis: true location shift is not equal to 0
 ```
 
-Linden still wins 14 matchups outright, and three more matchups are now dead heats. A tie counts as half a win to each side, so W is 14 plus half of 3, which is 15.5.
+Both tied people take rank 15.5, the average of 15 and 16, and W comes out at 120.5 instead of 121, because that one pairing was half a win rather than a whole one. Any W ending in .5 is telling you there were ties.
 
-The other change is `exact = FALSE`, and it matters. The exact route counts arrangements, and once values are tied there is no clean way to enumerate them, so R falls back on a normal curve instead. The phrase "with continuity correction" in that header is R saying it nudged W by half a unit on the way across, because W moves in whole and half steps and a smooth curve does not. Setting `exact = FALSE` yourself makes that choice explicit rather than leaving R to decide for you. Here is the curve it reads the p-value off, with our result marked at 3.24 standard deviations out from the middle.
+**Small samples.** The tied call above passed `exact = FALSE` on purpose, to show you the other route R can take to a p-value. Instead of working through every possible split of the 24 people, it compares W against a normal curve, and "with continuity correction" is R noting that it nudged the comparison a little, because W lands on whole and half numbers while a normal curve is smooth. With twelve against twelve R can afford to work through every split, and that is what "exact test" meant in the outputs before it. Past roughly fifty per group it approximates whether you ask or not, because the number of possible splits gets astronomical.
 
-::widget null-distribution {"tails": 2, "start": 3.24, "label": "observed z"}
+**One-sided questions.** The default asks whether the two companies pay differently. If your question was specifically whether Harlow pays more, say so.
 
-Drag the marker and watch the shaded area, because that area is the p-value. At 3.24 the two shaded slivers come to roughly 0.001, which is the 0.001186 R printed. Pull the marker back toward the middle and the shading swells, because a result near the centre is one luck produces all the time.
+```r
+# Ask a one-sided question: does Harlow pay more, rather than differently
+wilcox.test(harlow, cadence, alternative = "greater")
+#>
+#> 	Wilcoxon rank sum exact test
+#>
+#> data:  harlow and cadence
+#> W = 121, p-value = 0.001818
+#> alternative hypothesis: true location shift is greater than 0
+```
 
-[TIP]
-With tied values, use `exact = FALSE`. Ties make the exact enumeration impossible, and stating the approximation yourself is clearer than discovering afterwards which route R took.
+The p-value comes back at 0.001818, exactly half of 0.003637, because you have stopped counting the tail on the other side. Only ask a one-sided question when you settled on the direction before seeing the data. Deciding afterwards is halving your p-value for free.
 
 === step === concept
-## Writing it up in one sentence
+## Writing the result in one sentence
 
-Ravi now has everything he needs, and the last job is to put it in a sentence somebody can act on. A good one carries the group sizes, the statistic, the p-value, both medians, the dollar gap with its interval, and the win share.
-
-Build it out of the test object rather than retyping the numbers, so the sentence can never drift away from the result it describes.
+A finished report carries six things: the name of the test, both group sizes, W, the p-value, an effect size and the direction. Build the sentence with `paste0()` and read every number straight off the test object, so nothing gets retyped wrongly on the way.
 
 ```r
-# Build the whole write-up straight out of the test object
-mw <- wilcox.test(linden, harrow, conf.int = TRUE)
+# Build the report sentence by reading every number off the test object
+report <- paste0(
+  "A Mann-Whitney U test found salaries at Harlow Systems (n = ", n1,
+  ") ranked higher than at Cadence Labs (n = ", n2,
+  "), W = ", unname(mw$statistic),
+  ", p = ", signif(mw$p.value, 3),
+  ", win share = ", round(win_share, 2),
+  ", rank-biserial r = ", round(rank_biserial, 2), "."
+)
 
-cat(paste0(
-  "Linden (n = ", length(linden),
-  ", median $", format(median(linden), big.mark = ","), ") against ",
-  "Harrow (n = ", length(harrow),
-  ", median $", format(median(harrow), big.mark = ","), "): ",
-  "Mann-Whitney W = ", mw$statistic,
-  ", p = ", signif(mw$p.value, 3), ". ",
-  "Linden pays $", format(abs(round(mw$estimate)), big.mark = ","), " less ",
-  "(95% CI $", format(abs(round(mw$conf.int[2])), big.mark = ","),
-  " to $", format(abs(round(mw$conf.int[1])), big.mark = ","), "), ",
-  "and out-earns Harrow in ", sum(wins), " of ", length(wins),
-  " matchups (", round(100 * mean(wins), 1), "%).\n"))
-#> Linden (n = 12, median $56,250) against Harrow (n = 12, median $70,250): Mann-Whitney W = 14, p = 0.000371. Linden pays $14,000 less (95% CI $8,000 to $19,500), and out-earns Harrow in 14 of 144 matchups (9.7%).
+cat(report, "\n")
+#> A Mann-Whitney U test found salaries at Harlow Systems (n = 12) ranked higher than at Cadence Labs (n = 12), W = 121, p = 0.00364, win share = 0.84, rank-biserial r = 0.68.
 ```
 
-Every number in that sentence came out of `mw` or out of the salaries themselves. The one thing typed by hand is the `95%` label on the interval, and that is deliberate: Ravi asked for 95%, R handed back the 95.5% it could actually deliver, and claiming the level you asked for when the interval covers a little more errs in the safe direction. Nothing else is retyped, so re-running this on next quarter's payroll gives a correct sentence rather than a stale one.
-
-Read what it does and does not claim. It says Linden pay sits lower and roughly by how much, it gives an honest range around that figure, and it says how one-sided the comparison was. It does not say the medians are significantly different, and it does not lead with the p-value.
-
-=== step === tryit
-## Your turn: report the rounded payroll properly
-
-`linden_r` and `harrow_r` hold both payrolls rounded to the nearest $2,500, so they are the version with ties in them.
-
-Run the test on those two, with `exact = FALSE` because of the ties and `conf.int = TRUE` for the gap, and store the result in `mw_round`. Then print one line carrying W, the p-value and the dollar gap, built out of `mw_round` rather than typed in.
-
-```r
-# linden_r and harrow_r are both payrolls rounded to the nearest 2,500.
-# Store the test in mw_round, with exact = FALSE and conf.int = TRUE,
-# then cat one line carrying W, the p-value and the dollar gap.
-# Press Check when you have it.
-```
-::check {"regex": "mw_round\\s*<-\\s*wilcox[.]test", "gate": true, "difficulty": "intermediate", "ok": "Good. Rounding moved W to 15.5 and the gap to 15,000 dollars, and the conclusion is the one you already had: Linden pay sits below Harrow pay.", "no": "Start by storing the test: call wilcox.test on linden_r and harrow_r with exact = FALSE and conf.int = TRUE, and name the result mw_round. Then pull W out of mw_round$statistic, the p-value out of mw_round$p.value, and the gap out of mw_round$estimate."}
-::solution
-```r
-# Run the test on the rounded payrolls and build the same one-line write-up
-mw_round <- wilcox.test(linden_r, harrow_r, exact = FALSE, conf.int = TRUE)
-
-cat(paste0(
-  "Linden (n = 12, median $", format(median(linden_r), big.mark = ","), ") against ",
-  "Harrow (n = 12, median $", format(median(harrow_r), big.mark = ","), "): ",
-  "W = ", mw_round$statistic,
-  ", p = ", signif(mw_round$p.value, 3), ", ",
-  "Linden pays $", format(abs(round(mw_round$estimate)), big.mark = ","), " less ",
-  "(95% CI $", format(abs(round(mw_round$conf.int[2])), big.mark = ","),
-  " to $", format(abs(round(mw_round$conf.int[1])), big.mark = ","), ").\n"))
-#> Linden (n = 12, median $56,250) against Harrow (n = 12, median $70,000): W = 15.5, p = 0.00119, Linden pays $15,000 less (95% CI $7,500 to $20,000).
-```
-
-Rounding to pay bands nudged Harrow's median from $70,250 to $70,000 and widened the interval a little, because throwing away detail always costs precision. It changed nothing about the answer.
+Read that sentence back and notice what it never does. It never claims a difference in medians, and it never puts a probability on the truth. It says which way the ranks fell, how far the result sits from what luck produces, and how big the gap is.
 
 === step === quiz
-## Quick check: which of these write-ups is honest?
+## Practice: which test, and what does the output say?
 
-Ravi has to send one sentence to the board. Which one is defensible?
+Here is a new situation, away from salaries. Your team ships a redesigned onboarding flow and asks two groups of ten people to rate it from 1 to 7. Group A went through the new version, group B through the old one.
 
-::quiz {"correct": 3, "gate": true, "difficulty": "advanced"}
-- Linden's mean salary is $146,625 against Harrow's $70,292, so Linden pays significantly better (p = 0.0003713). ::no
-- The salaries failed a normality test, so we used a Mann-Whitney U test, which showed that the two medians are significantly different (p = 0.0003713). ::no
-- Across 12 salaries per firm, Linden pay tends to sit below Harrow pay (W = 14, p = 0.0003713), by an estimated $14,000 with a 95% interval of $8,000 to $19,500. A Linden person out-earns a Harrow person in only 14 of the 144 possible pairings. We chose a rank-based test in advance so that one partner's salary could not decide the answer. ::ok That is the one. It states the claim the test supports, gives the size with a range around it, says how one-sided the comparison was, and gives a reason for the test that was settled before the data arrived.
-- The Mann-Whitney U test gives p = 0.0003713, so the difference between the two firms is highly significant. ::no The first pairs the rank test's p-value with a claim about averages, and gets the direction backwards on top of that. The second reaches the test through a normality check and then reads it as a verdict on medians. The last one reports significance with no direction and no size, which leaves the board nothing to act on.
+```r
+# Two groups of ten rate an onboarding flow from 1 to 7
+rating_a <- c(6, 7, 5, 7, 6, 7, 4, 6, 7, 5)
+rating_b <- c(3, 5, 2, 4, 6, 3, 4, 2, 5, 3)
+
+wilcox.test(rating_a, rating_b, exact = FALSE)
+#>
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  rating_a and rating_b
+#> W = 90.5, p-value = 0.002147
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- Ratings are an order rather than a measured amount, and ten per group is small, so a rank test fits. W = 90.5 means group A wins 90.5 of the 100 pairings, the half coming from tied ratings, and p = 0.002147 is how often randomly dealt labels would be this lopsided. ::ok Yes, all three parts of it. The .5 in W is the giveaway for ties, which is also why exact = FALSE was passed.
+- The ratings are numbers from 1 to 7, so a two-sample t-test on the two means is the right call, and ranking them throws information away. ::no
+- W = 90.5 is the difference between the two groups' average ratings. ::no
+- p = 0.002147 is the probability that the two groups rated the flow the same. ::no A 1 to 7 rating is an order, not a measured quantity: the step from 6 to 7 need not be the same size as the step from 1 to 2, so averaging is arithmetic on labels. W is not a difference between averages either; it is a count of the 100 head-to-head pairings that group A wins, with a tied pair counting half. And the p-value is not the chance the two groups agree, it is how often random labelling produces a split this extreme.
 
 === step === tryit
-## Your turn: rebuild W without wilcox.test
+## Practice: run the whole test on a new pair of groups
 
-Let's do it one last time, from the ranks alone.
+`airquality` ships with R and holds daily air readings from one summer in New York. Ozone was measured on some days and missing on others, and 26 readings survive in each of May and August. Find out whether one month ran higher than the other.
 
-Pool all 24 salaries with `c(linden, harrow)`, rank them, add up the twelve ranks belonging to Linden, which are the first twelve, and subtract `12 * 13 / 2`. Then check your answer against `sum(wins)`, the matchup count from the grid.
+Run the test on `may` and `aug`, then turn W into the share of pairings that the May reading wins.
 
 ```r
-# Rebuild W from the ranks alone, without calling wilcox.test.
-# Rank the 24 pooled salaries, add up Linden's twelve ranks,
-# subtract 12 * 13 / 2, then compare the result with sum(wins).
-# Press Check when you have it.
+# Pull the May and August ozone readings out of airquality, dropping missing days
+may <- na.omit(airquality$Ozone[airquality$Month == 5])
+aug <- na.omit(airquality$Ozone[airquality$Month == 8])
+
+# Save the test to aq and print it, then divide its statistic by the
+# number of pairings, length(may) * length(aug).
+# Two lines. Press Check when you have them.
 ```
-::check {"regex": "rank\\s*[(][\\s\\S]*?(78|12\\s*[*]\\s*13\\s*/\\s*2)", "gate": true, "difficulty": "intermediate", "ok": "Yes: Linden's ranks add to 92, subtracting 78 leaves 14, and that is exactly the number of matchups the grid counted. Two routes, one statistic.", "no": "Three lines. Rank the pooled salaries with rank(c(linden, harrow)) and name that pooled_r, add up sum(pooled_r[1:12]) and name that linden_sum, then subtract 12 * 13 / 2 from it."}
+::check {"regex": "wilcox[.]test[(]", "gate": true, "difficulty": "intermediate", "ok": "That is it: W = 127.5 and p = 6.109e-05. W counts pairings won by the May reading out of 26 times 26 = 676, a win share of 0.19, so a random May day out-reads a random August day only 19 times in 100. August is the higher month by a wide margin, and the .5 in W says some readings tied.", "no": "Two lines. First aq <- wilcox.test(may, aug), then print aq. Then round(unname(aq$statistic) / (length(may) * length(aug)), 2) for the share."}
 ::solution
 ```r
-# Recover W from the rank sums, then confirm it against the counted matchups
-pooled_r   <- rank(c(linden, harrow))
-linden_sum <- sum(pooled_r[1:12])
+# Run the test on the two months, then turn W into a share of the pairings
+aq <- wilcox.test(may, aug)
+aq
+#>
+#> 	Wilcoxon rank sum exact test
+#>
+#> data:  may and aug
+#> W = 127.5, p-value = 6.109e-05
+#> alternative hypothesis: true location shift is not equal to 0
 
-linden_sum
-#> [1] 92
-
-W_by_hand <- linden_sum - 12 * 13 / 2
-W_by_hand
-#> [1] 14
-
-W_by_hand == sum(wins)
-#> [1] TRUE
+round(unname(aq$statistic) / (length(may) * length(aug)), 2)
+#> [1] 0.19
 ```
 
-Counting winning pairs and adding up ranks are two ways of measuring the same thing, which is how far up the queue one group sits. That is why one test carries two names.
+=== step === quiz
+## Practice: what may you claim from this result?
+
+You have twenty six measured days in May and twenty six in August, W = 127.5 counted for May, p = 6.109e-05, and a win share of 0.19. Which write-up would you put your name to?
+
+::quiz {"correct": 4, "gate": true, "difficulty": "intermediate"}
+- A Mann-Whitney U test found a significant difference between May and August ozone, p = 6.109e-05. ::no
+- A Mann-Whitney U test proved that August has a higher median ozone level than May, p = 6.109e-05. ::no
+- There is a 0.006 percent chance that May and August ozone are the same, so August is higher. ::no The first sentence is true but useless: it hides the direction and the size, so nobody can tell whether the gap matters. The second claims a median, which needs the two months to have matching distribution shapes, and it says "proved", which no test ever does. The third turns the p-value into a probability about the truth, when it is the chance of a split this lopsided if the two months ran alike.
+- A Mann-Whitney U test found August ozone ranked higher than May (n = 26 each), W = 127.5, p = 0.000061, win share 0.19: a random May day out-reads a random August day only 19 times in 100. ::ok That is the full set. Group sizes, the statistic, the p-value, the direction, and a size that a reader can picture without knowing any statistics.
 
 === step === concept
 ## References
 
-- [On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other](https://doi.org/10.1214/aoms/1177730491) - Mann and Whitney (1947), Annals of Mathematical Statistics 18(1), 50-60. The paper that introduced the matchup-counting statistic.
-- [The Wilcoxon-Mann-Whitney Procedure Fails as a Test of Medians](https://doi.org/10.1080/00031305.2017.1305291) - Divine, Norton, Baron and Juarez-Colunga (2018), The American Statistician 72(3), 278-286. Works through exactly why "the medians differ" is the wrong write-up.
-- [Estimates of Location Based on Rank Tests](https://doi.org/10.1214/aoms/1177704172) - Hodges and Lehmann (1963), Annals of Mathematical Statistics 34(2), 598-611. Where the median-of-pairwise-gaps estimate comes from.
-- [The Simple Difference Formula: An Approach to Teaching Nonparametric Correlation](https://doi.org/10.2466/11.IT.3.1) - Kerby (2014), Comprehensive Psychology 3, 11.IT.3.1. Rank-biserial correlation read as a win share.
-- [Wilcoxon Rank Sum and Signed Rank Tests](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html) - R Core Team. The official page for the exact, correct, conf.int and paired arguments.
+- [On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other](https://doi.org/10.1214/aoms/1177730491) - Mann and Whitney (1947), Annals of Mathematical Statistics 18(1), 50-60. The original paper, where U arrives as a count of pairwise wins.
+- [The Wilcoxon-Mann-Whitney Procedure Fails as a Test of Medians](https://doi.org/10.1080/00031305.2017.1305291) - Divine, Norton, Baron and Juarez-Colunga (2018), The American Statistician 72(3), 278-286. Why "higher median" needs matching shapes and "tends to be higher" does not.
+- [The Simple Difference Formula: An Approach to Teaching Nonparametric Correlation](https://doi.org/10.2466/11.IT.3.1) - Kerby (2014), Comprehensive Psychology 3. Rank-biserial as the win share minus the loss share.
+- [A Common Language Effect Size Statistic](https://doi.org/10.1037/0033-2909.111.2.361) - McGraw and Wong (1992), Psychological Bulletin 111(2), 361-365. The source of the "84 times in 100" way of stating an effect.
+- [Wilcoxon Rank Sum and Signed Rank Tests](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html) - R Core Team. Exact against approximate p-values, ties, and the Hodges-Lehmann estimate.
 
 === step === complete
-## Part 3 complete
+## Quick recap
 
-Ravi came in with two payrolls and one question, and the averages gave him the wrong answer.
+You took two salary lists that a t-test could make nothing of, and got a clear answer out of them by throwing the amounts away and keeping the order.
 
-- The average said Linden pays $146,625 against Harrow's $70,292, and a t-test on those salaries returned p = 0.4206, which is no answer at all. One partner on $1,150,000 lifted Linden's average and Linden's spread together, and the two movements cancelled.
-- Lining all 24 people up by pay and numbering them capped that partner at 24, the highest place in a queue of 24, however much they earn.
-- Counting all 144 head-to-head matchups gave Linden 14 wins, twelve of them the partner's own. That count is W, and R printed the same 14 with p = 0.0003713.
-- Adding `conf.int = TRUE` turned it into money: Linden pays about $14,000 less, somewhere between $8,000 and $19,500, and a Linden person out-earns a Harrow person in 9.7% of matchups.
-- Paying the partner a hundred million moved none of it.
+- **When to reach for it.** One or two runaway values, numbers that are only an order, or groups too small to argue about shape. It needs independent observations, and nothing else.
+- **The three moves.** Pool all 24 salaries, rank them 1 to 24, count the head-to-head wins. Harlow's ranks summed to 199, and 199 minus the floor of 78 gave U = 121.
+- **What U is.** A count. Out of 144 Harlow versus Cadence pairings the Harlow person earns more in 121, and paying the founder ten times more does not move it.
+- **The one line.** `wilcox.test(harlow, cadence)`, or `wilcox.test(salary ~ company, data = pay)`, both returning W = 121 and p = 0.003637.
+- **What you may claim.** Salaries at Harlow tend to be higher. Not that the median is higher, unless the two distributions have the same shape.
+- **How big the gap is.** 121 out of 144 is 0.84, so the Harlow person earns more 84 times in 100.
 
-So the sentence Ravi sends the board is this one. Across 12 salaries per firm, Linden pay tends to sit below Harrow pay by an estimated $14,000, with a 95% interval of $8,000 to $19,500, and a rank-based test was chosen in advance so that one salary could not decide the answer.
+And here is the sentence to write down when somebody asks:
 
-Reach for this test when you know beforehand that a handful of extreme values must not own the result, or when your outcome has an order but no arithmetic. Do not reach for it because a normality check went red. Have a great day.
+"A Mann-Whitney U test found salaries at Harlow Systems (n = 12) ranked higher than at Cadence Labs (n = 12), W = 121, p = 0.00364, win share = 0.84."
+
+Next time an average looks wrong to you, you have somewhere to go with it. Nicely done, and enjoy the rest of your day.
