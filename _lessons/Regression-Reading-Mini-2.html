@@ -1,8 +1,8 @@
 ---
 title: "Linear regression assumptions: the 5 checks"
-description: "Your regression output can look perfect and still be broken. Run all five assumption checks on a real model, find the two that fail, and repair each one."
-keywords: "linear regression assumptions in R, check regression assumptions, regression diagnostics in R, plot.lm, residual plots, Breusch-Pagan test, Durbin-Watson test, Cook's distance, heteroskedasticity in R"
-mathjax: false
+description: "Every regression makes five promises about your data. Run all five checks on one real model in R, see what each catches, and repair the ones that fail."
+keywords: "linear regression assumptions, regression diagnostics in R, residuals vs fitted plot, heteroscedasticity, Breusch-Pagan test, Durbin-Watson test, Cooks distance, leverage and influence"
+mathjax: true
 webr: true
 curriculum_id: "0.0.22"
 post_type: "LESSON"
@@ -14,7 +14,7 @@ course_landing: "/dashboard.html"
 course_next: ""
 course_prev: "Regression-Reading-Mini-1"
 lesson_access: "windowed"
-catalog_blurb: "The five checks that tell you whether your regression can be believed."
+catalog_blurb: "The five checks that tell you whether a regression can be trusted."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
@@ -23,51 +23,56 @@ catalog_blurb: "The five checks that tell you whether your regression can be bel
 <div class="lesson-step-eyebrow">Reading Regression Models</div>
 <h2>Linear regression assumptions: the 5 checks</h2>
 
-<p>You have fitted regressions before. Here is the professional habit that goes with them.</p>
+<p>Let's start with a small moving company. There are two people, a van, and a job sheet where every move gets one row: the week it happened, how many people were on the crew that day, how many boxes got packed, and how many hours the whole job took.</p>
 
-<p>Say you fit a model on a small store's daily numbers and the output comes back looking perfect. R-squared is 0.73, and both predictors carry three stars. Nothing in that output is flashing red, so you take the slope to the meeting and tell everyone that each extra advertising dollar brings back 2.17 dollars.</p>
+<p>That sheet now holds sixty jobs from one year of work. The owner wants to stop guessing when quoting new work, so they fit the obvious model: hours on boxes.</p>
 
-<p>The trouble is that a linear regression makes five promises about your data before it prints a single one of those numbers. It assumes the relationship really is a straight line, that the errors do not grow as the prediction grows, that no single day is running the whole model, and two more we will come to.</p>
+<p>The output could not look better. Every extra box adds 0.037 hours, the p-value is under 2e-16, and the model accounts for 83% of the variation in how long a job runs.</p>
 
-<p>When the five promises hold, your conclusions are solid. When one of them breaks, the fit can sit exactly where it was while the standard errors, the confidence intervals and the p-values stop meaning what they say.</p>
+<p>So the quoting starts.</p>
 
-<p>Here is that damage, measured. Pick one of the three promises below, then drag the dial from no violation up to a severe one. The dashed line is R-squared, the thing you look at. The solid line is coverage, which is the share of thousands of repeated studies whose 95% confidence interval actually contained the true answer. It is supposed to sit at 95%.</p>
-<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumptions":["linearity","heteroskedasticity","normality"],"start":0}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Watch which line moves. On the first two the fit holds steady while the coverage falls away, and that is why a broken promise is so easy to miss. The number you check is not the number that breaks. Drag the normality one and almost nothing moves, which is a result we come back to.</p>
+<p>Here is the trouble. Nothing in that output can tell you whether it is safe to quote from. Before a regression says anything at all, it makes five quiet promises about your data, and it never mentions them again.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"A straight line","sub":"is a straight line the right shape for this relationship"},{"title":"Equal spread","sub":"do the errors stay the same size as the prediction grows"},{"title":"Independence","sub":"does one error tell you nothing about the next one"},{"title":"Normal errors","sub":"do the errors follow a bell shape closely enough"},{"title":"No single row in charge","sub":"is one job setting the answer on its own"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>When all five hold, the coefficient, the interval and the p-value mean what they appear to mean. When one breaks, the summary prints exactly the same way and those numbers quietly stop being trustworthy.</p>
 
-<p>So today we build a store's 180 days ourselves, plant two flaws in them on purpose, and run all five checks to see which ones catch what we planted.</p>
+<p>Four of the five are broken in this job sheet.</p>
+
+<p>Each check is one plot or one line of code, so all five take a couple of minutes. Let's run them one at a time on the real data, and then repair what they find.</p>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<h2>A store's 180 days, and a model that looks perfect</h2>
+<h2>The model we are about to check</h2>
 
-<p>Everything today happens on one small online store, so let's build its numbers first.</p>
-
-<p>Every day the store spends something on advertising, sends out a batch of marketing emails, and takes some money in sales. We are making these 180 days up rather than downloading them, and that is on purpose. Because we wrote the rules, we know exactly what is hiding in the data, so we can judge each check on whether it finds it.</p>
-
-<p>Press Run.</p>
+<p>Everything from here on runs on one table, so let's put it on the screen first. Every row is one completed move, in the order the jobs happened.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Build 180 days of the store's ad spend, emails and sales
-set.seed(42)
-n_days   &lt;- 180
-ad_spend &lt;- round(runif(n_days, 40, 700), 2)
-emails   &lt;- round(rnorm(n_days, 3000, 600))
-sales    &lt;- 300 + 600 * log(ad_spend) + 0.30 * emails +
-            rnorm(n_days, 0, 40 + 0.5 * ad_spend)
+    <div class="webr-editor" data-language="r"># Build the moving company's job sheet: 60 completed moves, in date order
+jobs &lt;- data.frame(
+  job   = 1:60,
+  week  = c(1, 2, 3, 3, 5, 7, 8, 8, 9, 9, 9, 11, 12, 15, 16, 16, 17, 18, 19, 20,
+            21, 21, 24, 24, 26, 26, 26, 27, 27, 28, 28, 29, 30, 31, 31, 31, 31, 33, 33, 34,
+            34, 35, 39, 40, 40, 41, 42, 43, 43, 43, 43, 44, 45, 47, 49, 49, 50, 51, 51, 52),
+  crew  = c(2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3),
+  boxes = c(121, 101, 119, 150, 213, 101, 219, 87, 52, 152, 216, 23, 135, 97, 92, 217, 67, 157, 114, 112,
+            55, 46, 380, 68, 108, 116, 158, 175, 50, 57, 68, 67, 84, 188, 112, 37, 134, 48, 122, 173,
+            65, 48, 201, 48, 94, 27, 56, 140, 34, 188, 187, 63, 144, 134, 16, 103, 95, 44, 218, 139),
+  hours = c(11.1, 10, 11.7, 13.5, 12.7, 9.3, 14.9, 9.9, 6.9, 11.6, 13.7, 5.8, 12, 8.9, 8.9, 14.7, 8.3, 12.6, 9.9, 10.1,
+            7.6, 7.6, 15.8, 8.3, 10.1, 10.4, 12.4, 11.8, 6.7, 7.2, 7.5, 7.3, 7.6, 11.8, 8.1, 5.8, 9.6, 5.9, 9.6, 12.3,
+            6.9, 5.9, 11.4, 6.8, 8.3, 4.7, 7, 9.8, 5.1, 11.6, 10.9, 6.9, 9.9, 9.5, 3.9, 8.5, 9.3, 6.2, 11.8, 9.1)
+)
 
-store &lt;- data.frame(day = 1:n_days, ad_spend = ad_spend,
-                    emails = emails, sales = round(sales, 2))
-head(store)
-#&gt;   day ad_spend emails   sales
-#&gt; 1   1   643.77   3835 5538.54
-#&gt; 2   2   658.47   2714 5025.06
-#&gt; 3   3   228.85   3390 4601.15
-#&gt; 4   4   588.10   3835 5420.80
-#&gt; 5   5   463.55   2334 4575.78
-#&gt; 6   6   382.60   2484 4916.39</div>
+head(jobs)
+#&gt;   job week crew boxes hours
+#&gt; 1   1    1    2   121  11.1
+#&gt; 2   2    2    2   101  10.0
+#&gt; 3   3    3    2   119  11.7
+#&gt; 4   4    3    2   150  13.5
+#&gt; 5   5    5    2   213  12.7
+#&gt; 6   6    7    2   101   9.3</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -77,41 +82,34 @@ head(store)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>set.seed(42)</code> just fixes the randomness, so your 180 days match mine exactly. Advertising spend wanders between 40 and 693 dollars a day, emails sit around 3,000, and sales run from about 3,245 to about 5,984 dollars.</p>
+<p>Most of these are house moves in the 16 to 219 box range. One of them, job 23, is an office move at 380 boxes, and it is the only job of its kind on the sheet. Hold that thought, because it comes back.</p>
 
-<p>Now read the <code>sales</code> line slowly, because two flaws are planted in it.</p>
-
-<p>Sales rise with advertising through <code>log(ad_spend)</code> rather than through <code>ad_spend</code> itself, which means each extra advertising dollar buys less than the dollar before it. That is the first flaw: the true shape is a curve, not a straight line. Sales also rise with emails at 30 cents an email, which is a plain straight line and perfectly fine.</p>
-
-<p>The second flaw is in the noise. Look at the standard deviation inside that last <code>rnorm</code>, which is <code>40 + 0.5 * ad_spend</code>. On a quiet 40-dollar day it works out at 60. On a 690-dollar day it works out at 385, more than six times bigger. The busy days are simply more unpredictable than the quiet ones.</p>
-
-<p>Now let's fit the model the way anyone would on a Monday morning, as a straight line in both predictors.</p>
+<p>The owner quotes on box count, so the model uses boxes to predict hours and ignores the other columns.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Fit sales on ad spend and emails, then read the output
-fit &lt;- lm(sales ~ ad_spend + emails, data = store)
+    <div class="webr-editor" data-language="r"># Fit hours on boxes: the model the owner quotes new work from
+fit &lt;- lm(hours ~ boxes, data = jobs)
 summary(fit)
 #&gt;
 #&gt; Call:
-#&gt; lm(formula = sales ~ ad_spend + emails, data = store)
+#&gt; lm(formula = hours ~ boxes, data = jobs)
 #&gt;
 #&gt; Residuals:
 #&gt;     Min      1Q  Median      3Q     Max
-#&gt; -662.95 -166.03   17.73  165.81  743.42
+#&gt; -3.3894 -0.6187 -0.2043  0.7170  2.7811
 #&gt;
 #&gt; Coefficients:
-#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept) 2.979e+03  1.145e+02  26.019  &lt; 2e-16 ***
-#&gt; ad_spend    2.166e+00  1.063e-01  20.380  &lt; 2e-16 ***
-#&gt; emails      2.826e-01  3.561e-02   7.936  2.3e-13 ***
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 5.194645   0.285251   18.21   &lt;2e-16 ***
+#&gt; boxes       0.036828   0.002168   16.99   &lt;2e-16 ***
 #&gt; ---
 #&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 #&gt;
-#&gt; Residual standard error: 270.6 on 177 degrees of freedom
-#&gt; Multiple R-squared:  0.731,	Adjusted R-squared:  0.728
-#&gt; F-statistic: 240.5 on 2 and 177 DF,  p-value: &lt; 2.2e-16</div>
+#&gt; Residual standard error: 1.106 on 58 degrees of freedom
+#&gt; Multiple R-squared:  0.8327,	Adjusted R-squared:  0.8298
+#&gt; F-statistic: 288.6 on 1 and 58 DF,  p-value: &lt; 2.2e-16</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -121,86 +119,134 @@ summary(fit)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read that the way you would if you were in a hurry. R-squared is 0.731, so the model accounts for about 73% of the day-to-day movement in sales. Advertising comes in at 2.166 dollars of sales per dollar spent, with three stars beside it. Emails come in at 0.2826, also with three stars. The F-statistic at the bottom says the model as a whole is far better than nothing.</p>
+<p>Read it the way the owner did. A job starts at 5.19 hours before a single box is touched, and every box after that adds 0.036828 hours, which is about 2 minutes and 13 seconds. Box count alone accounts for 83% of the differences in job length, and the p-value on that slope is small enough that R stops printing digits.</p>
 
-<p>There is nothing in that output to worry about. Both flaws are still sitting in the data, and not one number on that page points at either of them.</p>
+<p>That is a strong result. A hundred-box move should take 5.19 plus 3.68, near enough nine hours, and the owner can quote that.</p>
+
+<p>Now here is the part worth sitting with. Every number in that block was computed from the assumption that the five promises hold. Not one of them is a test of whether they do.</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<h2>The five promises the model just made about your data</h2>
+<h2>Residuals: what every check actually looks at</h2>
 
-<p>Before it printed any of those numbers, <code>lm()</code> took five things for granted.</p>
+<p>None of the five checks ever looks at the boxes column or the hours column directly. They all look at one derived quantity, so let's build it before going near a diagnostic plot.</p>
 
-<p>None of the five is about the <code>ad_spend</code> column or the <code>sales</code> column. All five are about the errors: the gaps between what the model predicted for a day and what the store actually sold that day. Those gaps have a name, <strong>residuals</strong>, and <code>residuals(fit)</code> gives you all 180 of them. Every check today is a different way of looking at that one set of numbers.</p>
+<p>A residual is the hours a job really took minus the hours the fitted line predicted for it. Written out for job \(i\):</p>
 
-<p>Here are the five promises, what a break looks like, and the check that finds each one.</p>
+<p>\[ e_i \;=\; y_i \;-\; \hat{y}_i \]</p>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>The promise</th>
-<th>What a break looks like</th>
-<th>The check that finds it</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>The relationship really is a straight line</td>
-<td>the residuals bend into a hill or a valley instead of a flat band</td>
-<td>Residuals vs Fitted plot, then an F test for a missed bend</td>
-</tr>
-<tr>
-<td>The errors are the same size everywhere</td>
-<td>residuals fan out into a funnel as the prediction rises</td>
-<td>Scale-Location plot, then the Breusch-Pagan test</td>
-</tr>
-<tr>
-<td>One day's error says nothing about the next day's</td>
-<td>long runs of residuals with the same sign</td>
-<td>residuals plotted in day order, then the Durbin-Watson test</td>
-</tr>
-<tr>
-<td>The errors are roughly normal</td>
-<td>the Q-Q points bend away from the line at the ends</td>
-<td>Q-Q plot, then the Shapiro-Wilk test</td>
-</tr>
-<tr>
-<td>No single day is running the model</td>
-<td>one point sits far off on its own</td>
-<td>Residuals vs Leverage plot, then Cook's distance</td>
-</tr>
-</tbody>
-</table>
+<p>Here \(y_i\) is the recorded hours and \(\hat{y}_i\) is what the line says for that job's box count. A positive residual means the job overran the prediction, and a negative one means it came in early.</p>
 
-<p>Two things are worth noticing before we start. Four of those five checks come out of a single function call, which you are about to see. And every one of them looks at residuals, never at the raw columns.</p>
+<p>Here is the whole idea in one picture. The green line is the fit, and each grey drop is one job's residual.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The assumptions are about the errors, not about your data. A wildly lopsided <code>ad_spend</code> column is not a violation of anything. The model never made a promise about the shape of your predictors, only about how the errors behave around the fitted line.</div></div>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw the fitted line and the residual for every one of the 60 jobs
+plot(jobs$boxes, jobs$hours, pch = 19, col = &quot;grey35&quot;,
+     xlab = &quot;Boxes packed&quot;, ylab = &quot;Hours the job took&quot;,
+     main = &quot;Every job, the fitted line, and the gap between them&quot;)
+abline(fit, col = &quot;forestgreen&quot;, lwd = 2)
+segments(jobs$boxes, jobs$hours, jobs$boxes, fitted(fit), col = &quot;grey70&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those grey drops are the raw material for everything that follows. Now let's get them as numbers rather than as a picture, because numbers are what the tests read.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put the prediction and the residual beside the raw columns for each job
+sheet &lt;- data.frame(
+  boxes    = jobs$boxes,
+  hours    = jobs$hours,
+  fitted   = round(fitted(fit), 2),
+  residual = round(residuals(fit), 2)
+)
+
+head(sheet)
+#&gt;   boxes hours fitted residual
+#&gt; 1   121  11.1   9.65     1.45
+#&gt; 2   101  10.0   8.91     1.09
+#&gt; 3   119  11.7   9.58     2.12
+#&gt; 4   150  13.5  10.72     2.78
+#&gt; 5   213  12.7  13.04    -0.34
+#&gt; 6   101   9.3   8.91     0.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Job 1 packed 121 boxes, the line predicted 9.65 hours, and the crew actually took 11.1. It ran 1.45 hours long, so its residual is 1.45. Job 5 came in 0.34 hours under.</p>
+
+<p>Two facts about these residuals are worth having before we start reading them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The residuals average out to zero, and the worst single miss is over three hours
+c(mean_residual = round(mean(residuals(fit)), 6),
+  largest_miss  = round(max(abs(residuals(fit))), 2))
+#&gt; mean_residual  largest_miss
+#&gt;          0.00          3.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first is not a discovery, it is arithmetic. Least squares places the line so that the overs and the unders cancel exactly, which is true of every straight-line fit and therefore tells you nothing about this one.</p>
+
+<p>The second is the interesting one. Somewhere in these sixty jobs the model is off by three hours and twenty-three minutes. The median job on this sheet runs 9.4 hours, so that is a third of a working day the owner did not see coming.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">All five checks read the residuals, and each one reads them a different way: their shape against the prediction, their size against the prediction, their order in time, their distribution, and how hard any single one of them pulls on the fit. That is the whole subject in one sentence.</div></div>
 </section>
 
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what a broken promise actually damages</h2>
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>What a broken assumption costs you</h2>
 
-<p>Suppose one of those five promises is badly broken in a model you have just fitted. What is most likely to be wrong in the output in front of you?</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step4" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">R-squared drops sharply, so a broken promise always shows up as a worse fit.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The standard errors, the confidence intervals and the p-values, while R-squared and the coefficients themselves can look completely normal.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The model refuses to fit and R returns an error, so you find out straight away.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The coefficients come back as NA, because they can no longer be computed.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. That is what makes this worth doing: the number people check is not the number that breaks. A model can keep a healthy R-squared and still hand you a p-value that means nothing.</div><div class="lesson-qfb lesson-qfb-no">A broken assumption is almost never loud. The model still fits, the coefficients still print, and R-squared can stay exactly where it was. What stops being trustworthy is the precision half of the output: the standard errors, and therefore the intervals and p-values built on top of them.</div></div>
-</section>
+<p>Before running the checks, it helps to know what is at stake, because the answer surprises most people.</p>
+
+<p>The intuition almost everyone starts with is that a broken assumption ruins the fit. It does not, at least not usually. What it ruins is the honesty of the standard error, and with it everything computed from the standard error: the t value, the p-value, the confidence interval.</p>
+
+<p>The dial below breaks one assumption on purpose, the one about the errors staying the same size, and measures the damage two ways. The red line is coverage: run two thousand complete studies at that severity and count how often the 95% confidence interval actually contains the true slope. That is what a 95% interval promises, so the honest answer is 95%. The blue dashed line is R-squared, the number people quote to say a model is good.</p>
+
+<p>Drag the slider from no violation across to severe.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"heteroskedasticity","start":0,"levels":11}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Watch the two lines separate. R-squared barely moves, because the fit is genuinely still describing the data. Coverage falls away underneath it, and an interval that claims 95% while covering far less than that is simply wrong.</p>
+
+<p>This is why the summary can never warn you. R-squared, the coefficient and the shape of the printout are the parts a violation tends to leave alone. The interval and the p-value are the parts it wrecks, and they print identically either way.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A regression summary has no capacity to tell you its assumptions are broken. It is not that it forgets to check them, it is that its output is the wrong place to look. The five checks exist because the damage lands where the summary does not show.</div></div>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="concept">
-<h2>One line of code draws four of the five checks</h2>
+<h2>Is the relationship actually a straight line?</h2>
 
-<p>You do not have to build these plots by hand. Call <code>plot()</code> on a fitted model and R gives you four diagnostic panels, one after another. <code>par(mfrow = c(2, 2))</code> arranges them in a two by two grid so all four arrive on one screen.</p>
+<p>The first promise is the one people forget is a promise at all. <code>lm()</code> fits a straight line whether or not a straight line is the right shape, and it never complains.</p>
+
+<p>So the question is not whether the line fits well. It is whether the misses are patternless. If a straight line is the right shape, the residuals should scatter around zero with no relationship to the prediction. If the truth bends and you fit a line, the residuals will hold the bend the line missed.</p>
+
+<p>That comparison is exactly what the residuals versus fitted plot draws: the prediction along the bottom, the residual up the side, and a red smoother through the middle to make the trend visible.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Draw the four standard diagnostic panels for the fitted model
-par(mfrow = c(2, 2))
-plot(fit)</div>
+    <div class="webr-editor" data-language="r"># Check the shape: residuals against fitted values, with the smoother
+plot(fit, which = 1)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -210,119 +256,46 @@ plot(fit)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Four panels, and each one is asking a different question.</p>
+<p>Read the red smoother against the dashed line at zero, and ignore the individual points for a moment.</p>
 
-<ul>
+<p>It starts about 1.2 hours below zero at the smallest jobs, climbs above zero through the middle of the range, and then drops steeply away on the right. That is an arch, not a flat band.</p>
 
-<li><strong>Residuals vs Fitted</strong> (top left) asks whether a straight line was the right shape. You want a flat, shapeless band around the horizontal zero line. The red curve through it is a smoother, drawn to make any trend easier to see.</li>
+<p>Turn it back into the owner's language and it says something specific. The smallest jobs finish sooner than the line says they will. Jobs through the middle of the range run over it. Out at the right-hand end the line is over-predicting once more. The model is not making random mistakes, it is making the same mistake to every job of a given size, and that is the signature of a wrong shape.</p>
 
-<li><strong>Q-Q Residuals</strong> (top right) asks whether the errors are roughly normal. You want the points to lie along the dashed diagonal.</li>
+<p>The reason is easy to picture once you see it. Packing 30 boxes and packing 60 boxes is not twice the work, because carrying gear in, protecting the floor and backing the van up happen once either way. Real jobs do grow with box count, but they grow slower and slower, so the truth is a curve that flattens as it rises. A straight line cannot bend, so it sits above that curve at the two ends and below it through the middle, which is exactly the arch you are looking at.</p>
 
-<li><strong>Scale-Location</strong> (bottom left) asks whether the errors stay the same size across the range. You want a flat red line, not one that climbs.</li>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">An arch in this plot never means you collected bad data or too little of it. It means the equation is the wrong shape for the relationship. Another 60 jobs would draw the same arch with more points on it.</div></div>
 
-<li><strong>Residuals vs Leverage</strong> (bottom right) asks whether any single day is running the model. You want no point stranded far to the right on its own.</li>
-
-</ul>
-
-<p>A few points in each panel are labelled with their row number. Those are the most extreme days, and R labels them so you can go and look at them.</p>
-
-<p>That is four of the five promises from one line of code. The fifth one, independence, is missing from the grid for a good reason: R has no idea what order your rows came in, so it cannot draw that plot for you. We will draw it ourselves in a few minutes.</p>
+<p>That reading skill carries the rest of the way, because the four remaining checks are all variations on it: draw the residuals a particular way, then ask whether what you see could plausibly be nothing.</p>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<h2>Is the relationship really a straight line?</h2>
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a curve in the residual plot means</h2>
 
-<p>Start with the top-left panel, Residuals vs Fitted. Of the five, this is the one whose failure changes your answer, not just the error bars around it.</p>
-
-<p>The idea behind it is simple. If a straight line really is the right shape, then after the line has done its job the leftovers should be pure noise: no pattern, no drift, no bend. Plot those leftovers against what the model predicted and you should get a flat, shapeless band.</p>
-
-<p>Three shapes are worth knowing on sight. Switch between them and watch the band change.</p>
-<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"healthy"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>The healthy fit is the flat band: the trend line through the middle stays level and the points scatter evenly above and below it. The funnel widens as you move right, which is a different promise breaking, and we will come back to it. The curve is the one that matters here. Its residuals dip below zero through the middle of the range and rise above it at both ends, so the trend line makes a valley instead of staying flat.</p>
-
-<p>What you are looking for is that shape, not that exact direction. A missed bend can leave a valley, low in the middle and high at the ends, or a hill, high in the middle and low at the ends. Either way the leftovers carry a pattern, and a pattern in the leftovers means the straight line got the shape wrong.</p>
-
-<p>Now, which of the three is ours? Squinting at a plot is a fine start and a poor finish, so let's put a number on it. Split the 180 days into three advertising bands and average the residuals inside each band. If the band is genuinely flat, all three averages should land near zero.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Average the residuals inside three spend bands: a flat band gives three near-zero numbers
-spend_band &lt;- cut(store$ad_spend,
-                  breaks = c(0, 200, 450, Inf),
-                  labels = c(&quot;under 200&quot;, &quot;200 to 450&quot;, &quot;450 and up&quot;))
-round(tapply(residuals(fit), spend_band, mean), 1)
-#&gt;  under 200 200 to 450 450 and up
-#&gt;      -78.7      108.9      -45.3</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>They land nowhere near zero. On the cheap days the model overshoots by 79 dollars on average. In the middle it undershoots by 109. On the big days it overshoots again by 45. That is down, up, and down again: an arch, high in the middle and low at both ends. It is the mirror image of the valley in the widget above, and it is the very same failure: a pattern in the leftovers where there should be none.</p>
-
-<p>Averages of residuals are still not a test, though, and eyeballing has no p-value. So here is the test. Fit the same model with one extra term, advertising spend squared, and ask whether the extra term earned its place. A squared term is the simplest way to let a model bend, so if bending helps, this is where it shows up. <code>anova()</code> compares the two models, one sitting inside the other, and reports the improvement as an F statistic. That comparison has a name, the nested F test.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Ask whether a squared ad-spend term earns its place in the model
-fit_sq &lt;- lm(sales ~ ad_spend + I(ad_spend^2) + emails, data = store)
-anova(fit, fit_sq)
-#&gt; Analysis of Variance Table
-#&gt;
-#&gt; Model 1: sales ~ ad_spend + emails
-#&gt; Model 2: sales ~ ad_spend + I(ad_spend^2) + emails
-#&gt;   Res.Df      RSS Df Sum of Sq      F    Pr(&gt;F)
-#&gt; 1    177 12961117
-#&gt; 2    176 10586965  1   2374152 39.468 2.536e-09 ***</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>F is 39.468 and the p-value is 0.0000000025. Read that as: if a straight line really were the right shape, an improvement this big from adding one bend would turn up in fewer than three tries in a billion. The <code>I()</code> wrapper, by the way, just tells R to treat <code>ad_spend^2</code> as arithmetic rather than as formula syntax.</p>
-
-<p>So the eye and the test agree. The first promise is broken, and we broke it ourselves when we wrote <code>log(ad_spend)</code> into the build.</p>
+<p>The smoother in that plot rose above zero through the middle of the range and dived below zero at both ends, instead of running flat. What does that tell you?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The data is noisy, and a curve like that is what noise looks like on a small sample.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Some of the jobs were recorded wrongly and should be removed before fitting again.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A straight line is the wrong shape for this relationship, so the model misses in a pattern that depends on job size.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The relationship is too weak for a regression to pick up.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The misses are not random, they track the prediction, and only a change to the shape of the model can remove them.</div><div class="lesson-qfb lesson-qfb-no">The relationship here is strong, and noise does not organise itself into an arch that follows the prediction. A curve in this plot is about the shape of the equation, not about the quality or the quantity of the data, which is why collecting more jobs would reproduce the same curve.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="concept">
-<h2>What a missed curve costs in real money</h2>
+<h2>Do the errors grow with the prediction?</h2>
 
-<p>A broken assumption is easy to shrug off while it stays abstract, so let's turn this one into dollars.</p>
+<p>The second promise is that the errors stay the same size across the whole range. A model that is off by an hour on a small job should be off by about an hour on a big one too.</p>
 
-<p>The model has one number for advertising, 2.166, and it applies that number everywhere. Spend one more dollar on a 60-dollar day and the model says you get 2.17 dollars back. Spend one more on a 650-dollar day and the model says exactly the same thing. A straight line cannot say anything else, because one slope is all it has.</p>
+<p>That promise has a name worth knowing, because it turns up in every textbook and every warning about it. Equal error variance is called homoscedasticity, and the failure of it is heteroscedasticity, which is Greek for spread that changes.</p>
 
-<p>Is that what the store's own days say? We can ask them directly. Split the 180 days into the same three bands, fit the same straight-line model separately inside each band, and read off the advertising slope each band produces on its own.</p>
+<p>The previous plot already hints at it, but the misses are easier to compare when you strip out the sign and flatten the scale. That is what the scale-location plot does. It takes each residual, divides it by the size the model expects a residual to have, drops the minus sign and takes a square root, so the only thing left to look at is size.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compare the one slope the whole line claims against what each spend band really returns
-cheap &lt;- subset(store, ad_spend &lt; 200)
-mid   &lt;- subset(store, ad_spend &gt;= 200 &amp; ad_spend &lt; 450)
-big   &lt;- subset(store, ad_spend &gt;= 450)
-
-slope_cheap &lt;- coef(lm(sales ~ ad_spend + emails, data = cheap))[[&quot;ad_spend&quot;]]
-slope_mid   &lt;- coef(lm(sales ~ ad_spend + emails, data = mid))[[&quot;ad_spend&quot;]]
-slope_big   &lt;- coef(lm(sales ~ ad_spend + emails, data = big))[[&quot;ad_spend&quot;]]
-
-data.frame(spend_band     = c(&quot;under 200&quot;, &quot;200 to 450&quot;, &quot;450 and up&quot;),
-           days           = c(nrow(cheap), nrow(mid), nrow(big)),
-           line_says      = round(coef(fit)[[&quot;ad_spend&quot;]], 2),
-           these_days_say = round(c(slope_cheap, slope_mid, slope_big), 2))
-#&gt;   spend_band days line_says these_days_say
-#&gt; 1  under 200   42      2.17           5.80
-#&gt; 2 200 to 450   62      2.17           2.40
-#&gt; 3 450 and up   76      2.17           1.21</div>
+    <div class="webr-editor" data-language="r"># Check the spread: is the size of the miss growing with the prediction
+plot(fit, which = 3)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -332,103 +305,23 @@ data.frame(spend_band     = c(&quot;under 200&quot;, &quot;200 to 450&quot;, &qu
   <div class="webr-plot-output"></div>
 </div>
 
-<p>One claim, and the days give three different answers. On the cheap days advertising returns 5.80 dollars a dollar. In the middle it returns 2.40. On the big days it returns 1.21. The single 2.17 the model reported is a blend of all three, and it is wrong at both ends of the range.</p>
+<p>The red smoother dips a little through the shorter jobs, bottoming out near 0.7, then climbs the rest of the way across and is past 0.9 by the right-hand end.</p>
 
-<p>Because we built this data ourselves, we can go one better and check those band slopes against the truth. The sales column was built with <code>600 * log(ad_spend)</code>, and the return on one more dollar under that rule works out at <code>600 / ad_spend</code>.</p>
+<p>That is a funnel. When the model predicts a short job its misses are small, and when it predicts a long one they are far larger, which is exactly what the second promise said would not happen.</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The sales column was built with 600 * log(ad_spend), so the true return is 600 / ad_spend
-round(600 / c(60, 300, 650), 2)
-#&gt; [1] 10.00  2.00  0.92</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>At a spend of 60 dollars a day the truth is 10 dollars back per advertising dollar. At 300 it is 2 dollars. At 650 it is 92 cents.</p>
-
-<p>Now think about what the model would have you do. It reports 2.17 everywhere, so at 650 dollars a day it says advertising is still more than doubling your money, when the real answer is that you are losing eight cents on every dollar. A store acting on that number keeps buying advertising it should have stopped buying, and R-squared of 0.731 never once complains.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A missed curve does not usually ruin the fit. It ruins the answer at the edges of your data, which is exactly where decisions get made. R-squared is an average over all your rows, so a model can be a decent summary and a bad guide at the same time.</div></div>
-</section>
-
-<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
-<h2>Your turn: put the curve into the model</h2>
-
-<p>When the straight-line promise breaks, the repair is to change the model until the relationship inside it really is straight.</p>
-
-<p>You do not have to guess the shape from nothing. A slope that shrinks as the predictor grows, the way advertising did here, is the classic sign of a logarithm, so the usual first move is to fit the predictor as <code>log(ad_spend)</code> instead of <code>ad_spend</code>. The model is still a linear regression. It is now linear in the log of spend rather than in spend itself.</p>
-
-<p>Fit that model, call it <code>fit_curve</code>, and check two things: its R-squared, and whether the residual band has flattened out.</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="sales\s*~\s*log[(]ad_spend[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Refit the model with log(ad_spend) in place of ad_spend, then look again
-# 1. Fit sales on log(ad_spend) and emails, and name it fit_curve.
-# 2. Print summary(fit_curve)$r.squared.
-# 3. Print round(tapply(residuals(fit_curve), spend_band, mean), 1) to see the band.
-# Three lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. R-squared rises from 0.731 to 0.792, and the three band averages fall from -78.7, 108.9 and -45.3 to 7.1, -14.6 and 8.0. The arch is gone.</span><span class="lesson-tryit-fb lesson-tryit-no">Take the model you already have and swap one term: fit_curve is lm(sales ~ log(ad_spend) + emails, data = store), then print summary(fit_curve)$r.squared.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit the curved version and see whether the residual band flattens out
-fit_curve &lt;- lm(sales ~ log(ad_spend) + emails, data = store)
-summary(fit_curve)$r.squared
-#&gt; [1] 0.7915142
-
-round(tapply(residuals(fit_curve), spend_band, mean), 1)
-#&gt;  under 200 200 to 450 450 and up
-#&gt;        7.1      -14.6        8.0</code></pre></details></div>
-</section>
-<p>Look at those three band averages next to the ones from before. They went from minus 79, plus 109 and minus 45 down to plus 7, minus 15 and plus 8. The arch has flattened into noise, which is what a kept promise looks like.</p>
-
-<p>R-squared went up too, from 0.731 to 0.792, but treat that as a bonus rather than the point. The reason to make this change is that the model now gives a different, and correct, answer at every spend level instead of one blended answer everywhere.</p>
-</section>
-
-<section class="lesson-step" data-step="9" data-step-type="concept">
-<h2>Does the spread grow with the prediction?</h2>
-
-<p>On to the second promise. The model assumes the errors are the same size everywhere: as unpredictable on a 4,000-dollar day as on a 5,500-dollar day. The proper name for that is <strong>homoskedasticity</strong>, and for the failure, <strong>heteroskedasticity</strong>. They are ugly words for a simple picture, which is a band that fans out.</p>
-
-<p>We know this promise is broken, because we built the noise with a standard deviation of <code>40 + 0.5 * ad_spend</code>. Let's see whether the checks find it. First, measure the spread directly. Sort the days by what the model predicted for them, cut them into three equal groups, and take the standard deviation of the residuals inside each group.</p>
+<p>A picture is only suggestive, though, and the eye is easy to fool with 60 points. There is a formal test for this exact question. The Breusch-Pagan test regresses the squared residuals on the predictors and asks whether the spread has any relationship to them at all. Its null hypothesis is the promise itself, that the variance is constant, so a small p-value is evidence the promise is broken.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Measure the residual spread inside three bands of the prediction itself
-fitted_band &lt;- cut(fitted(fit),
-                   breaks = quantile(fitted(fit), c(0, 1/3, 2/3, 1)),
-                   labels = c(&quot;low&quot;, &quot;middle&quot;, &quot;high&quot;),
-                   include.lowest = TRUE)
-round(tapply(residuals(fit), fitted_band, sd), 1)
-#&gt;    low middle   high
-#&gt;  227.2  201.4  327.9</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>On the store's biggest days the model's typical miss is 328 dollars. In the middle of the range it is 201, which makes the top third about 60% wider than the middle one.</p>
-
-<p>That is the funnel from the widget earlier, written as numbers. The plot that shows it is the bottom-left panel of the diagnostic grid, Scale-Location, and the test that puts a p-value on it is <strong>Breusch-Pagan</strong>, which lives in the <code>lmtest</code> package. It works by asking whether the size of the residuals can itself be predicted from the predictors. If it can, the spread is not constant.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Draw the scale-location panel and test the spread with Breusch-Pagan
-suppressMessages(library(lmtest))
-par(mfrow = c(1, 1))
-plot(fit, which = 3)
+    <div class="webr-editor" data-language="r"># Test the spread formally with the Breusch-Pagan test
+suppressPackageStartupMessages(library(lmtest))
 bptest(fit)
 #&gt;
 #&gt; 	studentized Breusch-Pagan test
 #&gt;
 #&gt; data:  fit
-#&gt; BP = 12.103, df = 2, p-value = 0.002354</div>
+#&gt; BP = 14.138, df = 1, p-value = 0.0001699</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -438,44 +331,55 @@ bptest(fit)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The Scale-Location panel plots the size of each residual, on a square-root scale, against the fitted value, so it strips away the sign and shows nothing but magnitude. Its red trend line climbs from left to right instead of staying flat.</p>
+<p>A p-value of 0.00017 says that if the spread really were constant, a funnel this pronounced would turn up in about 17 tests out of every hundred thousand. It is not a close call.</p>
 
-<p>Breusch-Pagan agrees, at p = 0.0024. If the spread really were constant, a pattern this strong would turn up about twice in a thousand models. So the second promise is broken as well.</p>
+<p>Here is why it matters so much for the quoting. Least squares computes one residual standard error for the whole model, 1.106 hours, and every standard error, interval and p-value in that summary is built from that single number. It is one average struck across jobs whose real errors are nothing like each other, so it overstates the uncertainty on small jobs and understates it on large ones. The interval around a 200-box quote is narrower than the data can support.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The coefficient survives heteroscedasticity roughly intact. The uncertainty around it does not. That is the pattern the dial showed, and it is why a model can look right in the summary and still mislead you about how sure you are.</div></div>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<h2>The repair that leaves every coefficient exactly where it was</h2>
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<h2>Your turn: measure the spread at both ends</h2>
 
-<p>Here is the part almost everyone guesses wrong, so it is worth slowing down for.</p>
+<p>The plot showed a funnel and the test gave it a p-value, but neither one tells you how big the funnel is in hours. That is worth having as a number, and it takes two lines.</p>
 
-<p>When the spread is uneven, the coefficients are still fine. <code>lm()</code> picks the line that minimises squared error, and an uneven spread does not pull that line off course. The estimate stays unbiased. What breaks is the standard error printed beside it.</p>
+<p>Split the sixty jobs by their predicted length. Take the residuals of the third with the smallest fitted values, take the residuals of the third with the largest, and compare the standard deviation of each group.</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(sd[(]\s*low[\s\S]*sd[(]\s*high|sd[(]\s*high[\s\S]*sd[(]\s*low)"><textarea class="lesson-tryit-input" spellcheck="false"># fit is the model, so residuals(fit) are the misses and fitted(fit)
+# are the predictions.
+# Build low: the residuals whose fitted value is at or below quantile(fitted(fit), 1/3).
+# Build high: the residuals whose fitted value is at or above quantile(fitted(fit), 2/3).
+# Then print sd(low) and sd(high).
+# Two lines and a print. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: 0.69 hours against 1.47. The model is more than twice as wrong on the biggest jobs as on the smallest, and it reports a single error figure of 1.11 hours for both.</span><span class="lesson-tryit-fb lesson-tryit-no">Subset the residuals by the fitted values, then take the two standard deviations: <code>low &lt;- residuals(fit)[fitted(fit) &lt;= quantile(fitted(fit), 1/3)]</code>, the same line with <code>&gt;=</code> and <code>2/3</code> for <code>high</code>, then <code>sd(low)</code> and <code>sd(high)</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Residual spread in the lowest and the highest third of the predictions
+low  &lt;- residuals(fit)[fitted(fit) &lt;= quantile(fitted(fit), 1/3)]
+high &lt;- residuals(fit)[fitted(fit) &gt;= quantile(fitted(fit), 2/3)]
 
-<p>Think about why. The standard error is the model's statement of how precisely it knows a coefficient, and it is computed on the assumption that every day is equally informative. When the model's typical miss is three hundred dollars on the big days and two hundred on the quiet ones, that assumption is false, so the arithmetic behind the standard error is using the wrong weights. The number it produces can come out too small or too large. Either way, the confidence interval and the p-value are built on top of it, so they inherit the mistake.</p>
+round(c(low_third = sd(low), high_third = sd(high)), 2)
+#&gt;  low_third high_third
+#&gt;       0.69       1.47</code></pre></details></div>
+</section>
+<p>Quote a small move and the model's typical miss is about 40 minutes. Quote a large one and it is closer to an hour and a half. The summary offers one number, 1.106 hours, and it is honest about neither end.</p>
+</section>
 
-<p>The repair is not to change the model. It is to compute the standard errors a different way, one that stops assuming an equal spread and reads the actual spread off the residuals instead. Those are called <strong>heteroskedasticity-robust</strong> standard errors, and <code>coeftest()</code> from <code>lmtest</code> together with <code>vcovHC()</code> from <code>sandwich</code> produce them in one line. Here they are next to the plain ones.</p>
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Is each error independent of the one before it?</h2>
+
+<p>The third promise is that knowing one job overran tells you nothing about whether the next one will. Errors are supposed to arrive independently, like coin tosses.</p>
+
+<p>Neither plot so far could have shown you a breach of it, because both of them put the prediction on the horizontal axis. Dependence between jobs lives in a dimension neither plot uses, which is the order the jobs happened in.</p>
+
+<p>The job sheet is already in date order, so plotting the residuals against the job number is enough.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Put the plain standard errors beside heteroskedasticity-robust ones
-suppressMessages(library(sandwich))
-coeftest(fit)
-#&gt;
-#&gt; t test of coefficients:
-#&gt;
-#&gt;               Estimate Std. Error t value  Pr(&gt;|t|)
-#&gt; (Intercept) 2978.77520  114.48438 26.0191 &lt; 2.2e-16 ***
-#&gt; ad_spend       2.16642    0.10630 20.3799 &lt; 2.2e-16 ***
-#&gt; emails         0.28260    0.03561  7.9362 2.296e-13 ***
-
-coeftest(fit, vcov = vcovHC(fit, type = &quot;HC1&quot;))
-#&gt;
-#&gt; t test of coefficients:
-#&gt;
-#&gt;               Estimate Std. Error t value  Pr(&gt;|t|)
-#&gt; (Intercept) 2.9788e+03 1.0642e+02 27.9904 &lt; 2.2e-16 ***
-#&gt; ad_spend    2.1664e+00 1.2351e-01 17.5397 &lt; 2.2e-16 ***
-#&gt; emails      2.8260e-01 3.3613e-02  8.4077 1.344e-14 ***</div>
+    <div class="webr-editor" data-language="r"># Read the same residuals in date order, and add a smoother to show any drift
+plot(jobs$job, residuals(fit), pch = 19, col = &quot;grey35&quot;,
+     xlab = &quot;Job number, in the order the jobs happened&quot;,
+     ylab = &quot;Residual (hours)&quot;,
+     main = &quot;The same residuals, read in date order&quot;)
+abline(h = 0, col = &quot;red&quot;, lwd = 2)
+lines(lowess(jobs$job, residuals(fit)), col = &quot;steelblue&quot;, lwd = 2)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -485,44 +389,18 @@ coeftest(fit, vcov = vcovHC(fit, type = &quot;HC1&quot;))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Compare the two blocks column by column. The Estimate column is identical: 2.1664 for advertising in both, 0.2826 for emails in both. Not one coefficient moved, because nothing about the fitted line changed.</p>
+<p>The blue smoother sits well above the zero line for the first half of the year and well below it for the second half. The residuals are not shuffled around zero, they are drifting.</p>
 
-<p>The Std. Error column did move. Advertising went from 0.1063 to 0.1235, about 16% wider, so the plain standard error was overstating how precisely we knew that slope. Emails went the other way, from 0.03561 down to 0.03361. Both were wrong, in opposite directions, and only the robust version knows by how much.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Uneven spread is a precision problem, not a bias problem. The coefficient was never in danger. The error bar around it was. So the fix is the standard error, and the model you report is the model you already had.</div></div>
-
-<p><code>type = &quot;HC1&quot;</code> is the small-sample correction most people use, and it is what Stata reports by default. On 180 rows the choice between HC1 and its siblings barely matters, so take it as a sensible default rather than a decision to agonise over.</p>
-</section>
-
-<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
-<h2>Quick check: reading a funnel in the residuals</h2>
-
-<p>You fit a model on a new dataset. The Residuals vs Fitted plot shows a band that starts narrow on the left and fans out steadily to the right, and Breusch-Pagan comes back at p = 0.004. What have you actually learned?</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step11" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The slope is biased, so the model needs a curved term before you can trust it.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The largest observations are outliers and should be removed before refitting.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The slope estimate is still sound, but the standard error around it is not, so the repair is robust standard errors and the model stays as it is.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing needs doing, because R-squared is high and the coefficients are significant.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. A funnel is about how confidently you know the answer, never about whether the answer is in the right place. Refit nothing, recompute the standard errors.</div><div class="lesson-qfb lesson-qfb-no">A funnel is a precision failure. The fitted line is still the least-squares line and the coefficients are still unbiased, so there is nothing to refit and nothing to delete. What is unreliable is the standard error, and with it the interval and the p-value. Recompute those with a robust estimator and report the same model.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="12" data-step-type="concept">
-<h2>Does one day's error carry into the next?</h2>
-
-<p>The third promise is that the errors are independent: knowing how wrong the model was on Tuesday tells you nothing about how wrong it will be on Wednesday.</p>
-
-<p>This is the one check R cannot draw for you, because a data frame does not know what its rows mean. Ours are days in order, so "the next observation" is a real thing here and the promise is worth checking. Plot each day's residual against the day it happened.</p>
+<p>The split is stark enough to measure directly.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Plot each day's residual against the day it happened, in the original row order
-par(mfrow = c(1, 1))
-plot(store$day, residuals(fit), pch = 16, col = &quot;grey40&quot;,
-     xlab = &quot;Day&quot;, ylab = &quot;Residual&quot;,
-     main = &quot;Residual by day, in the order the days happened&quot;)
-abline(h = 0, col = &quot;red&quot;, lwd = 2)</div>
+    <div class="webr-editor" data-language="r"># Average residual in the first half of the year against the second
+round(c(jobs_1_to_27  = mean(residuals(fit)[1:27]),
+        jobs_28_to_60 = mean(residuals(fit)[28:60])), 2)
+#&gt;  jobs_1_to_27 jobs_28_to_60
+#&gt;          0.76         -0.62</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -532,20 +410,24 @@ abline(h = 0, col = &quot;red&quot;, lwd = 2)</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p>What you want is what you see: points crossing the red zero line constantly, with no long stretches stuck on one side. A failure would look obviously different. If the model ran ten days too low and then twelve days too high, you would see the points drift above and below the line in long waves, and that pattern is called <strong>autocorrelation</strong>.</p>
+<p>For the first 27 jobs the model under-predicts by 46 minutes on average, and for the remaining 33 it over-predicts by 37 minutes. Something changed at the company partway through the year, and because the model has no column for it, the change went into the residuals instead.</p>
 
-<p>The test for it is <strong>Durbin-Watson</strong>, also from <code>lmtest</code>. It compares each residual with the one before it and returns a number between 0 and 4. Around 2 means no link between neighbours. Below 2 means consecutive residuals tend to share a sign, and above 2 means they tend to alternate.</p>
+<p>The standard test for this pattern is Durbin-Watson, which compares each residual with the one immediately before it:</p>
+
+<p>\[ DW \;=\; \frac{\sum_{t=2}^{n}\left(e_t - e_{t-1}\right)^2}{\sum_{t=1}^{n} e_t^2} \]</p>
+
+<p>The numerator adds up how far each residual jumps from its predecessor. When neighbouring residuals are unrelated those jumps are large and the ratio lands near 2. When neighbours resemble each other the jumps are small and the statistic falls toward 0. Values above 2 mean the opposite, residuals that flip sign every time.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Test whether each day's error is linked to the day before it
+    <div class="webr-editor" data-language="r"># Test independence: does each residual resemble the one before it
 dwtest(fit)
 #&gt;
 #&gt; 	Durbin-Watson test
 #&gt;
 #&gt; data:  fit
-#&gt; DW = 2.1937, p-value = 0.9037
+#&gt; DW = 1.1761, p-value = 0.0004451
 #&gt; alternative hypothesis: true autocorrelation is greater than 0</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -556,31 +438,82 @@ dwtest(fit)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>DW is 2.1937, near enough to 2 to be unremarkable, and p is 0.90. There is no evidence of any link between one day's error and the next.</p>
-
-<p>That is the correct result, and we know it because we built the noise one day at a time with independent draws from <code>rnorm</code>. The third promise holds. Three checks in, and this is the first one to come back clean.</p>
-</section>
-
-<section class="lesson-step" data-step="13" data-step-type="concept">
-<h2>The Q-Q plot passes, and it mattered least anyway</h2>
-
-<p>The fourth promise is that the errors are roughly normal: mostly small, symmetric around zero, with big misses rare in both directions.</p>
-
-<p>The plot for it is the Q-Q plot, and the idea behind it takes one sentence. Sort your residuals from smallest to largest, work out where each one would sit if the errors really were normal, and plot what you got against what you expected. If they match, every point lands on a straight diagonal line. Points that bend away from that line at the ends are the ones telling you the tails are fatter or thinner than normal.</p>
+<p>DW comes back at 1.18 against the 2 you want, with a p-value of 0.00045. The correlation behind that number is easy to see on its own.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Check whether the residuals are roughly normal, by eye and by test
-par(mfrow = c(1, 1))
-qqnorm(residuals(fit), main = &quot;Normal Q-Q plot of the residuals&quot;)
-qqline(residuals(fit), col = &quot;red&quot;, lwd = 2)
+    <div class="webr-editor" data-language="r"># Correlate each residual with the one immediately before it
+r &lt;- residuals(fit)
+round(cor(r[-60], r[-1]), 3)
+#&gt; [1] 0.397</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A correlation of 0.4 between consecutive jobs means the residuals carry roughly 40% of themselves forward. Each new job is not a fresh piece of evidence about the model, it is partly a repeat of the last one, and a model with 60 correlated rows knows less than a model with 60 independent ones. The standard errors, computed as though all sixty counted fully, come out too small.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This check needs the rows in a meaningful order to mean anything at all. Sort the same sixty jobs by box count and the drift vanishes from the plot without a thing about the data changing. Run it in the order the data was collected, which for job sheets, logs and anything carrying a date is time order.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a drift in job order means</h2>
+
+<p>The residuals averaged 0.76 hours above the line for the first 27 jobs and 0.62 below it for the remaining 33. What is the sensible reading?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step10" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The jobs were entered into the sheet in a strange order, and sorting them properly would remove the drift.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Something about the business changed partway through the year, and because the model has no column for it, the change is showing up in the residuals.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The residuals are not normally distributed, so the p-values cannot be trusted.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The model needs more data before the drift will settle down.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. A residual is whatever the model could not account for, so a variable that moves with time and is missing from the model leaves its shape there.</div><div class="lesson-qfb lesson-qfb-no">The order here is the real order the jobs happened in, so the drift is a fact about the business rather than a filing accident. It is also not a normality question, since that concerns the shape of the residuals and not their sequence, and more jobs collected the same way would extend the drift rather than dissolve it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>Are the residuals close to normal?</h2>
+
+<p>The fourth promise is about the shape of the residuals: they should be roughly normal, the familiar bell.</p>
+
+<p>Be precise about what the claim covers, because this is where most of the confusion sits. It says nothing about the hours column, and nothing about the boxes column. Both are free to be as skewed as they like. It is only the residuals, what is left after the model has done its work, that are supposed to be bell shaped.</p>
+
+<p>What the promise buys you is the t distribution. The p-values and the intervals in the summary are all read off a t distribution, and that reading is exact when the errors are normal. So this promise holds up the small print of the inference rather than the coefficient itself.</p>
+
+<p>The tool is the Q-Q plot. It sorts the residuals from smallest to largest and plots each one against the value a perfectly normal sample of the same size would have in that position. If the residuals really are normal, every point lands on the diagonal.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check the shape of the residuals against a normal distribution
+plot(fit, which = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points track the diagonal closely through the middle and wander a little at the ends, which is what a normal sample of 60 looks like. One point at the bottom left sits well off the line, and that is a job we will come back to.</p>
+
+<p>There is a test for it as well. Shapiro-Wilk takes the null hypothesis that the residuals are normal, so here a large p-value is the reassuring one.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test the residuals for normality
 shapiro.test(residuals(fit))
 #&gt;
 #&gt; 	Shapiro-Wilk normality test
 #&gt;
 #&gt; data:  residuals(fit)
-#&gt; W = 0.99454, p-value = 0.751</div>
+#&gt; W = 0.97992, p-value = 0.4253
+#&gt;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -590,136 +523,176 @@ shapiro.test(residuals(fit))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The points sit along the red line from end to end, and <strong>Shapiro-Wilk</strong>, which tests the same thing numerically, returns p = 0.751. There is no sign of trouble.</p>
+<p>A p-value of 0.43 gives no reason to doubt normality. This is the one promise the job sheet keeps.</p>
 
-<p>Now for the part nobody tells beginners. Of the five promises, this is the least important one on a dataset of a few hundred rows, and it is the one people worry about the most.</p>
+<p>It is also, honestly, the least demanding of the five, and it is worth knowing why. With enough rows the sampling distribution of the coefficients tends toward normal whatever the errors look like, so mild skew stops mattering. Sixty rows is usually enough for that to be working in your favour. Normality earns its keep when the sample is small, when you need a prediction interval for one future job, or when the residuals are so lopsided that they are pointing at a wrong model rather than an odd shape.</p>
 
-<p>The reason is that the standard errors and p-values in a regression do not really need the individual errors to be normal. They need the coefficient estimates to be roughly normal, and a coefficient is built from sums across all your rows. Sums of many independent things drift towards normal on their own, whatever shape the individual pieces had. That is the central limit theorem doing the work, and on 180 rows it has plenty to work with.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Shapiro-Wilk gets more sensitive as your sample grows. On 5,000 rows it will flag departures from normality so small that they change none of your conclusions. Look at the Q-Q plot and judge how far the tails actually bend, rather than acting on the p-value alone.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">When a Q-Q plot does look bad, treat it as a symptom before treating it as the problem. Skewed residuals usually mean a missing variable or a wrong shape, and repairing that repairs the Q-Q plot along with it. Reaching for a transformation on the strength of the Q-Q plot alone is treating the reading rather than the cause.</div></div>
 </section>
 
-<section class="lesson-step" data-step="14" data-step-type="quiz" data-gate="1">
-<h2>Quick check: a run of same-sign residuals, and a Q-Q that bends on 5,000 rows</h2>
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what the Q-Q plot does and does not tell you</h2>
 
-<p>Two colleagues bring you two models. In the first, the residuals plotted in date order sit above zero for eleven weeks straight and then below zero for nine. In the second, fitted on 5,000 rows, the Q-Q points bend very slightly at both ends and Shapiro-Wilk returns p = 0.01. Which one needs work?</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step14" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The first. Long runs of the same sign are broken independence, and its standard errors are unreliable until that is dealt with. The second is a mild normality flag on a large sample, which usually calls for nothing.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The second. Any Shapiro-Wilk p under 0.05 means the model's p-values cannot be trusted.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both, equally. A failed check is a failed check, whichever assumption it belongs to.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Neither. Runs in the residuals are normal, and 5,000 rows is enough to make any assumption safe.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly right. Autocorrelation genuinely damages the standard errors and needs a real answer. A normality test firing on thousands of rows is mostly the test showing off its sensitivity.</div><div class="lesson-qfb lesson-qfb-no">The five checks do not carry equal weight. Broken independence is one of the serious ones: consecutive errors that share a sign mean your rows carry less information than the model believes, and the standard errors shrink accordingly. Normality is the mildest of the five on a large sample, because the central limit theorem is already doing the work, and Shapiro-Wilk grows more sensitive with every extra row.</div></div>
+<p>The Q-Q plot came back clean and Shapiro-Wilk gave p = 0.43. Which statement is right?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The hours column is normally distributed.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model has passed its assumption checks, so the p-values in the summary can be trusted.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both the hours and the boxes columns are close enough to normal for the regression to be valid.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The residuals are close to normal, which supports the t based p-values and intervals and says nothing at all about the other four checks.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. Normality is a claim about what is left over once the model has fitted, and each of the five checks stands on its own.</div><div class="lesson-qfb lesson-qfb-no">Normality is a promise about the residuals, never about the raw columns, which are free to be as skewed as they like. It is also only one of the five, so a clean Q-Q plot cannot vouch for the shape, the spread, the independence, or the pull of any single row.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="15" data-step-type="widget">
-<h2>Is one day running the whole model?</h2>
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>Is one job setting the slope?</h2>
 
-<p>The fifth promise is the one that has nothing to do with the shape of anything. It is about whether the model belongs to all your rows, or to one of them.</p>
+<p>The fifth promise is the odd one out. The first four are about the errors as a group, and this one is about individual rows: no single job should be deciding the answer for all the others.</p>
 
-<p>Three words get used here, and they mean different things.</p>
+<p>Two different ideas hide inside that, and keeping them apart is what makes this check usable rather than a vague hunt for weird rows.</p>
 
-<p><strong>Leverage</strong> is about a row's position on the predictors alone. A day where the store spent 1,800 dollars, when every other day sits under 700, has high leverage. It is far out on the horizontal axis, so the fitted line has to pay it a lot of attention. Notice that leverage says nothing at all about sales, because a far-out day can still land exactly where the line expects.</p>
+<p>Leverage is about position. A row has high leverage when its predictor value sits far from the rest, because a point out on its own has room to swing the line. Influence is about consequence, whether the answer actually moves when you take the row away. Leverage is potential, and influence is what came of it.</p>
 
-<p><strong>Influence</strong> is leverage plus being in the wrong place. The day is far out on the predictors and its sales also miss what the line predicted. That combination is what actually drags the line.</p>
-
-<p><strong>Cook's distance</strong> puts a number on influence. For each row it asks a single question: if I dropped this one row and refitted, how far would all the other fitted values move? A big Cook's distance means that dropping this row would change the model's answers for every other row too.</p>
-
-<p>Drag the far-right point up and down. The solid line is the fit with that point included, and the dashed line is the fit without it. The line underneath reports both slopes, "with it" against "without it", so you can read the damage as a number rather than guess it from the picture.</p>
+<p>The widget below makes the difference physical. The far-right point has high leverage wherever you drag it, because it is always the only point out there. Watch how much of that leverage turns into influence as you move it up and down.</p>
 <div class="lesson-widget" data-widget-type="leverage-point" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Notice two things while you drag. When the far point sits where the dashed line expects it, the two lines lie on top of each other and the two slopes agree, which is high leverage doing no harm at all. And the point never has to look absurd to do damage. A modest shift up or down swings the solid line noticeably, because there is nothing else out at that end of the axis to argue with it.</p>
+<p>Now to the job sheet. Leverage is measured by the hat value, a number between 0 and 1 saying how much of its own fitted value a row is responsible for. Hat values always average out to p over n, where p is the number of coefficients, so the usual flag is set at twice that average.</p>
 
-<p>The Run button below the chart fits both models in R and prints the Cook's distance for that point, which is the number you would compute on your own data.</p>
-</section>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Leverage: which jobs sit furthest from the rest on box count
+round(sort(hatvalues(fit), decreasing = TRUE)[1:4], 3)
+#&gt;    23     7    59    16
+#&gt; 0.289 0.059 0.058 0.057
 
-<section class="lesson-step" data-step="16" data-step-type="tryit" data-gate="1">
-<h2>Your turn: add Black Friday and watch a coefficient move</h2>
+2 * 2 / 60
+#&gt; [1] 0.06666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>Now let's do that to our own store.</p>
+<p>Job 23 has a hat value of 0.289 against a flag line of 0.067, and the next highest job in the whole sheet is 0.059. That is the 380-box office move, sitting on its own out past every house move on the list.</p>
 
-<p>Imagine one more day at the end of the 180, a Black Friday. The store spends 1,800 dollars on advertising, more than double its previous biggest day. It sends 5,200 emails. It takes 14,500 dollars, roughly two and a half times its best day so far.</p>
+<p>High leverage is not itself a fault, though. Plenty of high-leverage points sit exactly where the line was going anyway and change nothing. For the consequence you want Cook's distance, which drops each row in turn, refits, and measures how far all sixty predictions move as a result.</p>
 
-<p>Nothing about that day is a mistake. It is a real day, correctly recorded, and it is exactly the kind of row that takes over a model without anyone noticing.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Influence: how much does the answer move if a job is dropped
+round(sort(cooks.distance(fit), decreasing = TRUE)[1:4], 3)
+#&gt;    23    55     7     4
+#&gt; 2.679 0.087 0.073 0.072</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>The starting code below refits the repaired model on the clean 180 days and then builds <code>black_friday</code>, the same data with the extra day glued on the end. Your job is to fit the same model on <code>black_friday</code>, compare its coefficients with the clean ones, and measure the new day's Cook's distance.</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step16" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="data\s*=\s*black_friday"><textarea class="lesson-tryit-input" spellcheck="false"># Add one Black Friday to the 180 days and measure how far it drags the model
-fit_curve &lt;- lm(sales ~ log(ad_spend) + emails, data = store)
+<p>Job 23 scores 2.679. Every other job on the sheet comes in under 0.09. Common flags are 0.5 or 1, and this is several times either.</p>
 
-black_friday &lt;- rbind(store,
-  data.frame(day = 181, ad_spend = 1800, emails = 5200, sales = 14500))
+<p>R gives you both readings in one picture, with residuals against leverage and Cook's distance drawn on as dashed contours.</p>
 
-# 1. Fit sales on log(ad_spend) and emails using black_friday, and name it fit_bf.
-# 2. Print round(coef(fit_curve), 2) and round(coef(fit_bf), 2) to compare them.
-# 3. Print round(max(cooks.distance(fit_bf)), 2).
-# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">There it is. One row out of 181 pushed the advertising coefficient from 611.41 to 747.09, a jump of more than 22%, and the emails coefficient from 0.27 to 0.55, which is double. Its Cook's distance is 6.29 against a next-highest of 0.0182.</span><span class="lesson-tryit-fb lesson-tryit-no">Reuse the same formula on the new data: fit_bf is lm(sales ~ log(ad_spend) + emails, data = black_friday). Then print round(coef(fit_bf), 2) and round(max(cooks.distance(fit_bf)), 2).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Refit the repaired model with the extra day and measure that day's pull
-fit_bf &lt;- lm(sales ~ log(ad_spend) + emails, data = black_friday)
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Leverage against residual, with Cook's distance contours
+plot(fit, which = 5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-round(coef(fit_curve), 2)
-#&gt;   (Intercept) log(ad_spend)        emails
-#&gt;        318.53        611.41          0.27
+<p>Job 23 sits alone at the far right, outside the dashed contour, exactly where a single influential row shows up.</p>
 
-round(coef(fit_bf), 2)
-#&gt;   (Intercept) log(ad_spend)        emails
-#&gt;      -1250.45        747.09          0.55
+<p>Since Cook's distance is defined by refitting, you can watch it happen. Drop job 23 and fit the same model on the remaining 59.</p>
 
-round(max(cooks.distance(fit_bf)), 2)
-#&gt; [1] 6.29
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit without the office move and compare the two slopes
+fit_no23 &lt;- lm(hours ~ boxes, data = jobs[-23, ])
+round(rbind(all_60_jobs = coef(fit), without_job_23 = coef(fit_no23)), 4)
+#&gt;                (Intercept)  boxes
+#&gt; all_60_jobs         5.1946 0.0368
+#&gt; without_job_23      4.7192 0.0417</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-round(unname(sort(cooks.distance(fit_bf), decreasing = TRUE)[2]), 4)
-#&gt; [1] 0.0182</code></pre></details></div>
-</section>
-<p>Take the two coefficient rows first. Advertising moved from 611.41 to 747.09, up by more than 22%. Emails moved from 0.27 to 0.55, which is to say it doubled. The intercept crossed from plus 318 to minus 1,250. One row in 181 did all of that.</p>
+<p>The rate per box goes from 0.0368 to 0.0417 hours, a jump of 13%, on the strength of one row out of sixty. Quote the largest house move on the sheet, 219 boxes, and the two fits are 35 minutes apart.</p>
 
-<p>Now the Cook's distances. Black Friday scores 6.29. The next largest day in the whole dataset scores 0.0182, which is about 350 times smaller. There is nothing to argue about, because the gap between first and second is itself the finding.</p>
+<p>And the definition really is that plain. Take the change in every fitted value, square it, add it all up, and divide by the number of coefficients times the residual variance.</p>
 
-<p>Common rules of thumb put the worry line at 0.5, or at 1, or at four divided by the number of rows. On these numbers it does not matter which rule you prefer. What matters is the shape of the sorted list: one enormous value, and then a cliff.</p>
-</section>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Cook's distance for job 23 computed by hand, from the two fits
+p  &lt;- 2
+s2 &lt;- summary(fit)$sigma^2
 
-<section class="lesson-step" data-step="17" data-step-type="concept">
-<h2>Run all five again, and say what you do about Black Friday</h2>
+sum((fitted(fit) - predict(fit_no23, jobs))^2) / (p * s2)
+#&gt; [1] 2.678921</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>Black Friday was a what-if. We invented that day to see what one row could do, so the store's real records are still the clean 180, and the model it ships is the repaired one. But the question it raises is not hypothetical, because sooner or later a row like that turns up in your data for real.</p>
+<p>The same 2.679 that <code>cooks.distance()</code> reported, worked out from the two fits directly.</p>
 
-<p>So what do you do when a single row is running your model? "Drop the outlier" is the common reflex and it is the wrong one. There are three honest answers, and which one you pick depends on what the row is.</p>
+<p>So what do you do about it? Not delete it, which is the reflex and it is the wrong one. Three things, in order:</p>
 
 <ol>
 
-<li><strong>The row is a mistake.</strong> A misplaced decimal point, a duplicated import, a sensor that read minus 999. Fix it if you can, remove it if you cannot, and say in writing that you did.</li>
+<li>Check the row is real. A 380 in a column where everything else is under 220 is exactly what a typing slip looks like. Here it is genuine.</li>
 
-<li><strong>The row is real but outside the question you are answering.</strong> If the store is modelling ordinary trading days to plan its weekly advertising, Black Friday is a different kind of day. Then you exclude it, state the exclusion, and narrow your claim to ordinary days.</li>
+<li>Ask whether it is the same kind of job. An office move with a lift, a loading bay and a different packing style is arguably a different business, and a model of house moves may simply not be about it.</li>
 
-<li><strong>The row is real and inside the question.</strong> Then it stays. Report both fits, the one with it and the one without it, and let the reader see how much of your answer rests on one day.</li>
+<li>Report both fits. When a conclusion depends on one row, that fact belongs in what you report, not in a decision you make quietly.</li>
 
 </ol>
 
-<p>For a genuine Black Friday the third answer is the one to give. It is a real trading day and it belongs in a model of how advertising moves sales, so it stays, and you report both fits. Deleting it and presenting the tidier number without saying so is the thing not to do. That is how a coefficient of 747 turns into a coefficient of 611 in a slide deck with no footnote.</p>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Dropping an inconvenient row because it is influential is how a model gets fitted to the answer you wanted. Influence tells you a row matters, and nothing more. The only grounds for removing it are that it is wrong, or that it belongs to a different population than the one you are modelling.</div></div>
+</section>
 
-<p>Our own 180 days contain no such row, so the model to recheck is <code>fit_curve</code>. And a repaired model always gets rechecked, because a repair can fix one thing and expose another. Here are all five, run again.</p>
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>Fixing the shape: hours and boxes on a log scale</h2>
+
+<p>All five checks are in now, and four of them failed. Start with two of those four, because they turn out to be one problem seen twice. The line sat above the smallest jobs and below the middle ones, and the size of the misses grew as the jobs grew. Those are two views of one fact: moving time rises with box count but rises at a decreasing rate, and the error rises in proportion to the job rather than by a fixed number of hours.</p>
+
+<p>A relationship that multiplies rather than adds becomes a straight line when you take logs of both sides. So instead of predicting hours from boxes, predict log hours from log boxes.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Rerun all five checks on the repaired model and print the verdicts side by side
-fit_curve    &lt;- lm(sales ~ log(ad_spend) + emails, data = store)
-fit_curve_sq &lt;- lm(sales ~ log(ad_spend) + I(ad_spend^2) + emails, data = store)
+    <div class="webr-editor" data-language="r"># Refit on a log scale for both hours and boxes
+log_fit &lt;- lm(log(hours) ~ log(boxes), data = jobs)
+round(coef(log_fit), 3)
+#&gt; (Intercept)  log(boxes)
+#&gt;       0.138       0.452
 
-data.frame(
-  check   = c(&quot;straight line&quot;, &quot;even spread&quot;, &quot;independent errors&quot;,
-              &quot;normal errors&quot;, &quot;no day in charge&quot;),
-  measure = c(&quot;nested F p-value&quot;, &quot;Breusch-Pagan p-value&quot;, &quot;Durbin-Watson p-value&quot;,
-              &quot;Shapiro-Wilk p-value&quot;, &quot;largest Cook's distance&quot;),
-  value   = round(c(anova(fit_curve, fit_curve_sq)[[&quot;Pr(&gt;F)&quot;]][2],
-                    bptest(fit_curve)$p.value,
-                    dwtest(fit_curve)$p.value,
-                    shapiro.test(residuals(fit_curve))$p.value,
-                    max(cooks.distance(fit_curve))), 5))
-#&gt;                check                 measure   value
-#&gt; 1      straight line        nested F p-value 0.30622
-#&gt; 2        even spread   Breusch-Pagan p-value 0.00007
-#&gt; 3 independent errors   Durbin-Watson p-value 0.82779
-#&gt; 4      normal errors    Shapiro-Wilk p-value 0.00085
-#&gt; 5   no day in charge largest Cook's distance 0.06595</div>
+2 ^ coef(log_fit)[2]
+#&gt; log(boxes)
+#&gt;   1.367653</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -729,30 +702,15 @@ data.frame(
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Go down that column one row at a time, because every movement in it matters.</p>
+<p>The coefficient of 0.452 reads as a percentage for a percentage: a 1% increase in boxes buys about 0.45% more hours. The second line says the same thing in a way you can quote out loud. Double the boxes and the job takes about 1.37 times as long, not twice as long, which is the diminishing return the arch was pointing at all along.</p>
 
-<p>The straight-line check now passes at p = 0.31. With <code>log(ad_spend)</code> in the model, a squared term adds nothing worth having, so the curve is genuinely gone.</p>
-
-<p>Independence still passes at p = 0.83, unchanged, which is what you would expect from a repair that never touched the row order.</p>
-
-<p>The largest Cook's distance is 0.066, well under every rule of thumb. On the clean 180 days no single day is in charge.</p>
-
-<p>Then the two that did not go the way you might hope. Breusch-Pagan got worse, from 0.0024 down to 0.00007, so the uneven spread is still there and is now easier to see. Fixing the shape did not fix the spread, because those were two separate flaws that we planted separately. And normality, which passed comfortably before at p = 0.751, now fails at p = 0.00085. The missed curve had been padding the residuals with a systematic arch. Take the arch away and what is left are the real tails, which come from noise more than six times wider on the big days than on the quiet ones.</p>
-
-<p>So the model to report is <code>fit_curve</code>, with robust standard errors, because that second promise is still broken.</p>
+<p>Now check the shape again on the new model.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Report the repaired model with standard errors that survive the uneven spread
-coeftest(fit_curve, vcov = vcovHC(fit_curve, type = &quot;HC1&quot;))
-#&gt;
-#&gt; t test of coefficients:
-#&gt;
-#&gt;                 Estimate Std. Error t value  Pr(&gt;|t|)
-#&gt; (Intercept)   318.533949 123.482252  2.5796    0.0107 *
-#&gt; log(ad_spend) 611.411401  20.680375 29.5648 &lt; 2.2e-16 ***
-#&gt; emails          0.272555   0.030362  8.9768 4.016e-16 ***</div>
+    <div class="webr-editor" data-language="r"># Does the arch survive the change of scale
+plot(log_fit, which = 1)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -762,154 +720,358 @@ coeftest(fit_curve, vcov = vcovHC(fit_curve, type = &quot;HC1&quot;))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>That is the whole habit in one block of output: a model whose shape you tested, standard errors that do not lean on a promise you know is broken, and a normality flag you have looked at and decided you can live with on 180 rows.</p>
-</section>
+<p>The smoother is flat now, running along zero across the whole range instead of arching over it. That is the first failed check repaired.</p>
 
-<section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
-<h2>Quick check: matching the symptom to the check</h2>
+<p>Then look at what happened to the second one, which nobody touched.</p>
 
-<p>A colleague sends you a Residuals vs Fitted plot from a model you have never seen. The points sit below the zero line at the left end, ride above it through the middle, and drop back below it at the right end. The vertical spread looks about the same all the way across. Which promise is broken, and what is the repair?</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step18" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Equal spread is broken, so recompute the standard errors with a robust estimator.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Independence is broken, so run Durbin-Watson and switch to a time-series model.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">One observation is running the model, so find it with Cook's distance and decide what to do about it.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The straight-line promise is broken, so change the model: add a squared term or take a log, then rerun the check.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. Down, up, down with an even spread is the arch, and an arch means the shape is wrong. That is the one failure where the fix is a different model rather than a different standard error.</div><div class="lesson-qfb lesson-qfb-no">The give-away is the arch: below, then above, then below. That is a systematic pattern in the residuals, which means the straight line missed a bend, and a bend is fixed by changing the model. An even vertical spread rules out the funnel, a shape in fitted-value order says nothing about row order, and a pattern that runs across the whole band is not the work of one point.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="19" data-step-type="tryit" data-gate="1">
-<h2>Your turn: run all five on a model you have not seen</h2>
-
-<p>One last model, and this one you have not built.</p>
-
-<p><code>mtcars</code> ships with R: 32 cars from a 1974 magazine road test, one row per car. A very common first model on it predicts fuel economy, <code>mpg</code>, from weight and horsepower. The starting code fits it for you.</p>
-
-<p>Run all five checks on <code>mt</code> and see what you find. Use the nested F test for a missed curve, <code>bptest()</code> for the spread, <code>dwtest()</code> for independence, <code>shapiro.test()</code> for normality, and the sorted Cook's distances for a car that is running the show. Because <code>mtcars</code> rows carry the car names, that last one will tell you exactly which car it is.</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step19" data-grade-mode="self-check" data-difficulty="advanced">
-<div class="lesson-tryit" data-check-regex="anova\s*[(]\s*mt\s*,"><textarea class="lesson-tryit-input" spellcheck="false"># Fit miles per gallon on weight and horsepower, the model you are about to check
-mt &lt;- lm(mpg ~ wt + hp, data = mtcars)
-
-# Run the five checks on mt:
-# 1. anova() against a model with I(wt^2) added, for a missed curve.
-# 2. bptest(mt), 3. dwtest(mt), 4. shapiro.test(residuals(mt)).
-# 5. round(sort(cooks.distance(mt), decreasing = TRUE)[1:3], 3).
-# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Good. Three of the five come back interesting: a real curve in weight (F = 9.85, p = 0.004), a normality flag (p = 0.034), and the Chrysler Imperial at a Cook's distance of 0.424, about one and a half times the next car. The spread is fine at p = 0.64, and the Durbin-Watson number is the one to think twice about.</span><span class="lesson-tryit-fb lesson-tryit-no">Five lines, one per check: anova(mt, lm(mpg ~ wt + I(wt^2) + hp, data = mtcars)), then bptest(mt), dwtest(mt), shapiro.test(residuals(mt)), and round(sort(cooks.distance(mt), decreasing = TRUE)[1:3], 3).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Run all five checks on the mtcars model
-mt_sq &lt;- lm(mpg ~ wt + I(wt^2) + hp, data = mtcars)
-anova(mt, mt_sq)
-#&gt; Analysis of Variance Table
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The spread test on the log scale model
+bptest(log_fit)
 #&gt;
-#&gt; Model 1: mpg ~ wt + hp
-#&gt; Model 2: mpg ~ wt + I(wt^2) + hp
-#&gt;   Res.Df    RSS Df Sum of Sq      F   Pr(&gt;F)
-#&gt; 1     29 195.05
-#&gt; 2     28 144.29  1    50.755 9.8489 0.003978 **
-
-bptest(mt)
 #&gt; 	studentized Breusch-Pagan test
 #&gt;
-#&gt; data:  mt
-#&gt; BP = 0.88072, df = 2, p-value = 0.6438
+#&gt; data:  log_fit
+#&gt; BP = 0.0010313, df = 1, p-value = 0.9744</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-dwtest(mt)
+<p>From 0.00017 to 0.97, with no separate repair aimed at it. That is not luck. On the hours scale a 10% overrun on a fifteen-hour job is an hour and a half while the same 10% on a five-hour job is half an hour, so the errors had to fan out. On the log scale a 10% overrun is the same distance wherever it happens, so the fan closes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A curve in the residuals and a funnel in the spread very often have one cause and one repair. When errors are proportional to the size of the thing being measured, logging both sides straightens the shape and evens the spread in a single move.</div></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<h2>Fixing dependence: the variable the model was missing</h2>
+
+<p>The independence check has not been rerun since the change of scale, so start there.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Did the change of scale do anything for the drift in job order
+dwtest(log_fit)
+#&gt;
 #&gt; 	Durbin-Watson test
 #&gt;
-#&gt; data:  mt
-#&gt; DW = 1.3624, p-value = 0.02061
+#&gt; data:  log_fit
+#&gt; DW = 0.87591, p-value = 9.25e-07
+#&gt; alternative hypothesis: true autocorrelation is greater than 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No. The statistic went from 1.18 to 0.88, further from 2 than it was before, because the drift lives in time rather than in shape and no change of scale can reach it.</p>
+
+<p>So look back at where it turned over. The residuals sat high through the first 27 jobs and low after that, so ask what was different about job 28.</p>
+
+<p>The job sheet has the answer sitting in a column the model never used. From week 27 onward the crew column reads 3 instead of 2, because a third person joined the company partway through the year.</p>
+
+<p>That accounts for the whole pattern. For the first half of the year two people did all the work, so jobs ran longer than a model that had not been told why. From week 27 a third pair of hands made every job faster, and the same model started quoting more hours than the crew actually needed. The residuals were not misbehaving, they were carrying a variable the model could not see.</p>
+
+<p>So give it the column.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add the crew size the model was missing
+full_fit &lt;- lm(log(hours) ~ log(boxes) + crew, data = jobs)
+summary(full_fit)
+#&gt;
+#&gt; Call:
+#&gt; lm(formula = log(hours) ~ log(boxes) + crew, data = jobs)
+#&gt;
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max
+#&gt; -0.10870 -0.03376 -0.01156  0.04460  0.13262
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  0.61986    0.07647   8.106 4.59e-11 ***
+#&gt; log(boxes)   0.42703    0.01242  34.371  &lt; 2e-16 ***
+#&gt; crew        -0.14475    0.01571  -9.213 6.94e-13 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; Residual standard error: 0.05912 on 57 degrees of freedom
+#&gt; Multiple R-squared:  0.9627,	Adjusted R-squared:  0.9614
+#&gt; F-statistic: 735.5 on 2 and 57 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The crew coefficient is negative, which is what you would hope: more people, less time. On a log scale it converts into a percentage.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Turn the crew coefficient into plain percentage terms
+round(100 * (exp(coef(full_fit)[&quot;crew&quot;]) - 1), 1)
+#&gt;  crew
+#&gt; -13.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding a third person takes about 13.5% off a job, holding box count fixed. That is a genuinely useful sentence for the business, and it was unavailable while the information sat in the residuals.</p>
+
+<p>Now the independence check.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Has adding crew size restored independence between consecutive jobs
+dwtest(full_fit)
+#&gt;
+#&gt; 	Durbin-Watson test
+#&gt;
+#&gt; data:  full_fit
+#&gt; DW = 2.0095, p-value = 0.4768
+#&gt; alternative hypothesis: true autocorrelation is greater than 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>DW moves from 1.18 to 2.01, as close to the ideal 2 as you could ask for, with a p-value of 0.48.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A failed check is a lead, not a verdict on your data. Residuals that drift with time, or with anything else, are telling you a variable is missing, and the repair is usually to find it and add it rather than to patch the standard errors.</div></div>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<h2>The two-line check, and which fix goes with which failure</h2>
+
+<p>Running these one at a time is how you learn them. Running them on a real model is quicker than that, because four of the five come out of a single call.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># All four residual based checks in one call, for the repaired model
+par(mfrow = c(2, 2))
+plot(full_fit)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four panels are the ones already used: residuals versus fitted for shape, the Q-Q plot for normality, scale-location for spread, and residuals versus leverage with the Cook's distance contours. Independence is the one that needs its own line, because the plot method has no way of knowing what order your rows are in.</p>
+
+<p>Here are the three tests on the repaired model together.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The formal tests on the repaired model: spread, independence, normality, influence
+bptest(full_fit)
+#&gt;
+#&gt; 	studentized Breusch-Pagan test
+#&gt;
+#&gt; data:  full_fit
+#&gt; BP = 2.0807, df = 2, p-value = 0.3533
+
+dwtest(full_fit)
+#&gt;
+#&gt; 	Durbin-Watson test
+#&gt;
+#&gt; data:  full_fit
+#&gt; DW = 2.0095, p-value = 0.4768
 #&gt; alternative hypothesis: true autocorrelation is greater than 0
 
-shapiro.test(residuals(mt))
+shapiro.test(residuals(full_fit))
+#&gt;
 #&gt; 	Shapiro-Wilk normality test
 #&gt;
-#&gt; data:  residuals(mt)
-#&gt; W = 0.92792, p-value = 0.03427
+#&gt; data:  residuals(full_fit)
+#&gt; W = 0.97947, p-value = 0.4067
 
-round(sort(cooks.distance(mt), decreasing = TRUE)[1:3], 3)
-#&gt; Chrysler Imperial     Maserati Bora    Toyota Corolla
-#&gt;             0.424             0.272             0.208</code></pre></details></div>
+round(max(cooks.distance(full_fit)), 3)
+#&gt; [1] 0.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every one of them clears now. Spread at 0.35, independence at 0.48, normality at 0.41, and the largest Cook's distance on the sheet at 0.15 against a flag of 0.5.</p>
+
+<p>Here is the whole thing on one page, so you have the mapping from symptom to repair.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Check</th>
+<th>What failure looks like</th>
+<th>What it costs you</th>
+<th>The fix that worked here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Straight line</td>
+<td>the smoother arches instead of running flat</td>
+<td>the model misses in a pattern, so predictions are biased by size</td>
+<td>log both sides, since the relationship multiplies</td>
+</tr>
+<tr>
+<td>Equal spread</td>
+<td>the band of residuals fans out as the prediction grows</td>
+<td>one blended standard error, so intervals are wrong at both ends</td>
+<td>the same log scale closed the fan</td>
+</tr>
+<tr>
+<td>Independence</td>
+<td>residuals drift up or down through the row order</td>
+<td>standard errors too small, so results look surer than they are</td>
+<td>add the missing variable, here the crew size</td>
+</tr>
+<tr>
+<td>Normal errors</td>
+<td>points bend away from the diagonal on the Q-Q plot</td>
+<td>the t based p-values and intervals lose their exactness</td>
+<td>already fine at 60 rows, and usually a symptom of another failure</td>
+</tr>
+<tr>
+<td>No row in charge</td>
+<td>one Cook's distance dwarfs all the others</td>
+<td>the answer belongs to one row rather than to the data</td>
+<td>verify the row, ask if it belongs, and report both fits</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Run the four-panel plot and the independence test the moment you fit a model, before you read the coefficient. It is quicker than reading the summary, and it tells you whether the summary is worth reading.</div></div>
 </section>
-<p>Four things are worth saying about that.</p>
 
-<p>The curve is real. Adding a squared weight term improves the fit at p = 0.004, which makes sense once you picture it. The cars here run from about 1,500 to about 5,400 pounds, and putting on the first thousand pounds costs a lot of miles per gallon while putting on the last thousand costs much less, because by then there is not much economy left to lose. It is the same shape as our advertising spend, and it takes the same repair.</p>
+<section class="lesson-step" data-step="17" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which failure is this, and what fixes it</h2>
 
-<p>The spread is fine, at p = 0.64, so the plain standard errors are doing their job.</p>
-
-<p>Normality flags at p = 0.034, and the Q-Q plot is worth a look before you act on it. On 32 rows a mild bend is not much to go on either way.</p>
-
-<p>And the Chrysler Imperial has a Cook's distance of 0.424, about one and a half times the next car and roughly twice the third. At 5,345 pounds it is the second heaviest car in the set, and it returns 14.7 miles per gallon where the model predicts 9.2, so it is far out on weight and well off the line at the same time. It is not an error and it belongs in a study of these cars, so it stays, and you report that the weight coefficient leans on it.</p>
-
-<p>That leaves the Durbin-Watson result, which came back at p = 0.02. Think about that one for a moment before you move on.</p>
-</section>
-
-<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
-<h2>Quick check: a Durbin-Watson number you should ignore</h2>
-
-<p>The <code>mtcars</code> model returned DW = 1.3624 with p = 0.021, which looks like broken independence. What should you do about it?</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step20" data-grade-mode="self-check" data-difficulty="advanced">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Switch to standard errors that allow for autocorrelation, since p is under 0.05.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing. Durbin-Watson compares each row with the row before it, and <code>mtcars</code> rows are cars printed in a magazine table, not measurements taken in order. There is no "before" here, so the number is not measuring anything.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Sort the rows by weight and run the test again, so that the ordering becomes meaningful.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Treat it as a sign that the model is missing a predictor, since that is what autocorrelation usually indicates.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. A check only means something when its question applies to your data. Ask a test about an ordering that does not exist and it will still return a number, and that number will still come with a p-value.</div><div class="lesson-qfb lesson-qfb-no">Independence is a claim about how your rows were collected. If they arrived in time order, or in geographic clusters, or in classrooms, the question is real and the answer matters. If they are 32 cars listed in whatever order a magazine printed them, there is no sequence for an error to carry along, and reordering them yourself would manufacture a pattern rather than reveal one.</div></div>
+<p>Suppose the moving company fits a fresh model and finds the residual band narrow on short jobs and wide on long ones, while the smoother through the middle stays flat. Which check has failed, and what is the sensible first move?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step17" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Equal spread has failed while the shape is fine, so confirm it with a Breusch-Pagan test and try modelling on a log scale.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The straight line check has failed, so the model needs a squared term added.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Independence has failed, so the rows need sorting before the model is refitted.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Normality has failed, so the residuals need a transformation before the p-values mean anything.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A flat smoother says the shape is fine, and a fanning band is spread alone, which is exactly the failure a log scale usually settles.</div><div class="lesson-qfb lesson-qfb-no">The smoother is flat, so the shape of the model is not the problem, and nothing here concerns the row order or the bell shape of the residuals. A band that fans out with the prediction while the smoother stays level is the equal spread check and nothing else.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="21" data-step-type="concept">
+<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
+<h2>Your turn: does the office move still run the show?</h2>
+
+<p>Job 23, the 380-box office move, carried a Cook's distance of 2.679 on the original model while no other job reached 0.09. The model has changed twice since then, so the honest thing is to ask the question again rather than assume.</p>
+
+<p>Check job 23 on the repaired model, <code>full_fit</code>, and then refit without it to see whether the box coefficient moves.</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step18" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="cooks[.]distance[(]\s*full_fit[\s\S]*jobs\s*\[\s*-\s*23"><textarea class="lesson-tryit-input" spellcheck="false"># full_fit is lm(log(hours) ~ log(boxes) + crew, data = jobs).
+# Print the hat value and the Cook's distance for job 23 on full_fit.
+# Then refit the same model on jobs[-23, ] and compare the two sets of coefficients.
+# Press Check when you have both.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. The hat value falls from 0.289 to 0.104 and Cook's distance from 2.679 to 0.142, and the box coefficient barely moves, 0.427 against 0.434. The office move is an ordinary row on this model.</span><span class="lesson-tryit-fb lesson-tryit-no">Two moves. First <code>hatvalues(full_fit)[23]</code> and <code>cooks.distance(full_fit)[23]</code>, then refit with <code>lm(log(hours) ~ log(boxes) + crew, data = jobs[-23, ])</code> and compare its coefficients with the ones from <code>full_fit</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Job 23 on the repaired model, and the same model fitted without it
+round(c(hat = hatvalues(full_fit)[23], cook = cooks.distance(full_fit)[23]), 3)
+#&gt;  hat.23 cook.23
+#&gt;   0.104   0.142
+
+no23 &lt;- lm(log(hours) ~ log(boxes) + crew, data = jobs[-23, ])
+round(rbind(all_60_jobs = coef(full_fit), without_job_23 = coef(no23)), 3)
+#&gt;                (Intercept) log(boxes)   crew
+#&gt; all_60_jobs          0.620      0.427 -0.145
+#&gt; without_job_23       0.599      0.434 -0.147</code></pre></details></div>
+</section>
+<p>Nothing about job 23 changed. What changed is the scale it is measured on. Taking logs put 380 boxes only a short way past 220, so the office move stopped sitting alone out on the right, and its leverage fell with it.</p>
+
+<p>That is worth remembering. Influence is a property of the row and the model together, so repairing the model can dissolve an influential point without anybody deleting anything.</p>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what the five checks protect</h2>
+
+<p>The original model had an R-squared of 0.83 and a p-value under 2e-16 while four of the five checks were failing. What are the five checks actually protecting?</p>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-2-step19" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The size of the coefficient, which is the number a broken assumption distorts most.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The R-squared, which drops as soon as an assumption breaks.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The standard errors, intervals and p-values, which is why a high R-squared says nothing about whether the assumptions hold.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing measurable, since the checks are a formality that rarely changes a conclusion.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The fit can stay respectable while the uncertainty around it stops being honest, which is precisely what the dial showed.</div><div class="lesson-qfb lesson-qfb-no">A broken assumption usually leaves the coefficient roughly where it was and R-squared looking healthy, and lands its damage on the uncertainty instead. That is why the summary cannot warn you, and why the checks are not a formality: they decide whether the p-value and the interval mean anything.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="concept">
 <h2>References</h2>
 
 <ul>
 
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/plot.lm.html">Plot Diagnostics for an lm Object</a> - R Core Team. The documentation for <code>plot.lm()</code>, covering all six diagnostic plots and the <code>which</code> argument that picks one.</li>
+<li><a href="https://www.john-fox.ca/Companion/">An R Companion to Applied Regression, 3rd edition</a> - Fox and Weisberg (2019), Sage. The diagnostics chapter behind these five checks, and the source of most of the R practice around them.</li>
 
-<li><a href="https://CRAN.R-project.org/package=car">An R Companion to Applied Regression, 3rd edition</a> - Fox and Weisberg (2019), Sage. The regression diagnostics chapters, and the home of the <code>car</code> package.</li>
+<li><a href="https://doi.org/10.1080/00401706.1977.10489493">Detection of Influential Observation in Linear Regression</a> - Cook (1977), Technometrics 19(1), 15-18. The paper that defines Cook's distance as the change in the fitted values when a row is dropped.</li>
 
-<li><a href="https://CRAN.R-project.org/package=lmtest">Diagnostic Checking in Regression Relationships</a> - Zeileis and Hothorn (2002), R News 2(3), 7-10. The paper behind <code>lmtest</code>, and the source of <code>bptest()</code>, <code>dwtest()</code> and <code>coeftest()</code>.</li>
+<li><a href="https://doi.org/10.2307/1911963">A Simple Test for Heteroscedasticity and Random Coefficient Variation</a> - Breusch and Pagan (1979), Econometrica 47(5), 1287-1294. The test behind <code>bptest()</code>.</li>
 
-<li><a href="https://www.jstatsoft.org/article/view/v011i10">Econometric Computing with HC and HAC Covariance Matrix Estimators</a> - Zeileis (2004), Journal of Statistical Software 11(10). What <code>vcovHC()</code> computes, and how HC0 through HC3 differ.</li>
+<li><a href="https://doi.org/10.1093/biomet/38.1-2.159">Testing for Serial Correlation in Least Squares Regression II</a> - Durbin and Watson (1951), Biometrika 38(1-2), 159-177. Where the statistic and its null distribution come from.</li>
 
-<li><a href="https://www.jstor.org/stable/1268249">Detection of Influential Observation in Linear Regression</a> - Cook (1977), Technometrics 19(1), 15-18. The original definition of Cook's distance.</li>
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/plot.lm.html">Plot Diagnostics for an lm Object</a> - R Core Team. Exactly what each of the four panels draws, and how to choose among them.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="22" data-step-type="complete">
+<section class="lesson-step" data-step="21" data-step-type="complete">
 <h2>Quick recap</h2>
 
-<p>You took a model that looked perfect, put it through all five checks, and found two of its promises broken. Here is the whole thing on one page.</p>
-
-<p>The five promises, and the checks that find them:</p>
-
-<ol>
-
-<li><strong>The relationship is a straight line.</strong> Residuals vs Fitted, then a nested F test against a model with a squared term. Ours arched: mean residuals of -78.7, +108.9 and -45.3 across three spend bands, F = 39.5 at p = 0.0000000025.</li>
-
-<li><strong>The errors are the same size everywhere.</strong> Scale-Location, then Breusch-Pagan. Ours fanned out: spreads of 227, 201 and 328 across the range, p = 0.0024.</li>
-
-<li><strong>One error says nothing about the next.</strong> Residuals plotted in row order, then Durbin-Watson. Ours passed: DW = 2.19 at p = 0.90.</li>
-
-<li><strong>The errors are roughly normal.</strong> The Q-Q plot, then Shapiro-Wilk. Ours passed at p = 0.751, and on a few hundred rows this is the mildest of the five anyway.</li>
-
-<li><strong>No single row is running the model.</strong> Residuals vs Leverage, then Cook's distance. Ours passed until we added Black Friday, which scored 6.29 against a next-highest of 0.0182 and moved a coefficient by 22%.</li>
-
-</ol>
-
-<p>And a single <code>plot(fit)</code> call draws four of those five, with <code>par(mfrow = c(2, 2))</code> in front of it to lay them out on one screen.</p>
-
-<p>When a check fails there are only three answers, and picking the right one is most of the skill:</p>
+<p>You took a regression whose summary looked excellent, ran the five checks on it, found four of them broken, and repaired the model until they cleared. To summarise:</p>
 
 <ul>
 
-<li><strong>Change the model.</strong> For a broken shape. A log or a squared term, then rerun the check.</li>
+<li>A residual is the recorded value minus the fitted one, and all five checks are different readings of the residuals.</li>
 
-<li><strong>Change the standard errors.</strong> For an uneven spread, or for errors that are linked to each other. The coefficients were never wrong; only the error bars were.</li>
+<li>A straight line was the wrong shape, which the residuals versus fitted plot showed as an arch rather than a flat band.</li>
 
-<li><strong>Leave it alone and say so.</strong> For an influential row that is real and belongs, or a normality flag on a large sample. Report both fits, or report the judgement, and let your reader see it.</li>
+<li>The errors grew with the prediction, 0.69 hours of spread on the smallest third of jobs against 1.47 on the largest, confirmed by Breusch-Pagan at p = 0.00017.</li>
+
+<li>The errors were not independent, drifting from 0.76 hours above the line to 0.62 below, with Durbin-Watson at 1.18 against the ideal 2.</li>
+
+<li>The residuals were close to normal, at p = 0.43, and that was the one promise the data kept.</li>
+
+<li>One job out of sixty, the 380-box office move, carried a Cook's distance of 2.679 while nothing else reached 0.09, and dropping it moved the rate per box by 13%.</li>
+
+<li>Logging both hours and boxes cleared the shape and the spread together, and adding the crew column cleared the independence. The repaired model passes all five.</li>
 
 </ul>
 
-<p>One last thing worth keeping. After you repair a model, run all five again. Ours came back with the curve gone, the spread still uneven, and a normality flag that had been hiding under the arch the whole time. Checking once is a habit. Checking again after the repair is the professional one.</p>
+<p>The habit that goes with all of this is short. Fit the model, run <code>par(mfrow = c(2, 2)); plot(model)</code> and one <code>dwtest()</code>, and only then read the summary. It costs a minute, and it decides whether the rest of the output is worth anything.</p>
 
-<p>That is the full set. Next time an output comes back with three stars and a healthy R-squared, you will know what to do before you believe any of it. Have a great day!</p>
+<p>Next time a check fails on you, read it as a lead rather than a setback. It is the model telling you something specific about your data that the summary had no way to say. Congratulations, and have a great day!</p>
 </section>
 
 {% endraw %}
