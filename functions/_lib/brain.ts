@@ -266,7 +266,10 @@ export async function runBrain(
   // several daily runs - a deliberate deliverability warmup ramp. The
   // sent_emails key doubles as the once-only guard. --------------------------
   if (dailyRun && (await env.KV.get("flag:invite-series")) === "on") {
-    const INVITE_CAP = 150;
+    // 60/run keeps the whole daily run inside the Workers subrequest budget
+    // (the 2026-08-25 run at 150 blew the free plan's 50-cap mid-send) and
+    // doubles as a gentler deliverability ramp: the base is invited in ~9 runs.
+    const INVITE_CAP = 60;
     const rows = await env.DB.prepare(
       `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
               u.signup_gate, u.signup_slug, u.email_status, u.email_progress
