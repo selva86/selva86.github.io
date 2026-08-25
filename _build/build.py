@@ -3289,7 +3289,7 @@ def patch_tool_pages(sections, asset_hrefs):
         # Keep the practice-nav version current on already-injected tools.
         new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=12', new_html)
         new_html = re.sub(r'roadmap-nav\.js\?v=\d+', 'roadmap-nav.js?v=9', new_html)
-        new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=10', new_html)
+        new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=17', new_html)
         if 'roadmap-nav.js' not in new_html and 'practice-nav.js' in new_html:
             new_html = new_html.replace('<script defer src="/www/practice-nav.js?v=12"></script>',
                 '<script defer src="/www/practice-nav.js?v=12"></script><script defer src="/www/roadmap-nav.js?v=9"></script>', 1)
@@ -3305,7 +3305,7 @@ def patch_tool_pages(sections, asset_hrefs):
         if 'site-nav.css' not in new_html:
             new_html = re.sub(
                 r'</head>',
-                '<link rel="stylesheet" href="/www/site-nav.css?v=10"></head>',
+                '<link rel="stylesheet" href="/www/site-nav.css?v=17"></head>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         if 'auth-hydrate.js' not in new_html:
@@ -3402,7 +3402,7 @@ def patch_tool_pages(sections, asset_hrefs):
         m = first_style_re.search(html)
         if m:
             html = html[:m.start()] + f'<link rel="stylesheet" href="/{main_css_href}">\n' + html[m.start():]
-        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=10">\n</head>', html, count=1)
+        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=17">\n</head>', html, count=1)
 
         # 2. Strip the tool's bespoke masthead.
         html = masthead_re.sub('', html, count=1)

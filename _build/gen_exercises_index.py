@@ -35,8 +35,8 @@ if not os.path.exists(SHELL):
     suf = suf.replace('  <script defer src="/www/exercises-page.js?v=3"></script>\n', '')
     suf = re.sub(r'[ ]*<script defer src="/www/signin-nudge\.js[^>]*></script>\n?', '', suf)
     if '/www/webr.min.css' not in pre:
-        pre = pre.replace('<link rel="stylesheet" href="/www/site-nav.css?v=5">',
-                          '<link rel="stylesheet" href="/www/site-nav.css?v=5">\n<link rel="stylesheet" href="/www/webr.min.css">', 1)
+        pre = pre.replace('<link rel="stylesheet" href="/www/site-nav.css?v=17">',
+                          '<link rel="stylesheet" href="/www/site-nav.css?v=17">\n<link rel="stylesheet" href="/www/webr.min.css">', 1)
     io.open(SHELL, 'w', encoding='utf-8', newline='\n').write(pre + '<!--EXBODY-->' + suf)
     print('bootstrapped', SHELL, 'from the previous live page')
 shell = io.open(SHELL, encoding='utf-8').read()
