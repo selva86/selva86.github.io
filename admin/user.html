@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>User · r-statistics.co admin</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#0a0d14;--mut:#6b7280;--line:#e4e7ee;--acc:#2056d2;--good:#0f8a5f;--warn:#a16207;--bad:#b42318}
+  html.dark{--bg:#0b1120;--card:#101830;--ink:#eef2fa;--mut:#9aa6c0;--line:#1f2a48;--acc:#7faaff;--good:#4ade80;--warn:#fbbf24;--bad:#f87171}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'IBM Plex Sans','Segoe UI',Roboto,Arial,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 60px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:21px;margin:0}
+  header a{color:var(--acc);font-size:13px;text-decoration:none}
+  .state{margin:40px auto;max-width:460px;background:var(--card);border:1px solid var(--line);padding:26px;text-align:center}
+  .hidden{display:none}
+  .idrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);padding:14px 16px;margin:0 0 12px}
+  .idrow b{font-size:16px}
+  .chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--line);color:var(--mut)}
+  .chip.pro{background:#dcfce7;color:#166534}
+  .chip.bad{background:#fee2e2;color:#991b1b}
+  html.dark .chip.pro{background:#14532d;color:#bbf7d0}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 12px}
+  .tile{background:var(--card);border:1px solid var(--line);padding:11px 14px}
+  .tile b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+  .tile span{font-size:12px;color:var(--mut)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);padding:13px 15px}
+  .card h2{font-size:14px;margin:0 0 9px}
+  .card h2 em{color:var(--mut);font-style:normal;font-weight:400;font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+  th{color:var(--mut);font-weight:600;border-top:0;font-size:11.5px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mut{color:var(--mut)}
+</style>
+</head>
+<body>
+<script>try{if(localStorage.getItem('rsc-dark')==='1')document.documentElement.classList.add('dark')}catch(e){}</script>
+<div class="wrap">
+  <header><h1 id="ttl">User</h1><a href="/admin/email.html">&larr; Email dashboard</a></header>
+  <div id="gate" class="state">Loading...</div>
+  <div id="p" class="hidden">
+    <div class="idrow" id="idrow"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="cols">
+      <div class="card"><h2>Practice by hub <em>attempts and solves, most recent first</em></h2><table id="t-hubs"></table></div>
+      <div class="card"><h2>Email history <em>most recent 20 events</em></h2><table id="t-email"></table></div>
+      <div class="card"><h2>Certificates and badges</h2><table id="t-cred"></table></div>
+      <div class="card"><h2>Reading and library</h2><table id="t-lib"></table></div>
+      <div class="card"><h2>Intent signals <em>raise-your-hand moments</em></h2><table id="t-sig"></table></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  'use strict';
+  function $(id){return document.getElementById(id);}
+  function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  function n(v){return (v==null?0:v).toLocaleString('en-US');}
+  function ago(sec){if(!sec)return '-';var d=Math.floor(Date.now()/1000)-sec;if(d<3600)return Math.max(1,Math.floor(d/60))+'m ago';if(d<86400)return Math.floor(d/3600)+'h ago';return Math.floor(d/86400)+'d ago';}
+  function fdate(sec){try{return new Date(sec*1000).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});}catch(e){return '-';}}
+  function token(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(/^sb-.*-auth-token$/.test(k)){var v=JSON.parse(localStorage.getItem(k));return (Array.isArray(v)?v[0]:(v&&v.access_token))||null;}}}catch(e){}return null;}
+  var tok=token(), gate=$('gate');
+  var email=new URLSearchParams(location.search).get('email')||'';
+  if(!tok){gate.innerHTML='Sign in first, then reload. <a href="/signin.html?next='+encodeURIComponent('/admin/user.html?email='+email)+'">Sign in</a>';return;}
+  if(!email){gate.textContent='No user given. Open this page from a name on the email dashboard.';return;}
+
+  fetch('/api/admin/user-stats?email='+encodeURIComponent(email),{headers:{Authorization:'Bearer '+tok}})
+    .then(function(r){if(r.status===401||r.status===403)throw new Error('restricted');if(r.status===404)throw new Error('notfound');if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(render)
+    .catch(function(e){gate.textContent=e.message==='restricted'?'This page is restricted.':(e.message==='notfound'?'No user with that email.':'Failed to load ('+e.message+').');});
+
+  function fill(id,rows,ths,map,empty){var el=$(id);if(!rows||!rows.length){el.innerHTML='<tr><td class="mut">'+(empty||'Nothing yet')+'</td></tr>';return;}el.innerHTML='<tr>'+ths.map(function(h){return '<th'+(h[1]?' class="num"':'')+'>'+h[0]+'</th>';}).join('')+'</tr>'+rows.map(map).join('');}
+
+  function render(d){
+    gate.classList.add('hidden');$('p').classList.remove('hidden');
+    var a=d.account,e=d.engagement,pr=d.practice,em=d.email;
+    $('ttl').textContent=a.display_name||a.email;
+    $('idrow').innerHTML='<b>'+esc(a.display_name||'(no name)')+'</b><span class="mut">'+esc(a.email)+'</span>'+
+      (a.pro?'<span class="chip pro">PRO'+(a.pro_until===-1?' lifetime':'')+'</span>':'<span class="chip">free</span>')+
+      (a.email_status&&a.email_status!=='ok'?'<span class="chip bad">'+esc(a.email_status)+'</span>':'')+
+      '<span class="chip">gate: '+esc(a.signup_gate||'none')+'</span>'+
+      (a.country?'<span class="chip">'+esc(a.country)+'</span>':'')+
+      '<span class="mut" style="margin-left:auto;font-size:12.5px">joined '+fdate(a.created_at)+
+      (e.last_active_date?(' &middot; last active '+esc(e.last_active_date)):'')+'</span>';
+    $('tiles').innerHTML=
+      '<div class="tile"><b>'+n(e.total_xp)+'</b><span>XP</span></div>'+
+      '<div class="tile"><b>'+n(e.current_streak_days)+'d</b><span>streak &middot; best '+n(e.longest_streak_days)+' &middot; '+n(e.streak_freezes)+' freezes</span></div>'+
+      '<div class="tile"><b>'+n(pr.solved)+'</b><span>solved of '+n(pr.attempts)+' attempts</span></div>'+
+      '<div class="tile"><b>'+n(pr.month_counted)+'</b><span>counted this month (meter)</span></div>'+
+      '<div class="tile"><b>'+n(em.sent)+'</b><span>emails &middot; '+n(em.opened_keys)+' opened &middot; '+n(em.clicked_keys)+' clicked</span></div>'+
+      '<div class="tile"><b>'+(em.series_position==null?'-':('day '+em.series_position))+'</b><span>series position &middot; '+n(em.series_received)+' received</span></div>';
+    fill('t-hubs',pr.hubs,[['Hub'],['Attempts',1],['Solved',1],['Last',1]],function(h){
+      return '<tr><td><a href="/'+esc(h.hub_slug)+'.html" target="_blank" rel="noopener" style="color:var(--acc)">'+esc(h.hub_slug)+'</a></td><td class="num">'+n(h.attempts)+'</td><td class="num">'+n(h.passed)+'</td><td class="num">'+ago(h.last_at)+'</td></tr>';},'No practice yet');
+    fill('t-email',em.recent,[['When',1],['Email'],['Event']],function(r){
+      return '<tr><td class="num">'+ago(r.at)+'</td><td>'+esc(r.email_key||'-')+'</td><td>'+esc(r.event)+'</td></tr>';},'No email events');
+    var cred=(d.credentials.certificates||[]).map(function(c){
+      return '<tr><td>&#9733; <b>'+esc(c.track_name||c.track)+'</b></td><td>'+esc(c.public_id)+(c.score!=null?(' &middot; '+c.score+'%'):'')+'</td><td class="num">'+fdate(c.issued_at)+'</td></tr>';
+    }).concat((d.credentials.badges||[]).map(function(b){
+      return '<tr><td>&#9679; '+esc(b.badge)+'</td><td class="mut">badge</td><td class="num">'+fdate(b.earned_at)+'</td></tr>';}));
+    $('t-cred').innerHTML=cred.length?cred.join(''):'<tr><td class="mut">None yet</td></tr>';
+    var lib=(d.library.reading||[]).map(function(r){
+      return '<tr><td><a href="/'+esc(r.post_slug)+'.html" target="_blank" rel="noopener" style="color:var(--acc)">'+esc(r.post_slug)+'</a></td><td class="num">'+(r.marked_read?'read':((r.scroll_pct||0)+'%'))+'</td><td class="num">'+ago(r.read_at)+'</td></tr>';});
+    $('t-lib').innerHTML=(lib.length?lib.join(''):'<tr><td class="mut">No reading yet</td></tr>')+
+      '<tr><td class="mut">totals</td><td class="num">'+n(d.library.reading_count)+' read</td><td class="num">'+n(d.library.saved_count)+' saved</td></tr>';
+    fill('t-sig',d.signals,[['When',1],['Signal'],['Where']],function(s){
+      return '<tr><td class="num">'+ago(s.at)+'</td><td>'+esc(s.signal)+'</td><td class="mut">'+esc(s.path||'-')+'</td></tr>';},'No intent signals');
+  }
+})();
+</script>
+</body>
+</html>
