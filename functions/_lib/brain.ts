@@ -123,6 +123,20 @@ export async function runBrain(
   const candidates: Candidate[] = [];
   const dayStart = now - (now % 86400);
 
+  // ONE ledger snapshot serves the seq walk, the per-candidate dedupe, and
+  // the one-a-day rule. Before this, those were per-user/per-candidate
+  // queries, and each D1 call counts against the Workers subrequest budget:
+  // the 2026-08-25 daily run died on that cap mid-send. One subrequest now.
+  const ledgerRows = (await env.DB.prepare(
+    "SELECT user_id, email_key, sent_at FROM sent_emails",
+  ).all<{ user_id: string; email_key: string; sent_at: number }>()).results ?? [];
+  const ledger = new Map<string, Map<string, number>>();
+  for (const r of ledgerRows) {
+    let m = ledger.get(r.user_id);
+    if (!m) { m = new Map(); ledger.set(r.user_id, m); }
+    m.set(r.email_key, r.sent_at);
+  }
+
   // ---- welcome (account, FAST: any run; 30min settle so backfill can set
   // signup_gate; 48h validity window, then it is noise) --------------------
   if (flags.welcome) {
@@ -239,10 +253,10 @@ export async function runBrain(
        LIMIT 2000`,
     ).all<UserRow & { level_r: string | null }>();
     for (const u of rows.results ?? []) {
-      const sentSeqs = (await env.DB.prepare(
-        "SELECT email_key FROM sent_emails WHERE user_id = ?1 AND email_key LIKE 'seq:%'",
-      ).bind(u.id).all<{ email_key: string }>()).results ?? [];
-      const have = new Set(sentSeqs.map((r) => parseInt(r.email_key.slice(4), 10)));
+      const have = new Set<number>();
+      for (const k of ledger.get(u.id)?.keys() ?? []) {
+        if (k.startsWith("seq:")) have.add(parseInt(k.slice(4), 10));
+      }
       // Next email = the first ENABLED plan entry this user has not received.
       // Reorders and switches apply cleanly mid-sequence: nobody repeats an
       // email, and a disabled one is simply never their next.
@@ -312,11 +326,9 @@ export async function runBrain(
     }
     // Ledger dedupe (covers re-runs inside a day too).
     const pending: Candidate[] = [];
+    const userLedger = ledger.get(userId);
     for (const c of list) {
-      const dup = await env.DB.prepare(
-        "SELECT 1 AS x FROM sent_emails WHERE user_id = ?1 AND email_key = ?2",
-      ).bind(userId, c.key).first<{ x: number }>();
-      if (!dup) pending.push(c);
+      if (!userLedger?.has(c.key)) pending.push(c);
     }
     if (!pending.length) continue;
 
@@ -337,11 +349,14 @@ export async function runBrain(
     const accountMails = allowed.filter((c) => c.category === "account");
     let others = allowed.filter((c) => c.category !== "account").sort((a, b) => a.priority - b.priority);
     if (others.length) {
-      const sentToday = await env.DB.prepare(
-        "SELECT email_key FROM sent_emails WHERE user_id = ?1 AND sent_at >= ?2 AND email_key != 'welcome' LIMIT 1",
-      ).bind(userId, dayStart).first<{ email_key: string }>();
-      if (sentToday) {
-        for (const c of others) decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "skipped", reason: `one-a-day: ${sentToday.email_key} already sent today` });
+      let sentTodayKey: string | null = null;
+      if (userLedger) {
+        for (const [k, at] of userLedger) {
+          if (k !== "welcome" && at >= dayStart) { sentTodayKey = k; break; }
+        }
+      }
+      if (sentTodayKey) {
+        for (const c of others) decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "skipped", reason: `one-a-day: ${sentTodayKey} already sent today` });
         others = [];
       } else {
         for (const c of others.slice(1)) decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "skipped", reason: `lost arbitration to ${others[0].key}` });
