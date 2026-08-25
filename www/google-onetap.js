@@ -127,7 +127,7 @@
             size: 'large',
             text: 'continue_with',
             shape: 'rectangular',
-            logo_alignment: 'left',
+            logo_alignment: 'center',
             width: opts.buttonWidth || undefined,
           });
           return true;
