@@ -102,6 +102,29 @@
   #ed .edmsg{font-size:12.5px;margin:10px 0 0;color:var(--bad)}
   #ed .edmsg.ok{color:var(--good)}
   #ed .edbtns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+  /* ============ Ledger tab (additive redesign) ============ */
+  .lgx{display:flex;gap:16px;align-items:flex-start;margin-top:4px}
+  .lgx-rail{flex:none;width:168px;position:sticky;top:14px}
+  .lgx-rail a{display:block;padding:7px 11px;border-radius:8px;color:var(--mut);font-size:13.5px;font-weight:500;cursor:pointer;margin:1px 0}
+  .lgx-rail a.on{background:var(--card);color:var(--acc);font-weight:700;border:1px solid var(--line)}
+  .lgx-rail a:hover{color:var(--ink)}
+  .lgx-main{flex:1;min-width:0}
+  .lgx-view{display:none}.lgx-view.on{display:block}
+  .lgx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:0 0 14px}
+  .lgx-kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .lgx-kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+  .lgx-kpi span{font-size:12px;color:var(--mut)}
+  .lgx-card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:0 0 12px;overflow:hidden}
+  .lgx-ch{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .lgx-ch b{font-size:14px}
+  .lgx-ch span{font-size:12px;color:var(--mut)}
+  .lgx-card table{font-size:13px}
+  .lgx-card td,.lgx-card th{padding:6px 12px}
+  .lgx-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+  .lgx-bar{display:inline-block;width:44px;height:5px;border-radius:99px;background:var(--line);vertical-align:2px;margin-left:6px}
+  .lgx-bar i{display:block;height:100%;border-radius:99px;background:var(--acc)}
+  .lgx-on{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--good)}
+  .lgx-off{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--line)}
 </style>
 </head>
 <body>
@@ -128,6 +151,7 @@
       <button data-t="overview" class="on">Overview</button>
       <button data-t="workflows">Workflows &amp; triggers</button>
       <button data-t="emails">Emails</button>
+      <button data-t="ledger">Ledger</button>
     </div>
 
     <!-- ============ TAB: OVERVIEW ============ -->
@@ -179,6 +203,28 @@
           <button class="btn" id="plan-save" disabled>Save plan</button>
           <button class="btn small" id="plan-revert">Revert to default order</button>
           <span id="plan-msg" class="trigwhy" style="margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TAB: LEDGER (the new design; classic tabs untouched) ============ -->
+    <div id="tab-ledger" class="hidden">
+      <div class="lgx">
+        <nav class="lgx-rail" id="lgx-rail">
+          <a class="on" data-lv="overview">Overview</a>
+          <a data-lv="seq">Daily sequence</a>
+          <a data-lv="life">Lifecycle emails</a>
+          <a data-lv="people">People and states</a>
+          <a data-lv="deliv">Deliverability</a>
+          <a data-lv="feed">Live feed</a>
+        </nav>
+        <div class="lgx-main">
+          <section class="lgx-view on" id="lgx-overview"></section>
+          <section class="lgx-view" id="lgx-seq"></section>
+          <section class="lgx-view" id="lgx-life"></section>
+          <section class="lgx-view" id="lgx-people"></section>
+          <section class="lgx-view" id="lgx-deliv"></section>
+          <section class="lgx-view" id="lgx-feed"></section>
         </div>
       </div>
     </div>
@@ -279,7 +325,7 @@
   document.getElementById('tabs').addEventListener('click', function(e){
     var b = e.target.closest('button'); if (!b) return;
     document.querySelectorAll('#tabs button').forEach(function(x){ x.classList.toggle('on', x===b); });
-    ['overview','workflows','emails'].forEach(function(t){
+    ['overview','workflows','emails','ledger'].forEach(function(t){
       document.getElementById('tab-'+t).classList.toggle('hidden', b.dataset.t !== t);
     });
   });
@@ -381,6 +427,7 @@
   ];
 
   var lastStats = null;
+  var lastPlan = null, lastSeqPlan = null;
 
   function mk(key){
     var m = (lastStats && lastStats.metricsByKey) || {};
@@ -628,9 +675,11 @@
       return '<tr><td>'+ago(f.at)+'</td><td>'+esc(f.event)+'</td><td>'+esc(f.email_key||'-')+'</td><td>'+esc(f.email||'-')+'</td></tr>';
     }, 'No email events yet');
     document.getElementById('foot').textContent = 'Loaded ' + new Date().toLocaleTimeString();
+    renderLedger();
   }
 
   function renderPlan(p){
+    lastPlan = p; renderLedger();
     fill('t-plan', (p.decisions||[]).slice(0,25), [['Who'],['Email'],['Action'],['Why']], function(x){
       return '<tr><td>'+esc(x.email)+'</td><td>'+esc(x.key)+'</td><td>'+esc(x.action)+'</td><td style="color:var(--mut)">'+esc(x.reason)+'</td></tr>';
     }, p.mode === 'disabled' ? 'Engine is off' : 'Nothing eligible right now');
@@ -651,6 +700,176 @@
       .then(function(p){ if (p) renderPlan(p); })
       .catch(function(){});
   }
+  // ================= the Ledger tab (additive redesign) =================
+  function lgxStat(m){
+    var op = m.sent ? Math.round(100*m.openers/m.sent) : null;
+    var cl = m.sent ? Math.round(100*m.clickers/m.sent) : null;
+    return { op: op, cl: cl,
+      opTxt: op === null ? '-' : op + '%' + '<span class="lgx-bar"><i style="width:' + op + '%"></i></span>',
+      clTxt: cl === null ? '-' : cl + '%' };
+  }
+  function renderLedger(){
+    if (!document.getElementById('lgx-overview') || !lastStats) return;
+    var d = lastStats, flags = (d.mode && d.mode.flags) || {};
+
+    // ---- overview ----
+    var sent7 = evTotal(d,'sent','n7'), sent30 = evTotal(d,'sent','n30');
+    var opens30 = evTotal(d,'open','n30'), clicks30 = evTotal(d,'click','n30');
+    var openRate = sent30 ? Math.round(100*opens30/sent30) + '%' : '-';
+    var built = seqItems.filter(function(x){ return x.built; }).length;
+    var planRows = (lastPlan && lastPlan.decisions || []).filter(function(x){ return x.action === 'send' || x.action === 'would_send'; });
+    document.getElementById('lgx-overview').innerHTML =
+      '<div class="lgx-kpis">' +
+      '<div class="lgx-kpi"><b>' + n(sent7) + '</b><span>sent, 7 days</span></div>' +
+      '<div class="lgx-kpi"><b>' + n(sent30) + '</b><span>sent, 30 days</span></div>' +
+      '<div class="lgx-kpi"><b>' + openRate + '</b><span>open rate, 30 days</span></div>' +
+      '<div class="lgx-kpi"><b>' + n(clicks30) + '</b><span>clicks, 30 days</span></div>' +
+      '<div class="lgx-kpi"><b>' + n(built) + '</b><span>lessons built of ' + (seqItems.length || '-') + ' planned entries</span></div>' +
+      '<div class="lgx-kpi"><b>' + n(planRows.length) + '</b><span>in today\u2019s plan</span></div>' +
+      '</div>' +
+      '<div class="lgx-cols">' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Today\u2019s plan</b><span>what the brain would send now</span></div><table>' +
+      '<tr><th>Who</th><th>Email</th><th>Why</th></tr>' +
+      (planRows.slice(0,10).map(function(x){ return '<tr><td>' + esc(x.email) + '</td><td>' + esc(x.key) + '</td><td class="trigwhy">' + esc(x.reason) + '</td></tr>'; }).join('') || '<tr><td class="trigwhy" colspan="3">Nothing eligible right now</td></tr>') +
+      '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Hot leads</b><span>7 days</span></div><table>' +
+      '<tr><th>Who</th><th>Signal</th><th class="num">When</th></tr>' +
+      ((d.hot.signals||[]).slice(0,6).map(function(x){ return '<tr><td>' + esc(x.email||'-') + '</td><td>' + esc(x.signal) + '</td><td class="num">' + ago(x.at) + '</td></tr>'; }).join('') || '<tr><td class="trigwhy" colspan="3">No intent signals</td></tr>') +
+      '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Friction</b><span>where the funnel leaks</span></div><table>' +
+      '<tr><td>Signups (2-14d) with zero activity</td><td class="num">' + n(d.friction.never_activated_14d) + '</td></tr>' +
+      '<tr><td>Hit a Pro wall in 30d, still free</td><td class="num">' + n(d.friction.wall_no_buy_30d) + '</td></tr>' +
+      '<tr><td>Suppressed addresses</td><td class="num">' + n((d.friction.suppressed||[]).length) + '</td></tr>' +
+      '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Live feed</b><span>latest</span></div><table>' +
+      ((d.feed||[]).slice(0,8).map(function(f){ return '<tr><td class="num" style="white-space:nowrap">' + ago(f.at) + '</td><td>' + esc(f.event) + '</td><td>' + esc(f.email_key||'-') + '</td></tr>'; }).join('') || '<tr><td class="trigwhy">No events yet</td></tr>') +
+      '</table></div></div>';
+
+    // ---- daily sequence ----
+    var enabled = {};
+    (lastSeqPlan||[]).forEach(function(r){ enabled[r.seq] = r.enabled; });
+    var inv = mk('invite-series'), invS = lgxStat(inv);
+    document.getElementById('lgx-seq').innerHTML =
+      '<div class="lgx-card"><div class="lgx-ch"><b>The daily lesson sequence</b>' +
+      '<span>' + n(built) + ' built \u00b7 order and switches save in the <a href="#" data-goto-tab="emails" style="color:var(--acc)">Emails tab</a></span></div>' +
+      '<table><tr><th class="num">#</th><th>Lesson</th><th>Status</th><th class="num">Sent</th><th class="num">Open</th><th class="num">CTR</th><th class="num">On</th><th>Actions</th></tr>' +
+      '<tr><td class="num">\u2709</td><td><b>A daily R lesson, if you want it</b> <span class="trigwhy">the invitation</span></td>' +
+      '<td><span class="chip on">invitation</span></td>' +
+      '<td class="num">' + n(inv.sent) + '</td><td class="num">' + invS.opTxt + '</td><td class="num">' + invS.clTxt + '</td><td class="num">-</td>' +
+      '<td style="white-space:nowrap"><button class="btn small" data-inv-edit>Edit</button> <button class="btn small" data-seq-pv="invite-series">Preview</button> <button class="btn small" data-seq-test="invite-series">Test</button></td></tr>' +
+      seqItems.map(function(it){
+        var m = mk(it.key), st = lgxStat(m);
+        var on = enabled[it.seq] === undefined ? true : !!enabled[it.seq];
+        var status = (it.edited ? '<span class="chip edited">edited</span> ' : '') +
+          (it.built ? '<span class="chip on">' + (it.kind === 'public' ? 'public page' : 'built') + '</span>' : '<span class="chip">awaiting lesson</span>');
+        return '<tr><td class="num">' + it.seq + '</td>' +
+          '<td><b>' + esc(it.subject) + '</b>' + (it.course ? ' <span class="trigwhy">' + esc(it.course) + '</span>' : '') + '</td>' +
+          '<td>' + status + '</td>' +
+          '<td class="num">' + n(m.sent) + '</td><td class="num">' + st.opTxt + '</td><td class="num">' + st.clTxt + '</td>' +
+          '<td class="num"><span class="' + (on ? 'lgx-on' : 'lgx-off') + '" title="' + (on ? 'enabled' : 'off') + '"></span></td>' +
+          '<td style="white-space:nowrap"><button class="btn small" data-seq-edit="' + esc(it.key) + '">Edit</button> <button class="btn small" data-seq-pv="' + esc(it.key) + '">Preview</button> <button class="btn small" data-seq-test="' + esc(it.key) + '">Test</button></td></tr>';
+      }).join('') + '</table></div>';
+
+    // ---- lifecycle ----
+    var withT = REGISTRY.filter(function(r){ return r.template; });
+    document.getElementById('lgx-life').innerHTML =
+      '<div class="lgx-card"><div class="lgx-ch"><b>Every email and its numbers</b><span>Sim = dev-mode simulated \u00b7 journeys stay on the <a href="#" data-goto-tab="workflows" style="color:var(--acc)">Workflows tab</a></span></div>' +
+      '<table><tr><th>Email</th><th class="num">Sent</th><th class="num">Sim</th><th class="num">Open</th><th class="num">CTR</th><th class="num">Unsub</th><th class="num">Err</th><th class="num">Tests</th><th class="num">Last</th><th>Actions</th></tr>' +
+      withT.map(function(r){
+        var c = mk(r.key), st = lgxStat(c);
+        var lc = lcItems.filter(function(x){ return x.key === r.template; })[0];
+        var acts = '<button class="btn small" data-preview="' + esc(r.template) + '">Preview</button> <button class="btn small" data-test="' + esc(r.template) + '">Test</button>' +
+          (lc ? ' <button class="btn small" data-lc-edit="' + esc(r.template) + '">Edit</button>' + (lc.edited ? ' <button class="btn small" data-lc-revert="' + esc(r.template) + '">Revert</button> <span class="chip edited">edited</span>' : '') : '');
+        var flagChip = r.flag && r.flag.charAt(0) !== '(' ? (flags[r.flag] ? '' : ' <span class="chip">flag off</span>') : '';
+        return '<tr><td><b>' + esc(r.name) + '</b>' + flagChip + '</td>' +
+          '<td class="num">' + n(c.sent) + '</td><td class="num">' + n(c.would) + '</td>' +
+          '<td class="num">' + st.opTxt + '</td><td class="num">' + st.clTxt + '</td>' +
+          '<td class="num">' + n(c.unsubs) + '</td><td class="num">' + n(c.errors) + '</td><td class="num">' + n(c.test) + '</td>' +
+          '<td class="num" style="white-space:nowrap">' + ago(c.last_sent) + '</td>' +
+          '<td style="white-space:nowrap">' + acts + '</td></tr>';
+      }).join('') + '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Trigger map</b><span>what causes each email, exactly \u00b7 planned rows show what blocks them</span></div>' +
+      '<div style="overflow-x:auto"><table><tr><th>Email</th><th>Trigger</th><th>When</th><th>Conditions</th><th>Consent</th><th>Status</th></tr>' +
+      REGISTRY.map(function(r){
+        var c = mk(r.key);
+        var status;
+        if (r.planned) status = '<span class="chip planned">planned</span> <span class="trigwhy">' + esc(r.planned) + '</span>';
+        else if (r.flag && r.flag.charAt(0) === '(') status = '<span class="chip on">' + esc(r.flag) + '</span>';
+        else status = (flags[r.flag] ? '<span class="chip on">flag on</span>' : '<span class="chip">flag off</span>') +
+          (c.sent || c.would ? ' <span class="trigwhy">' + n(c.sent) + ' sent' + (c.would ? ', ' + n(c.would) + ' sim' : '') + '</span>' : '');
+        return '<tr><td><b>' + esc(r.name) + '</b></td><td class="trigwhy">' + esc(r.trigger) + '</td><td class="trigwhy">' + esc(r.when) + '</td><td class="trigwhy">' + esc(r.cond) + '</td><td class="trigwhy">' + esc(r.cat) + '</td><td>' + status + '</td></tr>';
+      }).join('') + '</table></div></div>';
+
+    // ---- people ----
+    var total = d.states.total || 1;
+    document.getElementById('lgx-people').innerHTML =
+      '<div class="lgx-cols">' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Customer states</b><span>derived, never stored</span></div><table>' +
+      STATE_META.map(function(m2){ return '<tr><td><i style="display:inline-block;width:9px;height:9px;background:' + m2[2] + ';margin-right:6px"></i>' + m2[1] + '</td><td class="num">' + n(d.states[m2[0]]) + '</td></tr>'; }).join('') +
+      '<tr><td><b>Total accounts</b></td><td class="num"><b>' + n(total) + '</b></td></tr></table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Signups by gate</b></div><table><tr><th>Gate</th><th class="num">All</th><th class="num">30d</th></tr>' +
+      (d.gates||[]).map(function(g){ return '<tr><td>' + esc(g.gate) + '</td><td class="num">' + n(g.n) + '</td><td class="num">' + n(g.n30) + '</td></tr>'; }).join('') + '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Heaviest free practicers</b><span>closest to the cap</span></div><table>' +
+      ((d.hot.capUsers||[]).map(function(c){ return '<tr><td>' + esc(c.email) + '</td><td class="num">' + n(c.attempts) + '</td></tr>'; }).join('') || '<tr><td class="trigwhy">Nobody near the cap</td></tr>') + '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Pass deadline cohort</b><span>day 21+</span></div><table>' +
+      ((d.hot.passCohort||[]).map(function(p){ return '<tr><td>' + esc(p.email) + '</td><td class="num">day ' + p.day + '</td></tr>'; }).join('') || '<tr><td class="trigwhy">Empty until flag:da-pass is on</td></tr>') + '</table></div>' +
+      '</div>';
+
+    // ---- deliverability ----
+    document.getElementById('lgx-deliv').innerHTML =
+      '<div class="lgx-kpis">' +
+      '<div class="lgx-kpi"><b>' + n(evTotal(d,'bounce','n')) + '</b><span>bounces, all time</span></div>' +
+      '<div class="lgx-kpi"><b>' + n(evTotal(d,'complaint','n')) + '</b><span>complaints, all time</span></div>' +
+      '<div class="lgx-kpi"><b>' + n(evTotal(d,'unsub','n')) + '</b><span>unsubscribes, all time</span></div>' +
+      '<div class="lgx-kpi"><b>' + n((d.friction.suppressed||[]).length) + '</b><span>suppressed now</span></div>' +
+      '</div>' +
+      '<div class="lgx-cols">' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Suppressed addresses</b><span>nothing sends to these</span></div><table>' +
+      ((d.friction.suppressed||[]).map(function(x){ return '<tr><td>' + esc(x.email) + '</td><td class="num">' + esc(x.email_status) + '</td></tr>'; }).join('') || '<tr><td class="trigwhy">None - deliverability is clean</td></tr>') + '</table></div>' +
+      '<div class="lgx-card"><div class="lgx-ch"><b>Sender identities</b><span>DKIM + SPF + DMARC live on the apex</span></div><table>' +
+      '<tr><td>akshay@</td><td class="trigwhy">lessons, nurture, invitations</td></tr>' +
+      '<tr><td>support@</td><td class="trigwhy">cart recovery, both touches</td></tr>' +
+      '<tr><td>noreply@</td><td class="trigwhy">receipts, fulfilment, magic links</td></tr>' +
+      '</table></div></div>';
+
+    // ---- feed ----
+    document.getElementById('lgx-feed').innerHTML =
+      '<div class="lgx-card"><div class="lgx-ch"><b>Recent email activity</b><span>sends, simulations, opens, clicks, errors</span></div><table>' +
+      '<tr><th>When</th><th>Event</th><th>Email key</th><th>Who</th></tr>' +
+      ((d.feed||[]).map(function(f){ return '<tr><td class="num" style="white-space:nowrap">' + ago(f.at) + '</td><td>' + esc(f.event) + '</td><td>' + esc(f.email_key||'-') + '</td><td>' + esc(f.email||'-') + '</td></tr>'; }).join('') || '<tr><td class="trigwhy">No events yet</td></tr>') +
+      '</table></div>';
+  }
+
+  (function(){
+    var pane = document.getElementById('tab-ledger'); if (!pane) return;
+    document.getElementById('lgx-rail').addEventListener('click', function(e){
+      var a = e.target.closest('a[data-lv]'); if (!a) return;
+      document.querySelectorAll('#lgx-rail a').forEach(function(x){ x.classList.toggle('on', x === a); });
+      document.querySelectorAll('.lgx-view').forEach(function(v){ v.classList.remove('on'); });
+      document.getElementById('lgx-' + a.dataset.lv).classList.add('on');
+    });
+    pane.addEventListener('click', function(e){
+      var g = e.target.closest('[data-goto-tab]');
+      if (g){ e.preventDefault(); var tb = document.querySelector('#tabs button[data-t="' + g.dataset.gotoTab + '"]'); if (tb) tb.click(); return; }
+      var pv = e.target.closest('[data-preview]');
+      if (pv){ sessionStorage.removeItem('pv:' + pv.dataset.preview); openPreview(pv.dataset.preview); return; }
+      var ts = e.target.closest('[data-test]');
+      if (ts){ act('Test ' + ts.dataset.test, fetch('/api/admin/email-plan?send_test=' + encodeURIComponent(ts.dataset.test), hdrs())); return; }
+      var le = e.target.closest('[data-lc-edit]');
+      if (le){ var it = lcItems.filter(function(x){ return x.key === le.dataset.lcEdit; })[0]; if (it) openEditor(it); return; }
+      var lr = e.target.closest('[data-lc-revert]');
+      if (lr){ if (confirm('Revert ' + lr.dataset.lcRevert + ' to the shipped default copy?')){ act('Revert ' + lr.dataset.lcRevert, fetch('/api/admin/email-copy?key=' + encodeURIComponent(lr.dataset.lcRevert), { method: 'DELETE', headers: hdrs().headers })); setTimeout(loadSeq, 800); } return; }
+      var se = e.target.closest('[data-seq-edit]');
+      if (se){ var si = seqItems.filter(function(x){ return x.key === se.dataset.seqEdit; })[0]; if (si) openEditor(si); return; }
+      var sp = e.target.closest('[data-seq-pv]');
+      if (sp){ sessionStorage.removeItem('pv:' + sp.dataset.seqPv); openPreview(sp.dataset.seqPv); return; }
+      var st = e.target.closest('[data-seq-test]');
+      if (st){ act('Test ' + st.dataset.seqTest, fetch('/api/admin/email-plan?send_test=' + encodeURIComponent(st.dataset.seqTest), hdrs())); return; }
+      var ie = e.target.closest('[data-inv-edit]');
+      if (ie){ var ii = lcItems.filter(function(x){ return x.key === 'invite-series'; })[0]; if (ii) openEditor(ii); return; }
+    });
+  })();
+
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) load(); });
   document.addEventListener('click', function(e){ if (e.target && e.target.id === 'plan-rerun') loadPlan2(); });
 
@@ -682,7 +901,7 @@
   function loadSeqPlan(){
     fetch('/api/admin/seq-plan', hdrs())
       .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(d){ planCustom = !!d.custom; renderSeqPlan(d.plan || []); })
+      .then(function(d){ planCustom = !!d.custom; lastSeqPlan = d.plan || []; renderSeqPlan(d.plan || []); renderLedger(); })
       .catch(function(e){
         var el = document.getElementById('t-seqplan');
         if (el) el.innerHTML = '<div style="color:var(--bad)">Could not load the send plan (' + esc(String(e.message || e)) + '). <a href="" onclick="loadSeqPlan();return false">Retry</a></div>';
@@ -771,7 +990,7 @@
   function loadSeq(){
     fetch('/api/admin/email-copy', hdrs())
       .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if (d){ seqItems = d.items || []; lcItems = d.lifecycle || []; renderSeq(); if (lastStats) renderEmails(lastStats); } })
+      .then(function(d){ if (d){ seqItems = d.items || []; lcItems = d.lifecycle || []; renderSeq(); if (lastStats) renderEmails(lastStats); renderLedger(); } })
       .catch(function(){});
   }
 
