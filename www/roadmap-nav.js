@@ -6,31 +6,50 @@
 (function(){
   if (window.__roadmapNav) return; window.__roadmapNav = 1;
 
+  /* per-track data-graphic marks - one shared stroke grammar, each track wears
+     the chart it teaches (prompt, bar chart, bell curve, forecast, tree, code,
+     gauge). Rendered inside the tinted .rn-mkc chip. */
+  var MK = {
+    found:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,4 11,11 4,18"/><line x1="15" y1="18" x2="23" y2="18"/></svg>',
+    da:'<svg width="24" height="20" viewBox="0 0 26 22" fill="currentColor" stroke="none"><rect x="3" y="9" width="3.6" height="11" rx="1"/><rect x="9" y="3" width="3.6" height="17" rx="1"/><rect x="15" y="13" width="3.6" height="7" rx="1"/><rect x="21" y="6" width="3.6" height="14" rx="1"/><line x1="2" y1="20.6" x2="24.6" y2="20.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    res:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M2,19 C8,19 8.5,3 13,3 C17.5,3 18,19 24,19"/></svg>',
+    fc:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,17 5,12.5 8,15 11,9.5 14,12 17,6.5"/><line x1="17" y1="6.5" x2="24" y2="3.5" stroke-dasharray="2.6 2.4"/></svg>',
+    ds:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13" cy="4" r="2.4" fill="currentColor" stroke="none"/><path d="M13,6.4 L13,9.5 M5,9.5 L21,9.5 M5,9.5 L5,12.8 M21,9.5 L21,12.8"/><circle cx="5" cy="15.4" r="2.4"/><circle cx="21" cy="15.4" r="2.4"/></svg>',
+    dev:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="16,5 23,11 16,17"/><polyline points="10,5 3,11 10,17"/></svg>',
+    mle:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5,17.5 A9.5,9.5 0 0 1 22.5,17.5"/><line x1="13" y1="17.5" x2="18.2" y2="10.2"/><circle cx="13" cy="17.5" r="1.6" fill="currentColor" stroke="none"/></svg>'
+  };
+
+  /* cert names mirror what each track page hero advertises (roadmap-data.js
+     LEVELS) - the dropdown must promise the same credential the page does */
   var STAGES = [
     ["Start", [
-      {href:"/roadmap/new-to-r.html", dot:"#2056d2", name:"New to R", track:"foundations", free:1, sf:"R-Syntax-and-First-Objects",
-       p:"Syntax to functions, from zero. Feeds every other track.",
-       m:"43 interactive lessons", start:1}
+      {href:"/roadmap/new-to-r.html", tc:"#2563a8", mono:"R", mk:"found", name:"New to R", track:"foundations", free:1, sf:"R-Syntax-and-First-Objects",
+       p:"Syntax to functions, from zero. Feeds every other track, and most people begin in it.",
+       cert:"R Fundamentals", start:1}
     ]],
     ["Work with data", [
-      {href:"/roadmap/data-analyst.html", dot:"#0f8a5f", name:"Data Analyst", track:"analyst", free:1, sf:"Importing-and-Tidy-Data-in-R", p:"Wrangle, visualize, report.", m:"44 interactive lessons"},
-      {href:"/roadmap/researcher.html", dot:"#7c3aed", name:"Researcher", p:"Tests, models, inference.", m:"tutorial curriculum"},
-      {href:"/roadmap/forecaster.html", dot:"#0e7490", name:"Forecaster", p:"Decomposition to ARIMA.", m:"tutorial curriculum"}
+      {href:"/roadmap/data-analyst.html", tc:"#1f7a55", mono:"DA", mk:"da", name:"Data Analyst", track:"analyst", free:1, sf:"Importing-and-Tidy-Data-in-R", p:"Wrangle, visualize, report.", cert:"Tidyverse Practitioner"},
+      {href:"/roadmap/researcher.html", tc:"#b45309", mono:"RS", mk:"res", name:"Researcher", p:"Tests, models, inference.", cert:"Applied Statistics with R"},
+      {href:"/roadmap/forecaster.html", tc:"#be185d", mono:"F", mk:"fc", name:"Forecaster", p:"Decomposition to ARIMA.", cert:"Time Series Forecasting"}
     ]],
     ["Go deep", [
-      {href:"/roadmap/data-scientist.html", dot:"#be185d", name:"Data Scientist", track:"ds", sf:"Framing-a-Problem-as-ML", p:"Machine learning end to end.", m:"178 interactive lessons"},
-      {href:"/roadmap/r-developer.html", dot:"#4d7c0f", name:"R Developer", p:"Packages, performance, Shiny.", m:"tutorial curriculum"},
-      {href:"/roadmap/ml-engineer.html", dot:"#3b5bd9", name:"ML Engineer", p:"Ship and operate ML in production.", m:"tutorial curriculum"}
+      {href:"/roadmap/data-scientist.html", tc:"#7c3aed", mono:"DS", mk:"ds", name:"Data Scientist", track:"ds", sf:"Framing-a-Problem-as-ML", p:"Machine learning end to end.", cert:"Machine Learning with R"},
+      {href:"/roadmap/r-developer.html", tc:"#0e7490", mono:"RD", mk:"dev", name:"R Developer", p:"Packages, performance, Shiny.", cert:"Advanced R"},
+      {href:"/roadmap/ml-engineer.html", tc:"#4338ca", mono:"ML", mk:"mle", name:"ML Engineer", p:"Ship and operate ML in production.", cert:"ML Engineering with R"}
     ]]
   ];
   var ARR = '<svg class="rn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
 
   function nodeHTML(n){
-    var inner = '<span class="rn-t"><b>'+n.name+'</b></span>'+
-      '<p>'+n.p+'</p><span class="rn-m" data-rn-m>'+n.m+'</span>'+
-      (n.sf ? '<span class="rn-go rn-sf" role="link" tabindex="0" data-sf="/'+n.sf+'.html" data-track="'+(n.track||'')+'">Start free '+ARR+'</span>' : '');
-    if (n.soon) return '<div class="rn-node rn-soon">'+inner+'</div>';
-    return '<a class="rn-node'+(n.start?' rn-start':'')+'"'+(n.track?' data-rn-track="'+n.track+'"':'')+(n.free?' data-rn-free="1"':'')+' href="'+n.href+'" role="menuitem">'+inner+'</a>';
+    var inner = '<span class="rn-row1"><span class="rn-mono">'+n.mono+'</span><b>'+n.name+'</b>'+
+      (n.start ? '<span class="rn-tag">Start here</span>' : '')+
+      '<span class="rn-mkc">'+MK[n.mk]+'</span></span>'+
+      '<p>'+n.p+'</p><span class="rn-m" data-rn-m></span>'+
+      '<span class="rn-cert">Certificate: <b>'+n.cert+'</b></span>'+
+      (n.sf ? '<span class="rn-go rn-sf" role="link" tabindex="0" data-sf="/'+n.sf+'.html" data-track="'+(n.track||'')+'">Start free '+ARR+'</span>'
+            : '<span class="rn-go">Open '+ARR+'</span>');
+    if (n.soon) return '<div class="rn-node rn-soon" style="--tc:'+n.tc+'">'+inner+'</div>';
+    return '<a class="rn-node'+(n.start?' rn-start':'')+'"'+(n.track?' data-rn-track="'+n.track+'"':'')+(n.free?' data-rn-free="1"':'')+' style="--tc:'+n.tc+'" href="'+n.href+'" role="menuitem">'+inner+'</a>';
   }
   function panelHTML(){
     var cols = STAGES.map(function(sg){
@@ -39,7 +58,7 @@
     }).join('');
     return '<div class="rn-hd"><b>Seven roadmaps, one path</b><a href="/roadmap/">Compare all seven '+ARR+'</a></div>'+
       '<div class="rn-cols">'+cols+'</div>'+
-      '<div class="rn-ft"><span>Every roadmap ends in a verifiable certificate.</span>'+
+      '<div class="rn-ft"><span>Certificates are publicly verifiable and LinkedIn-ready.</span>'+
       '<a href="/roadmap/">Open the full roadmap '+ARR+'</a></div>';
   }
 
@@ -59,7 +78,7 @@
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
     if (!link || link.closest('.rn-wrap')) return;
     if (!document.querySelector('link[data-rn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=4';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=5';
       l.setAttribute('data-rn-css', ''); document.head.appendChild(l);
     }
     var wrap = document.createElement('div'); wrap.className = 'rn-wrap';
