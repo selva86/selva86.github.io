@@ -108,6 +108,70 @@ function recoveryEmail(code: string): { html: string; text: string } {
   return { html: emailShell({ preheader: "15% off to finish your enrollment", contentHtml }), text };
 }
 
+function reminderEmail(code: string): { html: string; text: string } {
+  const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery2`;
+  const contentHtml = `
+    <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">Your 15% code expires tomorrow</p>
+    <p>A quick reminder: the discount code from your r-statistics.co checkout is still unused, and it expires tomorrow. After that it is gone for good.</p>
+    <p style="margin:18px 0;text-align:center">
+      <span style="display:inline-block;background:#f3f4f6;border:1px dashed #9ca3af;border-radius:8px;padding:10px 22px;font-size:20px;font-weight:700;letter-spacing:1px">${code}</span>
+    </p>
+    <p style="text-align:center;margin:18px 0">
+      <a href="${link}" style="display:inline-block;background:#2056d2;color:#fff;text-decoration:none;font-weight:600;padding:11px 26px;border-radius:8px">Finish enrolling</a>
+    </p>
+    <p style="color:#6b7280;font-size:13px">The code is applied automatically when you use the button, and every plan includes the 14-day money-back guarantee. If something about checkout did not work for you, reply to this email and tell me what happened. I read every reply.</p>`;
+  const text =
+    "A quick reminder: the 15% code from your r-statistics.co checkout is still unused and expires tomorrow.\n\n" +
+    `Code (one use): ${code}\n\n` +
+    `Finish enrolling: ${link}\n\n` +
+    "Every plan includes the 14-day money-back guarantee. If something about checkout did not work, reply and tell me what happened.";
+  return { html: emailShell({ preheader: "The 15% code from your checkout expires tomorrow", contentHtml }), text };
+}
+
+// Touch 2: for every touch-1 recovery 46-60h old (code expires at 72h, so
+// "tomorrow" is literally true across the whole band), still unpurchased,
+// send ONE expiry reminder with the same code. Older touch-1 sends that
+// predate code storage simply never match (no recovery_code row).
+async function sweepExpiryReminders(env: Env & PaddleEnv, now: number): Promise<void> {
+  const due = await env.DB.prepare(
+    "SELECT r.meta AS email, r.user_id, r.anon_id, c.path AS code FROM intent_signals r " +
+    "JOIN intent_signals c ON c.signal = 'recovery_code' AND c.meta = r.meta " +
+    "WHERE r.signal = 'recovery_sent' AND r.path != 'skipped:purchased' " +
+    "AND r.at BETWEEN ?1 AND ?2 " +
+    "AND r.meta NOT IN (SELECT meta FROM intent_signals WHERE signal = 'recovery2_sent') " +
+    "GROUP BY r.meta LIMIT 10"
+  ).bind(now - 60 * 3600, now - 46 * 3600)
+    .all<{ email: string; user_id: string | null; anon_id: string | null; code: string }>();
+
+  for (const d of due.results ?? []) {
+    const email = (d.email || "").trim().toLowerCase();
+    if (!looksLikeEmail(email) || !d.code) continue;
+    if (await hasPurchased(env, email)) {
+      await env.DB.prepare(
+        "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?, ?, ?, 'recovery2_sent', 'skipped:purchased', ?)"
+      ).bind(now, d.user_id, d.anon_id, email).run().catch(() => {});
+      continue;
+    }
+    const mail = reminderEmail(d.code);
+    const res = await sendMail(env, {
+      to: { email },
+      subject: "Your 15% code expires tomorrow",
+      htmlBody: mail.html,
+      textBody: mail.text,
+    });
+    if (!res.ok) continue;   // no marker: retried on a later sweep inside the band
+    await env.DB.prepare(
+      "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?, ?, ?, 'recovery2_sent', ?, ?)"
+    ).bind(now, d.user_id, d.anon_id, d.code, email).run().catch(() => {});
+    await notifyAdminEvent(env, {
+      subject: `Expiry reminder sent: ${email}`,
+      headline: "Checkout recovery reminder (touch 2) sent",
+      rows: [["Lead", email], ["Code", d.code]],
+      replyTo: email,
+    });
+  }
+}
+
 export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<void> {
   try {
     if ((await env.KV.get("flag:cart-recovery")) !== "on") return;
@@ -167,6 +231,10 @@ export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<voi
       await env.DB.prepare(
         "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?, ?, ?, 'recovery_sent', ?, ?)"
       ).bind(now, lead.user_id, lead.anon_id, priceId || "", email).run().catch(() => {});
+      // The code itself, for the expiry reminder (touch 2) 46h later.
+      await env.DB.prepare(
+        "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?, ?, ?, 'recovery_code', ?, ?)"
+      ).bind(now, lead.user_id, lead.anon_id, code, email).run().catch(() => {});
       await notifyAdminEvent(env, {
         subject: `Recovery email sent: ${email}`,
         headline: "Abandoned-checkout recovery email sent",
@@ -174,6 +242,7 @@ export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<voi
         replyTo: email,
       });
     }
+    await sweepExpiryReminders(env, now);
   } catch (e) {
     console.warn(`[cart-recovery] sweep failed: ${(e as Error).message}`);
   }

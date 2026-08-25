@@ -6,6 +6,7 @@
 // Worker). Also callable by an admin bearer token for manual runs.
 
 import type { Env, RequestData } from "../../_middleware";
+import { sweepAbandonedCheckouts } from "../../_lib/cartrecovery";
 import { json, err401 } from "../../_lib/errors";
 import { runBrain } from "../../_lib/brain";
 
@@ -34,5 +35,8 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string; EMAIL_UN
   });
   const counts: Record<string, number> = {};
   for (const d of result.decisions) counts[d.action] = (counts[d.action] || 0) + 1;
+  // Cart-recovery rides the same hourly heartbeat, so both recovery touches
+  // land on schedule even in zero-traffic hours (internally 30-min throttled).
+  try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
   return json({ ran: result.ran, mode: result.mode, daily_run: result.daily_run, counts, total: result.decisions.length });
 };
