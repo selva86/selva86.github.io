@@ -88,7 +88,7 @@ async function createDiscount(
   } catch (_) { return false; }
 }
 
-function recoveryEmail(code: string): { html: string; text: string } {
+export function recoveryEmail(code: string): { html: string; text: string } {
   const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery`;
   const contentHtml = `
     <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">Your enrollment is one step from done</p>
@@ -108,7 +108,7 @@ function recoveryEmail(code: string): { html: string; text: string } {
   return { html: emailShell({ preheader: "15% off to finish your enrollment", contentHtml }), text };
 }
 
-function reminderEmail(code: string): { html: string; text: string } {
+export function reminderEmail(code: string): { html: string; text: string } {
   const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery2`;
   const contentHtml = `
     <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">Your 15% code expires tomorrow</p>
