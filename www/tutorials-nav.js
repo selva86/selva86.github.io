@@ -59,7 +59,10 @@
   }
 
   function unifyCaret(link) {
-    if (!link || link.querySelector('.nav-car')) return;
+    // Skip links that already carry any caret svg: on the legacy .nav
+    // variant the Practice trigger arrives with its own .xn-car, and
+    // appending .nav-car beside it rendered a double chevron.
+    if (!link || link.querySelector('svg')) return;
     link.insertAdjacentHTML('beforeend', CAR);
   }
 
