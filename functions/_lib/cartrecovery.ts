@@ -18,7 +18,11 @@ import type { Env } from "../_middleware";
 import { ensureIntentTable } from "../api/signal";
 import { paddleApiBase } from "./paddle";
 import { sendMail, emailShell } from "./email";
-import { SENDER, REPLY_TO } from "./email-templates";
+// Recovery mail is a money moment: it sends from the FOUNDER, whose name is
+// on every tutorial the lead was just reading, not from the operational
+// persona (Akshay keeps the lifecycle/series mail).
+const RECOVERY_SENDER = { email: "selva@r-statistics.co", name: "Selva from r-statistics.co" };
+const RECOVERY_REPLY_TO = { email: "selva@r-statistics.co", name: "Selva" };
 import { notifyAdminEvent } from "./notify";
 
 const SWEEP_INTERVAL = 1800;          // seconds between real runs
@@ -113,16 +117,16 @@ export function reminderEmail(code: string): { html: string; text: string } {
   const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery2`;
   const contentHtml = `
     <p style="margin:0 0 6px"><span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;letter-spacing:.4px;padding:3px 10px;border-radius:99px;text-transform:uppercase">Expires tomorrow</span></p>
-    <p style="margin:12px 0 0">Akshay here, one quick nudge and then I will leave you alone: the 15% code from your checkout, <strong style="letter-spacing:1px">${code}</strong>, is still unused and stops working tomorrow.</p>
+    <p style="margin:12px 0 0">Selva here, one quick nudge and then I will leave you alone: the 15% code from your checkout, <strong style="letter-spacing:1px">${code}</strong>, is still unused and stops working tomorrow.</p>
     <p style="margin:14px 0 0">If you meant to come back, this link applies it for you: <a href="${link}" style="color:#2056d2;font-weight:600">finish enrolling here</a>.</p>
     <p style="margin:14px 0 0">And if something about checkout did not work, or the price is the sticking point, reply and tell me what happened. I read every reply.</p>
-    <p style="margin:14px 0 0;color:#6b7280">Akshay</p>`;
+    <p style="margin:14px 0 0;color:#6b7280">Selva</p>`;
   const text =
-    "Akshay here, one quick nudge and then I will leave you alone: the 15% code " +
+    "Selva here, one quick nudge and then I will leave you alone: the 15% code " +
     `from your checkout, ${code}, is still unused and stops working tomorrow.\n\n` +
     `If you meant to come back, this link applies it for you: ${link}\n\n` +
     "And if something about checkout did not work, or the price is the sticking point, " +
-    "reply and tell me what happened. I read every reply.\n\nAkshay";
+    "reply and tell me what happened. I read every reply.\n\nSelva";
   return { html: emailShell({ preheader: "The 15% code from your checkout expires tomorrow", contentHtml }), text };
 }
 
@@ -156,7 +160,7 @@ async function sweepExpiryReminders(env: Env & PaddleEnv, now: number): Promise<
       subject: "Your 15% code expires tomorrow",
       htmlBody: mail.html,
       textBody: mail.text,
-      from: SENDER, replyTo: REPLY_TO,
+      from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
     });
     if (!res.ok) continue;   // no marker: retried on a later sweep inside the band
     await env.DB.prepare(
@@ -223,7 +227,7 @@ export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<voi
         subject: "Finish your r-statistics.co enrollment (15% off inside)",
         htmlBody: mail.html,
         textBody: mail.text,
-        from: SENDER, replyTo: REPLY_TO,
+        from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
       });
       if (!res.ok) continue;   // no marker: retried later
 

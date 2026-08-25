@@ -10,7 +10,8 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
 import { recoveryEmail, reminderEmail } from "../../_lib/cartrecovery";
 import { sendMail } from "../../_lib/email";
-import { SENDER, REPLY_TO } from "../../_lib/email-templates";
+const RECOVERY_SENDER = { email: "selva@r-statistics.co", name: "Selva from r-statistics.co" };
+const RECOVERY_REPLY_TO = { email: "selva@r-statistics.co", name: "Selva" };
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
@@ -45,13 +46,13 @@ export const onRequestGet: PagesFunction<Env & { CRON_SECRET?: string; EMAIL_TES
     to: { email: to },
     subject: "Finish your r-statistics.co enrollment (15% off inside)",
     htmlBody: t1.html, textBody: t1.text,
-    from: SENDER, replyTo: REPLY_TO,
+    from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
   });
   const r2 = await sendMail(env, {
     to: { email: to },
     subject: "Your 15% code expires tomorrow",
     htmlBody: t2.html, textBody: t2.text,
-    from: SENDER, replyTo: REPLY_TO,
+    from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
   });
   return json({ touch1: r1.ok, touch2: r2.ok, to, note: "dummy code, not minted in Paddle" });
 };
