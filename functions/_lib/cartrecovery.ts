@@ -18,6 +18,7 @@ import type { Env } from "../_middleware";
 import { ensureIntentTable } from "../api/signal";
 import { paddleApiBase } from "./paddle";
 import { sendMail, emailShell } from "./email";
+import { SENDER, REPLY_TO } from "./email-templates";
 import { notifyAdminEvent } from "./notify";
 
 const SWEEP_INTERVAL = 1800;          // seconds between real runs
@@ -111,20 +112,17 @@ export function recoveryEmail(code: string): { html: string; text: string } {
 export function reminderEmail(code: string): { html: string; text: string } {
   const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery2`;
   const contentHtml = `
-    <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">Your 15% code expires tomorrow</p>
-    <p>A quick reminder: the discount code from your r-statistics.co checkout is still unused, and it expires tomorrow. After that it is gone for good.</p>
-    <p style="margin:18px 0;text-align:center">
-      <span style="display:inline-block;background:#f3f4f6;border:1px dashed #9ca3af;border-radius:8px;padding:10px 22px;font-size:20px;font-weight:700;letter-spacing:1px">${code}</span>
-    </p>
-    <p style="text-align:center;margin:18px 0">
-      <a href="${link}" style="display:inline-block;background:#2056d2;color:#fff;text-decoration:none;font-weight:600;padding:11px 26px;border-radius:8px">Finish enrolling</a>
-    </p>
-    <p style="color:#6b7280;font-size:13px">The code is applied automatically when you use the button, and every plan includes the 14-day money-back guarantee. If something about checkout did not work for you, reply to this email and tell me what happened. I read every reply.</p>`;
+    <p style="margin:0 0 6px"><span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;letter-spacing:.4px;padding:3px 10px;border-radius:99px;text-transform:uppercase">Expires tomorrow</span></p>
+    <p style="margin:12px 0 0">Akshay here, one quick nudge and then I will leave you alone: the 15% code from your checkout, <strong style="letter-spacing:1px">${code}</strong>, is still unused and stops working tomorrow.</p>
+    <p style="margin:14px 0 0">If you meant to come back, this link applies it for you: <a href="${link}" style="color:#2056d2;font-weight:600">finish enrolling here</a>.</p>
+    <p style="margin:14px 0 0">And if something about checkout did not work, or the price is the sticking point, reply and tell me what happened. I read every reply.</p>
+    <p style="margin:14px 0 0;color:#6b7280">Akshay</p>`;
   const text =
-    "A quick reminder: the 15% code from your r-statistics.co checkout is still unused and expires tomorrow.\n\n" +
-    `Code (one use): ${code}\n\n` +
-    `Finish enrolling: ${link}\n\n` +
-    "Every plan includes the 14-day money-back guarantee. If something about checkout did not work, reply and tell me what happened.";
+    "Akshay here, one quick nudge and then I will leave you alone: the 15% code " +
+    `from your checkout, ${code}, is still unused and stops working tomorrow.\n\n` +
+    `If you meant to come back, this link applies it for you: ${link}\n\n` +
+    "And if something about checkout did not work, or the price is the sticking point, " +
+    "reply and tell me what happened. I read every reply.\n\nAkshay";
   return { html: emailShell({ preheader: "The 15% code from your checkout expires tomorrow", contentHtml }), text };
 }
 
@@ -158,6 +156,7 @@ async function sweepExpiryReminders(env: Env & PaddleEnv, now: number): Promise<
       subject: "Your 15% code expires tomorrow",
       htmlBody: mail.html,
       textBody: mail.text,
+      from: SENDER, replyTo: REPLY_TO,
     });
     if (!res.ok) continue;   // no marker: retried on a later sweep inside the band
     await env.DB.prepare(
@@ -224,6 +223,7 @@ export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<voi
         subject: "Finish your r-statistics.co enrollment (15% off inside)",
         htmlBody: mail.html,
         textBody: mail.text,
+        from: SENDER, replyTo: REPLY_TO,
       });
       if (!res.ok) continue;   // no marker: retried later
 
