@@ -108,6 +108,7 @@ LESSON_CATALOG_TITLE = {
     'Regression-Health-Mini-1': 'Multicollinearity: why your coefficients look wrong, and the fix',
     'Regression-Health-Mini-2': 'Autocorrelation in residuals: how to test and fix it',
     'Regression-Health-Mini-3': 'Robust regression: when outliers bite',
+    'Regression-Health-Mini-4': "Cook's distance: find the points that change your model",
     'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
     'Foundations-Mini-3': 'Law of Large Numbers vs CLT: the real difference',
     'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",

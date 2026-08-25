@@ -1,0 +1,658 @@
+---
+title: "Cook's distance: find the points that change your model"
+description: "One account can carry a whole regression. Compute Cook's distance on 40 rows, read the two influence plots, and decide what to do with the row you find."
+keywords: "Cooks distance in R, influential observations, leverage, hatvalues, cooks.distance, leave-one-out refit, regression diagnostics, influential points in R"
+mathjax: true
+webr: true
+curriculum_id: "0.0.27"
+post_type: "LESSON"
+course_id: "regression-health-check"
+course_title: "Regression Health Check"
+course_lesson: "4"
+course_total: "5"
+course_landing: "/dashboard.html"
+course_next: ""
+course_prev: "Regression-Health-Mini-3"
+lesson_access: "windowed"
+catalog_blurb: "Find the rows steering your model, and decide what to do about them."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Regression Health Check</div>
+<h2>Cook's distance: find the points that change your model</h2>
+
+<p>Let's start with a question worth asking of any model you care about. If you deleted one row of your data, would your conclusions change?</p>
+
+<p>Let's make that concrete. You pull forty business accounts off the billing system and ask whether customers spend more the longer they stay with you. The line says yes: every extra year of tenure is worth about 31,000 a year in revenue, at p = 0.0023.</p>
+
+<p>Then you look at the rows properly and one of them stops you. Northwind is an enterprise client, twelve years with you, billing a million a year while the median of the other thirty-nine accounts bills 20,181. That one customer is about fifty times the middle of your book.</p>
+
+<p>So you take Northwind out and refit. The slope falls to 96 a year, and the p-value climbs to 0.82.</p>
+
+<p>The trend was never about tenure. It was about one customer.</p>
+
+<p>Most rows are not like that. Delete one and nothing worth noticing changes. A row like Northwind is steering the whole model on its own, and you want its name before you present anything to anybody. Cook's distance is the number that finds rows like that, and here is how we are going to use it.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Measure every row","sub":"score how much each of the 40 rows moves the fit"},{"title":"Read the two plots","sub":"the influence plots R draws, and their cutoffs"},{"title":"Decide","sub":"keep, correct, down-weight, or drop for a reason"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Everything from here is those three things, done on the forty accounts with the numbers in front of you. And the third one matters most, because quietly deleting the row you find is almost always the wrong move.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The forty accounts, and the trend they seem to show</h2>
+
+<p>Let's get the data on the table first, because every number after this comes out of it.</p>
+
+<p>These are forty business accounts at a supplies company. For each one you have how long they have been a customer, in years, and what they bill you in a year. The account names go into the row names, so every diagnostic we run from here prints the account it is talking about instead of a row number.</p>
+
+<p>Press Run to build the accounts and see the four biggest.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 40 business accounts and print the four biggest by revenue
+set.seed(42)
+accounts &lt;- data.frame(
+  account        = paste0(&quot;C&quot;, 1:40),
+  tenure_years   = round(runif(40, 1, 8), 1),
+  annual_revenue = round(rnorm(40, 20000, 5000), 0)
+)
+
+accounts$account[23]        &lt;- &quot;Northwind&quot;
+accounts$tenure_years[23]   &lt;- 12.0
+accounts$annual_revenue[23] &lt;- 1000000
+rownames(accounts) &lt;- accounts$account
+
+biggest &lt;- accounts[order(-accounts$annual_revenue), c(&quot;tenure_years&quot;, &quot;annual_revenue&quot;)]
+head(biggest, 4)
+#&gt;           tenure_years annual_revenue
+#&gt; Northwind         12.0        1000000
+#&gt; C5                 5.5          29476
+#&gt; C33                3.7          27879
+#&gt; C28                7.3          27221</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty-nine of the accounts are ordinary small customers, one to eight years old and billing somewhere between 5,000 and 30,000 a year. Northwind is the enterprise client: twelve years old, a million a year, and nothing else on the list comes within a factor of thirty of it.</p>
+
+<p>Now fit the model anyone would fit here, revenue on tenure.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit annual revenue on tenure and read the slope and its p-value
+fit &lt;- lm(annual_revenue ~ tenure_years, data = accounts)
+round(coef(summary(fit)), 4)
+#&gt;                Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  -118216.25  54161.743 -2.1827   0.0353
+#&gt; tenure_years   30978.81   9471.464  3.2708   0.0023</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>tenure_years</code> row. Each extra year of tenure comes with 30,978.81 more revenue a year, and the p-value of 0.0023 clears every conventional bar there is. Written up, that is a finding: customers spend more the longer they stay.</p>
+
+<p>Glance at the intercept while you are here. It says an account with zero tenure bills minus 118,216 a year, which nobody in the room believes. That is the first hint that the line is being pulled somewhere it does not want to go.</p>
+
+<p>Here is the same fit as a picture.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot revenue against tenure with the fitted line drawn on
+plot(accounts$tenure_years, accounts$annual_revenue,
+     pch = 19, col = &quot;grey40&quot;,
+     xlab = &quot;Tenure (years)&quot;, ylab = &quot;Annual revenue&quot;,
+     main = &quot;Forty accounts, and the line fitted through them&quot;)
+abline(fit, col = &quot;red&quot;, lwd = 2)
+text(accounts$tenure_years[23], accounts$annual_revenue[23],
+     labels = &quot;Northwind&quot;, pos = 2, cex = 0.8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty-nine points sit squashed along the bottom, because the y axis has to stretch to a million to fit Northwind in. The red line runs from below zero on the left up to Northwind on the right. Looking at that, you would not say the line describes the thirty-nine. You would say it is reaching for the one.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>What one far-out row does to a fitted line</h2>
+
+<p>Before we measure anything, let's get a feel for what is going on. Here is the same shape in miniature.</p>
+
+<p>Seven ordinary points sit in an upward band on the left. One extra point sits far out to the right, well past where the others stop, and its value is yours to move. The solid line is the least squares fit with that point included. The dashed line is the fit without it.</p>
+<div class="lesson-widget" data-widget-type="leverage-point" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the slider up and down and watch the two lines. The dashed line never moves, because the seven ordinary points never change. The solid line swings to chase the far point wherever you put it, and the slope readout underneath tells you how far apart the two fits have got.</p>
+
+<p>Now try one more thing. Put the far point back down near the dashed line and the two fits sit on top of each other, even though the point is still just as far out to the right. Being far out on its own was never enough. It had to be far out on the right <em>and</em> miss the line for anything to move.</p>
+
+<p>That is the whole mechanism, and both halves of it have names.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which rows can move a model</h2>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A row with an unusually large revenue value, wherever it happens to sit on tenure.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A row that sits far from the rest on tenure, so the line has room to swing toward it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The row the line misses by the most, since the largest miss must be doing the most damage.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Any row more than three standard deviations from the mean revenue.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is it. A big value in the middle of the crowd is held in place by its neighbours. A row out at the edge has no neighbours to argue with it, so the line is free to move.</div><div class="lesson-qfb lesson-qfb-no">The three-sigma habit is about the outcome column alone, and a model is not fitted to one column. What decides whether a row can steer the line is where it sits on the predictor, plus whether the line misses it. A big value sitting in the middle of the crowd is pinned by its neighbours and moves nothing.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Leverage: how unusual a row's predictor values are</h2>
+
+<p>The first half is called <strong>leverage</strong>, written h, and it measures one thing: how far a row sits from the middle of the predictors. It is computed from the x column alone, and the y column never enters into it. A row can have enormous leverage and still sit perfectly on the line.</p>
+
+<p><code>hatvalues()</code> returns h for every row. Let's see who is furthest from the middle on tenure.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score every account on how unusual its tenure is, and show the top three
+h &lt;- hatvalues(fit)
+round(sort(h, decreasing = TRUE)[1:3], 4)
+#&gt; Northwind       C35       C37
+#&gt;    0.2384    0.1081    0.1043</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Northwind sits at 0.2384. Is that a lot? Leverage comes with its own yardstick: the h values across all rows always average p/n, where p is the number of coefficients you fitted and n is the number of rows. Here that is 2 over 40.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The average leverage every model has to obey
+round(mean(h), 3)
+#&gt; [1] 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the average account carries 0.05 of the fit and Northwind carries 0.2384, roughly five average accounts rolled into one row. The usual flag is twice the average, 2p/n, which is 0.1 here. Northwind is far past it, and C35 at 0.1081 is just over.</p>
+
+<p>Hold on to that last one. C35 flagged on leverage and we never looked at its revenue at all, which is exactly the point of this half of the measurement.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The residual: how far the fit misses that row</h2>
+
+<p>Leverage says a row could move the line. Whether it actually does depends on the other half: does the fitted line miss that row?</p>
+
+<p>The plain answer is the residual, the account's revenue minus what the line predicts for it. Northwind's is enormous.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Northwind's raw miss, in revenue
+round(residuals(fit)[&quot;Northwind&quot;], 0)
+#&gt; Northwind
+#&gt;    746471</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The line, dragged as far up as it can go, still lands 746,471 short of Northwind. That number is true but hard to judge, because the same residual means one thing when the model is precise and another when it is loose.</p>
+
+<p><code>rstandard()</code> fixes that by dividing each residual by the standard error of that residual, which puts every account on one scale where 1 means one standard error out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The same miss, standardized
+round(rstandard(fit)[&quot;Northwind&quot;], 2)
+#&gt; Northwind
+#&gt;      6.16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is six standard errors out. Anything past 2 or 3 already asks for an explanation, so Northwind is not simply high, it is high in a way this line cannot reach.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Cook's distance puts leverage and residual in one number</h2>
+
+<p>We now have two numbers per row, and each one says half of something. Cook's distance is what you get when you multiply the two halves together.</p>
+
+<p>\[ D_i = \frac{r_i^2}{p} \times \frac{h_i}{1 - h_i} \]</p>
+
+<p>Every symbol in that formula is something you have already computed:</p>
+
+<ul>
+
+<li>\( D_i \) is Cook's distance for row i, the number we are after.</li>
+
+<li>\( r_i \) is that row's standardized residual, so \( r_i^2 \) is how badly the line misses it, squared to make the direction of the miss irrelevant.</li>
+
+<li>\( p \) is the number of coefficients in the model, 2 here for an intercept and a slope.</li>
+
+<li>\( h_i \) is that row's leverage, and \( h_i / (1 - h_i) \) stretches it: at h = 0.05 that factor is 0.053, at h = 0.24 it is 0.32, and as h approaches 1 it runs away to infinity.</li>
+
+</ul>
+
+<p>The shape of that formula is the whole idea. Because the two halves are multiplied, either one of them at zero gives you zero: a row that sits perfectly on the line has no influence however far out it is, and a badly missed row in the middle of the crowd has almost none either. A row has to be odd on x <strong>and</strong> missed on y before it can steer anything.</p>
+
+<p>That is also why you want Cook's distance as a single number instead of reading leverage and residuals separately. Neither column on its own tells you which rows are carrying the fit.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Cook's distance is leverage times residual, and it needs both. What it actually measures is how far all your fitted values move when row i is deleted and the model refitted, which is why it answers the question you started with.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Cook's distance for Northwind, worked out by hand</h2>
+
+<p>The formula is short enough to run yourself, so let's do that before calling any function. Northwind's standardized residual and its leverage are both already stored, and p is 2.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rebuild Cook's distance for Northwind from its own residual and leverage
+r_nw &lt;- rstandard(fit)[&quot;Northwind&quot;]
+h_nw &lt;- hatvalues(fit)[&quot;Northwind&quot;]
+p    &lt;- 2
+
+d_hand &lt;- (r_nw^2 / p) * (h_nw / (1 - h_nw))
+round(c(by_hand     = unname(d_hand),
+        by_function = unname(cooks.distance(fit)[&quot;Northwind&quot;])), 3)
+#&gt;     by_hand by_function
+#&gt;       5.939       5.939</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Take the two factors apart for a second. The residual half, 6.16 squared over 2, comes to about 19. The leverage half, 0.2384 over 0.7616, comes to about 0.31. Multiply them and you land on 5.939, and <code>cooks.distance()</code> hands back exactly the same number.</p>
+
+<p>So the function is not doing anything you cannot do by hand. It is doing that arithmetic for every row at once, which is the useful part.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score all 40 accounts in one call and print the five largest
+cd &lt;- cooks.distance(fit)
+round(sort(cd, decreasing = TRUE)[1:5], 4)
+#&gt; Northwind       C35       C37       C17       C25
+#&gt;    5.9385    0.0409    0.0390    0.0187    0.0179</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the gap. Northwind is at 5.9385 and the runner-up, C35, is at 0.0409. One account has about 145 times the influence of the next most influential account, and the other thirty-eight are nowhere. That is not a list of suspicious rows. That is one row and a long tail of ordinary ones.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: high leverage, ordinary residual</h2>
+
+<p>C35 turned up in both lists you have run: a leverage of 0.1081, over the 0.1 flag, and a Cook's distance of 0.0409, which is nothing. What does that pair of numbers tell you about C35?</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Its residual must be large too, because leverage and residual rise together.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Its residual must be ordinary. It had the opportunity to move the line and did not take it, so the other factor has to be small.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing, because leverage and Cook's distance measure unrelated things.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">That C35 is a data-entry error, since two of its numbers came out unusual.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. C35's standardized residual is 0.82, a completely unremarkable miss, and 0.82 squared kills the product no matter how unusual its tenure is. C35 is an old customer who bills what an old customer should.</div><div class="lesson-qfb lesson-qfb-no">Leverage and Cook's distance are two views of the same row, and one is built out of the other. Leverage is the opportunity to move the line; Cook's distance is the movement that actually happened. A big h beside a tiny D says the row had the opportunity and did nothing with it, which means its residual must be small. Nothing there suggests the row is wrong.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Reading the two influence plots, and what their cutoffs are worth</h2>
+
+<p>You do not have to sort the numbers yourself, because R will draw them. <code>plot()</code> on a fitted model takes a <code>which</code> argument, and two of its six plots are about influence.</p>
+
+<p>The fourth one puts Cook's distance on the y axis and the row on the x axis, one spike per account, with the loudest few labelled. The common rule of thumb draws a line at 4/n, which is 0.1 for forty accounts.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rank every account by Cook's distance, with the 4/n line drawn on
+plot(fit, which = 4)
+abline(h = 4 / nrow(accounts), col = &quot;red&quot;, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One spike goes off the top of the plot and thirty-nine sit flat on the floor. Only Northwind crosses the red line, and it crosses it by a factor of nearly sixty.</p>
+
+<p>The fifth plot is the more informative one, because it shows you both halves at once: leverage along the x axis, standardized residual up the y axis, and dotted contours of constant Cook's distance drawn over the top at 0.5 and 1.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put the standardized residual against leverage, with Cook's contours
+plot(fit, which = 5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read a point by asking two things. How far right does it sit, which is leverage, and how far up or down from zero, which is the miss. Points near the origin are unremarkable on both counts, and points past a contour are high on both at once. Northwind sits alone in the top right, outside every contour on the plot.</p>
+
+<p>Now the part that matters more than the plots. Those cutoffs are conventions, not tests:</p>
+
+<ul>
+
+<li><strong>4/n</strong>, the line you just drew, shrinks as your dataset grows, so it keeps flagging roughly the same small share of rows however clean they are. On ten thousand ordinary rows it hands you several hundred names, and almost none of them will matter.</li>
+
+<li><strong>0.5 and 1</strong>, the contours R draws, are round numbers that came from the early literature and stuck.</li>
+
+</ul>
+
+<p>None of them was derived from a distribution, and none of them tells you a row is wrong. They exist to sort the rows worth a look from the rows that are not.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Crossing 4/n means look at this row. It does not mean the row is bad data, it does not mean the row should go, and it does not mean your result is wrong. Every one of those is a separate question the cutoff cannot answer.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: read the plot, then name every account above the 4/n line</h2>
+
+<p>Reading a spike off a plot is fine while you are the only one looking at it. When somebody asks which customers are carrying a result, they want names, and names come from the numbers.</p>
+
+<p><code>cd</code> holds the Cook's distance of all forty accounts, named by account. Return the names of every account above the 4/n line.</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step11" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="cd\s*&gt;\s*(4\s*/|0?\.1)"><textarea class="lesson-tryit-input" spellcheck="false"># cd holds each account name and its Cook's distance.
+# nrow(accounts) is 40, so the 4/n line sits at 0.1.
+# Return the names of the accounts above that line.
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">One name comes back: Northwind. Forty accounts, one row above the line, and now you can say so by name rather than by pointing at a spike.</span><span class="lesson-tryit-fb lesson-tryit-no">Compare the whole vector against the line and ask for the names: <code>names(which(cd &gt; 4 / nrow(accounts)))</code>. Writing 0.1 in place of 4 / nrow(accounts) works the same way.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Name every account whose Cook's distance clears the 4/n line
+names(which(cd &gt; 4 / nrow(accounts)))
+#&gt; [1] &quot;Northwind&quot;</code></pre></details></div>
+</section>
+<p>Be careful about what that sentence is allowed to say. Northwind is above the line means Northwind is worth looking at. It does not yet mean the finding depends on Northwind, and those two claims are not the same size.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>The leave-one-out refit: does the conclusion hold?</h2>
+
+<p>Cook's distance told you where to look. What happens next is not something the size of D can settle, because 5.9385 is a fact about arithmetic and the question in front of you is about your conclusion.</p>
+
+<p>There is one honest way to answer it. Take the row out, fit the same model again, and put the two results side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit without Northwind and compare the tenure slope both ways
+fit_small &lt;- lm(annual_revenue ~ tenure_years, data = accounts[-23, ])
+
+round(rbind(
+  with_northwind    = coef(summary(fit))[&quot;tenure_years&quot;, ],
+  without_northwind = coef(summary(fit_small))[&quot;tenure_years&quot;, ]
+), 4)
+#&gt;                     Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; with_northwind    30978.8091  9471.4637  3.2708   0.0023
+#&gt; without_northwind    96.1751   416.6929  0.2308   0.8187</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the Estimate column first. The tenure effect goes from 30,978.81 a year to 96.18 a year, which is about three tenths of one percent of what it was. In business terms, an extra year of tenure looked like thirty-one thousand and turns out to be ninety-six, which is not a number anybody would plan around.</p>
+
+<p>Then read the last column. The p-value goes from 0.0023 to 0.8187. A result that cleared every conventional bar on all forty accounts cannot even see the bar on thirty-nine.</p>
+
+<p>So the whole finding lived in one row. Not most of it, not a helpful chunk of it. All of it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Cook's distance is a search tool, and the leave-one-out refit is the decision tool. Report the second one, because a reader does not care how large D was. They care whether your answer survives.</div></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading the with-and-without table</h2>
+
+<p>The slope fell from 30,978.81 to 96.18 and the p-value climbed from 0.0023 to 0.8187 when one account came out. What have you established?</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Northwind's numbers must be wrong, since a correct row would not do that to a model.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That the tenure finding rests entirely on one account. That is a fact about how much evidence you have, not a verdict on the row.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That 96.18 is the true effect, so report the smaller model and move on.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing much: 0.0023 came from all forty accounts, so it is still the number to publish.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The row did nothing wrong by existing. What collapsed is your claim, because it turned out to be supported by one customer rather than by forty.</div><div class="lesson-qfb lesson-qfb-no">Both fits are real fits of real data, and neither is automatically the honest one. The full-sample p-value of 0.0023 describes forty accounts of which one is doing all the work, so publishing it alone tells a reader something the data does not support. The comparison is the finding, and it says the evidence for a tenure effect is one row deep.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>Four honest things to do with an influential row</h2>
+
+<p>Now the question you came with. You have found the row, you have run the refit, and the answer moved. What do you actually do?</p>
+
+<p>There are four defensible moves, and which one is right depends entirely on why the row is unusual, never on what it does to your p-value.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Option</th>
+<th>When it is the right call</th>
+<th>What you show</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep it, and report both fits</td>
+<td>The row is valid data, whether or not the conclusion survives</td>
+<td>The with-and-without comparison, so the reader sees exactly what the row is worth</td>
+</tr>
+<tr>
+<td>Investigate and correct it</td>
+<td>The value is a recording or entry error you can verify against the source</td>
+<td>The corrected value and where the correction came from, never a silent edit</td>
+</tr>
+<tr>
+<td>Down-weight it</td>
+<td>Genuine extreme values you will not delete but do not want dominating the fit</td>
+<td>The robust and least squares estimates side by side</td>
+</tr>
+<tr>
+<td>Drop it, for a stated reason</td>
+<td>The case falls outside the population you meant to study, on a criterion fixed before you saw its effect</td>
+<td>The criterion itself, and when you set it</td>
+</tr>
+</tbody>
+</table>
+
+<p>One move is not on that list, and it is the one people reach for first: deleting the row because the result looks better without it. That is not a data decision, it is a results decision, and it inflates false positives the same way picking your analysis after seeing the data does.</p>
+
+<p>It is also the move a reviewer is trained to look for. Anyone who suspects a point was removed to rescue a p-value will stop trusting the rest of the paper too, which is a high price for one row.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">The test for whether a deletion is honest is simple. Could you have written the removal rule down before you saw its effect on the estimate? If yes, state the rule and drop the row. If no, keep the row and report both fits.</div></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<h2>What to do about Northwind, and the sentence you would publish</h2>
+
+<p>Run those four options against Northwind and three of them close immediately.</p>
+
+<p>Northwind is a real enterprise client billing a real million a year, so there is nothing to correct. Down-weighting is for when several genuine extremes are all leaning on a fit and you still want one line that describes everybody, and here there is exactly one, so shrinking its pull would give you a line that is neither the forty-account answer nor the thirty-nine-account one. It belongs to the population you were studying, business accounts at this company, so there is no pre-set criterion that excludes it. And the only reason to delete it would be that the finding disappears when you do, which is the one reason you are not allowed to use.</p>
+
+<p>So you keep it, and you report both fits.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Print the two slopes the published sentence has to carry
+slopes &lt;- c(all_40      = unname(coef(fit)[&quot;tenure_years&quot;]),
+            without_one = unname(coef(fit_small)[&quot;tenure_years&quot;]))
+round(slopes, 1)
+#&gt;      all_40 without_one
+#&gt;     30978.8        96.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is the sentence those two numbers turn into, in the form a reviewer or a director can read without needing your code:</p>
+
+<blockquote><p>Revenue rose with tenure across all forty accounts (30,979 per year, p = 0.0023), but the association was carried by a single enterprise client. Excluding that account, the estimate fell to 96 per year (p = 0.82). We therefore report the tenure effect as specific to that one account rather than as a general pattern in the customer base.</p></blockquote>
+
+<p>Notice what the sentence does. It names the row, gives the estimate with and without, and states the conclusion that follows, so a reader is holding the same evidence you used to decide.</p>
+
+<p>And notice what you have gained. The first fit said revenue grows with tenure, which was wrong. The pair of fits says the customer base shows no detectable tenure effect and one enterprise account is very large, which is true, and a good deal more useful to the people who have to act on it.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="quiz" data-gate="1">
+<h2>Practice: what a large Cook's distance entitles you to do</h2>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step16" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">To delete the row, since anything past 4/n counts as an outlier by definition.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">To look at the row and refit without it. The size of D says where to look, and what you do next comes from why the row is unusual and what the refit showed.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">To report the model without the row as your main result, with the full model as a footnote.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">To keep the row and say nothing about it, since a valid observation is never removed.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is the whole discipline in one line. The statistic sends you to a row, the refit tells you what the row is worth, and the reason the row is unusual decides which of the four responses you get to use.</div><div class="lesson-qfb lesson-qfb-no">Keeping a valid row is usually right, but keeping it silently is not. A reader cannot tell a model that was checked and held from one that was never checked, so the with-and-without comparison goes in the write-up either way. And deleting is not banned outright: it is allowed on a criterion you fixed before you saw its effect.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="tryit" data-gate="1">
+<h2>Practice: separate the leverage from the influence</h2>
+
+<p>Here is the sharpest test of whether the two halves have come apart in your head.</p>
+
+<p>Northwind's tenure of twelve years is not changing. Only its revenue changes: set it to 19,874, which is what the other thirty-nine accounts predict for a twelve-year customer, and refit. Then print its leverage and its Cook's distance from the new fit, and see which one moved.</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step17" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="19874"><textarea class="lesson-tryit-input" spellcheck="false"># accounts holds the 40 rows, and Northwind is row 23.
+# Copy the data, set Northwind's revenue to 19874, and refit.
+# Then print Northwind's leverage and Cook's distance from the new fit,
+# next to the ones from the original fit.
+# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Leverage does not budge: 0.2384 before and 0.2384 after. Cook's distance falls from 5.9385 to effectively zero. Same row, same tenure, same distance from the middle of the x column, no influence at all.</span><span class="lesson-tryit-fb lesson-tryit-no">Copy the frame first so the original survives: <code>alt &lt;- accounts</code>, then <code>alt$annual_revenue[23] &lt;- 19874</code>, refit with <code>lm(annual_revenue ~ tenure_years, data = alt)</code>, and pull <code>hatvalues()</code> and <code>cooks.distance()</code> for Northwind out of the new fit.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Move Northwind onto the line the other 39 accounts imply, then remeasure it
+alt &lt;- accounts
+alt$annual_revenue[23] &lt;- 19874
+fit_alt &lt;- lm(annual_revenue ~ tenure_years, data = alt)
+
+round(c(leverage_before = unname(hatvalues(fit)[&quot;Northwind&quot;]),
+        leverage_after  = unname(hatvalues(fit_alt)[&quot;Northwind&quot;])), 4)
+#&gt; leverage_before  leverage_after
+#&gt;          0.2384          0.2384
+
+round(c(cooks_before = unname(cooks.distance(fit)[&quot;Northwind&quot;]),
+        cooks_after  = unname(cooks.distance(fit_alt)[&quot;Northwind&quot;])), 4)
+#&gt; cooks_before  cooks_after
+#&gt;       5.9385       0.0000</code></pre></details></div>
+</section>
+<p>Leverage is fixed by the x column and you never touched the x column, so it could not move. Influence needed the miss as well, and once the miss went, so did all of it.</p>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
+<h2>Practice: report the sensitivity in two numbers</h2>
+
+<p>This is the thing people actually ask you for, so it is worth being able to produce without thinking.</p>
+
+<p><code>fit</code> is the model on all forty accounts and <code>cd</code> holds every account's Cook's distance. Find the most influential account by name rather than by typing 23, refit without it, and put the tenure slope and its p-value from both fits into one table.</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-4-step18" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-tryit" data-check-regex="which\.max"><textarea class="lesson-tryit-input" spellcheck="false"># fit is the model on all 40 accounts; cd holds their Cook's distances.
+# Find the most influential account BY NAME, refit without it, and put
+# the tenure slope and its p-value from both fits into one table.
+# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the sensitivity analysis: 30,978.81 at p = 0.0023 on all forty, 96.18 at p = 0.8187 without Northwind. Finding the row by name instead of by index means the same code works on the next dataset you point it at.</span><span class="lesson-tryit-fb lesson-tryit-no">Get the name with <code>worst &lt;- names(which.max(cd))</code>, then subset with <code>accounts[rownames(accounts) != worst, ]</code> and stack the two rows with <code>rbind()</code>, pulling <code>coef(summary(...))[&quot;tenure_years&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)]</code> from each fit.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Find the most influential account, refit without it, and compare the slope
+worst &lt;- names(which.max(cd))
+worst
+#&gt; [1] &quot;Northwind&quot;
+
+fit_out &lt;- lm(annual_revenue ~ tenure_years,
+              data = accounts[rownames(accounts) != worst, ])
+
+round(rbind(
+  all_accounts  = coef(summary(fit))[&quot;tenure_years&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)],
+  without_worst = coef(summary(fit_out))[&quot;tenure_years&quot;, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)]
+), 4)
+#&gt;                 Estimate Pr(&gt;|t|)
+#&gt; all_accounts  30978.8091   0.0023
+#&gt; without_worst    96.1751   0.8187</code></pre></details></div>
+</section>
+<p>Two rows, four numbers, and the question is closed. Present that table alongside your result and nobody has to ask whether you checked.</p>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1080/00401706.1977.10489493">Detection of Influential Observation in Linear Regression</a> - Cook (1977), Technometrics 19(1), 15-18. The paper the statistic comes from, including the deleted-fitted-values interpretation.</li>
+
+<li><a href="https://doi.org/10.1002/0471725153">Regression Diagnostics: Identifying Influential Data and Sources of Collinearity</a> - Belsley, Kuh and Welsch (1980), Wiley. Hat values, the leverage cutoffs, and the per-coefficient DFBETAS measures.</li>
+
+<li><a href="https://www.john-fox.ca/Companion/">An R Companion to Applied Regression</a> - Fox and Weisberg (2019), 3rd edition, Sage. The chapter on unusual and influential data, worked in R.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html">Regression deletion diagnostics</a> - R Core Team, the documentation for <code>influence.measures()</code>, listing <code>cooks.distance()</code>, <code>hatvalues()</code> and the flag R applies to each.</li>
+
+<li><a href="https://doi.org/10.1177/0956797611417632">False-Positive Psychology</a> - Simmons, Nelson and Simonsohn (2011), Psychological Science 22(11), 1359-1366. Why a deletion decided after seeing its effect on the result inflates false positives.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You started with a significant trend and finished knowing it belonged to one customer. The route there is short enough to keep in your head:</p>
+
+<ul>
+
+<li>Cook's distance is leverage times residual, and it needs both. A row out on the edge that sits on the line moves nothing, and a badly missed row in the middle moves almost nothing either.</li>
+
+<li>You computed it by hand for Northwind, 6.16 squared over 2 times 0.2384 over 0.7616, and got 5.939. That is the same number <code>cooks.distance()</code> returns, and it does that arithmetic for all forty rows at once.</li>
+
+<li>The cutoffs send you to look, and that is all they do. 4/n flagged one account here; on ten thousand rows it would hand you several hundred that mean nothing.</li>
+
+<li>The leave-one-out refit is what decides. The slope went from 30,978.81 at p = 0.0023 to 96.18 at p = 0.8187, so the finding was one row deep.</li>
+
+<li>There are four honest responses: keep it and show both fits, correct a verifiable error, down-weight it, or drop it on a criterion you fixed in advance. Deleting because the result improves is the one move off the table.</li>
+
+</ul>
+
+<p>Next time you fit a model that matters, run <code>cooks.distance()</code> on it before you write the sentence, and refit without whatever it flags. If your answer survives, you have a stronger result than you had before. If it does not, you have just saved yourself from publishing a customer.</p>
+</section>
+
+{% endraw %}
