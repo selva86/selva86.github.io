@@ -22,7 +22,7 @@ Ten minutes from now you will have a small script that takes a year of monthly s
 
 [Write your first R script -> {url}]
 
-That is genuinely all there is to it. See you tomorrow with something useful.
+That is genuinely all there is to it. See you tomorrow with something more core stats.
 
 Akshay
 ```
