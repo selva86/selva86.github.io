@@ -46,7 +46,7 @@
       '<span class="rn-mkc">'+MK[n.mk]+'</span></span>'+
       '<p>'+n.p+'</p><span class="rn-m" data-rn-m></span>'+
       '<span class="rn-cert">Certificate: <b>'+n.cert+'</b></span>'+
-      (n.sf ? '<span class="rn-go rn-sf" role="link" tabindex="0" data-sf="/'+n.sf+'.html" data-track="'+(n.track||'')+'">Start free '+ARR+'</span>'
+      (n.sf ? '<span class="rn-go rn-sf" role="link" tabindex="0" data-sf="'+n.href+'" data-track="'+(n.track||'')+'">Start free '+ARR+'</span>'
             : '<span class="rn-go">Open '+ARR+'</span>');
     if (n.soon) return '<div class="rn-node rn-soon" style="--tc:'+n.tc+'">'+inner+'</div>';
     return '<a class="rn-node'+(n.start?' rn-start':'')+'"'+(n.track?' data-rn-track="'+n.track+'"':'')+(n.free?' data-rn-free="1"':'')+' style="--tc:'+n.tc+'" href="'+n.href+'" role="menuitem">'+inner+'</a>';
@@ -58,10 +58,12 @@
     }).join('');
     return '<div class="rn-hd"><b>Seven roadmaps, one path</b><a href="/roadmap/">Compare all seven '+ARR+'</a></div>'+
       '<div class="rn-cols">'+cols+'</div>'+
-      '<div class="rn-ft"><span>Certificates are publicly verifiable and LinkedIn-ready.</span>'+
+      '<div class="rn-ft"><span>Certificates are publicly verifiable.</span>'+
       '<a href="/roadmap/">Open the full roadmap '+ARR+'</a></div>';
   }
 
+  /* dropdown Start free: goes to the TRACK PAGE (not the lesson) - the track
+     page's own Start free handles the signed-out -> sign-in -> lesson funnel */
   document.addEventListener('click', function(e){
     var sf = e.target.closest && e.target.closest('.rn-sf'); if (!sf) return;
     e.preventDefault(); e.stopPropagation();
@@ -78,7 +80,7 @@
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
     if (!link || link.closest('.rn-wrap')) return;
     if (!document.querySelector('link[data-rn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=6';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=7';
       l.setAttribute('data-rn-css', ''); document.head.appendChild(l);
     }
     var wrap = document.createElement('div'); wrap.className = 'rn-wrap';

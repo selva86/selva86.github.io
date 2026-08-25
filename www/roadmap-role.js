@@ -32,7 +32,20 @@
     var s1=secs[0];
     if(s1&&s1.items){for(var i=0;i<s1.items.length;i++){var h=postHref(s1.items[i]);if(h){startHref=h;break;}}}
     var pr=document.querySelector('header.hero .primary');
-    if(pr){pr.setAttribute('href',startHref);pr.innerHTML='Start free <span class="a">&rarr;</span>';}
+    if(pr){pr.setAttribute('href',startHref);pr.innerHTML='Start free <span class="a">&rarr;</span>';
+      // Signed-out "Start free" detours through sign-in and returns to the
+      // lesson via ?next= (auth-hydrate sets body.state-anon; signin.html
+      // validates next as a same-origin path). Href is read at click time
+      // because the courses.json upgrade below may swap it to a lesson URL.
+      pr.addEventListener('click',function(e){
+        var h=pr.getAttribute('href')||'';
+        if(h.charAt(0)!=='/')return; // '#curriculum' fallback: no gate
+        if(document.body.classList.contains('state-anon')){
+          e.preventDefault();
+          window.location.href='/signin.html?next='+encodeURIComponent(h);
+        }
+      });
+    }
     var cb=document.querySelector('.certband .primary');
     if(cb){cb.innerHTML='Get certified <span class="a">&rarr;</span>';}
   })();
