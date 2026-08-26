@@ -1,0 +1,604 @@
+---
+title: "Kruskal-Wallis: the nonparametric ANOVA"
+slug: "Which-Test-Mini-7"
+description: "ANOVA on three support queues comes back at p = 0.518 while the medians read 24, 43 and 95 minutes. Run Kruskal-Wallis on ranks instead, and read it right."
+keywords: "Kruskal-Wallis test, kruskal.test in R, nonparametric ANOVA, rank based test, Kruskal-Wallis assumptions, Dunn test, pairwise wilcoxon test, eta squared from H"
+mathjax: true
+webr: true
+date: "2026-08-26"
+post_type: "LESSON"
+course_id: "which-test"
+course_title: "Which Test Do I Run?"
+course_lesson: "7"
+course_total: "11"
+course_landing: "/dashboard.html"
+course_prev: "Which-Test-Mini-6"
+course_next: ""
+curriculum_id: "0.0.39"
+lesson_access: "windowed"
+catalog_blurb: "Compare three or more groups when the ANOVA assumptions do not hold."
+---
+
+=== step === cover
+::eyebrow Which Test Do I Run?
+## Kruskal-Wallis: the nonparametric ANOVA
+
+Ravi runs the support desk at a small software company. Three queues handle everything that comes in: billing, onboarding and technical.
+
+He wants to know whether one queue is slower than the others, so he pulls twelve closed tickets from each and writes down how many minutes the customer waited for a first reply. That is thirty six numbers in all. Then he runs a one-way ANOVA on them.
+
+It comes back at p = 0.518. So apparently nothing is going on here.
+
+Except the medians say something else entirely. Billing answers in 24 minutes, onboarding in 43, technical in 95. Nobody who works that desk would call those three queues the same.
+
+So which one is wrong?
+
+Neither. One billing ticket arrived on a Friday night and sat until Monday morning, 3,180 minutes, and that single number drags the billing average up to 289 with a standard deviation of 910. ANOVA compares averages. On this data the average has stopped describing the queue.
+
+Kruskal-Wallis is the standard way out of that, and it works like this.
+
+::widget process-flow {"steps":[{"title":"Pool all 36 tickets","sub":"forget which queue each one came from"},{"title":"Swap each value for its rank","sub":"fastest gets 1, slowest gets 36"},{"title":"Compare the queues on ranks","sub":"how far apart are the average ranks"}]}
+
+Ranking costs you something, though. The answer it gives back is subtler than the one ANOVA promises, and knowing exactly what it is allowed to claim is most of the skill. So let's get the number first, and then come to that.
+
+=== step === concept
+## The 36 tickets, and two answers from the same data
+
+Let's get Ravi's numbers on the table, because every calculation from here runs off them.
+
+Each ticket carries two things: which queue handled it, and how many minutes the customer waited for a first reply. The summary underneath describes the same twelve tickets three different ways.
+
+```r
+# Build the 36 closed tickets and summarise each queue
+tickets <- data.frame(
+  team = rep(c("billing", "onboarding", "technical"), each = 12),
+  minutes = c(
+    5, 8, 16, 18, 21, 23, 25, 36, 38, 40, 58, 3180,       # billing
+    28, 31, 33, 35, 37, 42, 44, 46, 49, 52, 97, 100,      # onboarding
+    47, 53, 80, 88, 90, 92, 98, 101, 103, 135, 191, 240   # technical
+  )
+)
+
+data.frame(
+  median = tapply(tickets$minutes, tickets$team, median),
+  mean   = round(tapply(tickets$minutes, tickets$team, mean), 1),
+  sd     = round(tapply(tickets$minutes, tickets$team, sd), 1)
+)
+#>            median  mean    sd
+#> billing        24 289.0 910.6
+#> onboarding     43  49.5  24.0
+#> technical      95 109.8  55.3
+```
+
+Read the median column and the mean column one after the other, because they disagree about the same queue.
+
+On medians, billing is the fastest desk in the building at 24 minutes. On means, billing is the worst by a mile at 289 minutes, more than five times onboarding. Both numbers are correctly computed from the same twelve tickets.
+
+The reason sits at the end of the billing row: 3,180 minutes, which is 53 hours. That is one real customer who really did wait all weekend. It does not move the median at all, because the median only cares that it is the largest of the twelve. It moves the mean enormously: the other eleven billing tickets average 26.2 minutes between them, and adding this one takes the twelve to 289.
+
+[NOTE]
+A standard deviation of 910 on a queue whose typical ticket closes in 24 minutes is the giveaway. When the spread of a group runs to nearly forty times its own middle value, the mean of that group has stopped describing anything you could tell a customer.
+
+=== step === concept
+## What one-way ANOVA asks of these tickets
+
+Ravi reached for ANOVA first, and that instinct is right: three independent groups and one numeric outcome is exactly what it is built for. The question is what it does with them.
+
+One-way ANOVA measures how far the three group means sit from each other, then divides that by how much the tickets vary inside their own queues. The result is F. A large F says the queues are further apart than the noise within them, and a small F says the opposite.
+
+That is where its requirements come from:
+
+1. The leftovers around each group mean are roughly normal.
+2. The three groups have comparable spread.
+3. The mean is a number worth comparing in the first place.
+
+Now look at the sd column again: 910.6 against 24.0 and 55.3. The second requirement is badly broken, and the third one is broken by the same ticket. Here is what ANOVA makes of it.
+
+```r
+# Run the one-way ANOVA on the three queues
+anova_fit <- aov(minutes ~ team, data = tickets)
+summary(anova_fit)
+#>             Df  Sum Sq Mean Sq F value Pr(>F)
+#> team         2  372404  186202   0.671  0.518
+#> Residuals   33 9160157  277581
+```
+
+The two mean squares carry the whole story. Between the queues it is 186,202, and inside them it is 277,581. F is the first divided by the second, which works out at 0.671, and an F below 1 says the spread between the three queue means is smaller than the everyday spread inside one queue.
+
+So p = 0.518, and ANOVA reports no evidence of a difference between three queues whose medians are 24, 43 and 95 minutes.
+
+Nothing went wrong mechanically. The 3,180 inflated the within-queue mean square to 277,581, and once that is the yardstick, a real gap between the queues measures as nothing.
+
+=== step === quiz
+## Quick check: why did ANOVA find nothing?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- Twelve tickets per queue is too small a sample for ANOVA to detect anything. ::no
+- The variation inside the queues came out larger than the variation between them, and one 3,180-minute ticket is what made it that large. ::ok That is it. Between the queues the mean square is 186,202 and inside them it is 277,581, so F lands below 1. The gap between the queues is real, but the yardstick it gets measured against blew up.
+- The three medians, 24, 43 and 95 minutes, are too close together for any test to separate them. ::no
+- ANOVA can only compare two groups at a time, so three queues is beyond it. ::no Look at the two mean squares in the table: 186,202 between the queues and 277,581 inside them, and F is the first divided by the second. Twelve per queue is a workable sample, the medians are far apart rather than close together, and ANOVA is built for three groups or more. What sank it is the spread inside billing.
+
+=== step === concept
+## What changes when a value becomes a rank
+
+Here is the move that fixes it, and it is a small one.
+
+Forget which queue each ticket came from and tip all 36 waiting times into a single pile. Sort that pile from fastest to slowest. Now hand out positions: the fastest ticket gets 1, the next gets 2, and the slowest gets 36. That position is called the rank, and `rank()` does the whole job in one call.
+
+```r
+# Pool all 36 waiting times and replace each one with its rank
+pooled_rank <- rank(tickets$minutes)
+
+slowest <- order(tickets$minutes, decreasing = TRUE)[1:4]
+data.frame(queue   = tickets$team[slowest],
+           minutes = tickets$minutes[slowest],
+           rank    = pooled_rank[slowest])
+#>       queue minutes rank
+#> 1   billing    3180   36
+#> 2 technical     240   35
+#> 3 technical     191   34
+#> 4 technical     135   33
+```
+
+Look at the top two rows and how little separates them.
+
+In minutes, the weekend ticket at 3,180 is more than thirteen times the size of the 240-minute one below it. In ranks it is 36 and the one below it is 35, a single step apart. A rank records the order of the values and throws away every distance between them, and that is exactly what stops the wild ticket from doing any damage.
+
+The chart below holds the same 36 tickets twice over. Start on the boxplot, which draws the raw minutes, then switch to the point view, which puts each ticket's rank along the bottom and its minutes up the side.
+
+::widget chart-plotter {"x":"rank","y":"minutes","geoms":["boxplot","point"],"code":{"boxplot":"ggplot(pooled, aes(group, minutes, fill = group)) +\n  geom_boxplot()","point":"ggplot(pooled, aes(rank, minutes, colour = group)) +\n  geom_point(size = 2.5)"},"data":[{"x":1,"y":5,"fill":"billing"},{"x":2,"y":8,"fill":"billing"},{"x":3,"y":16,"fill":"billing"},{"x":4,"y":18,"fill":"billing"},{"x":5,"y":21,"fill":"billing"},{"x":6,"y":23,"fill":"billing"},{"x":7,"y":25,"fill":"billing"},{"x":12,"y":36,"fill":"billing"},{"x":14,"y":38,"fill":"billing"},{"x":15,"y":40,"fill":"billing"},{"x":23,"y":58,"fill":"billing"},{"x":36,"y":3180,"fill":"billing"},{"x":8,"y":28,"fill":"onboarding"},{"x":9,"y":31,"fill":"onboarding"},{"x":10,"y":33,"fill":"onboarding"},{"x":11,"y":35,"fill":"onboarding"},{"x":13,"y":37,"fill":"onboarding"},{"x":16,"y":42,"fill":"onboarding"},{"x":17,"y":44,"fill":"onboarding"},{"x":18,"y":46,"fill":"onboarding"},{"x":20,"y":49,"fill":"onboarding"},{"x":21,"y":52,"fill":"onboarding"},{"x":28,"y":97,"fill":"onboarding"},{"x":30,"y":100,"fill":"onboarding"},{"x":19,"y":47,"fill":"technical"},{"x":22,"y":53,"fill":"technical"},{"x":24,"y":80,"fill":"technical"},{"x":25,"y":88,"fill":"technical"},{"x":26,"y":90,"fill":"technical"},{"x":27,"y":92,"fill":"technical"},{"x":29,"y":98,"fill":"technical"},{"x":31,"y":101,"fill":"technical"},{"x":32,"y":103,"fill":"technical"},{"x":33,"y":135,"fill":"technical"},{"x":34,"y":191,"fill":"technical"},{"x":35,"y":240,"fill":"technical"}]}
+
+On the boxplot, all three queues are squashed into a strip along the bottom of a scale that has to stretch to 3,180. That is the picture ANOVA works from, and you can see why it found nothing.
+
+On the point view, the 3,180 is still up in its corner, but its position along the bottom axis is 36, one step past the ticket at 240. Everything the test is about to do happens along that bottom axis. The r printed in the corner is the plain correlation between the two axes, and it sits at only 0.36 because that one ticket stretches the vertical scale so far that rank and minutes stop tracking each other.
+
+[KEY INSIGHT]
+Ranking does not delete the odd ticket or pretend it never happened. It keeps it, as the slowest of the 36, and refuses to let its size matter any more than that. A queue can no longer be dragged around by how extreme its worst ticket was.
+
+=== step === concept
+## How to run the test: kruskal.test()
+
+The whole thing is one call, and it takes the same formula interface that `aov()` takes: the outcome on the left, the grouping column on the right.
+
+```r
+# Compare the three queues on ranks instead of raw minutes
+kw <- kruskal.test(minutes ~ team, data = tickets)
+kw
+#>
+#>	Kruskal-Wallis rank sum test
+#>
+#> data:  minutes by team
+#> Kruskal-Wallis chi-squared = 16.893, df = 2, p-value = 0.0002146
+```
+
+Three numbers came back, so let's take them one at a time.
+
+The test statistic is 16.893. R prints it under the label `Kruskal-Wallis chi-squared`, and almost everyone in print calls it **H**. It measures how far apart the queues sit once the values have become ranks, so a bigger H means further apart.
+
+The degrees of freedom is 2, which is the number of queues minus one.
+
+The p-value is 0.0002146. It answers this question and no other: if all three queues really did hand out waiting times from one and the same distribution, how often would the ranks land this unevenly by luck alone? About twice in ten thousand support desks.
+
+That is worth saying out loud, because it is the claim on trial. The null hypothesis is not that the three queues share a mean. It is that all three draw from the same distribution.
+
+So the 36 tickets that ANOVA read as p = 0.518 come back at p = 0.0002 once they are ranked.
+
+=== step === concept
+## Where H comes from: the mean rank of each queue
+
+H is not a black box, and it stops looking like one the moment you put the average rank of each queue on the page.
+
+Every ticket now carries a number from 1 to 36. Average those numbers inside each queue and you get one number per queue, called its mean rank. Whatever the data, the average of all 36 ranks is fixed at (n + 1) / 2, because the ranks are always 1 through 36 no matter who got which.
+
+```r
+# Average rank of each queue, next to the overall mean rank
+mean_ranks <- tapply(pooled_rank, tickets$team, mean)
+round(mean_ranks, 2)
+#>    billing onboarding  technical
+#>      10.67      16.75      28.08
+
+n <- nrow(tickets)
+(n + 1) / 2
+#> [1] 18.5
+```
+
+There is the whole difference, in three numbers. If the queues were interchangeable, all three mean ranks would hover near 18.5. Billing sits nearly 8 ranks below it and technical nearly 10 above, which is a long way when the entire scale is only 36 wide.
+
+H turns those three gaps into one number. Take each queue's distance from 18.5, square it so a gap below counts the same as a gap above, weight it by how many tickets that queue contributed, add them up, and scale the total so it can be read against a standard curve.
+
+\[ H = \frac{12}{n(n+1)} \sum_{i=1}^{k} n_i \left( \bar{R}_i - \frac{n+1}{2} \right)^2 \]
+
+In that formula n is the 36 tickets in total and k is the 3 queues, the sum runs over the queues, and each queue contributes its own ticket count times the square of its distance from the overall mean rank. Nothing anywhere in it is a minute. Let's type it out and see if it lands where `kruskal.test()` did.
+
+```r
+# Rebuild H by hand from the three mean ranks
+k        <- 3
+group_n  <- as.numeric(table(tickets$team))
+overall  <- (n + 1) / 2
+
+H_manual <- (12 / (n * (n + 1))) * sum(group_n * (mean_ranks - overall)^2)
+round(H_manual, 3)
+#> [1] 16.893
+```
+
+16.893, the same value R printed. So H really is nothing more than the spread of those three mean ranks around 18.5, put on a fixed scale.
+
+[NOTE]
+When two or more tickets share the same waiting time, `rank()` gives them the average of the positions they would have taken, and `kruskal.test()` applies a small correction so the ranks with ties still behave. Ravi's 36 values are all different, so no correction applies here and the hand calculation matches exactly.
+
+=== step === concept
+## Reading H against a chi-square curve
+
+H on its own is just a number. It becomes a p-value because of one fact worth knowing: if the null were true and all three queues really did draw from the same distribution, H would approximately follow a chi-square distribution with k - 1 degrees of freedom, which is 2 here.
+
+So the p-value is the area of that curve sitting to the right of 16.893.
+
+```r
+# Read H off a chi-square curve with k - 1 = 2 degrees of freedom
+H <- as.numeric(kw$statistic)
+pchisq(H, df = 2, lower.tail = FALSE)
+#> [1] 0.0002146082
+```
+
+0.0002146, which is exactly the p-value `kruskal.test()` printed. That is all the function did on the last line.
+
+The word to hold on to is approximately. H only follows a chi-square curve as the group sizes grow, so the p-value is an approximation rather than an exact probability. With twelve tickets in each of three queues it is a good one. That approximation gets shaky when a group holds fewer than about five values, and at that size you want an exact rank test instead of this curve.
+
+=== step === quiz
+## Quick check: reading the kruskal.test output
+
+Ravi's output line reads `Kruskal-Wallis chi-squared = 16.893, df = 2, p-value = 0.0002146`, and the three mean ranks are 10.67, 16.75 and 28.08 against an overall 18.5. Which reading of it is right?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- The degrees of freedom is 33, because there are 36 tickets and three queues. ::no
+- The degrees of freedom is 2 because there are three queues, and H came out large because 10.67, 16.75 and 28.08 sit a long way from the overall 18.5. ::ok Exactly. Degrees of freedom is queues minus one, and H is built from nothing but the distances between those mean ranks and 18.5.
+- H is built from the queue means, so the 3,180-minute ticket is still inside the 16.893. ::no
+- The p-value of 0.0002146 is exact, because a rank test makes no assumption about the distribution. ::no Degrees of freedom here is the number of queues minus one, so 2; the 33 is the residual figure ANOVA reports and it plays no part. H never sees a minute, only ranks, so the weekend ticket enters as rank 36 and nothing more. And the p-value is read off a chi-square curve with 2 degrees of freedom, which makes it a good approximation rather than an exact answer.
+
+=== step === tryit
+## Your turn: the 3,180 was a typo
+
+Ravi goes back to the ticket log and finds that the weekend ticket was mistyped. The customer waited 318 minutes, a bad Friday evening rather than a lost weekend, and somebody added a zero.
+
+Correct that one value on a copy of the data, then run both tests on the corrected copy and watch what each one does with it.
+
+```r
+# tickets holds the 36 waiting times; the mistyped value is 3180.
+# Copy it to typo_fix, set that one value to 318, then run
+# summary(aov(...)) and kruskal.test() on typo_fix.
+# Three or four lines. Press Check when you have them.
+```
+::check {"regex": "318(?![0-9])[\\s\\S]*kruskal[.]test", "gate": true, "difficulty": "beginner", "ok": "There it is. ANOVA moves from 0.518 to 0.0296 on the strength of one corrected digit, while Kruskal-Wallis returns 0.0002146, exactly what it said before.", "no": "Copy the frame first, then overwrite the one value: typo_fix <- tickets, then typo_fix$minutes[typo_fix$minutes == 3180] <- 318, then run both tests on typo_fix."}
+::solution
+```r
+# Fix the mistyped ticket, then run both tests on the corrected data
+typo_fix <- tickets
+typo_fix$minutes[typo_fix$minutes == 3180] <- 318
+
+summary(aov(minutes ~ team, data = typo_fix))
+#>             Df Sum Sq Mean Sq F value Pr(>F)
+#> team         2  28646   14323   3.922 0.0296 *
+#> Residuals   33 120530    3652
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+kruskal.test(minutes ~ team, data = typo_fix)
+#>
+#>	Kruskal-Wallis rank sum test
+#>
+#> data:  minutes by team
+#> Kruskal-Wallis chi-squared = 16.893, df = 2, p-value = 0.0002146
+```
+
+One digit flipped ANOVA from "no evidence at all" to "significant at the 5% level". Kruskal-Wallis did not move at all, because 318 is still the slowest of the 36 tickets, so its rank is still 36 and the ranks are all the test ever saw.
+
+=== step === concept
+## How far can one ticket move each test?
+
+That typo is worth pushing on, because it points at the real reason people switch tests.
+
+Suppose the weekend ticket had been 250 minutes instead. Or 400, or 1,000, or the 3,180 it actually was, or 20,000 because someone left for a fortnight. Nothing else about the desk changes: the other 35 tickets stay exactly where they are, and that one ticket stays the slowest of the lot. Here are both tests, run five times over.
+
+```r
+# Set the wild ticket to five different sizes and re-run both tests each time
+sizes <- c(250, 400, 1000, 3180, 20000)
+
+sweep_p <- sapply(sizes, function(v) {
+  swapped <- tickets
+  swapped$minutes[swapped$minutes == 3180] <- v
+  c(anova   = summary(aov(minutes ~ team, data = swapped))[[1]][1, 5],
+    kruskal = kruskal.test(minutes ~ team, data = swapped)$p.value)
+})
+
+colnames(sweep_p) <- sizes
+signif(sweep_p, 3)
+#>              250      400     1000     3180    20000
+#> anova   0.006500 0.097600 0.607000 0.518000 0.402000
+#> kruskal 0.000215 0.000215 0.000215 0.000215 0.000215
+```
+
+Read the top row from left to right. ANOVA calls the desk clearly different at 0.0065, then not quite at 0.0976, then nothing at all at 0.607, then 0.518, then 0.402. It does not even move in a steady direction: at 20,000 the p-value comes back lower than it was at 1,000. Past a point the outlier dominates both halves of the F ratio at once, so F settles near 1 and the p-value drifts toward about 0.38 however extreme the ticket gets.
+
+Now read the bottom row. Five identical numbers, and they are not merely close. They are identical, out to as many digits as you care to print.
+
+The reason is as plain as it gets. Rank 36 is rank 36 at any size. Whether the customer waited four hours or a fortnight, that ticket is the slowest of the 36 and the ranks are unchanged, so H is unchanged and the p-value is unchanged.
+
+[KEY INSIGHT]
+This is the property you are buying when you switch to ranks. One wild value cannot decide the answer, because the test never learns how wild it was. It is also the property you are paying for: if the size of that ticket genuinely matters to your decision, a rank test is the wrong tool, because it is deliberately blind to exactly that.
+
+=== step === concept
+## Do the three queues have the same shape?
+
+Before Ravi writes a word about medians, there is one look at the data he has to take, and it is the check most people skip.
+
+Kruskal-Wallis compares whole distributions. It becomes a statement about medians only when the three distributions have the same shape and similar spread, so that the only way they differ is by sliding along the axis. If one queue is tightly bunched and another is wildly spread, the test can fire on the difference in spread and the word median does not belong in the conclusion.
+
+The way to check is to look. A log scale on the vertical axis keeps the weekend ticket from flattening everything else into a line.
+
+```r
+# Measure the middle half of each queue, then draw all three on a log scale
+library(ggplot2)
+
+q <- t(sapply(split(tickets$minutes, tickets$team), quantile, probs = c(0.25, 0.75)))
+data.frame(lower_quartile = q[, 1], upper_quartile = q[, 2],
+           middle_half = q[, 2] - q[, 1])
+#>            lower_quartile upper_quartile middle_half
+#> billing              17.5          38.50       21.00
+#> onboarding           34.5          49.75       15.25
+#> technical            86.0         111.00       25.00
+
+ggplot(tickets, aes(team, minutes, fill = team)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5) +
+  geom_jitter(width = 0.12, height = 0, size = 2.2, colour = "grey25") +
+  scale_y_log10() +
+  labs(x = NULL, y = "first response in minutes (log scale)") +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+The middle half of each queue spans 21 minutes for billing, just over 15 for onboarding and 25 for technical. In raw minutes those three are close, and closeness in raw minutes is what the median reading asks for.
+
+The boxes look less even than the numbers do, and the log axis is the reason. It squeezes equal spans harder the higher you climb, so billing's 21 minutes down near 20 draws a taller box than technical's 25 minutes up near 100. Take the spread from the printed numbers and the shape from the picture.
+
+The shape comes out the same in all three columns: a tight cluster around the middle with the points reaching further above the box than below it, sliding up the axis from billing to onboarding to technical. Three same-shaped groups at three different heights is the picture that earns the median wording. Ravi has it, so he can write the result up in medians, and he earned that by looking.
+
+Billing's weekend ticket sits far above everything else on that chart, and it is fair to ask whether one point like that already counts as a different shape. It does not, and the reason is what the check is looking for. All three queues run further above their middle than below it, so billing is drawing from the same long tail as the others and simply landed further out on it once. A shape difference would look like one queue's whole body of tickets bunched tighter or spread wider than the rest, and the middle-half numbers are what rule that out.
+
+[WARNING]
+If one box had come out three times the height of another, the honest conclusion would stop at distributions: one queue tends to return higher waiting times than another. That sentence is always available. The median sentence has to be earned every time.
+
+=== step === concept
+## What a significant H claims, and what it does not
+
+Now the careful part, and it is the part worth more than the code.
+
+H = 16.893 with p = 0.0002 rules out one specific story: that all three queues are handing out waiting times from a single common distribution. What it puts in place of that story is weaker than people expect. It says at least one queue tends to produce higher values than another, and that word tends is doing a lot of work. It does not say which queue, or by how much.
+
+Here are the three summaries those candidate sentences would lean on.
+
+```r
+# Put the three summaries side by side: median, mean and mean rank
+data.frame(
+  median    = tapply(tickets$minutes, tickets$team, median),
+  mean      = round(tapply(tickets$minutes, tickets$team, mean), 1),
+  mean_rank = round(tapply(pooled_rank, tickets$team, mean), 2)
+)
+#>            median  mean mean_rank
+#> billing        24 289.0     10.67
+#> onboarding     43  49.5     16.75
+#> technical      95 109.8     28.08
+```
+
+Take the mean column first. The test never touched it. H was built from ranks, so a sentence about mean waiting times has no support here at all, and on this data it would point the wrong way anyway: billing has the largest mean and the smallest mean rank.
+
+The mean rank column is what H is actually made of, and it is always safe to quote. It is also the least useful thing to say to a manager, because nobody outside a statistics class thinks in ranks.
+
+That leaves the median column, and the median claim is conditional. The shapes matched, so on this data Ravi can make it. Change the data so the shapes differ and the same H is still valid but the median wording is not.
+
+[TIP]
+Two sentences, and the first always holds. "The three queues do not draw from the same distribution: at least one tends to answer slower than another." Then, if and only if the shapes matched: "and the median first response runs 24, 43 and 95 minutes."
+
+=== step === quiz
+## Quick check: which sentence has Ravi earned?
+
+The test gave H = 16.893 on 2 degrees of freedom with p = 0.0002, and the three boxes came out much the same shape. Which sentence is Ravi entitled to write?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- The three queues have different mean first-response times. ::no
+- Technical is slower than billing, and onboarding sits between the two. ::no
+- The three queues do not all draw from the same distribution, so at least one tends to answer slower than another; and because the three shapes matched, that can be said in medians of 24, 43 and 95 minutes. ::ok Yes, and notice the order it goes in. The distribution claim comes from the test. The median wording comes from the shapes matching, which is why it needed checking first.
+- The three queues have different median waiting times, and that reading holds whatever the three distributions look like. ::no H is built from ranks and tests distributions, so a claim about mean waiting times has nothing behind it. H also names no pair, so singling out technical against billing needs a follow-up test rather than this one. And the median wording is conditional on the three shapes matching, never automatic.
+
+=== step === concept
+## How big is the difference? Eta-squared from H
+
+A p-value of 0.0002 says the pattern is hard to explain by luck. It says nothing whatsoever about how large the difference is, and with 36 tickets that is a fair question to ask next.
+
+The usual effect size for Kruskal-Wallis is eta-squared, computed straight from H. It reads as the share of the variation in the ranks that the queue label accounts for.
+
+```r
+# Turn H into eta-squared: the share of rank variance the queue label explains
+eta_squared <- (H - k + 1) / (n - k)
+round(eta_squared, 3)
+#> [1] 0.451
+```
+
+0.451, so knowing which queue a ticket landed in accounts for about 45% of the variation in where that ticket ranked. The conventional reading of this number puts 0.01 at small, 0.06 at medium and 0.14 at large, so 0.451 is a big effect by any of those marks.
+
+Two cautions come with it. It is a share of the rank variance, not of the variance in minutes, so it does not translate back into "45% of the waiting time". And the conventional marks are conventions, nothing more: 45% of the rank variation on a support desk is worth acting on regardless of what a table of thresholds calls it.
+
+=== step === concept
+## Which queue is the slow one?
+
+H answers one question, "are these three the same", and stops. Ravi still cannot say which queue to staff, because a single H covers all three at once.
+
+The follow-up is to compare the queues two at a time. That means three tests instead of one, so the p-values need adjusting: run three tests at a 5% threshold each and you have given yourself roughly three chances at a false alarm. `pairwise.wilcox.test()` runs the pairs and adjusts in the same call, and `p.adjust.method = "BH"` applies the Benjamini-Hochberg correction.
+
+```r
+# Ask which pairs of queues separate, with p adjusted for the three tests
+pairwise.wilcox.test(tickets$minutes, tickets$team, p.adjust.method = "BH")
+#>
+#>	Pairwise comparisons using Wilcoxon rank sum exact test
+#>
+#> data:  tickets$minutes and tickets$team
+#>
+#>            billing onboarding
+#> onboarding 0.03872 -
+#> technical  0.00074 0.00074
+#>
+#> P value adjustment method: BH
+```
+
+All three pairs come apart after adjustment. Billing against onboarding is the narrowest at 0.039, and both comparisons involving technical land at 0.00074. So the ordering the medians suggested, billing then onboarding then technical, survives a proper test of each comparison in it.
+
+One name to know, because you will meet it in papers. Dunn's test does the same job slightly differently: it keeps the ranks from the original pooled ranking of all 36 tickets, rather than re-ranking inside each pair the way `pairwise.wilcox.test()` does. That makes Dunn's test the follow-up that matches what Kruskal-Wallis actually did, and it is what most write-ups pair with it. It lives in a contributed package rather than in base R, and `dunn.test` on CRAN is the usual one, which is why the base R route above is the one that runs here.
+
+=== step === concept
+## The line Ravi puts in the report
+
+Everything Ravi needs is now computed, so let's put together the sentence he will actually send.
+
+A complete Kruskal-Wallis result carries five things: the statistic with its degrees of freedom, the p-value, an effect size, the group medians, and what the pairwise follow-up found.
+
+```r
+# Print the sentence that goes into the report
+cat(sprintf(
+  "H(%d) = %.2f, p = %.4f, eta-squared = %.2f\nmedians: billing %g, onboarding %g, technical %g minutes\n",
+  kw$parameter, H, kw$p.value, eta_squared,
+  median(tickets$minutes[tickets$team == "billing"]),
+  median(tickets$minutes[tickets$team == "onboarding"]),
+  median(tickets$minutes[tickets$team == "technical"])
+))
+#> H(2) = 16.89, p = 0.0002, eta-squared = 0.45
+#> medians: billing 24, onboarding 43, technical 95 minutes
+```
+
+Written out in full, that becomes: a Kruskal-Wallis test found the three queues did not draw from a common distribution, H(2) = 16.89, p = 0.0002, eta-squared = 0.45. Because the three distributions were similar in shape and spread, this can be read as a difference in medians: 24 minutes for billing, 43 for onboarding and 95 for technical. Pairwise Wilcoxon tests with Benjamini-Hochberg adjustment separated all three pairs, at 0.039 for billing against onboarding and 0.00074 for both comparisons involving technical.
+
+Notice what is missing. There is no mean anywhere, because the test never used one. And there is a note on shape, because it is the shape check that lets him say median at all.
+
+=== step === concept
+## When Kruskal-Wallis is not the switch to make
+
+A test you reach for automatically is a habit, not a decision. Kruskal-Wallis has a shape of problem it fits, and four common situations that look similar and belong elsewhere.
+
+**Paired or repeated measures.** If the same twelve agents were timed in three different months, the three sets of numbers are not independent groups, they are the same people measured again. The rank test for that layout is the Friedman test.
+
+**Only two groups.** Kruskal-Wallis handles three or more, and with exactly two it reduces to the Wilcoxon rank sum test, which came first and which Kruskal-Wallis generalises to any number of groups.
+
+```r
+# Compare just two queues, first with kruskal.test then with the two-sample test
+two_queues <- subset(tickets, team != "onboarding")
+
+kruskal.test(minutes ~ team, data = two_queues)
+#>
+#>	Kruskal-Wallis rank sum test
+#>
+#> data:  minutes by team
+#> Kruskal-Wallis chi-squared = 11.213, df = 1, p-value = 0.0008121
+
+wilcox.test(minutes ~ team, data = two_queues, exact = FALSE, correct = FALSE)
+#>
+#>	Wilcoxon rank sum test
+#>
+#> data:  minutes by team
+#> W = 14, p-value = 0.0008121
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+The same 0.0008121 from both, because they are the same calculation. Nothing is gained by routing a two-group comparison through the k-sample version.
+
+**Unequal spread, but otherwise well-behaved data.** If the groups are near enough normal and the only problem is that one varies more than the others, Welch's ANOVA is the right repair. Ranking is not a fix for unequal variance, and reaching for it here trades away information you had no reason to give up.
+
+**Large samples.** ANOVA holds up well under mild skew once the groups are big, so a year of 4,000 tickets a queue does not need rescuing. Ravi's problem is twelve tickets a queue with one extreme value, which is exactly where the rank test earns its keep.
+
+[NOTE]
+The switch has a standing price. When the data really is normal and ANOVA's requirements really are met, Kruskal-Wallis needs about 5% more observations to detect the same difference. That is a small premium, which is why it is a safe default when you are unsure, and a poor one when you are sure.
+
+=== step === quiz
+## Quick check: pick the test for the situation
+
+Four questions land on Ravi's desk in the same week. Only one of them is a Kruskal-Wallis job. Which?
+
+::quiz {"correct": 4, "gate": true, "difficulty": "intermediate"}
+- The same twelve agents, timed once in January, once in June and once in November. ::no
+- Billing against technical, twelve tickets each, and no third queue involved. ::no
+- A full year of closed tickets, 4,000 per queue, mildly skewed and no extreme values. ::no Each of those three has its own answer. The same twelve agents measured three times are not independent groups, so that one goes to the Friedman test. Two queues and nothing else is the Wilcoxon rank sum test, which is what Kruskal-Wallis reduces to anyway. And 4,000 tickets a queue with mild skew is plenty for ANOVA to handle unaided.
+- The three queues exactly as they stand: twelve tickets each, skewed, with one 53-hour ticket in billing. ::ok That is the one. Small groups, a skewed outcome, one extreme value, three independent queues. Everything Kruskal-Wallis was built for.
+
+=== step === tryit
+## Your turn: what if you just delete the outlier?
+
+Somebody on the desk suggests the obvious shortcut: throw the weekend ticket out and run ANOVA on what is left.
+
+Try it. Build a copy of the data with that row removed, then run both tests on the 35 tickets that survive, and see what each one says.
+
+```r
+# tickets holds the 36 waiting times, one of which is 3180.
+# Build no_outlier by dropping that row, then run
+# summary(aov(...)) and kruskal.test() on no_outlier.
+# Three lines. Press Check when you have them.
+```
+::check {"regex": "(!=|[<])\\s*3180[\\s\\S]*kruskal[.]test", "gate": true, "difficulty": "intermediate", "ok": "Right: ANOVA snaps to 1.28e-05 and Kruskal-Wallis to 2.116e-05. Deleting the ticket does fix ANOVA. It also deletes the worst thing that happened on that desk all quarter.", "no": "Filter the row out rather than editing it: no_outlier <- subset(tickets, minutes != 3180), then run summary(aov(minutes ~ team, data = no_outlier)) and kruskal.test(minutes ~ team, data = no_outlier)."}
+::solution
+```r
+# Delete the 53-hour ticket and run both tests on the 35 that are left
+no_outlier <- subset(tickets, minutes != 3180)
+table(no_outlier$team)
+#>
+#>    billing onboarding  technical
+#>         11         12         12
+
+summary(aov(minutes ~ team, data = no_outlier))
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> team         2  43418   21709   16.36 1.28e-05 ***
+#> Residuals   32  42468    1327
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+kruskal.test(minutes ~ team, data = no_outlier)
+#>
+#>	Kruskal-Wallis rank sum test
+#>
+#> data:  minutes by team
+#> Kruskal-Wallis chi-squared = 21.527, df = 2, p-value = 2.116e-05
+```
+
+Both tests now agree loudly, and ANOVA is the one that changed its mind. So why not do this every time?
+
+Because of what the billing row now says. It has eleven tickets instead of twelve, and its slowest recorded ticket is 58 minutes. A customer really did wait 53 hours, and the queue's own worst case is missing from its own record. Any answer you compute from that table is an answer about a desk that did not happen.
+
+Kruskal-Wallis got to the same verdict with the ticket still in the table. That is the difference between handling an extreme value and hiding one.
+
+=== step === quiz
+## Quick check: reading a result somebody else ran
+
+A colleague sends over a result from a different study: three groups, H(2) = 9.4, p = 0.009, eta-squared 0.14. Their boxplot shows three groups with visibly different spreads, one box roughly three times the height of another. Which single statement survives?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "advanced"}
+- The three group medians differ. ::no
+- Their result is weaker than Ravi's by a factor of about forty, since 0.009 is forty times 0.0002. ::no
+- At least one of the three groups tends to produce higher values than another. ::ok The only claim that never needs a shape check. It is what H tests, and it holds whatever the three boxes look like.
+- Eta-squared of 0.14 means the group label accounts for 14% of the variation in the original measurements. ::no With the spreads that different, the median wording is not on offer, so the first sentence overreaches. A larger p-value is not a smaller effect, it is a less surprising result under the null, so comparing 0.009 against 0.0002 says nothing about size; that is what eta-squared is for. And eta-squared out of H is a share of the rank variation, not of the variation in the original units.
+
+=== step === concept
+## References
+
+- [Use of Ranks in One-Criterion Variance Analysis](https://doi.org/10.1080/01621459.1952.10483441) - Kruskal and Wallis (1952), Journal of the American Statistical Association 47(260), 583-621. The paper the test comes from, including the chi-square approximation used to get the p-value.
+- [The Wilcoxon-Mann-Whitney Procedure Fails as a Test of Medians](https://doi.org/10.1080/00031305.2017.1305291) - Divine, Norton, Baron and Juarez-Colunga (2018), The American Statistician 72(3), 278-286. Why a rank test is a test of medians only when the shapes match.
+- [Multiple Comparisons Using Rank Sums](https://doi.org/10.1080/00401706.1964.10490181) - Dunn (1964), Technometrics 6(3), 241-252. The pairwise follow-up that reuses the pooled ranks.
+- [Practical Nonparametric Statistics, 3rd edition](https://www.wiley.com/en-us/Practical+Nonparametric+Statistics%2C+3rd+Edition-p-9780471160687) - Conover (1999), Wiley. The textbook treatment of the k-sample rank test, its assumptions and the tie correction.
+- [Kruskal-Wallis Rank Sum Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html) - R Core Team, the documentation for the function you have been running.
+
+=== step === complete
+## Quick recap
+
+Ravi came in with three queues, an ANOVA that said nothing and medians that said plenty, and he leaves with an answer he can defend.
+
+- Ranks replace values. Pool all the observations, hand out positions from 1 to n, and one wild value becomes the largest position rather than a number that can drag a group around.
+- H measures how far the group mean ranks sit from the overall mean rank (n + 1) / 2. Ravi's three sat at 10.67, 16.75 and 28.08 against 18.5, which gave H = 16.893 on 2 degrees of freedom and p = 0.0002.
+- The claim is about distributions. It becomes a claim about medians only when the groups are the same shape and spread, which is a look at a boxplot, not a thing the test reports.
+- Report more than the p-value. The statistic with its degrees of freedom, an effect size such as eta-squared, the group medians and a pairwise follow-up are what make the result usable.
+- Know the neighbours. Repeated measures go to Friedman, two groups to the Wilcoxon rank sum test, unequal variance with otherwise sound data to Welch's ANOVA, and large well-behaved samples can stay with ANOVA.
+
+Next time a group comparison arrives with a skewed outcome, a small sample and one number that looks wrong, you will know what to run and, just as usefully, what you are allowed to say afterwards.
