@@ -111,6 +111,7 @@ LESSON_CATALOG_TITLE = {
     'Regression-Health-Mini-4': "Cook's distance: find the points that change your model",
     'Bayesian-Mini-1': "Bayes' theorem: the simulation that makes it click",
     'Bayesian-Mini-2': 'Choosing priors: the decision that matters',
+    'Bayesian-Mini-3': 'The Bayesian t-test: measure evidence, not just significance',
     'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
     'Foundations-Mini-3': 'Law of Large Numbers vs CLT: the real difference',
     'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",
