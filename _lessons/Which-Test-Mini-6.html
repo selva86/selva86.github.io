@@ -1,0 +1,747 @@
+---
+title: "ANOVA post-hoc tests: Tukey vs Bonferroni"
+description: "A significant ANOVA never says which groups differ. Build Tukey and Bonferroni on one four-warehouse dataset, and learn which one your study has earned."
+keywords: "ANOVA post-hoc tests, Tukey vs Bonferroni, Tukey HSD, Bonferroni correction, TukeyHSD in R, pairwise comparisons, family-wise error rate, multiple comparisons"
+mathjax: true
+webr: true
+curriculum_id: "0.0.38"
+post_type: "LESSON"
+course_id: "which-test"
+course_title: "Which Test Do I Run?"
+course_lesson: "6"
+course_total: "11"
+course_landing: "/dashboard.html"
+course_next: ""
+course_prev: "Which-Test-Mini-5"
+lesson_access: "windowed"
+catalog_blurb: "Which pairs of groups actually differ, and which correction you have earned."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Which Test Do I Run?</div>
+<h2>ANOVA post-hoc tests: Tukey vs Bonferroni</h2>
+
+<p>Nandini runs an online store that ships from four warehouses: Chennai, Bengaluru, Hyderabad and Pune. Complaints about slow delivery keep piling up, so she pulls thirty orders from each hub and writes down how many hours each parcel took to arrive.</p>
+
+<p>Then she runs an ANOVA on the four groups of delivery times. It comes back at F = 9.02, with a p-value of 0.00002.</p>
+
+<p>She takes that to her operations lead, who asks the one question everybody actually cares about: so which warehouse is the slow one?</p>
+
+<p>And the ANOVA has nothing to say.</p>
+
+<p>All a significant F says is that the four averages are not all equal. It does not name a hub and it does not name a pair, and no amount of staring at it will make it do so. A significant ANOVA leaves the sentence half finished.</p>
+
+<p>Finishing it is a separate job with its own rules. The moment you start comparing hubs two at a time you are running six tests instead of one, and six tests at five percent each do not come to five percent overall.</p>
+
+<p>Post-hoc tests are for that job, and the two names you meet first are Tukey and Bonferroni. Here is the shape of what they do.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"A significant F","sub":"the four hub averages are not all equal, and that is all"},{"title":"Six pair comparisons","sub":"four hubs make six pairs, six chances of a false alarm"},{"title":"Hold the set at 5%","sub":"raise the bar every pair clears, so the set stays at 5%"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That is the whole shape of it. Everything from here is doing it on Nandini's four hubs, and then finding out which of the two corrections her study has actually earned.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The four warehouses and the F that started this</h2>
+
+<p>Let's get her numbers on the table first, because every calculation from here runs off them.</p>
+
+<p>Thirty orders came from each of the four hubs, and for every order we have the delivery time in hours. Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 120 delivery times and read the four hub averages
+set.seed(292)
+
+deliveries &lt;- data.frame(
+  hub = factor(rep(c(&quot;Chennai&quot;, &quot;Bengaluru&quot;, &quot;Hyderabad&quot;, &quot;Pune&quot;), each = 30),
+               levels = c(&quot;Chennai&quot;, &quot;Bengaluru&quot;, &quot;Hyderabad&quot;, &quot;Pune&quot;)),
+  hours = round(c(rnorm(30, 42, 6),      # Chennai
+                  rnorm(30, 38, 6),      # Bengaluru
+                  rnorm(30, 41, 6),      # Hyderabad
+                  rnorm(30, 36, 6)),     # Pune
+                1)
+)
+
+round(tapply(deliveries$hours, deliveries$hub, mean), 2)
+#&gt;   Chennai Bengaluru Hyderabad      Pune
+#&gt;     42.52     38.66     41.02     34.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>set.seed(292)</code> just fixes the random draws, so your 120 delivery times are the same 120 as mine. <code>tapply()</code> then splits the hours by hub and takes the mean of each group.</p>
+
+<p>Chennai averages 42.52 hours and Pune 34.91, a gap of about seven and a half hours. Bengaluru and Hyderabad sit in between. Whether four averages spread that far apart are worth acting on is exactly what the ANOVA answers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the one-way ANOVA on delivery hours across the four hubs
+fit &lt;- aov(hours ~ hub, data = deliveries)
+summary(fit)
+#&gt;              Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; hub           3    991   330.2   9.021 2.03e-05 ***
+#&gt; Residuals   116   4247    36.6
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the F value first. It is 9.021, on 3 and 116 degrees of freedom. The 3 is four hubs minus one, and the 116 is 120 orders minus the four hub averages the model had to estimate. The p-value beside it is 0.0000203, so if all four warehouses really delivered at the same average speed, four group means spread this far apart would turn up about twice in every hundred thousand studies.</p>
+
+<p>So the four hubs are not all the same. And that is exactly where the ANOVA stops talking.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>What happens if you just t-test all six pairs</h2>
+
+<p>Four hubs make <code>choose(4, 2)</code> = 6 pairs: Bengaluru against Chennai, Hyderabad against Chennai, Pune against Chennai, Hyderabad against Bengaluru, Pune against Bengaluru, and Pune against Hyderabad.</p>
+
+<p>So the obvious move is to t-test all six and report whichever ones come in under 0.05. <code>pairwise.t.test()</code> does exactly that, and setting <code>p.adjust.method = &quot;none&quot;</code> tells it to hand back the raw p-values with nothing done to them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare all six pairs of hubs with plain t-tests and no correction at all
+raw_matrix &lt;- pairwise.t.test(deliveries$hours, deliveries$hub,
+                              p.adjust.method = &quot;none&quot;)
+raw_matrix
+#&gt;
+#&gt; 	Pairwise comparisons using t tests with pooled SD
+#&gt;
+#&gt; data:  deliveries$hours and deliveries$hub
+#&gt;
+#&gt;           Chennai Bengaluru Hyderabad
+#&gt; Bengaluru 0.01493 -         -
+#&gt; Hyderabad 0.33790 0.13414   -
+#&gt; Pune      3.5e-06 0.01787   0.00016
+#&gt;
+#&gt; P value adjustment method: none</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is a lower triangle, and you read a cell by pairing its row hub with its column hub. Bengaluru against Chennai is 0.01493. Pune against Chennai is 0.0000035. Pune against Bengaluru is 0.01787, and Pune against Hyderabad is 0.00016.</p>
+
+<p>Four of the six comparisons clear 0.05.</p>
+
+<p>If Nandini stops here, she walks into the operations review with four slow-hub findings. That is more than this data can support. Let's see why.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>How often does something look real when nothing is</h2>
+
+<p>Here is the trouble with running six tests and reading each one at 0.05.</p>
+
+<p>That 0.05 is a promise about a single test. If two hubs really do deliver at the same speed, a test on them will still call them different about 5% of the time, purely by luck. That is the false-alarm rate you agreed to when you picked the threshold.</p>
+
+<p>The promise is per test. It was never a promise about the set.</p>
+
+<p>Run k independent tests where nothing at all is real, and each one keeps its own 5% chance of a false alarm. The chance a given test stays silent is 0.95, the chance all k of them stay silent is 0.95 raised to the power k, so the chance that at least one of them goes off is</p>
+
+<p>\[ 1 - (1 - \alpha)^k \]</p>
+
+<p>where alpha is the per-test threshold, 0.05 here. At three tests that comes to 14.3%. At six it is 26.5%. At ten it is 40.1%. That chance of at least one false positive anywhere in the whole set is called the <strong>family-wise error rate</strong>, and the set of comparisons is the family.</p>
+
+<p>Drag the slider below and watch it climb. It starts at k = 6, which is Nandini's six pairs.</p>
+<div class="lesson-widget" data-widget-type="multiplicity-sim" data-widget-config='{"kMax":20,"kStart":6,"alpha":0.05,"nStudies":4000,"seed":29,"corrections":["none","bonferroni"]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The top panel runs 4,000 simulated studies in which nothing is real anywhere, so every significant result in there is a false alarm by construction. At k = 6 with no correction, 25.8% of those studies threw up at least one p-value under 0.05, right on the 26.5% the formula predicted. The bottom panel opens one of those studies and lays its six p-values out as ticks, and the shaded band is what counts as significant.</p>
+
+<p>Now press Bonferroni. The band narrows to 0.05 divided by 6, and the share of studies with any false positive falls back to 4.8%, which is the 5% you meant to be running at the whole time.</p>
+
+<p>That read-out also mentions Holm, which is a stepwise cousin of Bonferroni. When nothing whatsoever is real the two behave the same way, because both of them reject something only if the smallest p-value in the family clears alpha over k.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A correction changes no data and moves no group mean. It raises the bar each comparison has to clear, so that the error rate for the whole family stays at 5% instead of the per-test 5% compounding across the set.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does the family-wise error rate count?</h2>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The chance that one particular pair of hubs gets called different when it is not.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The share of the six comparisons that will come back wrong.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The chance of at least one false positive anywhere across the whole set of comparisons.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The chance that the ANOVA itself was wrong about the four averages.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. It is a property of the set, not of any single pair, which is why it climbs as you add comparisons even though nothing about any individual test has changed.</div><div class="lesson-qfb lesson-qfb-no">The family-wise error rate is about the set of pairwise comparisons you run after the ANOVA, and it counts studies with at least one false positive, not the fraction of comparisons that go wrong. A single pair keeps its own 5%, and running six of them is what pushes the set to 26.5%.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Bonferroni: divide 0.05 by the number of comparisons</h2>
+
+<p>Bonferroni is the simplest correction there is, and it is one line of arithmetic.</p>
+
+<p>You have k comparisons and you want the family to keep its 5%. So instead of judging each comparison against 0.05, judge it against 0.05 divided by k. With six pairs that bar is 0.05 / 6 = 0.00833. A pair now has to be a good deal more surprising than before to count.</p>
+
+<p>There is a second way of saying the very same thing, and it is the one R prefers: leave the threshold at 0.05 and multiply each raw p-value by k, capping the result at 1 because no probability can go above 1. Comparing p times k against 0.05 and comparing p against 0.05 over k are the same comparison written two ways.</p>
+
+<p>Let's do both on Nandini's numbers. First pull the six raw p-values out of that matrix into a plain named vector, which is easier to work with than a triangle.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Collect the six raw p-values, then apply Bonferroni in its two equal forms
+raw_p &lt;- c(
+  &quot;Bengaluru-Chennai&quot;   = raw_matrix$p.value[&quot;Bengaluru&quot;, &quot;Chennai&quot;],
+  &quot;Hyderabad-Chennai&quot;   = raw_matrix$p.value[&quot;Hyderabad&quot;, &quot;Chennai&quot;],
+  &quot;Pune-Chennai&quot;        = raw_matrix$p.value[&quot;Pune&quot;, &quot;Chennai&quot;],
+  &quot;Hyderabad-Bengaluru&quot; = raw_matrix$p.value[&quot;Hyderabad&quot;, &quot;Bengaluru&quot;],
+  &quot;Pune-Bengaluru&quot;      = raw_matrix$p.value[&quot;Pune&quot;, &quot;Bengaluru&quot;],
+  &quot;Pune-Hyderabad&quot;      = raw_matrix$p.value[&quot;Pune&quot;, &quot;Hyderabad&quot;]
+)
+
+alpha_each &lt;- 0.05 / 6          # the bar each of the six pairs now has to clear
+alpha_each
+#&gt; [1] 0.008333333
+
+bengaluru &lt;- unname(raw_p[&quot;Bengaluru-Chennai&quot;])
+round(c(raw = bengaluru, times_six = bengaluru * 6), 5)
+#&gt;       raw times_six
+#&gt;   0.01493   0.08960</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at Bengaluru against Chennai. Its raw p-value is 0.01493, which clears the usual 0.05 comfortably. Against the Bonferroni bar of 0.00833 it does not clear at all. Written the other way round, 0.01493 times six is 0.0896, which is nowhere near 0.05.</p>
+
+<p>It is one number read two ways, and the verdict is the same either way. Once you are paying for six comparisons, that pair stops being significant.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Running Bonferroni in R with pairwise.t.test</h2>
+
+<p>You never have to do that multiplying yourself. <code>pairwise.t.test()</code> takes the correction as an argument and applies it to every cell.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Get the same Bonferroni-adjusted p-values straight out of one function
+pairwise.t.test(deliveries$hours, deliveries$hub,
+                p.adjust.method = &quot;bonferroni&quot;)
+#&gt;
+#&gt; 	Pairwise comparisons using t tests with pooled SD
+#&gt;
+#&gt; data:  deliveries$hours and deliveries$hub
+#&gt;
+#&gt;           Chennai Bengaluru Hyderabad
+#&gt; Bengaluru 0.08960 -         -
+#&gt; Hyderabad 1.00000 0.80484   -
+#&gt; Pune      2.1e-05 0.10721   0.00093
+#&gt;
+#&gt; P value adjustment method: bonferroni</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It is the same lower triangle, with every cell already adjusted. Only two pairs survive now: Pune against Chennai at 0.000021 and Pune against Hyderabad at 0.00093. Bengaluru against Chennai has moved out to 0.0896 and Pune against Bengaluru to 0.10721. Four findings have become two.</p>
+
+<p>One line in that output is worth a careful read: "Pairwise comparisons using t tests with pooled SD".</p>
+
+<p><code>pairwise.t.test()</code> is not running six separate two-sample t-tests. It estimates a single standard deviation from all 120 orders at once and uses that same number in every comparison, on the ANOVA's 116 residual degrees of freedom. Six separate calls to <code>t.test()</code> would each estimate the spread from only the sixty orders in front of them, which is why their numbers come out slightly different.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Pooling is what makes each comparison sharper, because a spread estimated from 120 orders is steadier than one estimated from 60. The price is that the four hubs have to have similar spread for that single number to describe all of them fairly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<h2>Your turn: adjust the six raw p-values yourself</h2>
+
+<p><code>raw_p</code> holds the six uncorrected p-values, one per pair of hubs. Do the Bonferroni adjustment both ways: multiply each value by six and cap it at 1 with <code>pmin()</code>, then get the same six numbers out of <code>p.adjust()</code>.</p>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="p[.]adjust\s*[(]\s*raw_p"><textarea class="lesson-tryit-input" spellcheck="false"># raw_p holds the six uncorrected p-values, one per pair of hubs.
+# Multiply each of them by six and cap the result at 1,
+# then do the same job in one call to p.adjust().
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. Both lines print the same six numbers, because Bonferroni really is just a multiplication and a cap. Bengaluru against Chennai lands at 0.0896 either way.</span><span class="lesson-tryit-fb lesson-tryit-no">The first line is pmin(raw_p * 6, 1). The second calls p.adjust on raw_p with the method argument set to bonferroni, in quotes.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Adjust the six raw p-values by hand, then let p.adjust do the same job
+round(pmin(raw_p * 6, 1), 6)
+#&gt;   Bengaluru-Chennai   Hyderabad-Chennai        Pune-Chennai Hyderabad-Bengaluru
+#&gt;            0.089605            1.000000            0.000021            0.804842
+#&gt;      Pune-Bengaluru      Pune-Hyderabad
+#&gt;            0.107209            0.000932
+
+round(p.adjust(raw_p, method = &quot;bonferroni&quot;), 6)
+#&gt;   Bengaluru-Chennai   Hyderabad-Chennai        Pune-Chennai Hyderabad-Bengaluru
+#&gt;            0.089605            1.000000            0.000021            0.804842
+#&gt;      Pune-Bengaluru      Pune-Hyderabad
+#&gt;            0.107209            0.000932</code></pre></details></div>
+</section>
+<p>Both lines give the same six values. Watch what happened to Hyderabad against Chennai: its raw p-value was 0.3379, and times six that would be 2.03, so the cap pulls it back to exactly 1.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Why the biggest of six gaps needs a bigger bar</h2>
+
+<p>Bonferroni holds the family at 5%, and it does it in one line. So why is there a second procedure at all?</p>
+
+<p>Because Bonferroni was never built for this particular job. It takes any k comparisons, whatever they happen to be, and hands you a bar that works. Tukey answers a narrower and sharper question: what does the largest gap among four group means actually look like when all four groups are identical? Then it sets the bar from that.</p>
+
+<p>Those are two different questions, and the difference is worth seeing for yourself.</p>
+
+<p>Let's build 2,000 studies in which Nandini's four hubs are truly identical. Every study is the same size as hers, 120 orders with thirty per hub, and one single true delivery speed sits behind all four. In each study we work out all six pairwise t statistics and keep only the largest.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 2000 studies where all four hubs are identical, and keep the
+# largest of the six pairwise t statistics from each one
+set.seed(7)
+null_max_t &lt;- replicate(2000, {
+  y      &lt;- rnorm(120, 40, 6)                           # four hubs, one true speed
+  means  &lt;- tapply(y, deliveries$hub, mean)
+  pooled &lt;- sum((y - means[deliveries$hub])^2) / 116    # pooled variance, 116 df
+  se     &lt;- sqrt(pooled * (1 / 30 + 1 / 30))
+  max(abs(outer(means, means, &quot;-&quot;))) / se
+})
+
+single_pair_bar &lt;- qt(0.975, 116)
+round(c(single_pair_bar   = single_pair_bar,
+        share_above       = mean(null_max_t &gt; single_pair_bar),
+        largest_gap_95pct = unname(quantile(null_max_t, 0.95)),
+        qtukey_bar        = qtukey(0.95, 4, 116) / sqrt(2)), 4)
+#&gt;   single_pair_bar       share_above largest_gap_95pct        qtukey_bar
+#&gt;            1.9806            0.2055            2.5841            2.6067</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside the loop, <code>outer(means, means, &quot;-&quot;)</code> builds every difference between two hub averages, <code>max(abs(...))</code> picks the biggest of them, and dividing by the standard error turns that gap into a t statistic on the usual scale.</p>
+
+<p>Now read the four numbers that came back.</p>
+
+<p><code>single_pair_bar</code> is 1.9806, the t value a single two-sided test at 0.05 has to beat on 116 degrees of freedom.</p>
+
+<p><code>share_above</code> is 0.2055, which says that in 20.6% of those 2,000 studies, where nothing whatsoever was real, the largest of the six gaps beat that bar anyway. There is the family-wise error rate again, measured this time instead of derived. It lands a little under the 26.5% the formula gave. That is because six pairwise comparisons among four groups are not six independent tests. They share groups with each other and they share one pooled standard deviation, so their false alarms tend to arrive in packs rather than one at a time.</p>
+
+<p><code>largest_gap_95pct</code> is the number we came here for. Across those 2,000 null studies, 95% of the time the largest of the six t statistics stayed below 2.5841. That is the honest bar for the biggest gap among four groups, read straight off a simulation.</p>
+
+<p>And <code>qtukey_bar</code> is 2.6067, which is the same bar computed exactly rather than simulated. The distribution of the largest gap among four group means, divided by the pooled standard error, has a name: the <strong>studentized range</strong>. <code>qtukey()</code> is its quantile function. The 4 and the 116 in that call are the number of group means being scanned and the residual degrees of freedom the pooled spread was estimated on, and dividing by the square root of 2 converts from a range to the t scale a single pairwise comparison lives on.</p>
+
+<p>So Tukey's honestly significant difference is not a patch stuck on top of the t-test. It is the exact distribution of the thing you are actually looking at when you scan six comparisons and pick out the biggest one.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Reading TukeyHSD output: diff, lwr, upr and p adj</h2>
+
+<p><code>TukeyHSD()</code> takes the fitted model straight off and hands back one row for every pair.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read the Tukey table: one row per pair, with a difference, an interval
+# and an adjusted p-value
+tuk &lt;- TukeyHSD(fit)
+tuk
+#&gt;   Tukey multiple comparisons of means
+#&gt;     95% family-wise confidence level
+#&gt;
+#&gt; Fit: aov(formula = hours ~ hub, data = deliveries)
+#&gt;
+#&gt; $hub
+#&gt;                          diff        lwr        upr     p adj
+#&gt; Bengaluru-Chennai   -3.860000  -7.932229  0.2122291 0.0699395
+#&gt; Hyderabad-Chennai   -1.503333  -5.575562  2.5688958 0.7710609
+#&gt; Pune-Chennai        -7.613333 -11.685562 -3.5411042 0.0000207
+#&gt; Hyderabad-Bengaluru  2.356667  -1.715562  6.4288958 0.4357336
+#&gt; Pune-Bengaluru      -3.753333  -7.825562  0.3188958 0.0822307
+#&gt; Pune-Hyderabad      -6.110000 -10.182229 -2.0377709 0.0008836</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are four columns, and every one of them is worth reading.</p>
+
+<ul>
+
+<li><code>diff</code> is the difference between the two hub averages in hours, first name minus second. Pune against Chennai reads -7.613333, so parcels from Pune arrive 7.61 hours sooner than parcels from Chennai.</li>
+
+<li><code>lwr</code> and <code>upr</code> bracket that difference with a confidence interval. The family-wise part is what makes it different from an ordinary one: all six intervals together carry 95% joint coverage, so you can read every row in the table and still be at 95% overall, not 95% each.</li>
+
+<li><code>p adj</code> is the p-value after Tukey's correction. There is nothing further to do to it.</li>
+
+</ul>
+
+<p>Take the two rows that matter most here. Pune against Chennai is -7.61 hours, interval -11.69 to -3.54, adjusted p 0.0000207. Bengaluru against Chennai is -3.86 hours, interval -7.93 to 0.21, adjusted p 0.0699.</p>
+
+<p>Notice where that second interval ends. It runs from -7.93 all the way up to 0.21, which means it includes zero.</p>
+
+<p>The same six rows are easier to read as a picture.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw the six Tukey intervals against the zero line
+par(mar = c(4.5, 10, 4, 2))    # widen the left margin so the pair names fit
+plot(tuk, las = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every horizontal line is one pair's interval, and the vertical line is zero, meaning no difference at all. Pune-Chennai and Pune-Hyderabad sit entirely to the left of that line. The other four cross it.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does an interval that crosses zero mean?</h2>
+
+<p>The interval for Bengaluru against Chennai ran from -7.93 to 0.21 hours, and its adjusted p-value was 0.0699. What does that pair of facts entitle you to say?</p>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The two hubs deliver at the same average speed.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The interval is broken, because a difference cannot be both negative and positive.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The result contradicts the p-value, so one of the two should be reported and the other dropped.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The data does not show a difference between those two hubs, which is not the same as showing there is none.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Zero is inside the interval, so a true difference of zero is compatible with this data. So is a true difference of seven hours, which is why "no difference" would be the wrong reading.</div><div class="lesson-qfb lesson-qfb-no">Zero sitting inside the interval means exactly what an adjusted p-value above 0.05 means: this data cannot rule out a true difference of zero. It also cannot rule out a true difference of 7.93 hours, which is why "the two hubs are the same" is the wrong reading. And the interval never contradicts the p-value, because the two are computed from the same numbers.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>Tukey and Bonferroni on the same six pairs</h2>
+
+<p>Both procedures have now covered the same six comparisons on the same 120 orders, so let's put their answers side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put Tukey and Bonferroni side by side on the same six pairs
+comparison &lt;- data.frame(
+  pair       = names(raw_p),
+  raw_p      = round(raw_p, 6),
+  tukey_p    = round(tuk$hub[names(raw_p), &quot;p adj&quot;], 6),
+  bonferroni = round(p.adjust(raw_p, method = &quot;bonferroni&quot;), 6),
+  row.names  = NULL
+)
+comparison
+#&gt;                  pair    raw_p  tukey_p bonferroni
+#&gt; 1   Bengaluru-Chennai 0.014934 0.069939   0.089605
+#&gt; 2   Hyderabad-Chennai 0.337903 0.771061   1.000000
+#&gt; 3        Pune-Chennai 0.000004 0.000021   0.000021
+#&gt; 4 Hyderabad-Bengaluru 0.134140 0.435734   0.804842
+#&gt; 5      Pune-Bengaluru 0.017868 0.082231   0.107209
+#&gt; 6      Pune-Hyderabad 0.000155 0.000884   0.000932</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every Tukey value is smaller than the Bonferroni value beside it. Bengaluru against Chennai is 0.069939 under Tukey and 0.089605 under Bonferroni. Pune against Hyderabad is 0.000884 against 0.000932. Row three looks like a tie only because six decimal places cannot show the gap: Tukey has 0.0000207 there against Bonferroni's 0.0000211.</p>
+
+<p>Six out of six in the same direction is not a coincidence. Look at the t value each procedure demands before it will call a pair significant.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The t value each correction demands, on the same 116 residual degrees of freedom
+round(c(tukey_over_6      = qtukey(0.95, 4, 116) / sqrt(2),
+        bonferroni_over_6 = qt(1 - 0.05 / 12, 116)), 4)
+#&gt;      tukey_over_6 bonferroni_over_6
+#&gt;            2.6067            2.6843</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 12 in that second line is six comparisons times two tails, since each comparison is two-sided and splits its share of the error rate between both ends.</p>
+
+<p>Tukey asks for 2.6067 and Bonferroni asks for 2.6843. Both are making the same promise, a family-wise error rate of no more than 5%. Tukey hits that 5% on the nose, because it knows the real distribution of the largest gap. Bonferroni lands somewhere under it, and coming in under is not a free bonus. You paid for it with power, which in plain terms means real differences you now fail to spot.</p>
+
+<p>The reason comes down to what each procedure knows. Tukey knows there are exactly four groups and exactly six pairs built out of them, and it uses the real distribution of the largest gap among four means. Bonferroni knows only that there are six tests somewhere. It assumes the worst about how they overlap. That is what makes it safe for any six tests you could name, and stricter than it needs to be for these particular six.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">When you are comparing every pair of groups, Tukey is the right tool and Bonferroni is strictly the weaker one: same promise, higher bar, less power. Bonferroni is not being more careful here. It is paying for a generality this job does not need.</div></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>What changes when only three comparisons were planned</h2>
+
+<p>So when is Bonferroni ever the right call?</p>
+
+<p>When the family is not all six pairs.</p>
+
+<p>Think back to how Nandini's study came about. Chennai is the original hub and the other three opened later, and the only question anyone raised in the planning meeting was whether each new hub is slower than Chennai. That is three comparisons, not six. Hyderabad against Bengaluru was never of interest, and neither were the other two hub-to-hub pairs.</p>
+
+<p>If the family is three comparisons, then the correction should pay for three.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Correct only the three comparisons Nandini planned: each new hub against Chennai
+planned &lt;- raw_p[c(&quot;Bengaluru-Chennai&quot;, &quot;Hyderabad-Chennai&quot;, &quot;Pune-Chennai&quot;)]
+round(p.adjust(planned, method = &quot;bonferroni&quot;), 6)
+#&gt; Bengaluru-Chennai Hyderabad-Chennai      Pune-Chennai
+#&gt;          0.044802          1.000000          0.000011
+
+round(qt(1 - 0.05 / 6, 116), 4)    # the t bar a pre-fixed list of three earns
+#&gt; [1] 2.4292</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bengaluru against Chennai comes in at 0.0448. That one is significant.</p>
+
+<p>That is the same pair that read 0.0699 under Tukey and 0.0896 under Bonferroni across all six. The data never moved, and neither did its raw p-value of 0.01493. What changed is how many comparisons the correction is paying for. The bar drops from 2.6067 to 2.4292 because a three-item list stopped buying protection against three comparisons nobody ever asked about.</p>
+
+<p>That single flip is the whole trade. Tukey is built for all pairs and cannot be made cheaper than 2.6067. Bonferroni scales with the length of your list, so a genuinely short list makes it the more powerful of the two.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>What planned in advance has to mean</h2>
+
+<p>Read that last move again and you will spot how it could be abused. Correcting for three instead of six flipped a pair to significant. So why not always claim three?</p>
+
+<p>Because the smaller correction is earned by when the list was fixed, not by how short it is.</p>
+
+<p>Here is that difference, measured. There are two ways of ending up with three comparisons, and we will run both of them over studies where nothing at all is real:</p>
+
+<ol>
+
+<li>The honest way: name the three comparisons before seeing any data, then Bonferroni-correct those three.</li>
+
+<li>The other way: compute all six, keep the three smallest p-values, then Bonferroni-correct as though three had been the plan all along.</li>
+
+</ol>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run 4000 studies where nothing is real, and count false alarms two ways:
+# three comparisons fixed in advance, against the three smallest of six
+set.seed(11)
+bar_three &lt;- 0.05 / 3
+
+alarms &lt;- replicate(4000, {
+  y      &lt;- rnorm(120, 40, 6)
+  means  &lt;- tapply(y, deliveries$hub, mean)
+  pooled &lt;- sum((y - means[deliveries$hub])^2) / 116
+  se     &lt;- sqrt(pooled * (1 / 30 + 1 / 30))
+  gaps   &lt;- abs(outer(means, means, &quot;-&quot;))[lower.tri(diag(4))]    # the six pairs
+  six_p  &lt;- 2 * pt(gaps / se, 116, lower.tail = FALSE)
+  c(planned_three  = min(six_p[1:3]) &lt; bar_three,   # the three hub-vs-Chennai pairs
+    smallest_three = min(six_p) &lt; bar_three)        # whichever three looked best
+})
+
+round(rowMeans(alarms), 4)
+#&gt;  planned_three smallest_three
+#&gt;         0.0458         0.0762</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The honest procedure raises a false alarm in 4.6% of studies, which is the 5% it promised. The cherry-picked one does it in 7.6%, more than half again as often. And it reports the very same adjusted p-value, in the very same words, with nothing on the page to tell the two apart.</p>
+
+<p>That is why "planned in advance" is a real condition rather than a formality. The number of comparisons in your correction has to be the number you were willing to run, counted before the data arrived. If you looked at all six first, you ran six, and you owe six.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Choosing the correction after seeing which one makes your pair significant is not a judgement call. It is a false-alarm rate you are not reporting. Once you have seen all six p-values, the family is six.</div></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which correction fits this study?</h2>
+
+<p>Two things happened in Nandini's week.</p>
+
+<p>In March, before a single order was pulled, the team wrote the question down: is each new hub slower than Chennai? That is three comparisons, fixed on a whiteboard.</p>
+
+<p>In April, with the Tukey table already on screen, her manager looked it over and said: actually, just compare the three southern hubs against each other and correct for three.</p>
+
+<p>Which of those two lists has earned the three-comparison bar of 2.4292?</p>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both of them, since either way only three comparisons end up being reported.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The March list only, because it was fixed before the data existed, so the correction is paying for every comparison that was ever at risk.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The April list only, because it is the more focused question and focus is what a correction rewards.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Neither, because Tukey is always the right procedure once an ANOVA is significant.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. What a correction has to cover is the set of comparisons you were willing to run, and in March that set was three. In April it was six, because six had already been looked at.</div><div class="lesson-qfb lesson-qfb-no">A correction pays for the comparisons that were at risk, so the March list of three genuinely costs three while the April list costs six no matter how it gets worded. And Tukey is not automatic either: it is the right choice when every pair is in play, which is exactly what the March plan was not.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<h2>What a post-hoc test inherits from the ANOVA</h2>
+
+<p>Both corrections here reuse two things from the fitted ANOVA: one pooled standard deviation estimated from all 120 orders, and the 116 residual degrees of freedom. That is what makes them precise. It also means they inherit the ANOVA's assumptions. If that pooled number is a poor summary of the spread, every adjusted p-value built on top of it carries the same error.</p>
+
+<p>There are two checks, one line each.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check the two assumptions the pooled bar rests on
+bartlett.test(hours ~ hub, data = deliveries)
+#&gt;
+#&gt; 	Bartlett test of homogeneity of variances
+#&gt;
+#&gt; data:  hours by hub
+#&gt; Bartlett's K-squared = 0.44258, df = 3, p-value = 0.9313
+
+shapiro.test(residuals(fit))
+#&gt;
+#&gt; 	Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  residuals(fit)
+#&gt; W = 0.99018, p-value = 0.5508</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>bartlett.test()</code> asks whether the four hubs have equal variance, and gives p = 0.9313. That is no evidence against equal spread at all. <code>shapiro.test()</code> on the residuals asks whether what is left over after removing the four hub averages looks normal, and gives W = 0.99018 with p = 0.5508, which says the same thing. So one pooled standard deviation is a fair description of all four hubs here, and both Tukey and Bonferroni are standing on solid ground.</p>
+
+<p>When those checks come back badly, the job changes:</p>
+
+<ul>
+
+<li><strong>Badly unequal variances across the groups.</strong> The pooled standard deviation becomes a blend of spreads that do not belong together, and the fix is the <strong>Games-Howell</strong> procedure, which gives every pair its own variances and its own degrees of freedom.</li>
+
+<li><strong>A badly non-normal outcome</strong>, such as heavy skew or hard outliers. Then the ANOVA was the wrong starting point in the first place. Kruskal-Wallis replaces it, and <strong>Dunn's test</strong> is the post-hoc that goes with it.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Run these two checks before you read any post-hoc table, not after. A correction protects you against multiplicity, and against absolutely nothing else.</div></div>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which bar does each situation clear?</h2>
+
+<p>Nandini's residual degrees of freedom stay at 116 throughout, and three t bars are in play: 2.4292 for three comparisons fixed before the data, 2.6067 for Tukey across all six pairs, and 2.6843 for Bonferroni across all six.</p>
+
+<p>A pair of hubs comes back at t = 2.55. Which reading is right?</p>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step17" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It clears all three bars, so the pair is significant whichever correction gets used.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It clears only 2.4292, so the pair is significant only if those three comparisons were fixed before the data was pulled.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It clears Tukey but not Bonferroni over six, so Tukey is the one to report.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">If the four hubs had badly unequal spread, t = 2.55 would still clear 2.4292 and the pair could be reported as significant.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. 2.55 sits below both all-pairs bars and above the three-comparison one, so the verdict turns entirely on what the family was and when it was decided.</div><div class="lesson-qfb lesson-qfb-no">Line 2.55 up against the three bars and it beats 2.4292 alone, so it fails under both all-pairs procedures. And badly unequal spread breaks the pooled standard deviation that all three of those bars are built from, which puts the whole table on the wrong instrument: that situation calls for Games-Howell, not for a different threshold.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
+<h2>Your turn: pull one pair out of the Tukey table</h2>
+
+<p><code>tuk</code> holds the Tukey result. Its table lives in <code>tuk$hub</code>, a matrix with one row per pair and the four columns you have been reading. Pull out the single row for Pune against Chennai.</p>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step18" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="tuk[$]hub\[[^P]*Pune-Chennai"><textarea class="lesson-tryit-input" spellcheck="false"># tuk holds the Tukey result. Its table is the matrix tuk$hub, whose rows
+# are named for the pairs, like Pune-Chennai.
+# Pull out the row for Pune against Chennai.
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the row: a difference of -7.61 hours, an interval from -11.69 to -3.54, and an adjusted p-value of 0.000021. Four numbers, and together they are the whole verdict on that pair.</span><span class="lesson-tryit-fb lesson-tryit-no">Index the matrix by its row name and leave the column slot empty so every column comes back. The shape is tuk$hub[ROW, ] where ROW is the quoted pair name Pune-Chennai.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Pull the single Tukey row for Pune against Chennai
+round(tuk$hub[&quot;Pune-Chennai&quot;, ], 6)
+#&gt;      diff       lwr       upr     p adj
+#&gt; -7.613333 -11.685562 -3.541104  0.000021</code></pre></details></div>
+</section>
+<p>Read those four numbers as one sentence and you have something an operations lead can act on. Pune delivers 7.61 hours faster than Chennai on average. The plausible range for that gap runs from 3.54 hours to 11.69 hours, and even the pessimistic end of it is worth most of a working day. The adjusted p-value of 0.000021 says a gap like this is nowhere near what six comparisons could have thrown up by luck.</p>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which write-up is honest?</h2>
+
+<p>Nandini has one sentence in the operations review for Pune against Chennai, and she used Tukey across all six pairs. Which version should she write?</p>
+<section class="exercise" data-exercise-id="Which-Test-Mini-6-step19" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Pune is significantly faster than Chennai, p less than 0.05.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Pune delivers 7.61 hours faster than Chennai on average, 95% family-wise interval -11.69 to -3.54 hours, Tukey-adjusted p = 0.0000207.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Pune delivers 7.61 hours faster than Chennai, p = 0.0000035.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">There is roughly a 0.002% chance that Pune and Chennai deliver at the same speed.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is the one. It names the pair, gives the size of the gap in hours, shows how precisely that gap is pinned down, and says which correction produced the p-value so a reader can tell what the number was paying for.</div><div class="lesson-qfb lesson-qfb-no">Three of these four leave out something a decision needs. A bare significance claim hides the size of the gap and its precision, the third reports the raw p-value instead of the corrected one, and the last turns the p-value around into a probability about the truth, which is not what any p-value measures.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.2307/3001913">Comparing Individual Means in the Analysis of Variance</a> - Tukey (1949), Biometrics 5(2), 99-114. Where the studentized-range procedure was published.</li>
+
+<li><a href="https://doi.org/10.1007/978-1-4613-8122-8">Simultaneous Statistical Inference</a> - Miller (1981), 2nd edition, Springer Series in Statistics. The standard reference on family-wise error control and how the procedures compare.</li>
+
+<li><a href="https://doi.org/10.1136/bmj.310.6973.170">Multiple significance tests: the Bonferroni method</a> - Bland and Altman (1995), BMJ 310, 170. Two pages, and plain about when Bonferroni is and is not the right call.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/TukeyHSD.html">Compute Tukey Honest Significant Differences</a> - R Core Team, the documentation for <code>TukeyHSD()</code>, including how it handles unequal group sizes.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/p.adjust.html">Adjust P-values for Multiple Comparisons</a> - R Core Team, the documentation for <code>p.adjust()</code> and every method <code>pairwise.t.test()</code> accepts.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="21" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You started with a significant F that named nobody, and you finished with one pair, one interval and one p-value you can defend. Here is what carried you across:</p>
+
+<ul>
+
+<li>A significant ANOVA says the group averages are not all equal, and stops there. Naming the pair is a separate job.</li>
+
+<li>Six uncorrected t-tests on four hubs gave four findings, and when nothing at all is real the largest of those six gaps still clears the single-pair bar in 20.6% of studies. A correction protects the whole family of comparisons, never a single one.</li>
+
+<li>Bonferroni divides 0.05 by the number of comparisons, or equivalently multiplies each p-value by it. Simple, general, and stricter than it needs to be for all-pairs work.</li>
+
+<li>Tukey uses the exact distribution of the largest gap among four means, the studentized range. Across all six pairs its bar is 2.6067 against Bonferroni's 2.6843, so it is the better tool for that job.</li>
+
+<li>Bonferroni wins when the family is genuinely short. Three comparisons drop the bar to 2.4292, and that is what turned Bengaluru against Chennai from 0.0699 into 0.0448.</li>
+
+<li>The shortlist has to be fixed before the data. Taking the three smallest of six and correcting for three runs at a 7.6% false-alarm rate while calling it 5%.</li>
+
+</ul>
+
+<p>So when someone asks which warehouse is the slow one, the answer now sounds like this:</p>
+
+<p>"Pune delivers 7.61 hours faster than Chennai on average, with a 95% family-wise interval of 3.54 to 11.69 hours and a Tukey-adjusted p-value of 0.0000207, across all six hub comparisons."</p>
+
+<p>Every number in that sentence is doing a job, and the p-value has paid for all six comparisons it came from. Nicely done, and have a great day.</p>
+</section>
+
+{% endraw %}

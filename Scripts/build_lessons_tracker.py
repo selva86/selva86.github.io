@@ -121,6 +121,7 @@ LESSON_CATALOG_TITLE = {
     'Which-Test-Mini-3': 'Mann-Whitney U test: when and how to run it',
     'Which-Test-Mini-4': "Fisher's exact test: when and how, with a worked example",
     'Which-Test-Mini-5': 'Chi-square tests: which one to use and how',
+    'Which-Test-Mini-6': 'ANOVA post-hoc tests: Tukey vs Bonferroni',
     'Resampling-Mini-1': 'Permutation tests: exact p-values without formulas',
     'Resampling-Mini-2': 'Bootstrap confidence intervals: for any statistic',
     'Beyond-Lines-Mini-1': 'Segmented regression: find the breakpoints',
