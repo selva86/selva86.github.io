@@ -828,3 +828,311 @@ Open for 3 days.
 
 Akshay
 ```
+
+## seq 38 - lesson (which-test)
+
+- **Subject:** ANOVA post-hoc tests: Tukey vs Bonferroni
+- **Preheader:** The ANOVA came back significant. Now find out which group is actually winning.
+
+```
+Hi {first_name},
+
+Let's say you compare four marketing campaigns on sales. You run an ANOVA and it comes back p = 0.01. The campaigns are not all equal, great. Your manager immediately asks the obvious question: so which one is winning?
+
+And here is the thing, the ANOVA cannot tell you that. It only says a difference exists somewhere among the four.
+
+That is the job of post-hoc tests, and the two you will actually use are Tukey and Bonferroni. Tukey is for when you want to compare every pair. Bonferroni is for when you decided upfront on a few specific comparisons. Use the wrong one and you either lose the power to detect real differences or you quietly let false positives in. This comes up in interviews too, usually right after they ask about ANOVA.
+
+Today you will run both in R and know exactly which one to reach for.
+
+[Find which groups actually differ -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 39 - lesson (which-test)
+
+- **Subject:** Kruskal-Wallis: the nonparametric ANOVA
+- **Preheader:** Three courier services, skewed delivery times, one honest comparison.
+
+```
+Hi {first_name},
+
+Let's consider delivery times from three courier services. You want to know if any of them is genuinely faster. But delivery times are skewed, most orders arrive on time and a few take forever, and one lost parcel can drag a mean around badly.
+
+Run a regular ANOVA on data like this and it can mislead you. Its assumptions, roughly normal data and similar spreads, are simply not met.
+
+Kruskal-Wallis is the test built for exactly this situation. It compares three or more groups using ranks instead of the raw values, so that one nightmare delivery cannot distort the answer. The catch is that its conclusion is worded differently from ANOVA's, and knowing what it does and does not say is most of the skill.
+
+Today you will run it in R, read the result properly, and know when to pick it over ANOVA without second guessing.
+
+[Compare skewed groups the right way -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 40 - lesson (foundations-extras)
+
+- **Subject:** Statistical vs practical significance: report both
+- **Preheader:** A p-value can be tiny while the effect is worthless. Learn to report both.
+
+```
+Hi {first_name},
+
+Let's say your site runs an A/B test with two million visitors on each side. The new button color wins with p = 0.001. Statistically, the result could hardly be stronger. Then you look at the size of the win: conversion went up by two hundredths of a percent.
+
+Would you ship a redesign over that? Probably not.
+
+With a big enough sample, even a meaningless difference becomes statistically significant. And the reverse happens too: a genuinely useful effect in a small pilot study can come back with p = 0.08 and get thrown away.
+
+The fix is to always report two things: whether the effect is real, which is the p-value, and whether it is big enough to matter, which is the effect size with its confidence interval. Today you will compute both in R and practice the exact reporting language that keeps the two ideas separate.
+
+[Report both kinds of significance -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 41 - public
+
+- **Subject:** Experimental design: 20 solved problems
+- **Preheader:** Twenty graded problems on the decisions you make before any data exists.
+
+```
+Hi {first_name},
+
+Practice day. Twenty problems on experimental design: randomization, blocking, factorial layouts, sample size, the decisions you make before any data exists.
+
+Design is the part of statistics where mistakes are permanent. A badly analyzed experiment can be re-analyzed, but a badly designed one usually has to be run again. These problems train that judgment, and everything grades itself in the browser.
+
+[Work the design problems -> {url}]
+
+Regular page, no clock. Chip away whenever.
+
+Akshay
+```
+
+## seq 42 - public
+
+- **Subject:** Survival analysis: model time-to-event data, from scratch
+- **Preheader:** Churn, failures, time-to-event: a full survival analysis course, from scratch.
+
+```
+Hi {first_name},
+
+Today I want to point you at something bigger than one lesson: a full course on survival analysis.
+
+Survival analysis answers questions about time. How long until a customer churns. How long a machine runs before it fails. How long a patient stays healthy. The twist that makes it its own field is that for many subjects the event has not happened yet when you collect the data, and throwing those cases away is exactly the wrong move. Kaplan-Meier curves and Cox models are built to use them properly.
+
+If your work ever touches churn, reliability, or anything measured as time-to-event, this course will pay for itself quickly.
+
+[Start the survival analysis course -> {url}]
+
+Regular course, no clock. Start with lesson one.
+
+Akshay
+```
+
+## seq 43 - lesson (hidden-structure)
+
+- **Subject:** Interpreting PCA: what loadings and scores mean
+- **Preheader:** Loadings and scores, finally in plain words. Name what PC1 actually is.
+
+```
+Hi {first_name},
+
+Let's say you run a PCA on a customer survey with twenty questions and R hands back a wall of numbers: loadings, scores, proportions of variance. Most people stop right there, put "PC1" on a chart axis, and hope nobody asks what PC1 actually is.
+
+And honestly, fair enough. Nobody explains this part well.
+
+The loadings tell you what each component is made of, which questions it leans on and in which direction. The scores tell you where each customer sits on that new axis. Read the two together and PC1 stops being a mystery number and becomes something you can name, like price sensitivity or overall satisfaction.
+
+Today you will take a real PCA result apart in R and practice naming the components out loud.
+
+[Make sense of your PCA -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 44 - lesson (foundations-extras)
+
+- **Subject:** Which distribution when: a field guide
+- **Preheader:** Poisson, binomial, exponential, normal: the one question that identifies each.
+
+```
+Hi {first_name},
+
+Counting customer arrivals per hour? Counting how many of ten trials succeed? Measuring how long until the next machine failure? Each of those questions has a distribution built for it, and picking the right one is half the modeling work.
+
+Today's lesson is a field guide. Poisson for counts of events in a window, binomial for successes out of a fixed number of tries, exponential for waiting times, normal for sums and averages of many small influences. For each one you will see the everyday situation it was made for, generate it in R, and learn the one question that identifies it.
+
+By the end, "which distribution is this?" becomes a quick check instead of a guess. It is also a quiet favourite in interviews.
+
+[Match the distribution to the situation -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 45 - lesson (beyond-straight-lines)
+
+- **Subject:** Poisson regression: model count data right
+- **Preheader:** Ticket counts, visit counts, defect counts: regression built for counting.
+
+```
+Hi {first_name},
+
+Let's consider the number of support tickets each customer files in a month. You want to know what drives it: plan type, tenure, company size. So you reach for linear regression, and it quietly goes wrong. It happily predicts negative ticket counts, and it assumes the noise around a prediction of 1 is as wide as the noise around a prediction of 50.
+
+Counts are their own kind of data.
+
+Poisson regression is the tool built for them. It models the count directly, never predicts below zero, and its coefficients turn into statements like "enterprise customers file 1.8 times as many tickets". That multiplier reading is the part most people never learn.
+
+Today you will fit one in R and read its coefficients the right way.
+
+[Model your counts properly -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 46 - lesson (arima-from-zero)
+
+- **Subject:** auto.arima: how it works and when to override it
+- **Preheader:** What auto.arima actually does, and the few times you should overrule it.
+
+```
+Hi {first_name},
+
+If you have ever forecast anything in R, you have probably typed auto.arima() and taken whatever it returned. Most people never look inside. However, the function is not magic, it is a search: difference the series until it is stationary, try candidate models, keep the one with the best score.
+
+Knowing that changes how you use it. You can read the model it picked and say why. You can notice when the search settled on something odd, like seasonal data with no seasonal terms. And you will know the handful of situations where overriding it with your own orders gives a better forecast.
+
+Today you will open the black box, follow the search step by step, and practice one honest override.
+
+[See inside auto.arima -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 47 - lesson (beyond-straight-lines)
+
+- **Subject:** Negative binomial regression: when Poisson doesn't fit your counts
+- **Preheader:** When the variance outruns the mean, Poisson lies. The fix is one parameter.
+
+```
+Hi {first_name},
+
+Remember Poisson regression from a couple of lessons back? It makes one strict promise you should know about: the variance of the counts must equal their mean.
+
+Real data rarely keeps that promise. Take doctor visits per patient in a year. A few patients visit constantly while most barely go, so the spread runs far above the average. Fit a Poisson model anyway and every p-value in the output comes out smaller than it deserves to be, which means false confidence.
+
+This situation is called overdispersion, and with real counts it is closer to the rule than the exception.
+
+Negative binomial regression is the fix. It keeps everything you like about Poisson and adds one parameter that absorbs the extra spread. Today you will diagnose overdispersion in R, refit, and watch the shaky significance drain out of your results.
+
+[Fix your overdispersed counts -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 48 - lesson (time-series-toolkit)
+
+- **Subject:** Cointegration: test when two series move together
+- **Preheader:** Petrol and crude drift together for decades. Test which pairs really do.
+
+```
+Hi {first_name},
+
+Consider this: petrol prices and crude oil prices both wander over the years, neither returns to any fixed level, yet the gap between them stays roughly steady. They drift, but they drift together.
+
+That togetherness has a name, cointegration, and it is the honest way to talk about long-run relationships between trending series. It matters because regressing one trending series on another without checking this first produces beautiful, completely spurious results. High R-squared, tiny p-values, no real relationship at all. Scary right?
+
+Today you will watch a spurious regression happen with your own eyes, then run the Engle-Granger test in R to tell a real long-run relationship from a fake one.
+
+[Test what moves together -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 49 - lesson (time-series-toolkit)
+
+- **Subject:** Prediction intervals: put honest uncertainty on your forecasts
+- **Preheader:** A forecast of 1,200 means little without a range. Build ranges you can defend.
+
+```
+Hi {first_name},
+
+Let's say your forecast for next month's demand is 1,200 units. Your manager plans stock around that single number. Then reality lands at 950 and the forecast gets blamed.
+
+The problem was never the 1,200. The problem was reporting one number as if the future were certain.
+
+A prediction interval fixes the conversation. "Best guess 1,200, and we are 95 percent sure it lands between 900 and 1,500" leads to a very different stocking decision. The catch is that forecast intervals widen the further out you look, and the default ones from many models are too narrow because they ignore some sources of error. Knowing that is what separates honest forecasting from confident guessing.
+
+Today you will build prediction intervals in R, read them properly, and learn when to distrust the defaults.
+
+[Put honest uncertainty on your forecast -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 50 - lesson (bayesian-decisions)
+
+- **Subject:** Compare Bayesian models: LOO and WAIC
+- **Preheader:** Two Bayesian models, one honest question: which predicts new data better?
+
+```
+Hi {first_name},
+
+Let's say you have fit two Bayesian models for the same outcome, one simple and one with several extra predictors. Which should you trust? Picking the one that fits your current data best is a trap, because the bigger model almost always fits better while quietly memorizing noise.
+
+What you actually want to know is different: which model would predict a new observation better?
+
+LOO and WAIC answer exactly that. The idea behind LOO is honest and simple: leave one observation out, predict it using the rest, score how well you did, and repeat for every observation. Today you will compare real models with both tools in R and read the output well enough to defend the choice.
+
+[Choose between your models honestly -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 51 - lesson (bayesian-decisions)
+
+- **Subject:** brms: Bayesian regression without writing Stan
+- **Preheader:** Write lm()-style formulas, get full Bayesian models back. That is brms.
+
+```
+Hi {first_name},
+
+Everything in the Bayesian lessons so far came with a slightly steep entry: to fit a model, you had to think about the machinery underneath. Today the entry gets easy.
+
+brms is an R package with a plain deal: you write the model as a regression formula, the same style you already use with lm(), and it quietly builds and runs the full Bayesian machinery behind the scenes. One line gets you a Bayesian regression with priors, credible intervals, and everything else you have learned to read in this series.
+
+This is the tool that makes Bayesian methods practical for everyday work, and it is the one I reach for first.
+
+Today you will fit your first brms model and read its output end to end.
+
+[Fit Bayesian models the easy way -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
