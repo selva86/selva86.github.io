@@ -127,6 +127,7 @@ LESSON_CATALOG_TITLE = {
     'Resampling-Mini-1': 'Permutation tests: exact p-values without formulas',
     'Resampling-Mini-2': 'Bootstrap confidence intervals: for any statistic',
     'Beyond-Lines-Mini-1': 'Segmented regression: find the breakpoints',
+    'Structure-Mini-1': 'Interpreting PCA: what loadings and scores mean',
 }
 
 
