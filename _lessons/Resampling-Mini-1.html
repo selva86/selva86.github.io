@@ -1,0 +1,836 @@
+---
+title: "Permutation tests: exact p-values without formulas"
+description: "Two classes, a six-point gap, and no table anywhere to look it up in. Shuffle the class labels ten thousand times in R and count your way to an exact p-value."
+keywords: "permutation test, permutation test in R, exact p-value, randomization test, null distribution, shuffling labels, nonparametric test, resampling in R"
+mathjax: true
+webr: true
+curriculum_id: "0.0.31"
+post_type: "LESSON"
+course_id: "resampling"
+course_title: "Resampling"
+course_lesson: "1"
+course_total: "2"
+course_landing: "/dashboard.html"
+course_next: ""
+course_prev: ""
+lesson_access: "windowed"
+catalog_blurb: "How to get a p-value by shuffling your own data, no formula needed."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Resampling</div>
+<h2>Permutation tests: exact p-values without formulas</h2>
+
+<p>Let's say two classes sat the same end-of-term exam last week.</p>
+
+<p>Class A was taught with a new method and averaged 78. Class B was taught the usual way and averaged 72. So the two classes came out six points apart.</p>
+
+<p>Now, is six points anything?</p>
+
+<p>The usual way to answer that is to pick a test out of a book, check whether your data is allowed to use that test, and read a number off a table. There is a nicer way, and it needs nothing except the sixty exam scores you already have.</p>
+
+<p>Here it is. If the new method really made no difference, then which room a student sat in was only a sticker on their answer sheet. The score they wrote was going to be that score either way. So peel all sixty stickers off, deal them out again at random, and see what gap comes back.</p>
+
+<p>Do that a few thousand times and you are holding every gap that pure luck can produce. Then the only thing left is counting: how many of those luck-only gaps reached six points?</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Assume it did nothing","sub":"the class label is only a sticker on the answer sheet"},{"title":"Deal the labels again","sub":"shuffle the 60 students between the two classes, 10,000 times"},{"title":"Count the matches","sub":"how many shuffled gaps reached the real 6 points"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That count, divided by the number of shuffles you ran, is your p-value. Everything from here is doing it, one line of R at a time.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The two classes and their six-point gap</h2>
+
+<p>Let's get the numbers on the table first, because every calculation after this is built out of them.</p>
+
+<p>Sixty students sat the paper, thirty in each class, marked out of 100. Class A had the new method, class B had the usual one, and each student walked away with one whole-number score. The scores are generated below so that you and I are looking at exactly the same sixty numbers.</p>
+
+<p>Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the two classes of exam scores and measure the gap between their averages
+set.seed(31653)
+exam &lt;- data.frame(
+  class = rep(c(&quot;A&quot;, &quot;B&quot;), each = 30),
+  score = c(round(rnorm(30, 78, 10)),    # class A, taught with the new method
+            round(rnorm(30, 72, 10)))    # class B, taught the usual way
+)
+
+head(exam, 4)
+#&gt;   class score
+#&gt; 1     A    75
+#&gt; 2     A    87
+#&gt; 3     A    72
+#&gt; 4     A    65
+
+mean_A  &lt;- mean(exam$score[exam$class == &quot;A&quot;])
+mean_B  &lt;- mean(exam$score[exam$class == &quot;B&quot;])
+obs_gap &lt;- mean_A - mean_B
+
+c(A = mean_A, B = mean_B, gap = obs_gap)
+#&gt;   A   B gap
+#&gt;  78  72   6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every row of <code>exam</code> is one student: the class they sat in and the mark they got. Pulling out <code>exam$score</code> by class and taking <code>mean()</code> gives each class its average.</p>
+
+<p>So <code>obs_gap</code> is 6, and from here on that means six exam points: class A's average minus class B's.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Six points is the whole question. Nobody doubts that 78 is bigger than 72. What we do not know yet is whether a gap that size is remarkable or completely ordinary.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>What would have to be true for six points to mean nothing</h2>
+
+<p>Here's what makes the whole thing work.</p>
+
+<p>To argue that the new method helped, you do not start by assuming it helped. You start by assuming the opposite: the method changed nothing at all. Not one student answered a single question differently because of which class they were in.</p>
+
+<p>That assumption is called the <strong>null hypothesis</strong>, written H0 and said out loud as "H nought". It is the boring story, and our job is to find out whether the data makes it look ridiculous.</p>
+
+<p>Under that story, the word <code>A</code> or <code>B</code> on a student's paper carries no information. It is a sticker. The 78 and the 72 came out of which thirty students happened to walk into which room, and nothing else.</p>
+
+<p>Look at what the boring story has to explain.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Show how many students sat in each class and what each class averaged
+data.frame(
+  class    = c(&quot;A&quot;, &quot;B&quot;),
+  students = as.numeric(table(exam$class)),
+  average  = as.numeric(tapply(exam$score, exam$class, mean))
+)
+#&gt;   class students average
+#&gt; 1     A       30      78
+#&gt; 2     B       30      72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are thirty students in each class, so neither one had the advantage of being the bigger group. The null hypothesis has to explain 78 against 72 using nothing but the luck of who walked into which room.</p>
+
+<p>Fine. Let's make it do that and see how well it manages.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>One shuffle, and the gap it produced</h2>
+
+<p>So let's take the sticker idea completely literally.</p>
+
+<p>Peel all sixty labels off the answer sheets. Drop the thirty <code>A</code> stickers and the thirty <code>B</code> stickers into a bowl, shake it, and hand them back out to the sixty students at random. Nobody's score changes. A student who wrote 87 still has 87. All that moves is which class they are counted in.</p>
+
+<p>That is what <code>sample()</code> does here. It keeps the same thirty A labels and thirty B labels and deals them out to different students.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Deal the same class labels out to different students and measure the new gap
+set.seed(1)
+shuffled_class &lt;- sample(exam$class)
+
+shuffled_gap &lt;- mean(exam$score[shuffled_class == &quot;A&quot;]) -
+                mean(exam$score[shuffled_class == &quot;B&quot;])
+
+round(shuffled_gap, 4)
+#&gt; [1] -3.5333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>set.seed(1)</code> fixes which shuffle you get, so your number is the same as mine.</p>
+
+<p>Now look at what came back. Minus 3.53 points. In a world we built by hand so that the label means nothing, class B still finished 3.53 points ahead of class A.</p>
+
+<p>That is the whole reason a p-value has to exist.</p>
+
+<p>Luck does not hand you zero by default. It still produces gaps, and sometimes big ones, which is exactly why you cannot say anything at all about six points until you know how big luck's gaps can get.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does a shuffle move?</h2>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It evens the two classes out, so the gap after a shuffle comes back as zero.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It breaks any link between the class a student sat in and the score they wrote, so whatever gap is left over is luck and nothing else.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It takes the six points away from class A, so the data no longer favours the new method.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It proves the new method made no difference.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The sixty scores never move. Only the labels do, which is how you build the boring story on purpose and then watch what it produces.</div><div class="lesson-qfb lesson-qfb-no">A shuffle does not flatten the gap and it does not prove anything. It rebuilds the data under the boring story, where the class label is a random sticker, so any gap that turns up afterwards is luck alone. That is exactly why one shuffle still came back with 3.53 points.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Ten thousand shuffles and the null distribution they build</h2>
+
+<p>One shuffle told us that luck can reach 3.53 points. What it cannot tell us is how far luck usually reaches, or how far it reaches on a good day.</p>
+
+<p>For that we need thousands of shuffles. <code>replicate()</code> runs the same block of code over and over and keeps the result of each run, so ten thousand shuffles and their ten thousand gaps take one call and a couple of seconds.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the shuffle 10,000 times and keep the gap that each one produced
+set.seed(1)
+null_gaps &lt;- replicate(10000, {
+  shuffled_class &lt;- sample(exam$class)
+  mean(exam$score[shuffled_class == &quot;A&quot;]) -
+    mean(exam$score[shuffled_class == &quot;B&quot;])
+})
+
+hist(null_gaps, breaks = 40, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;10,000 deals of a class label that means nothing&quot;,
+     xlab = &quot;Gap in exam points (class A minus class B)&quot;)
+abline(v = obs_gap, col = &quot;red&quot;, lwd = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Let's read that output. The grey pile has a name: it is the <strong>null distribution</strong>, the set of results a statistic takes when the null hypothesis is true. Every bar is a batch of shuffled worlds where the teaching method did nothing, and the height says how often luck produced a gap that size.</p>
+
+<p>You can see most of the pile sits near zero, which is what you would expect once the label is meaningless. The tails stretch out to about nine points in either direction, so luck is capable of a nine-point gap, just rarely.</p>
+
+<p>The red line is our real result, six points. It is not off the chart. It sits out in the thin part of the pile, with grey still to the right of it.</p>
+
+<p>How much grey is out there? Let's count it next.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Counting the shuffles that reached six points</h2>
+
+<p>Here is where the p-value is actually made, and it is nothing but a count.</p>
+
+<p>We want the shuffles that did as well as our real classes or better, and better in either direction, because before the exam nobody promised which class would come out ahead. A six-point win for class B would have surprised us just as much as a six-point win for class A. <code>abs()</code> folds both sides together by throwing away the sign.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the shuffled gaps that reached the real six-point gap
+sum(abs(null_gaps) &gt;= obs_gap)
+#&gt; [1] 131
+
+mean(abs(null_gaps) &gt;= obs_gap)
+#&gt; [1] 0.0131</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>abs(null_gaps) &gt;= obs_gap</code> gives ten thousand TRUEs and FALSEs. <code>sum()</code> counts the TRUEs, and <code>mean()</code> turns that same count into a share, because the average of a column of ones and zeros is the proportion of ones.</p>
+
+<p>So 131 of the 10,000 luck-only shuffles reached six points or more. As a share, 0.0131.</p>
+
+<p>That is the p-value, near enough. No formula, no table, no assumed distribution to look anything up in. A count of shuffles that matched or beat the real classes, divided by how many shuffles you ran.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">If the new method changed nothing, a gap of six points or more would still show up in about 13 of every 1,000 attempts. We got one. That sentence is the entire meaning of the number, and it is the only claim the number makes.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>The p-value formula, and why the count starts at one</h2>
+
+<p>There is one small repair to make to 0.0131, and the reason is worth a minute.</p>
+
+<p>Think about what the ten thousand shuffles are. They are ten thousand ways the sixty students could have been split into two groups of thirty. The way they actually were split is one of those ways too. It is a perfectly legitimate deal of the labels and we watched it happen, so it belongs in the pile.</p>
+
+<p>Adding it to the count and to the total gives the corrected p-value:</p>
+
+<p>\[ p = \frac{1 + \#\{\, |g_b| \ge |g_{\text{obs}}| \,\}}{B + 1} \]</p>
+
+<p>Reading it left to right: \( g_{\text{obs}} \) is the gap in the real classes, six points. \( g_b \) is the gap from shuffle number b. The <code>#</code> sign means "the number of", so the top counts the shuffles that reached six points, plus one for the real split. B is how many shuffles you ran, and the bottom is that plus the same one.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add the observed split to the count and to the total
+B &lt;- 10000
+p_value &lt;- (1 + sum(abs(null_gaps) &gt;= obs_gap)) / (B + 1)
+
+round(p_value, 4)
+#&gt; [1] 0.0132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.0132 instead of 0.0131. On this data the correction changes almost nothing, which is normal.</p>
+
+<p>It matters at the other end of the scale. Without the plus one, a result so extreme that no shuffle ever matched it would report a p-value of exactly zero, and zero would be a claim that the boring story is flat-out impossible. Ten thousand shuffles cannot support a claim that strong. With the correction the smallest number you can ever report is 1 divided by 10,001, which says exactly the right thing: rarer than ten thousand shuffles could measure.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Use the corrected formula every time. It costs one character, it can never be wrong, and it stops you publishing a p-value of zero.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Where the six-point gap sits in the null distribution</h2>
+
+<p>First, let's take those ten thousand grey bars and smooth them into a curve. It has the same shape, piled around zero and thinning out as you move away in either direction.</p>
+
+<p>To put the real gap on that curve we need it in the curve's own units, which are not exam points. They are noise widths: how many standard deviations of the null distribution the gap sits away from zero.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Measure the real gap in standard deviations of the null distribution
+round(sd(null_gaps), 3)
+#&gt; [1] 2.421
+
+round(obs_gap / sd(null_gaps), 2)
+#&gt; [1] 2.48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Luck's typical gap is about 2.42 points, and six points is 2.48 of those. That is where the slider starts.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"start":2.48,"label":"how far the six-point gap sits from zero"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The shaded area is the p-value: the share of luck-only results that reach at least as far out as ours, counted on both sides. At 2.48 it reads about 0.013, which is where our counting landed.</p>
+
+<p>Now drag it. Push the result further from zero, as if class A had won by more, and the shaded slice keeps shrinking. Pull it back toward zero and the slice swells, because a small gap is the sort of thing luck produces all the time.</p>
+
+<p>So a result further from the middle leaves a smaller tail, and a smaller tail is a smaller p-value.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: the one-sided p-value</h2>
+
+<p>We counted both directions, because a six-point win for class B would have surprised us just as much. Suppose you had said in advance that the new method could only help and never hurt. Then only one direction counts: the shuffles where class A came out ahead.</p>
+
+<p><code>null_gaps</code> still holds all 10,000 gaps and <code>obs_gap</code> still holds the real 6. Drop the <code>abs()</code>, count the shuffles where class A finished six points or more ahead, then turn that count into a corrected p-value.</p>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step10" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="null_gaps\s*&gt;=\s*obs_gap"><textarea class="lesson-tryit-input" spellcheck="false"># null_gaps holds 10,000 gaps in exam points, from shuffles where
+# the class label meant nothing. obs_gap is the real gap, 6.
+# Count the shuffles where class A finished 6 points or more ahead,
+# then write that count as a corrected p-value.
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 75 of the 10,000, a corrected p-value of 0.0076. It comes out close to half the two-sided answer, because the null distribution is near enough symmetric around zero.</span><span class="lesson-tryit-fb lesson-tryit-no">Take the counting line from a moment ago and drop the <code>abs()</code> from it, leaving <code>sum(null_gaps &gt;= obs_gap)</code>. Then wrap that count in the corrected formula, <code>(1 + count) / (B + 1)</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Count only the shuffles that put class A ahead by six points or more
+sum(null_gaps &gt;= obs_gap)
+#&gt; [1] 75
+
+round((1 + sum(null_gaps &gt;= obs_gap)) / (B + 1), 4)
+#&gt; [1] 0.0076</code></pre></details></div>
+</section>
+<p>Half of 0.0132 is 0.0066 and we got 0.0076, so the two sides are close but not identical, because the null distribution is only roughly symmetric.</p>
+
+<p>Deciding one-sided before you look at the data is fine. Deciding it afterwards, once you have seen which way the gap fell, is not, because then you are picking the direction that suits you and halving your own p-value.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>Exchangeability, the one assumption behind the shuffle</h2>
+
+<p>Every test rests on something. So it is worth being clear about what this one rests on, and the list is short.</p>
+
+<p>The shuffle assumes that when the null hypothesis is true, the labels can be swapped between observations without changing anything about the data. Statisticians call this <strong>exchangeability</strong>. Sixty students, sixty scores, and if the method did nothing then any deal of thirty A labels and thirty B labels is as likely as any other. That is the entire assumption.</p>
+
+<p>Notice what is not on the list:</p>
+
+<ul>
+
+<li><strong>Normality.</strong> The scores can be skewed, lumpy, bimodal, whatever they are. The shuffle never asks.</li>
+
+<li><strong>Equal variance.</strong> Class A can be far more spread out than class B and it changes nothing.</li>
+
+<li><strong>A large sample.</strong> Nothing here appeals to what happens as the sample grows. Eight students per class works the same way as eight hundred.</li>
+
+<li><strong>A statistic with known behaviour.</strong> We come back to this shortly, and it is the part that buys you the most.</li>
+
+</ul>
+
+<p>What the assumption does demand is that the labels are genuinely interchangeable under the null. That is a fact about how the data was collected, not about the numbers themselves, and it is the one thing you have to think about rather than test.</p>
+
+<p>When it holds, the shuffle is exact and needs nothing else. When it does not hold, shuffling freely gives you a confident answer to the wrong question.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>When a free shuffle is the wrong shuffle</h2>
+
+<p>Here is a study where free shuffling falls apart, and it falls apart without any warning, which is what makes it worth seeing.</p>
+
+<p>Twenty students sat a test, then went through the new method, then sat a comparable test again. Nobody is being compared to anybody else. Each student is their own control, and the number that matters is the gain: their second score minus their first.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the before-and-after scores for 20 students and measure the average gain
+set.seed(21)
+before &lt;- round(rnorm(20, 70, 11))
+after  &lt;- before + round(rnorm(20, 4, 5))
+gain   &lt;- after - before
+
+head(data.frame(student = 1:20, before, after, gain), 5)
+#&gt;   student before after gain
+#&gt; 1       1     79    85    6
+#&gt; 2       2     76    80    4
+#&gt; 3       3     89    88   -1
+#&gt; 4       4     56    54   -2
+#&gt; 5       5     94    97    3
+
+gain
+#&gt;  [1]  6  4 -1 -2  3  8  6 -2  0  0 -5  2  4  9 12  4 13  4 11 11
+
+mean(gain)
+#&gt; [1] 4.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The average student gained 4.35 points. The best gained 13, one lost 5, and two did not move at all.</p>
+
+<p>Now, which labels are exchangeable here? Not <code>before</code> and <code>after</code> across the whole set of forty scores, because student 5 scoring in the nineties and student 4 scoring in the fifties has nothing to do with the method. Swapping one student's score for another student's score invents a comparison the study never made.</p>
+
+<p>What is exchangeable is the direction of each student's own change. If the method did nothing, a student who went up 6 was equally likely to have gone down 6, so the sign of each gain is a coin flip. That is the shuffle this design allows: keep every gain attached to its own student, and flip signs.</p>
+
+<p>Let's run both and put them side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the right shuffle with the wrong one on the same 20 students
+set.seed(1)
+flip_gains &lt;- replicate(10000, {
+  signs &lt;- sample(c(-1, 1), 20, replace = TRUE)
+  mean(signs * gain)
+})
+
+all_scores &lt;- c(before, after)
+labels     &lt;- rep(c(&quot;before&quot;, &quot;after&quot;), each = 20)
+free_gains &lt;- replicate(10000, {
+  shuffled &lt;- sample(labels)
+  mean(all_scores[shuffled == &quot;after&quot;]) - mean(all_scores[shuffled == &quot;before&quot;])
+})
+
+p_flip &lt;- (1 + sum(abs(flip_gains) &gt;= mean(gain))) / 10001
+p_free &lt;- (1 + sum(abs(free_gains) &gt;= mean(gain))) / 10001
+
+round(c(sign_flip = p_flip, free_shuffle = p_free), 4)
+#&gt;    sign_flip free_shuffle
+#&gt;       0.0013       0.3122</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It is the same twenty students, the same 4.35-point gain and the same ten thousand shuffles. The right shuffle reads 0.0013. The wrong one reads 0.3122, which most people would read as "nothing here" and walk away from.</p>
+
+<p>The free shuffle buried the effect under the differences between students. Those differences are large, they have nothing to do with the method, and pairing was the design that removed them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The design decides what may be exchanged, and the code will not tell you when you have got it wrong. A free shuffle on paired data runs cleanly, returns a sensible-looking number, and hides a real effect.</div></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which shuffle fits a before-and-after design?</h2>
+
+<p>Twenty students were measured before the method and again after it, so every student appears twice.</p>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Pool all forty scores and deal out twenty before labels and twenty after labels at random, exactly as with two separate classes.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Shuffle the students into two groups of ten and compare those groups.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Keep each student's own gain attached to that student and flip its sign at random, because under the null a gain of plus 6 was as likely to have been minus 6.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">No shuffle works on paired data, so a paired t-test is the only option left.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is the one. Pairing is what removes the differences between students, and only a shuffle that respects the pairing keeps that advantage.</div><div class="lesson-qfb lesson-qfb-no">The pairing is the design's strength, and a shuffle that ignores it throws that strength away: the free shuffle mixed one student's score with another student's and read 0.3122 on a gain the sign-flip called 0.0013. Paired data does not rule out permutation, it only rules out shuffling freely.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>Testing the median, a statistic with no formula</h2>
+
+<p>Now for the part that pays for the whole method.</p>
+
+<p>Everything we have done to the mean, we can do to any number computed from the data, because the shuffle never once used a property of the mean. It shuffled labels, recomputed something, and counted. Swap what gets recomputed and the machinery does not notice.</p>
+
+<p>Say the class averages worry you. One student who walks out early can drag a mean around, and the median does not care. There is no neat textbook formula for the sampling distribution of a difference in medians, which is exactly why medians are so rarely tested. The shuffle does not need one.</p>
+
+<p>Watch how little has to change: <code>median</code> goes where <code>mean</code> was, and nothing else moves.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the same shuffle again, comparing medians instead of means
+obs_median_gap &lt;- median(exam$score[exam$class == &quot;A&quot;]) -
+                  median(exam$score[exam$class == &quot;B&quot;])
+
+set.seed(1)
+null_medians &lt;- replicate(10000, {
+  shuffled_class &lt;- sample(exam$class)
+  median(exam$score[shuffled_class == &quot;A&quot;]) -
+    median(exam$score[shuffled_class == &quot;B&quot;])
+})
+
+p_median &lt;- (1 + sum(abs(null_medians) &gt;= obs_median_gap)) / 10001
+
+c(median_gap = obs_median_gap,
+  matches    = sum(abs(null_medians) &gt;= obs_median_gap),
+  p_value    = round(p_median, 4))
+#&gt; median_gap    matches    p_value
+#&gt;     5.0000   251.0000     0.0252</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The median score in class A is five points above class B, 251 shuffles reached five points or more, and the p-value is 0.0252.</p>
+
+<p>That is weaker than the 0.0132 the means gave, and the reason is worth knowing. These are whole-number exam scores, so a median can only ever land on a whole number or a half. A statistic that moves in steps that coarse separates fewer shuffles from each other, and a test that cannot tell its shuffles apart cannot be as sharp. You trade a little of that sharpness for a statistic no single wild score can drag around.</p>
+
+<p>The point stands either way: you just tested a difference in medians, and you did not look up a single thing.</p>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="tryit" data-gate="1">
+<h2>Your turn: a permutation test on the trimmed mean</h2>
+
+<p>The trimmed mean sits between the two. <code>mean(x, trim = 0.1)</code> throws away the lowest 10% and the highest 10% of the values and averages what is left, so it keeps the mean's fine grain while refusing to be dragged by the extremes.</p>
+
+<p><code>exam</code> is still in scope. Run the same test on a 10% trimmed mean: work out the observed gap, shuffle 10,000 times after <code>set.seed(1)</code>, and report the corrected p-value.</p>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="trim\s*=\s*0?\.1"><textarea class="lesson-tryit-input" spellcheck="false"># exam holds 60 students in two classes of 30, with columns class and score.
+# Compute the gap in 10 percent trimmed means between class A and class B,
+# shuffle the class labels 10,000 times after set.seed(1) collecting that gap,
+# then report the corrected p-value.
+# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: a trimmed gap of 6.5 points, 69 shuffles reaching it, and a corrected p-value of 0.007. Trimming the tails widened the gap and sharpened the test.</span><span class="lesson-tryit-fb lesson-tryit-no">Only one thing changes from the median run, and that is the statistic. Write a small helper such as trim_mean, defined as mean of s with trim = 0.1, then use it in place of median in both the observed gap and the loop.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Run the same shuffle on a 10 percent trimmed mean
+trim_mean &lt;- function(s) mean(s, trim = 0.1)
+
+obs_trim_gap &lt;- trim_mean(exam$score[exam$class == &quot;A&quot;]) -
+                trim_mean(exam$score[exam$class == &quot;B&quot;])
+
+set.seed(1)
+null_trimmed &lt;- replicate(10000, {
+  shuffled_class &lt;- sample(exam$class)
+  trim_mean(exam$score[shuffled_class == &quot;A&quot;]) -
+    trim_mean(exam$score[shuffled_class == &quot;B&quot;])
+})
+
+p_trim &lt;- (1 + sum(abs(null_trimmed) &gt;= obs_trim_gap)) / 10001
+
+c(trimmed_gap = obs_trim_gap,
+  matches     = sum(abs(null_trimmed) &gt;= obs_trim_gap),
+  p_value     = round(p_trim, 4))
+#&gt; trimmed_gap     matches     p_value
+#&gt;       6.500      69.000       0.007</code></pre></details></div>
+</section>
+<p>Three statistics on the same sixty students now: 0.0132 for the mean, 0.0252 for the median, 0.007 for the trimmed mean. They disagree in the third decimal because each one asks a slightly different question about the same data, and the shuffle tested all three exactly the same way.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<h2>What the t-test assumes that the shuffle does not</h2>
+
+<p>The t-test would have answered this question in one line, so it is fair to ask what the shuffling bought us. Run it on the sixty exam scores and see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run Welch's t-test on the same sixty exam scores
+t.test(exam$score[exam$class == &quot;A&quot;], exam$score[exam$class == &quot;B&quot;])
+#&gt;
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  exam$score[exam$class == &quot;A&quot;] and exam$score[exam$class == &quot;B&quot;]
+#&gt; t = 2.5732, df = 57.777, p-value = 0.01266
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;   1.33223 10.66777
+#&gt; sample estimates:
+#&gt; mean of x mean of y
+#&gt;        78        72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.01266 against our 0.0132. They agree to two decimals, and neither one is more correct than the other. The t-test got there by assuming a shape for the null distribution and reading the tail off that shape. We got there by building the null distribution out of the data and counting it.</p>
+
+<p>So on sixty well-behaved scores the assumption costs nothing. Here is a study where it costs a lot.</p>
+
+<p>Before the full rollout, the method was piloted on eight students per class. In class B one student walked out after ten minutes and scored 9.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the two tests on the eight-per-class pilot, including the walkout score of 9
+pilot &lt;- data.frame(
+  class = rep(c(&quot;A&quot;, &quot;B&quot;), each = 8),
+  score = c(85, 87, 68, 81, 69, 79, 75, 96,
+            67, 63, 66, 73, 69, 71, 79,  9)
+)
+
+round(tapply(pilot$score, pilot$class, sd), 2)
+#&gt;     A     B
+#&gt;  9.43 22.01
+
+pilot_gap &lt;- mean(pilot$score[pilot$class == &quot;A&quot;]) -
+             mean(pilot$score[pilot$class == &quot;B&quot;])
+
+set.seed(1)
+pilot_nulls &lt;- replicate(10000, {
+  shuffled &lt;- sample(pilot$class)
+  mean(pilot$score[shuffled == &quot;A&quot;]) - mean(pilot$score[shuffled == &quot;B&quot;])
+})
+
+p_pilot_perm &lt;- (1 + sum(abs(pilot_nulls) &gt;= pilot_gap)) / 10001
+p_pilot_t    &lt;- t.test(pilot$score[pilot$class == &quot;A&quot;],
+                       pilot$score[pilot$class == &quot;B&quot;])$p.value
+
+round(c(gap = pilot_gap, t_test = p_pilot_t, permutation = p_pilot_perm), 4)
+#&gt;         gap      t_test permutation
+#&gt;     17.8750      0.0624      0.0116</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two classes are nearly 18 points apart, and the two tests disagree about whether that means anything. The t-test says 0.0624 and shrugs. The shuffle says 0.0116.</p>
+
+<p>The 9 is doing all of it. Look at the two standard deviations above: 9.43 in class A and 22.01 in class B, and that whole difference is one score's doing. The t statistic is the gap divided by a term built out of those standard deviations, so a denominator that large drags the whole statistic down. The shuffle never divides by anything. It moves the 9 around with all the other scores and asks how often that produces an 18-point gap.</p>
+
+<p>Take the walkout out and the disagreement goes with it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Drop the walkout score and run both tests again
+kept &lt;- pilot[pilot$score != 9, ]
+
+kept_gap &lt;- mean(kept$score[kept$class == &quot;A&quot;]) -
+            mean(kept$score[kept$class == &quot;B&quot;])
+
+set.seed(1)
+kept_nulls &lt;- replicate(10000, {
+  shuffled &lt;- sample(kept$class)
+  mean(kept$score[shuffled == &quot;A&quot;]) - mean(kept$score[shuffled == &quot;B&quot;])
+})
+
+round(c(gap         = kept_gap,
+        t_test      = t.test(kept$score[kept$class == &quot;A&quot;],
+                             kept$score[kept$class == &quot;B&quot;])$p.value,
+        permutation = (1 + sum(abs(kept_nulls) &gt;= kept_gap)) / 10001), 4)
+#&gt;         gap      t_test permutation
+#&gt;     10.2857      0.0222      0.0215</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.0222 and 0.0215. The two are back in step.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A t-test is a permutation test plus an assumption about the shape of the null distribution. On plenty of data with no wild values that assumption is nearly free and the two agree. On eight scores with one extreme value the assumption is doing real work, and the shuffle is the one that keeps working.</div></div>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<h2>Listing every shuffle, or sampling ten thousand of them</h2>
+
+<p>The word usually attached to this method is <strong>exact</strong>, and it means something specific here. The null distribution is not an approximation of anything. It is the actual list of every way the labels could have been dealt out, with the statistic worked out for each one, and the p-value is a straight proportion of that list.</p>
+
+<p>So why did we sample ten thousand instead of listing them all? Because of how many there are.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count how many ways the class labels could be dealt out, for a few class sizes
+per_class &lt;- c(5, 10, 20, 30)
+
+data.frame(
+  students_per_class = per_class,
+  possible_deals     = signif(choose(2 * per_class, per_class), 3)
+)
+#&gt;   students_per_class possible_deals
+#&gt; 1                  5       2.52e+02
+#&gt; 2                 10       1.85e+05
+#&gt; 3                 20       1.38e+11
+#&gt; 4                 30       1.18e+17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>choose(n, k)</code> counts the ways of picking k things out of n, which is exactly the number of ways of choosing which students get the A labels. Five per class gives 252 deals and you could list them over lunch. Ten per class gives 185 thousand and a computer lists them instantly. Our thirty per class gives 1.18e+17, which is R's shorthand for 118 followed by fifteen zeros, and nothing is listing that.</p>
+
+<p>So we drew ten thousand of those deals at random instead. That makes the p-value an estimate, and an estimate carries a margin. Since the p-value is a proportion, its margin is the usual standard error for a proportion.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Work out the margin on a p-value estimated from 10,000 random shuffles
+round(sqrt(p_value * (1 - p_value) / B), 4)
+#&gt; [1] 0.0011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 0.0132 and ten thousand shuffles the margin is about 0.001. Run the whole thing again with a different seed and you would land near 0.012 or 0.014, which changes nothing about what you do next. Ten thousand is the number most people use and it is enough for two decimal places. If you are reporting a p-value that sits near a threshold you care about, push it to a hundred thousand and the margin drops by roughly a factor of three.</p>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading a permutation p-value</h2>
+
+<p>Our sixty exam scores gave a six-point gap and a corrected p-value of 0.0132. Which sentence reads it correctly?</p>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step18" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 1.3% chance that the new teaching method made no difference.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">If the method had made no difference, a gap of six points or more would still turn up in about 13 of every 1,000 shuffles. We got one.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The new method raises the class average by about 1.3 points.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">With enough shuffles the p-value would eventually settle at zero, since the real split sits so far out.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. It assumes the boring story first and then reports how ordinary our data would look inside it. That is the only direction the number ever runs.</div><div class="lesson-qfb lesson-qfb-no">Two of these put the probability on the truth of the method or on the size of the win, and a p-value does neither: the win is six points, and 0.0132 is how ordinary a win that size would be under luck alone. The last one is what the plus one in the formula exists to prevent. More shuffles shrink the margin around the estimate, they never take it to zero, and the floor stays at 1 divided by B plus 1.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="tryit" data-gate="1">
+<h2>Your turn: turn the whole test into one function</h2>
+
+<p>You have now run the same four moves again and again: work out the statistic on the real groups, shuffle the labels, collect the statistic each time, then count and correct. That is a function waiting to be written.</p>
+
+<p>Write <code>perm_test(x, y, stat, B)</code> where <code>x</code> and <code>y</code> are the two groups of scores, <code>stat</code> is the function to compare them with, and <code>B</code> is the number of shuffles. It should return the corrected two-sided p-value.</p>
+
+<p>Here is a hint on the shuffle. Inside a function you no longer have a <code>class</code> column to sample, so pool <code>x</code> and <code>y</code> into one vector and draw a random <code>length(x)</code> of its positions to be the new first group each time.</p>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step19" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="perm_test\s*&lt;-\s*function[\s\S]*1\s*\+\s*sum"><textarea class="lesson-tryit-input" spellcheck="false"># exam holds 60 students in two classes of 30, with columns class and score.
+# Fill in the body so the function returns the corrected two-sided p-value,
+# then try it with stat = mean and with stat = median.
+# Press Check when you have it.
+perm_test &lt;- function(x, y, stat = mean, B = 10000) {
+
+}</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Well done. One function now tests any statistic you can name, on any two groups, which is the real reach of the method.</span><span class="lesson-tryit-fb lesson-tryit-no">Four lines inside the braces. <code>obs</code> is <code>stat(x) - stat(y)</code>. <code>pooled</code> is <code>c(x, y)</code>. <code>nulls</code> is a <code>replicate()</code> over B that picks <code>length(x)</code> positions and takes the difference of <code>stat</code> on the picked half and the unpicked half. The last line, the one the function returns, is <code>(1 + sum(abs(nulls) &gt;= abs(obs))) / (B + 1)</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Wrap the whole test into one function that takes any statistic
+perm_test &lt;- function(x, y, stat = mean, B = 10000) {
+  obs    &lt;- stat(x) - stat(y)
+  pooled &lt;- c(x, y)
+  n_x    &lt;- length(x)
+
+  nulls &lt;- replicate(B, {
+    picked &lt;- sample(length(pooled), n_x)
+    stat(pooled[picked]) - stat(pooled[-picked])
+  })
+
+  (1 + sum(abs(nulls) &gt;= abs(obs))) / (B + 1)
+}
+
+set.seed(1)
+round(c(
+  mean_p   = perm_test(exam$score[exam$class == &quot;A&quot;], exam$score[exam$class == &quot;B&quot;]),
+  median_p = perm_test(exam$score[exam$class == &quot;A&quot;], exam$score[exam$class == &quot;B&quot;],
+                       stat = median)
+), 4)
+#&gt;   mean_p median_p
+#&gt;   0.0129   0.0237</code></pre></details></div>
+</section>
+<p>0.0129 and 0.0237, against the 0.0132 and 0.0252 we counted by hand. The small differences are the margin we just measured: these are ten thousand different random deals, so the estimate wobbles by a thousandth or two either way and lands in the same place.</p>
+
+<p>Notice what <code>stat</code> did. Pass <code>mean</code>, pass <code>median</code>, pass <code>function(s) mean(s, trim = 0.1)</code>, pass the difference in 90th percentiles if that is what your question is about. The function never needs to know.</p>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing the shuffle and the statistic</h2>
+
+<p>A physiotherapist measures walking speed for 24 patients, once before a six-week programme and once after. Most patients improve a little; two improve enormously.</p>
+<section class="exercise" data-exercise-id="Resampling-Mini-1-step20" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Pool all 48 measurements, deal out 24 before labels and 24 after labels at random, and compare the means.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Drop the two large improvers as outliers, then run a t-test on the remaining 22 patients.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Flip the sign of each patient's own before-and-after change, use a statistic the two large gains cannot dominate such as the median or a trimmed mean, and count as usual.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Any shuffle will do, since permutation tests make no assumptions at all.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Both halves right. The design is paired, so only the signs are exchangeable, and swapping the statistic costs nothing because the shuffle never needed a formula for it.</div><div class="lesson-qfb lesson-qfb-no">A permutation test makes exactly one assumption, and it is a real one: that the labels are exchangeable under the null. Paired measurements are not freely exchangeable, so pooling all 48 mixes one patient with another and buries the effect. Discarding inconvenient patients is a separate problem again, since the two large improvers may be the most honest thing in the data. Change the statistic instead of the data.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="21" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://archive.org/details/in.ernet.dli.2015.502684">The Design of Experiments</a> - Fisher (1935), chapter 2. The randomization argument in its original form: the test comes from how the experiment assigned its units, not from an assumed distribution.</li>
+
+<li><a href="https://doi.org/10.2307/2983647">Significance Tests Which May be Applied to Samples From any Populations</a> - Pitman (1937), Supplement to the Journal of the Royal Statistical Society 4(1), 119-130. The permutation test worked out as general theory.</li>
+
+<li><a href="https://doi.org/10.1214/088342304000000396">Permutation Methods: A Basis for Exact Inference</a> - Ernst (2004), Statistical Science 19(4), 676-685. A clear modern account of what exact means here, with worked two-sample and paired examples.</li>
+
+<li><a href="https://doi.org/10.2202/1544-6115.1585">Permutation P-values Should Never Be Zero</a> - Phipson and Smyth (2010), Statistical Applications in Genetics and Molecular Biology 9(1), Article 39. The source of the plus one correction.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v028.i08">Implementing a Class of Permutation Tests: The coin Package</a> - Hothorn, Hornik, van de Wiel and Zeileis (2008), Journal of Statistical Software 28(8). The production implementation, for when you want exact enumeration and k-sample tests done for you.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="22" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You built a p-value out of sixty exam scores and nothing else. Here is the whole thing in one place.</p>
+
+<ul>
+
+<li><strong>The shuffle.</strong> If the label changed nothing, the label can be dealt out again. Peel it off all sixty students, hand it back at random, and no score ever moves.</li>
+
+<li><strong>The pile.</strong> Ten thousand shuffles give ten thousand gaps, and that pile is the null distribution, built out of your data rather than assumed.</li>
+
+<li><strong>The count.</strong> 131 of the 10,000 shuffles reached the real six-point gap, which is a share of 0.0131.</li>
+
+<li><strong>The correction.</strong> The real split is itself one valid deal, so it joins the count and the total: 0.0132, and a permutation p-value can never come out as zero.</li>
+
+<li><strong>The one assumption.</strong> Exchangeability, and nothing else. No normality, no equal variance, no large sample. The design decides what may be swapped, which is why paired data gets its signs flipped rather than its scores pooled.</li>
+
+<li><strong>The freedom it buys.</strong> The shuffle never used a property of the mean, so a median, a trimmed mean or anything else you can compute gets tested the same way, with no formula to look up.</li>
+
+</ul>
+
+<p>The one thing this leaves open is the size of the win. 0.0132 says a six-point gap would be unusual under luck alone, and it says nothing at all about how much the new method is worth. For that you need a range around the six points rather than a verdict on it, and the bootstrap is what builds that range.</p>
+</section>
+
+{% endraw %}
