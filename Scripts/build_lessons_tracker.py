@@ -122,6 +122,7 @@ LESSON_CATALOG_TITLE = {
     'Which-Test-Mini-4': "Fisher's exact test: when and how, with a worked example",
     'Resampling-Mini-1': 'Permutation tests: exact p-values without formulas',
     'Resampling-Mini-2': 'Bootstrap confidence intervals: for any statistic',
+    'Beyond-Lines-Mini-1': 'Segmented regression: find the breakpoints',
 }
 
 
