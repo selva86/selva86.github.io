@@ -115,6 +115,7 @@ LESSON_CATALOG_TITLE = {
     'Bayesian-Mini-4': 'Credible vs confidence intervals: the difference that matters',
     'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
     'Foundations-Mini-3': 'Law of Large Numbers vs CLT: the real difference',
+    'Foundations-Mini-4': 'Statistical vs practical significance: report both',
     'Which-Test-Mini-2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v2': "Welch's ANOVA: the test for unequal group variances",
     'Which-Test-Mini-2-v3': "Welch's ANOVA: the test for unequal group variances",
