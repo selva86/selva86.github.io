@@ -130,6 +130,7 @@ LESSON_CATALOG_TITLE = {
     'Beyond-Lines-Mini-1': 'Segmented regression: find the breakpoints',
     'Beyond-Lines-Mini-2': 'Poisson regression: model count data right',
     'Structure-Mini-1': 'Interpreting PCA: what loadings and scores mean',
+    'TS-Toolkit-Mini-1': 'Cointegration: test when two series move together',
 }
 
 
