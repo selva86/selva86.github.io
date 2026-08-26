@@ -221,8 +221,7 @@
     $('dh-reading-aside').textContent = pct + '% read';
     $('dh-reading').innerHTML = '<a class="mini" href="' + postHref(rd.slug) + '" style="border:0;padding-top:8px">' +
       '<span class="ic">' + ic('i-book') + '</span>' +
-      '<span class="tx"><b>' + esc(titleFor(rd.slug)) + '</b><small>tutorial' + (rd.last_section ? ', ' + esc(rd.last_section) : '') + '</small></span>' +
-      '<span class="cd">' + pct + '%</span></a>';
+      '<span class="tx"><b>' + esc(titleFor(rd.slug)) + '</b><small>tutorial' + (rd.last_section ? ', ' + esc(rd.last_section) : '') + '</small></span></a>';
   }
 
   function renderSaved(){
@@ -264,7 +263,7 @@
       : 'Graded practice in the ' + a.L.persona + ' track counts toward it. The certificate is public, and anyone can verify it.';
     var p = trackProgress(a.key);
     var facts = [];
-    if (p.total) facts.push('<span><b>' + p.done + '</b> of ' + p.total + ' lessons done</span>');
+    if (p.total && p.done > 0) facts.push('<span><b>' + p.done + '</b> of ' + p.total + ' lessons done</span>');
     facts.push('<span><b>' + fmt((S.tracks && S.tracks.total_solved) || 0) + '</b> exercises solved</span>');
     var earned = ((S.certs && S.certs.items) || []).length;
     if (earned) facts.push('<span><b>' + earned + '</b> earned before it</span>');
@@ -479,7 +478,7 @@
     S.tracks = { total_solved:64, tracks:[{ id:'r-fundamentals', pct:100 }, { id:'tidyverse-practitioner', pct:100 }, { id:'machine-learning', pct:46 }, { id:'statistics-for-ds', pct:22 }] };
     S.certs = { items:[{ public_id:'RST-2026-T5V102', track:'tidyverse-practitioner', track_name:'Tidyverse Practitioner', issued_at:dn - 1000000, score:88, verify_url:'#' }, { public_id:'RST-2026-RF4127', track:'r-fundamentals', track_name:'R Foundations', issued_at:dn - 3000000, score:94, verify_url:'#' }] };
     S.reading = { items:[{ slug:'Linear-Regression', scroll_pct:62, last_section:'Model diagnostics' }] };
-    S.saved = { total:34, items:[{ slug:'Logistic-Regression' }, { slug:'Random-Forest' }, { slug:'GARCH-Models-in-R-2' }, { slug:'Quantile-Regression-in-R-2' }] };
+    S.saved = { total:34, items:[{ slug:'Logistic-Regression' }, { slug:'Random-Forest' }, { slug:'GARCH-Models-in-R' }, { slug:'Quantile-Regression-in-R' }] };
     S.daily = { bonus_xp:25, all_done:false, tasks:[
       { hub:'dplyr-Exercises', href:'#', reason:'keeps your wrangling sharp', difficulty:'core', done:true, track:'Data Analyst' },
       { hub:'Cross-Validation-Exercises', href:'#', reason:'practice from your active course', difficulty:'stretch', done:true, track:'Machine Learning' },
