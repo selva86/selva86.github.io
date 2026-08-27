@@ -1136,3 +1136,139 @@ Open for 3 days. About 15 minutes.
 
 Akshay
 ```
+
+## seq 52 - lesson (bayesian-decisions)
+
+- **Subject:** Posterior predictive checks, in 5 minutes
+- **Preheader:** Ask your model to invent data. See if it looks like yours.
+
+```
+Hi {first_name},
+
+Yesterday you fit Bayesian models with brms. Today, one habit that keeps those models honest.
+
+The idea is almost childlike, and that is its charm. If your model is a good description of daily sales, then data simulated from it should look like your actual sales. So you ask the fitted model to invent a few hundred fake datasets and plot them over the real one. When the real data sits comfortably among the fakes, the model has earned some trust. When the real data sticks out, skewed where the fakes are symmetric, or spikier than any fake, the model is missing something, and the plot usually shows you what.
+
+This is called a posterior predictive check, and it takes one line with brms.
+
+Today you will run these checks in R and practice reading the pictures.
+
+[Check your model against reality -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 53 - lesson (bayesian-decisions)
+
+- **Subject:** Bayesian hierarchical models, explained
+- **Preheader:** Twenty stores, some with thin data. The fix for wild small-sample estimates.
+
+```
+Hi {first_name},
+
+Let's say you manage twenty stores and want an estimate of the promotion effect in each one. Two obvious approaches, and both have a flaw. Pool everything and you get one blended number that pretends the stores are identical. Estimate each store alone and the small stores give you wild answers based on a handful of sales.
+
+There is a third way, and it is one of the most useful ideas in statistics.
+
+A hierarchical model lets every store have its own effect while assuming the effects come from a common distribution. Small stores get pulled toward the overall average, exactly as much as their thin data deserves, while big stores mostly keep their own estimate. Statisticians call this partial pooling, and once you see it work you will find uses for it everywhere.
+
+Today you will fit one in brms and watch the small-store estimates get saner.
+
+[Fit your first hierarchical model -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 54 - lesson (hidden-structure)
+
+- **Subject:** Exploratory factor analysis, step by step
+- **Preheader:** PCA compresses your survey. Factor analysis explains why questions move together.
+
+```
+Hi {first_name},
+
+Remember the PCA lesson, where you compressed a twenty-question survey into a few components? Factor analysis looks similar on the surface but asks a deeper question: why do certain questions move together in the first place?
+
+The answer it proposes is hidden traits. Five satisfaction questions correlate because one unobserved thing, actual satisfaction, drives all five. EFA works backwards from the correlations to those hidden factors, tells you how many the data supports, and shows which questions belong to which factor. This is the tool behind every personality test and most serious survey work.
+
+Today you will run an EFA in R step by step: choose the number of factors, rotate, and read the loadings until the factors have names.
+
+[Find the hidden traits in your data -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 55 - lesson (foundations-extras)
+
+- **Subject:** The Central Limit Theorem: watch it work in a simulation
+- **Preheader:** Skewed data in, bell curve out. Watch the theorem behind every t-test work.
+
+```
+Hi {first_name},
+
+There is one theorem doing quiet work behind almost every method in this series. Every t-test you have run, every confidence interval you have built, leaned on it.
+
+Here is the claim, and it sounds too good to be true. Take almost any data, however skewed or lumpy: incomes, delivery times, dice rolls. Draw samples and compute their averages. Those averages will pile up into a bell curve, even though the data itself looks nothing like one. That is the Central Limit Theorem, and it is the reason normal-based methods keep working on non-normal data.
+
+Reading that claim is one thing. Watching it happen is another. Right?
+
+Today you will simulate it in R: start from a wildly skewed distribution, take averages, and watch the bell curve assemble itself in front of you. After this, a whole family of methods stops feeling like magic.
+
+[Watch the bell curve appear -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 56 - lesson (hidden-structure)
+
+- **Subject:** Clustering in R: k-means, hierarchical, or DBSCAN
+- **Preheader:** K-means, hierarchical, DBSCAN: three answers, and how to pick the right one.
+
+```
+Hi {first_name},
+
+Let's say marketing asks you to segment your customers into groups: who buys often, who buys big, who is drifting away. No column in the data holds the answer. The groups have to be discovered, and that is exactly what clustering does.
+
+R gives you three main tools for it, and they disagree in interesting ways. K-means is fast and wants you to name the number of groups upfront. Hierarchical clustering builds a family tree of your customers and lets you cut it at any level. DBSCAN finds groups of any shape on its own and, usefully, points out which customers fit nowhere.
+
+Run all three on the same data and you will get three different answers. Knowing why, and which one to trust for your situation, is the real skill.
+
+Today you will cluster one customer dataset all three ways in R and compare what each finds.
+
+[Segment your customers three ways -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
+
+## seq 57 - lesson (hidden-structure)
+
+- **Subject:** SEM and CFA with lavaan: a complete walkthrough
+- **Preheader:** State which questions measure what, then let the data judge the theory.
+
+```
+Hi {first_name},
+
+Three lessons ago you let factor analysis explore your survey and propose hidden traits. Today the roles flip: you state the structure you believe in, and the data gets to confirm or reject it.
+
+That is confirmatory factor analysis. You declare, say, that questions one to five measure satisfaction and six to ten measure loyalty, and the model reports how well that theory fits. Structural equation modeling then goes one step further and lets the hidden traits point at each other, so you can test claims like satisfaction drives loyalty, not just measure the two separately.
+
+This sounds advanced, and in most textbooks it is buried under notation. In R, the lavaan package makes the whole thing readable: describe the model in a small formula language, fit, inspect.
+
+Today you will walk one complete CFA and one small SEM from start to finish.
+
+[Test your theory against the data -> {url}]
+
+Open for 3 days. About 15 minutes.
+
+Akshay
+```
