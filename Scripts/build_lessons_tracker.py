@@ -114,6 +114,7 @@ LESSON_CATALOG_TITLE = {
     'Bayesian-Mini-3': 'The Bayesian t-test: measure evidence, not just significance',
     'Bayesian-Mini-4': 'Credible vs confidence intervals: the difference that matters',
     'Bayesian-Mini-5': 'Compare Bayesian models: LOO and WAIC',
+    'Bayesian-Mini-6': 'Brms: Bayesian regression without writing Stan',
     'Foundations-Mini-1': 'Conditional probability: P(A given B), made concrete',
     'Foundations-Mini-3': 'Law of Large Numbers vs CLT: the real difference',
     'Foundations-Mini-4': 'Statistical vs practical significance: report both',
