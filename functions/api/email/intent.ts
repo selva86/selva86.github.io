@@ -9,6 +9,7 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { verifyAlertSig, offerDueAt, type AlertEnv } from "../../_lib/pricealerts";
+import { notifyAdminEvent } from "../../_lib/notify";
 
 const WHEN = new Set(["today", "week", "month", "someday", "renew"]);
 
@@ -41,6 +42,21 @@ export const onRequestGet: PagesFunction<Env & AlertEnv, string, RequestData> = 
           "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, 'alert-confirm', 'intent', ?3, ?4)",
         ).bind(row.user_id || `pa:${id}`, row.email, now, w).run();
         ok = true;
+        const WHEN_TEXT: Record<string, string> = {
+          today: "TODAY: the 23% code goes out on the next hourly run",
+          week: "this week: code in 24 hours",
+          month: "a month or two: code in 21 days",
+          someday: "someday: code in 45 days",
+          renew: "tell me next time: back on the list, next occasion in 60 days",
+        };
+        try {
+          context.waitUntil(notifyAdminEvent(context.env, {
+            subject: `Discount intent: ${w} (${row.email})`,
+            headline: "A discount-alert reader answered when they want to start",
+            rows: [["Email", row.email], ["Answer", WHEN_TEXT[w] || w], ["Offer already sent", row.offer_sent_at ? "yes (answer ignored)" : "no"]],
+            replyTo: row.email,
+          }));
+        } catch { /* best effort */ }
       }
     }
   } catch { /* never block the page */ }

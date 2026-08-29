@@ -12,6 +12,7 @@ import type { Env, RequestData } from "../_middleware";
 import { json, jsonError } from "../_lib/errors";
 import { sendAlertConfirmation, type AlertEnv, type AlertRow } from "../_lib/pricealerts";
 import { ensureIntentTable } from "./signal";
+import { notifyAdminEvent } from "../_lib/notify";
 
 const SURFACES = new Set(["pricing", "pricing-bar", "lesson-locked", "why-pro", "dashboard"]);
 
@@ -80,5 +81,22 @@ export const onRequestPost: PagesFunction<Env & AlertEnv, string, RequestData> =
   } catch { /* best effort */ }
 
   const sent = await sendAlertConfirmation(context.env, row);
+  // The owner hears about every raised hand: this is the purest purchase
+  // intent on the site. Best effort, never blocks the response.
+  try {
+    context.waitUntil(notifyAdminEvent(context.env, {
+      subject: `Discount alert requested: ${email}`,
+      headline: "Someone asked to be told about a discount",
+      rows: [
+        ["Email", email],
+        ["Account", u ? `signed in (${u.display_name || u.id})` : "anonymous"],
+        ["Surface", surface],
+        ["Country", country || "unknown"],
+        ["Confirmation", sent ? "sent" : "not sent (dev mode / allowlist)"],
+        ["Next", "their answer to when-do-you-want-to-start sets the offer timing"],
+      ],
+      replyTo: email,
+    }));
+  } catch { /* best effort */ }
   return json({ ok: true, sent, already: false });
 };
