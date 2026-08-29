@@ -61,7 +61,7 @@
     if (btn) btn.addEventListener('click', function () {
       ga('price_alert_click', { surface: surface });
       if (readToken()) { submit(null); return; }
-      if (form) { form.hidden = false; form.style.display = ''; if (email) email.focus(); }
+      if (form) { form.hidden = false; form.style.display = 'inline-flex'; form.style.gap = '6px'; form.style.verticalAlign = 'middle'; if (email) email.focus(); }
       btn.hidden = true;
     });
     if (send) send.addEventListener('click', function () {
