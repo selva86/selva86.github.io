@@ -87,6 +87,12 @@
     link.parentNode.insertBefore(wrap, link); wrap.appendChild(link);
     link.classList.add('rn-trigger');
     link.setAttribute('aria-haspopup', 'true'); link.setAttribute('aria-expanded', 'false');
+    // One label sitewide: older section/tool pages still bake "Roadmap" into
+    // the markup; the dropdown is called Courses everywhere else (2026-08-29).
+    for (var ci = 0; ci < link.childNodes.length; ci++){
+      var tn = link.childNodes[ci];
+      if (tn.nodeType === 3 && /^\s*Roadmap\s*$/.test(tn.nodeValue)) tn.nodeValue = tn.nodeValue.replace('Roadmap', 'Courses');
+    }
     if (!link.querySelector('.ex-caret')){
       link.insertAdjacentHTML('beforeend', ' <svg class="rn-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
     }
