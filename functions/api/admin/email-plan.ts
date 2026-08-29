@@ -88,6 +88,14 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
     if (testKey.startsWith("seq:")) {
       const n = parseInt(testKey.slice(4), 10);
       const dest = seqUrl(n, uid, sig) || "https://r-statistics.co/";
+      // ?day=N renders the email as the reader's day-N send: the footer vote
+      // (days 1-12) and the reply postscript (days 3, 10) appear exactly as
+      // they would in the real send; votes from a test attribute to test:<key>.
+      const day = parseInt(url.searchParams.get("day") || "0", 10);
+      if (day > 0 && sig) {
+        const vb = `https://r-statistics.co/api/email/vote?u=${encodeURIComponent(uid)}&k=${encodeURIComponent(`test:${testKey}`)}&t=${sig}&v=`;
+        Object.assign(testData, { seq_day: day, vote_up_url: vb + "up", vote_down_url: vb + "down" });
+      }
       r = renderSeqEmail(n, dest, testData, await getSeqCopy(context.env.KV, n));
     } else {
       let ovr = null;
