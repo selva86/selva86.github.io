@@ -100,6 +100,12 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
     } else {
       let ovr = null;
       try { const raw = await context.env.KV.get(`emailcopy:${testKey}`); if (raw) ovr = JSON.parse(raw); } catch { /* default */ }
+      if (testKey === "quiet-probe" && sig) {
+        // Real signed links for the admin's own account, so the test email
+        // behaves exactly like a live probe (pause = 14 days, keep = clear).
+        const pb = `https://r-statistics.co/api/email/pause?u=${encodeURIComponent(uid)}&t=${sig}&d=`;
+        Object.assign(testData, { pause_url: pb + "14", keep_url: pb + "0" });
+      }
       r = renderEmail(testKey, testData, ovr);
     }
     if (!r) return jsonError(500, "render_failed", "Template rendered null (seq without copy?)");
