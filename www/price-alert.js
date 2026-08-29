@@ -38,10 +38,12 @@
       if (done) {
         done.hidden = false;
         if (res && res.already) done.textContent = 'You are already on the list. You will hear from me the moment there is a discount.';
-        else if (res && res.sent) done.textContent = 'Sent. A short note from Akshay is on its way to your inbox, with one quick question inside.';
+        else if (res && res.sent) done.textContent = 'Sent. I have asked you one quick question in that email, pls check.';
         else done.textContent = 'Noted. You will hear from me the moment there is a discount.';
       }
       ga('price_alert_optin', { surface: surface, sent: !!(res && res.sent) });
+      // A bar surface (the bottom whisper bar) slides away after the thank-you.
+      if (box.hasAttribute('data-palert-bar')) setTimeout(function () { box.classList.remove('show'); box.classList.add('gone'); }, 3500);
     }
     function submit(addr) {
       if (busy) return; busy = true;
