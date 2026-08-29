@@ -13,7 +13,7 @@ import { json, jsonError } from "../_lib/errors";
 import { sendAlertConfirmation, type AlertEnv, type AlertRow } from "../_lib/pricealerts";
 import { ensureIntentTable } from "./signal";
 
-const SURFACES = new Set(["pricing", "lesson-locked", "why-pro", "dashboard"]);
+const SURFACES = new Set(["pricing", "pricing-bar", "lesson-locked", "why-pro", "dashboard"]);
 
 function looksLikeEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 200;
