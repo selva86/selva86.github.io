@@ -351,6 +351,25 @@
     { key:'welcome', template:'welcome-browsing', name:'Welcome (browsing)', cat:'account', flag:'welcome-email',
       trigger:'Account created from the nudge, navbar, or direct sign-in (no gate recorded)',
       when:'30-90 min after signup', cond:'Once ever; 48h validity; also the fallback when the gate is unknown' },
+    // ---- the pricing (discount-alert) emails, 2026-08-29 ----
+    { key:'alert-confirm', template:'alert-confirm', name:'Discount alert: confirmation', cat:'offers', flag:'price-alerts',
+      trigger:'"Email me if there is ever a discount" clicked on pricing / lesson-locked (POST /api/price-alert)',
+      when:'Immediately, synchronous', cond:'Once per address per open flow; asks when they want to start (today / week / month / someday)' },
+    { key:'alert-offer', template:'alert-offer', name:'Discount alert: the 23% code', cat:'offers', flag:'price-alerts',
+      trigger:'Intent answer sets offer_due_at: today = next hourly run, week = +24h, month = +21d, someday = +45d, no answer = +72h',
+      when:'Hourly sweep', cond:'Single-use Paddle code, annual plans only, 7-day expiry snapped to hh:30; skipped if already purchased' },
+    { key:'alert-reminder', template:'alert-reminder', name:'Discount alert: 24h reminder', cat:'offers', flag:'price-alerts',
+      trigger:'Offer sent and 24-25h remain on the code',
+      when:'Hourly sweep', cond:'Only if not purchased' },
+    { key:'alert-last30', template:'alert-last30', name:'Discount alert: last 30 minutes', cat:'offers', flag:'price-alerts',
+      trigger:'Under 45 minutes left on the code',
+      when:'Hourly sweep (the :00 run before an hh:30 expiry)', cond:'Only readers who OPENED or clicked the offer or reminder, and still have not bought' },
+    { key:'alert-closed', template:'alert-closed', name:'Discount alert: closed', cat:'offers', flag:'price-alerts',
+      trigger:'Code expired unbought',
+      when:'Hourly sweep', cond:'One close per flow; "tell me next time" link re-enrols for the next occasion (+60d)' },
+    { key:'quiet-probe', template:'quiet-probe', name:'Quiet-five-days probe', cat:'nurture', flag:'quiet-probe',
+      trigger:'Five lesson emails in a row with no open or click',
+      when:'13:00 UTC daily run, replaces that day\'s lesson', cond:'Once ever per reader; pause = 14 days, keep = clear' },
     { key:'pass-21', name:'Pass recap (day 21)', cat:'offers', planned:'needs honest lesson-progress tokens',
       trigger:'Pass day 21 with lesson progress > 0',
       when:'13:00 UTC daily run, window day 21-22', cond:'Free users only; skipped when no progress to recap' },
@@ -1114,7 +1133,12 @@
     if (ta) {
       var a = sig.alerts || {};
       var row = function(l, v){ return '<tr><td>' + l + '</td><td class="num">' + n(v || 0) + '</td></tr>'; };
-      ta.innerHTML = row('Asked to be told', a.total) +
+      // Pricing emails actually sent (from the send ledger), with opens.
+      var em = function(key, label){ var m = mk(key); return '<tr><td>' + label + '</td><td class="num">' + n(m.sent) + (m.sent ? ' <span class="trigwhy">' + pct(m.openers, m.sent) + ' opened</span>' : '') + '</td></tr>'; };
+      ta.innerHTML = '<tr><th colspan="2" style="text-align:left;padding-top:2px">Pricing emails sent</th></tr>' +
+        em('alert-confirm', 'Confirmation (asks when they want to start)') + em('alert-offer', 'The 23% code') + em('alert-reminder', '24h reminder') + em('alert-last30', 'Last 30 minutes') + em('alert-closed', 'Closed') +
+        '<tr><th colspan="2" style="text-align:left;padding-top:10px">The list</th></tr>' +
+        row('Asked to be told', a.total) +
         row('Said today', a.i_today) + row('Said this week', a.i_week) + row('Said a month or two', a.i_month) + row('Said someday', a.i_someday) + row('Never answered', a.i_none) +
         row('Offers sent', a.offers) + row('T-24h reminders', a.reminders) + row('Last-30-minutes notes', a.last30) + row('Closed (expired)', a.closed) +
         '<tr><td><b>Purchased</b></td><td class="num"><b>' + n(a.purchased || 0) + '</b></td></tr>' + row('Stopped the emails', a.stopped);
