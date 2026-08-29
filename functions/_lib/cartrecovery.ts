@@ -60,13 +60,38 @@ async function paddleGet(env: PaddleEnv, path: string): Promise<any | null> {
 // Has this email completed (or be mid-flight on) a Paddle transaction?
 // Authoritative check against Paddle itself, so buyers whose checkout email
 // differs from any site account are never nagged.
-async function hasPurchased(env: PaddleEnv, email: string): Promise<boolean> {
+export async function hasPurchased(env: PaddleEnv, email: string): Promise<boolean> {
   const cust = await paddleGet(env, `/customers?email=${encodeURIComponent(email)}`);
   const id = cust?.data?.[0]?.id;
   if (!id) return false;
   const tx = await paddleGet(env, `/transactions?customer_id=${encodeURIComponent(id)}&per_page=10`);
   const rows: Array<{ status?: string }> = tx?.data ?? [];
   return rows.some((t) => ["completed", "paid", "billed"].includes(t.status || ""));
+}
+
+// Generic single-use percentage code (shared with the price-alert flow).
+export async function createPaddleDiscount(
+  env: PaddleEnv,
+  o: { code: string; percent: string; expiresAt: number; priceIds?: string[]; description: string },
+): Promise<boolean> {
+  try {
+    const body: Record<string, unknown> = {
+      description: o.description,
+      type: "percentage",
+      amount: o.percent,
+      enabled_for_checkout: true,
+      code: o.code,
+      usage_limit: 1,
+      expires_at: new Date(o.expiresAt * 1000).toISOString(),
+    };
+    if (o.priceIds && o.priceIds.length) body.restrict_to = o.priceIds;
+    const resp = await fetch(paddleApiBase(env.PADDLE_API_KEY!) + "/discounts", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return resp.ok;
+  } catch (_) { return false; }
 }
 
 async function createDiscount(

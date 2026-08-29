@@ -193,6 +193,14 @@
       <h2 class="sect" style="margin-top:8px">Every email, its content, and its numbers
         <em>opens are directional (Apple auto-opens pixels) · rates need volume before they mean anything</em></h2>
       <div id="emailcards"></div>
+      <h2 class="sect">Signals <em>the series as the reader lives it: survival by day of their own walk, the quiet probe, the price-alert flow</em></h2>
+      <div class="cols">
+        <div class="card" style="grid-column:1 / -1"><h2>Survival by day <em>share of readers who opened their day-N lesson email; a cliff is a bad email or a bad topic at that position</em></h2>
+          <div id="survival"></div>
+        </div>
+        <div class="card"><h2>Quiet-five-days probe <em>five unopened lessons in a row: pause or keep going</em></h2><table id="t-probe"></table></div>
+        <div class="card"><h2>Discount alerts <em>the "email me if there is ever a discount" list</em></h2><table id="t-alerts"></table></div>
+      </div>
       <h2 class="sect">The daily lesson series <em>every sequence email: edit, preview, test - saves go live on the next send, no deploy</em></h2>
       <div class="card" style="overflow-x:auto"><table id="t-seq"></table></div>
       <h2 class="sect">Send order and switches <em>drag rows to reorder the daily walk; untick an email to skip it - Save applies from the next run</em></h2>
@@ -1010,12 +1018,27 @@
       '<button class="btn small" data-inv-edit>Edit</button> ' +
       '<button class="btn small" data-seq-pv="invite-series">Preview</button> ' +
       '<button class="btn small" data-seq-test="invite-series">Test</button></td></tr>';
-    el.innerHTML = '<tr><th>#</th><th>Subject</th><th>Status</th><th class="num">Sent</th><th class="num">Open</th><th class="num">CTR</th><th>Actions</th></tr>' +
+    var sig = (lastStats && lastStats.signals) || {};
+    var expBy = {}; (sig.expiry || []).forEach(function(e){ expBy[e.key] = e; });
+    var depthBy = sig.depth || {}, votesBy = sig.votes || {};
+    var invUnsub = inv.sent ? n(inv.unsubs) + ' (' + pct(inv.unsubs, inv.sent) + ')' : '-';
+    invRow = invRow.replace('<td style="white-space:nowrap">', '<td class="num">' + invUnsub + '</td><td class="num">-</td><td class="num">-</td><td class="num">-</td><td style="white-space:nowrap">');
+    el.innerHTML = '<tr><th>#</th><th>Subject</th><th>Status</th><th class="num">Sent</th><th class="num">Open</th><th class="num">CTR</th>' +
+      '<th class="num">Unsub</th><th class="num" title="Lesson window closed (72h) and the reader never clicked through">Expired unopened</th>' +
+      '<th class="num" title="Of readers who clicked through: attempted a check / passed every check">Lesson depth</th>' +
+      '<th class="num" title="Footer vote, first two weeks: worth it / not really">Vote</th><th>Actions</th></tr>' +
       invRow +
       seqItems.map(function(it){
         var m = mk(it.key);
         var openR = m.sent ? n(m.openers) + ' (' + pct(m.openers, m.sent) + ')' : '-';
         var ctr = m.sent ? n(m.clickers) + ' (' + pct(m.clickers, m.sent) + ')' : '-';
+        var unsubR = m.sent ? n(m.unsubs) + ' (' + pct(m.unsubs, m.sent) + ')' : '-';
+        var ex = expBy[it.key];
+        var expR = ex && ex.eligible ? n(ex.expired_unopened) + ' (' + pct(ex.expired_unopened, ex.eligible) + ')' : '-';
+        var dp = depthBy[it.key];
+        var depthR = dp && dp.clickers ? n(dp.started) + ' / ' + n(dp.finished) + ' <span class="trigwhy">of ' + n(dp.clickers) + '</span>' : '-';
+        var vt = votesBy[it.key];
+        var voteR = vt && (vt.up || vt.down) ? n(vt.up) + ' / ' + n(vt.down) : '-';
         var status = (it.edited ? '<span class="chip edited">edited</span> ' : '') +
           (it.built ? '<span class="chip on">' + (it.kind === 'public' ? 'public page' : 'lesson built') + '</span>'
                     : '<span class="chip">awaiting lesson</span>');
@@ -1026,6 +1049,7 @@
           '<td><b>' + esc(it.subject) + '</b>' + (it.course ? ' <span class="trigwhy">' + esc(it.course) + '</span>' : '') + pageLink + '</td>' +
           '<td>' + status + '</td>' +
           '<td class="num">' + n(m.sent) + '</td><td class="num">' + openR + '</td><td class="num">' + ctr + '</td>' +
+          '<td class="num">' + unsubR + '</td><td class="num">' + expR + '</td><td class="num">' + depthR + '</td><td class="num">' + voteR + '</td>' +
           '<td style="white-space:nowrap">' +
           '<button class="btn small" data-seq-edit="' + esc(it.key) + '">Edit</button> ' +
           '<button class="btn small" data-seq-pv="' + esc(it.key) + '">Preview</button> ' +
@@ -1033,6 +1057,59 @@
           (it.edited ? ' <button class="btn small" data-seq-revert="' + esc(it.key) + '">Revert</button>' : '') +
           '</td></tr>';
       }).join('');
+    renderSignals();
+  }
+
+  // Signals card: survival by day (single series, thin bars, hover detail,
+  // a table view underneath), the quiet-probe outcomes, the alert funnel.
+  function renderSignals(){
+    var sig = (lastStats && lastStats.signals) || {};
+    var host = document.getElementById('survival');
+    if (host) {
+      var rows = (sig.survival || []).filter(function(r){ return r.sent > 0; });
+      if (!rows.length) host.innerHTML = '<div class="trigwhy">No sequence sends yet.</div>';
+      else {
+        var W = 24, G = 4, H = 120, maxDays = rows.length;
+        var svgW = maxDays * (W + G) + 40, svgH = H + 34;
+        var bars = rows.map(function(r, i){
+          var p = r.sent ? r.opened / r.sent : 0, c = r.sent ? r.clicked / r.sent : 0;
+          var h = Math.max(2, Math.round(p * H)), x = 34 + i * (W + G), y = 6 + (H - h);
+          var label = (r.pos === 1 || r.pos % 5 === 0) ? '<text x="' + (x + W/2) + '" y="' + (svgH - 6) + '" text-anchor="middle" font-size="11" fill="var(--mut)">' + r.pos + '</text>' : '';
+          var top = (r.pos === 1 || r.pos % 7 === 0 || i === rows.length - 1) ? '<text x="' + (x + W/2) + '" y="' + (y - 4) + '" text-anchor="middle" font-size="11" fill="var(--ink)">' + Math.round(p*100) + '%</text>' : '';
+          return '<g class="sv-bar"><title>Day ' + r.pos + ': ' + r.sent + ' sent, ' + r.opened + ' opened (' + Math.round(p*100) + '%), ' + r.clicked + ' clicked through (' + Math.round(c*100) + '%), ' + r.unsubs + ' unsubscribed</title>' +
+            '<rect x="' + x + '" y="' + (6 + H - Math.max(2, Math.round(c * H))) + '" width="' + W + '" height="' + Math.max(2, Math.round(c * H)) + '" rx="0" fill="var(--acc)" opacity=".95"/>' +
+            '<rect x="' + x + '" y="' + y + '" width="' + W + '" height="' + h + '" rx="0" fill="var(--acc)" opacity=".28"/>' +
+            '<rect x="' + (x - G/2) + '" y="6" width="' + (W + G) + '" height="' + H + '" fill="transparent"/>' + top + label + '</g>';
+        }).join('');
+        host.innerHTML = '<div style="overflow-x:auto"><svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '" role="img" aria-label="Survival by day">' +
+          '<line x1="34" y1="' + (6 + H) + '" x2="' + (svgW - 6) + '" y2="' + (6 + H) + '" stroke="var(--line)"/>' +
+          '<text x="0" y="12" font-size="11" fill="var(--mut)">100%</text><text x="0" y="' + (6 + H) + '" font-size="11" fill="var(--mut)">0%</text>' +
+          bars + '</svg></div>' +
+          '<div class="trigwhy" style="margin-top:6px">Light bar = opened the email, solid bar = clicked through to the lesson. Hover a day for the counts. Day = position in the reader\'s own walk, so reordering the plan never scrambles this.</div>' +
+          '<details style="margin-top:8px"><summary class="trigwhy" style="cursor:pointer">Table view</summary><table><tr><th>Day</th><th class="num">Sent</th><th class="num">Opened</th><th class="num">Clicked</th><th class="num">Unsubs</th></tr>' +
+          rows.map(function(r){ return '<tr><td>' + r.pos + '</td><td class="num">' + n(r.sent) + '</td><td class="num">' + n(r.opened) + ' (' + pct(r.opened, r.sent) + ')</td><td class="num">' + n(r.clicked) + ' (' + pct(r.clicked, r.sent) + ')</td><td class="num">' + n(r.unsubs) + '</td></tr>'; }).join('') +
+          '</table></details>';
+      }
+    }
+    var tp = document.getElementById('t-probe');
+    if (tp) {
+      var pm = mk('quiet-probe');
+      var outcomes = {}; (sig.probe || []).forEach(function(r){ outcomes[r.meta] = r.n; });
+      var paused = 0, kept = 0; Object.keys(outcomes).forEach(function(k){ if (k.indexOf('paused') === 0) paused += outcomes[k]; else kept += outcomes[k]; });
+      tp.innerHTML = '<tr><td>Probes sent</td><td class="num">' + n(pm.sent) + '</td></tr>' +
+        '<tr><td>Chose to pause</td><td class="num">' + n(paused) + '</td></tr>' +
+        '<tr><td>Chose to keep going</td><td class="num">' + n(kept) + '</td></tr>' +
+        '<tr><td>No answer</td><td class="num">' + n(Math.max(0, (pm.sent || 0) - paused - kept)) + '</td></tr>';
+    }
+    var ta = document.getElementById('t-alerts');
+    if (ta) {
+      var a = sig.alerts || {};
+      var row = function(l, v){ return '<tr><td>' + l + '</td><td class="num">' + n(v || 0) + '</td></tr>'; };
+      ta.innerHTML = row('Asked to be told', a.total) +
+        row('Said today', a.i_today) + row('Said this week', a.i_week) + row('Said a month or two', a.i_month) + row('Said someday', a.i_someday) + row('Never answered', a.i_none) +
+        row('Offers sent', a.offers) + row('T-24h reminders', a.reminders) + row('Last-30-minutes notes', a.last30) + row('Closed (expired)', a.closed) +
+        '<tr><td><b>Purchased</b></td><td class="num"><b>' + n(a.purchased || 0) + '</b></td></tr>' + row('Stopped the emails', a.stopped);
+    }
   }
 
   document.getElementById('t-seq').addEventListener('click', function(e){

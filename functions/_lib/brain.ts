@@ -247,12 +247,14 @@ export async function runBrain(
     const rows = await env.DB.prepare(
       `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
               u.signup_gate, u.signup_slug, u.email_status, u.email_progress,
-              u.level_r
+              u.level_r, u.nurture_paused_until
        FROM users u
        WHERE u.deleted_at IS NULL AND u.email_nurture = 1
        LIMIT 2000`,
-    ).all<UserRow & { level_r: string | null }>();
+    ).all<UserRow & { level_r: string | null; nurture_paused_until: number | null }>();
     for (const u of rows.results ?? []) {
+      // The quiet-probe pause: the walk simply waits, then resumes in place.
+      if (u.nurture_paused_until && u.nurture_paused_until > now) continue;
       const have = new Set<number>();
       for (const k of ledger.get(u.id)?.keys() ?? []) {
         if (k.startsWith("seq:")) have.add(parseInt(k.slice(4), 10));
@@ -269,8 +271,55 @@ export async function runBrain(
       if (!seqSendable(next)) continue; // frontier hold: lesson not built yet
       candidates.push({
         u, key: `seq:${next}`, template: `seq:${next}`, category: "nurture", priority: 8,
-        data: { first_name: u.display_name },
+        data: { first_name: u.display_name, seq_day: have.size + 1 },
         why: `sequence day ${have.size + 1}, seq ${next} (${SEQ_ITEMS[next].kind})`,
+      });
+    }
+  }
+
+  // ---- quiet-five-days probe (nurture, DAILY; flag:quiet-probe). A user
+  // whose last five lesson emails all went unopened gets one question instead
+  // of a sixth lesson: pause for two weeks, or keep going. Once ever (the
+  // ledger key), never for paused users, and it wins the day's one-email slot
+  // (priority 7 < seq 8) so it really does replace that day's lesson. Opens
+  // are read from the pixel/click rows; with Apple auto-opens in the mix,
+  // "five unopened" is a conservative, real signal of silence. -------------
+  if (flags.seq && dailyRun && (await env.KV.get("flag:quiet-probe")) === "on") {
+    const QUIET_N = 5;
+    const engagedKeys = new Set<string>();
+    const ev = (await env.DB.prepare(
+      `SELECT DISTINCT user_id, email_key FROM email_events
+       WHERE event IN ('open','click') AND email_key LIKE 'seq:%' AND at >= ?1`,
+    ).bind(now - 45 * 86400).all<{ user_id: string; email_key: string }>()).results ?? [];
+    for (const r of ev) engagedKeys.add(`${r.user_id}|${r.email_key}`);
+    const rows = await env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
+              u.signup_gate, u.signup_slug, u.email_status, u.email_progress,
+              u.nurture_paused_until
+       FROM users u
+       WHERE u.deleted_at IS NULL AND u.email_nurture = 1
+         AND NOT EXISTS (SELECT 1 FROM sent_emails s WHERE s.user_id = u.id AND s.email_key = 'quiet-probe')
+       LIMIT 2000`,
+    ).all<UserRow & { nurture_paused_until: number | null }>();
+    for (const u of rows.results ?? []) {
+      if (u.nurture_paused_until && u.nurture_paused_until > now) continue;
+      const seqSends: Array<{ key: string; at: number }> = [];
+      for (const [k, at] of ledger.get(u.id) ?? []) if (k.startsWith("seq:")) seqSends.push({ key: k, at });
+      if (seqSends.length < QUIET_N) continue;
+      seqSends.sort((a, b) => b.at - a.at);
+      const lastN = seqSends.slice(0, QUIET_N);
+      if (now - lastN[0].at < 20 * 3600) continue; // give the newest email a day to be opened
+      if (lastN.some((s) => engagedKeys.has(`${u.id}|${s.key}`))) continue;
+      const sig = await userSig(env, u.id);
+      if (!sig) continue;
+      candidates.push({
+        u, key: "quiet-probe", template: "quiet-probe", category: "nurture", priority: 7,
+        data: {
+          first_name: u.display_name,
+          pause_url: `${SITE}/api/email/pause?u=${encodeURIComponent(u.id)}&t=${sig}&d=14`,
+          keep_url: `${SITE}/api/email/pause?u=${encodeURIComponent(u.id)}&t=${sig}&d=0`,
+        },
+        why: `last ${QUIET_N} lesson emails unopened`,
       });
     }
   }
@@ -403,6 +452,11 @@ export async function runBrain(
         const seqN = parseInt(c.template.slice(4), 10);
         const dest = seqUrl(seqN, userId, sig);
         const copy = await getSeqCopy(env.KV, seqN);
+        if (sig) {
+          const vb = `${SITE}/api/email/vote?u=${encodeURIComponent(userId)}&k=${encodeURIComponent(c.key)}&t=${sig}&v=`;
+          c.data.vote_up_url = vb + "up";
+          c.data.vote_down_url = vb + "down";
+        }
         r = dest ? renderSeqEmail(seqN, dest, c.data, copy) : null;
       } else {
         let ovr = null;

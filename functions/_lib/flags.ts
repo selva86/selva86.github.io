@@ -64,4 +64,8 @@ export const FLAGS = {
   // The daily nurture sequence (windowed lessons). The send IS the lesson
   // unlock; flip only once the factory has runway (~14 built lessons).
   NURTURE_SEQUENCE: "nurture-sequence",
+  // 2026-08-29 signals + offers: the quiet-five-days probe (brain, daily run)
+  // and the "email me if there is ever a discount" flow (hourly sweep).
+  QUIET_PROBE: "quiet-probe",
+  PRICE_ALERTS: "price-alerts",
 } as const;

@@ -16,6 +16,9 @@ const COPY = nurtureEmailsJson as unknown as Record<string, { preheader: string;
 export const SEQ_ITEMS: Record<number, SeqItem> = {};
 for (const it of MINI.sequence) SEQ_ITEMS[it.seq] = it;
 export const MAX_SEQ = Math.max(...MINI.sequence.map((i) => i.seq));
+// First-two-weeks explicit signals (Mon-Sat sending = 12 lesson days).
+export const VOTE_DAYS = 12;
+export const REPLY_DAYS = new Set([3, 10]);
 
 // The admin-editable send plan: KV "seq-plan" holds an ordered list of
 // {seq, enabled}. Absent or malformed -> the registry order, everything on.
@@ -93,10 +96,20 @@ export function renderSeqEmail(seq: number, url: string, d: TemplateData, copy?:
   const it = SEQ_ITEMS[seq];
   const c = copy ?? COPY[String(seq)];
   if (!it || !c) return null;
-  const body = c.body
+  let body = c.body
     .replace(/\{first_name\}/g, "__FIRST__")
     .replace(/\{url\}/g, url)
     .replace(/__FIRST__/g, (d.first_name || "").trim().split(/\s+/)[0] || "there");
+  // Explicit signals for the first two weeks of a user's own walk (owner,
+  // 2026-08-29): a one-tap footer vote on every lesson email of days 1-12,
+  // and a reply-as-data postscript on days 3 and 10. Keyed to seq_day, never
+  // to the seq number, so the dashboard reorder stays coherent.
+  if (d.seq_day && d.seq_day <= VOTE_DAYS && d.vote_up_url && d.vote_down_url) {
+    body += `\n\nOne click before you go: was today's lesson worth your time?\n\n[Yes, worth it -> ${d.vote_up_url}]\n\n[Not really -> ${d.vote_down_url}]`;
+  }
+  if (d.seq_day && REPLY_DAYS.has(d.seq_day)) {
+    body += "\n\nP.S. Hit reply and tell me in one word how today felt: easier, harder, or just right. I read every reply.";
+  }
   return renderPersonalNote({
     key: `seq:${seq}`,
     category: "nurture",
