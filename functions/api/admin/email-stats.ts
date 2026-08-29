@@ -9,6 +9,8 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403 } from "../../_lib/errors";
 import { ensureIntentTable } from "../signal";
+import { SEQ_ITEMS } from "../../_lib/nurture";
+import manifestJson from "../../_data/exercise-manifest.json";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 
@@ -146,8 +148,108 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     `SELECT at, email, email_key, event, meta FROM email_events ORDER BY at DESC, id DESC LIMIT 50`,
   ).all<{ at: number; email: string | null; email_key: string | null; event: string; meta: string | null }>()).results ?? [];
 
+  // ---- signals (2026-08-29): the series as the reader lives it -----------
+  // Survival by DAY of the user's own walk (ROW_NUMBER over their seq sends),
+  // so a reorder of the plan never scrambles the curve. Per-seq: lessons that
+  // expired without the reader ever clicking through, how deep clickers got
+  // in the lesson (attempted any check / passed every check), the footer
+  // votes, and the quiet-probe outcomes.
+  const survival = (await DB.prepare(
+    `WITH s AS (
+       SELECT user_id, email_key, sent_at,
+              ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY sent_at, email_key) AS pos
+       FROM sent_emails WHERE email_key LIKE 'seq:%'),
+     o AS (SELECT DISTINCT user_id, email_key FROM email_events WHERE event = 'open'),
+     c AS (SELECT DISTINCT user_id, email_key FROM email_events WHERE event = 'click'),
+     un AS (SELECT DISTINCT user_id, email_key FROM email_events WHERE event = 'unsubscribe')
+     SELECT s.pos AS pos, COUNT(*) AS sent,
+            SUM(CASE WHEN o.user_id IS NOT NULL THEN 1 ELSE 0 END) AS opened,
+            SUM(CASE WHEN c.user_id IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
+            SUM(CASE WHEN un.user_id IS NOT NULL THEN 1 ELSE 0 END) AS unsubs
+     FROM s LEFT JOIN o ON o.user_id = s.user_id AND o.email_key = s.email_key
+            LEFT JOIN c ON c.user_id = s.user_id AND c.email_key = s.email_key
+            LEFT JOIN un ON un.user_id = s.user_id AND un.email_key = s.email_key
+     WHERE s.pos <= 90 GROUP BY s.pos ORDER BY s.pos`,
+  ).all<{ pos: number; sent: number; opened: number; clicked: number; unsubs: number }>()).results ?? [];
+
+  const WINDOW = 72 * 3600;
+  const expiry = (await DB.prepare(
+    `WITH o AS (SELECT DISTINCT user_id, email_key FROM email_events WHERE event = 'open'),
+          c AS (SELECT DISTINCT user_id, email_key FROM email_events WHERE event = 'click')
+     SELECT s.email_key AS key, COUNT(*) AS eligible,
+            SUM(CASE WHEN c.user_id IS NULL THEN 1 ELSE 0 END) AS expired_unopened,
+            SUM(CASE WHEN c.user_id IS NULL AND o.user_id IS NOT NULL THEN 1 ELSE 0 END) AS opened_not_clicked
+     FROM sent_emails s LEFT JOIN c ON c.user_id = s.user_id AND c.email_key = s.email_key
+                        LEFT JOIN o ON o.user_id = s.user_id AND o.email_key = s.email_key
+     WHERE s.email_key LIKE 'seq:%' AND s.sent_at < ?1 GROUP BY s.email_key`,
+  ).bind(now - WINDOW).all<{ key: string; eligible: number; expired_unopened: number; opened_not_clicked: number }>()).results ?? [];
+
+  // Lesson depth: clickers of each seq email vs their graded checks on that
+  // lesson's hub (windowed lessons are exercise hubs; hub slug == page slug).
+  const seqSlugs: Record<string, string> = {};
+  for (const n of Object.keys(SEQ_ITEMS)) { const it = SEQ_ITEMS[Number(n)]; if (it && it.kind === "lesson" && it.slug) seqSlugs[`seq:${n}`] = it.slug; }
+  const slugList = Object.values(seqSlugs);
+  const clickers = (await DB.prepare(
+    "SELECT DISTINCT user_id, email_key FROM email_events WHERE event = 'click' AND email_key LIKE 'seq:%'",
+  ).all<{ user_id: string; email_key: string }>()).results ?? [];
+  const attempts = slugList.length ? ((await DB.prepare(
+    `SELECT hub_slug, user_id, COUNT(DISTINCT exercise_id) AS tried,
+            COUNT(DISTINCT CASE WHEN passed = 1 THEN exercise_id END) AS passed
+     FROM exercise_attempts WHERE hub_slug IN (${slugList.map(() => "?").join(",")}) GROUP BY hub_slug, user_id`,
+  ).bind(...slugList).all<{ hub_slug: string; user_id: string; tried: number; passed: number }>()).results ?? []) : [];
+  const attemptBy = new Map<string, { tried: number; passed: number }>();
+  for (const a of attempts) attemptBy.set(`${a.hub_slug}|${a.user_id}`, { tried: a.tried, passed: a.passed });
+  const hubTotals: Record<string, number> = {};
+  const hubs = (manifestJson as { hubs?: Record<string, Record<string, string>> }).hubs || {};
+  for (const slug of slugList) hubTotals[slug] = Object.keys(hubs[slug] || {}).length;
+  const depth: Record<string, { clickers: number; started: number; finished: number; checks: number }> = {};
+  for (const r of clickers) {
+    const slug = seqSlugs[r.email_key]; if (!slug) continue;
+    if (!depth[r.email_key]) depth[r.email_key] = { clickers: 0, started: 0, finished: 0, checks: hubTotals[slug] || 0 };
+    const d = depth[r.email_key]; d.clickers++;
+    const a = attemptBy.get(`${slug}|${r.user_id}`);
+    if (a && a.tried > 0) d.started++;
+    if (a && d.checks > 0 && a.passed >= d.checks) d.finished++;
+  }
+
+  const voteRows = (await DB.prepare(
+    "SELECT email_key AS key, meta, COUNT(*) AS n FROM email_events WHERE event = 'vote' GROUP BY email_key, meta",
+  ).all<{ key: string; meta: string; n: number }>()).results ?? [];
+  const votes: Record<string, { up: number; down: number; reasons: Record<string, number> }> = {};
+  for (const v of voteRows) {
+    if (!votes[v.key]) votes[v.key] = { up: 0, down: 0, reasons: {} };
+    if (v.meta === "up") votes[v.key].up = v.n;
+    else if (v.meta === "down") votes[v.key].down = v.n;
+    else if (v.meta && v.meta.startsWith("reason:")) votes[v.key].reasons[v.meta.slice(7)] = v.n;
+  }
+
+  const probe = (await DB.prepare(
+    "SELECT meta, COUNT(*) AS n FROM email_events WHERE email_key = 'quiet-probe' AND event = 'pause' GROUP BY meta",
+  ).all<{ meta: string; n: number }>()).results ?? [];
+
+  let alerts: Record<string, number> = {};
+  try {
+    const a = await DB.prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN intent = 'today' THEN 1 ELSE 0 END) AS i_today,
+              SUM(CASE WHEN intent = 'week' THEN 1 ELSE 0 END) AS i_week,
+              SUM(CASE WHEN intent = 'month' THEN 1 ELSE 0 END) AS i_month,
+              SUM(CASE WHEN intent = 'someday' THEN 1 ELSE 0 END) AS i_someday,
+              SUM(CASE WHEN intent IS NULL THEN 1 ELSE 0 END) AS i_none,
+              SUM(CASE WHEN offer_sent_at IS NOT NULL THEN 1 ELSE 0 END) AS offers,
+              SUM(CASE WHEN reminder_sent_at IS NOT NULL THEN 1 ELSE 0 END) AS reminders,
+              SUM(CASE WHEN last30_sent_at IS NOT NULL THEN 1 ELSE 0 END) AS last30,
+              SUM(CASE WHEN closed_sent_at IS NOT NULL THEN 1 ELSE 0 END) AS closed,
+              SUM(CASE WHEN purchased_at IS NOT NULL THEN 1 ELSE 0 END) AS purchased,
+              SUM(CASE WHEN unsubscribed_at IS NOT NULL THEN 1 ELSE 0 END) AS stopped
+       FROM price_alerts`,
+    ).first<Record<string, number>>();
+    if (a) alerts = a;
+  } catch { /* table absent on a fresh preview DB */ }
+
   return json({
     now,
+    signals: { survival, expiry, depth, votes, probe, alerts, window_hours: WINDOW / 3600 },
     mode: { engine: flags["email-engine"], live: flags["email-live"], flags },
     engagement, perEmail, metricsByKey,
     states: { s1_new: s.s1_new, s2_active: s.s2_active, s3_dormant, s4_pro: s.s4_pro, s6_churned: s.s6_churned, total: s.total },

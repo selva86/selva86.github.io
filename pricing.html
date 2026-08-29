@@ -309,7 +309,12 @@ a{text-decoration:none;color:inherit}
 
     </div>
 
-    <div class="mbg">Every paid plan comes with a <a href="/refund-policy.html">14-day money-back guarantee</a>. Full refund, no questions asked.<br>Monthly billing is available: Single Track is $9/month and All-Access Pro is $14/month.<br>Taxes may apply and will be calculated at checkout.</div>
+    <div class="mbg">Every paid plan comes with a <a href="/refund-policy.html">14-day money-back guarantee</a>. Full refund, no questions asked.<br><span id="mbgMonthly">Monthly billing is available: Single Track is $9/month and All-Access Pro is $14/month.</span><br>Taxes may apply and will be calculated at checkout.<span id="regionalNote" hidden></span></div>
+    <div class="mbg palert" data-palert data-surface="pricing" style="margin-top:10px">
+      <span data-palert-lead>Not today?</span> <button type="button" data-palert-btn style="appearance:none;background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer">Email me if there is ever a discount</button>
+      <span data-palert-form hidden style="display:inline-flex;gap:6px;margin-top:8px;vertical-align:middle"><input type="email" data-palert-email placeholder="you@email.com" aria-label="Your email" style="font:inherit;padding:6px 9px;border:1px solid #cbd2dc;min-width:200px"><button type="button" data-palert-send style="font:inherit;padding:6px 12px;border:1px solid currentColor;background:none;color:inherit;cursor:pointer">Send</button></span>
+      <span data-palert-done hidden></span>
+    </div>
 
     <div class="nudge">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 L3 14 h7 l-1 8 L20 10 h-7 z"/></svg>
@@ -577,6 +582,57 @@ window.addEventListener('load', function(){ rsSignal('pricing_view', document.re
 /* Recovery emails land here with ?code=BACK15XXXXX - apply it to checkout automatically. */
 var recoveryCode = (function(){ try { var c = new URLSearchParams(location.search).get('code');
   return (c && /^[A-Z0-9]{6,20}$/.test(c)) ? c : null; } catch (e) { return null; } })();
+/* Price-alert offer emails land here with ?code=PRO23...&src=alert&exp=<unix>. The
+   banner is plain text; Paddle enforces the real expiry, exp is display only. */
+(function(){
+  try {
+    var q = new URLSearchParams(location.search);
+    if (!recoveryCode || q.get('src') !== 'alert') return;
+    var exp = parseInt(q.get('exp') || '0', 10) * 1000;
+    var host = document.querySelector('.tiers');
+    if (!host) return;
+    var el = document.createElement('div');
+    el.id = 'offerBanner';
+    el.style.cssText = 'margin:0 0 18px;padding:12px 16px;border:1px solid #c9ddd3;background:#f2f8f5;color:#0f1a2b;font-size:15px;line-height:1.5';
+    function words(){
+      var left = exp ? exp - Date.now() : 0;
+      if (!exp) return 'Your 23% code ' + recoveryCode + ' is applied at checkout on either annual plan.';
+      if (left <= 0) return 'The code ' + recoveryCode + ' has expired. The regular prices below still carry the 14-day money-back guarantee.';
+      var h = Math.floor(left / 36e5), m = Math.floor((left % 36e5) / 6e4);
+      var when = new Date(exp).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' });
+      var tail = h >= 24 ? 'It works until ' + when + '.' : (h > 0 ? 'About ' + h + (h === 1 ? ' hour' : ' hours') + ' left, until ' + when + '.' : 'About ' + m + ' minutes left.');
+      return 'Your 23% code ' + recoveryCode + ' is applied at checkout on either annual plan. ' + tail;
+    }
+    el.textContent = words();
+    host.parentNode.insertBefore(el, host);
+    if (exp) setInterval(function(){ el.textContent = words(); }, 60000);
+    rsSignal('offer_view', recoveryCode);
+    try { if (typeof gtag === 'function') gtag('event', 'offer_view', { code: recoveryCode }); } catch (e) {}
+  } catch (e) {}
+})();
+/* Regional pricing note: the parity tiers live on the Paddle prices themselves
+   (the page and checkout read the same entity), so all this does is name the
+   region once Paddle has localized. Country from the same trace endpoint the
+   consent banner uses; nothing is stored. */
+window.rsRegionalNote = (function(){
+  var PARITY = ('IN PK BD LK NP NG EG KE GH TZ UG ET PH VN ID TR UA MA DZ TN KH LA MM UZ GE AM AZ KG ZM ZW MW MZ SN CI CM AR ' +
+    'BR MX CO PE EC BO PY TH MY CN ZA JO AL BA MK RS MD DO GT HN NI SV KZ ' +
+    'PL RO BG HU HR CL CR PA UY MU TT JM ' +
+    'PT GR CZ SK LV LT EE ES IT SI CY MT KR TW').split(' ');
+  var shown = false;
+  return function(){
+    if (shown) return; shown = true;
+    fetch('/cdn-cgi/trace').then(function(r){ return r.text(); }).then(function(t){
+      var m = /loc=([A-Z]{2})/.exec(t); var cc = m && m[1];
+      if (!cc || PARITY.indexOf(cc) < 0) return;
+      var name = cc; try { name = new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) || cc; } catch (e) {}
+      var n = document.getElementById('regionalNote');
+      if (n) { n.hidden = false; n.innerHTML = '<br>Prices shown are the regional rate for ' + name + ', applied automatically at checkout.'; }
+      rsSignal('parity_view', cc);
+      try { if (typeof gtag === 'function') gtag('event', 'parity_price_shown', { country: cc }); } catch (e) {}
+    }).catch(function(){});
+  };
+})();
 var mode='annual';
 var _modeReady=false;
 function setMode(m){
@@ -835,6 +891,11 @@ gtag('config', 'G-D5XKCMN7FR');
     }
     var lf = f(P.lifetime);
     if (lf) { var b = document.querySelector(".lifetime .lp b"); if (b) b.textContent = lf; }
+    // The monthly-billing sentence is hardcoded USD in the markup; once Paddle
+    // has localized (regional or currency overrides), restate it from the
+    // same preview so the page never quotes a price checkout will not charge.
+    var mm = document.getElementById("mbgMonthly");
+    if (mm && sM && aM) mm.textContent = "Monthly billing is available: Single Track is " + sM + "/month and All-Access Pro is " + aM + "/month.";
     var te = paddle.teamsPriceId && FMT[paddle.teamsPriceId];
     if (te) {
       var seatTxt = fmtWhole(te.rawUnit, currency) || te.unit;
@@ -842,6 +903,7 @@ gtag('config', 'G-D5XKCMN7FR');
     }
     localized = true;
     if (typeof window.setMode === "function") window.setMode(window.mode || "annual");
+    try { if (typeof window.rsRegionalNote === "function") window.rsRegionalNote(); } catch (e) {}
     if (te && totalEl) {
       var totTxt = fmtWhole(te.rawTotal, currency) || te.total;
       if (totTxt) totalEl.textContent = seats() + " seats · " + totTxt + "/yr";
@@ -886,5 +948,6 @@ gtag('config', 'G-D5XKCMN7FR');
 <script defer src="/www/practice-nav.js?v=12"></script><script defer src="/www/roadmap-nav.js?v=9"></script>
 <script defer src="/www/tutorials-nav.js?v=10"></script>
 <script defer src="/www/site-nav.js?v=8"></script>
+<script defer src="/www/price-alert.js?v=1"></script>
 </body>
 </html>

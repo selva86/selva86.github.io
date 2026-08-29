@@ -393,3 +393,32 @@ CREATE INDEX IF NOT EXISTS idx_email_events_user ON email_events(user_id, at);
 --   ALTER TABLE users ADD COLUMN level_r TEXT;        -- new|basic|solid
 --   ALTER TABLE users ADD COLUMN level_ml TEXT;       -- none|concepts|hands_on
 --   ALTER TABLE users ADD COLUMN level_ts TEXT;       -- none|some|regular
+
+-- ===== price_alerts (the "email me if there's ever a discount" flow, 2026-08-29) =====
+-- One row per address that asked to hear about discounts. The row IS the
+-- state machine: intent (today/week/month/someday) sets offer_due_at; the
+-- hourly sweep (functions/_lib/pricealerts.ts) sends the offer, the 24h
+-- reminder, the last-30-minutes note (engaged-only) and the close, stopping
+-- the moment a purchase is detected. Anonymous visitors have user_id NULL.
+CREATE TABLE IF NOT EXISTS price_alerts (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id           TEXT,
+  email             TEXT NOT NULL,
+  surface           TEXT,                 -- pricing | lesson-locked | why-pro
+  country           TEXT,
+  created_at        INTEGER NOT NULL,
+  intent            TEXT,                 -- today | week | month | someday | renew
+  intent_at         INTEGER,
+  offer_due_at      INTEGER,
+  offer_sent_at     INTEGER,
+  offer_code        TEXT,
+  offer_expires_at  INTEGER,
+  reminder_sent_at  INTEGER,
+  last30_sent_at    INTEGER,
+  closed_sent_at    INTEGER,
+  purchased_at      INTEGER,
+  unsubscribed_at   INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_alerts_email ON price_alerts(email);
+-- Applied 2026-08-29 to dev+prod, together with:
+--   ALTER TABLE users ADD COLUMN nurture_paused_until INTEGER;  -- quiet-probe "pause for two weeks"

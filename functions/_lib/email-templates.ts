@@ -40,6 +40,24 @@ export interface TemplateData {
   reset_date?: string;         // cap-hit
   join_url?: string;           // invite-series one-click opt-in (signed)
   unsubscribe_url?: string;    // one-click, HMAC-signed
+  // Daily lesson series (nurture.ts): which day of the user's own walk this
+  // send is (1 = first lesson). Drives the first-two-weeks footer vote and the
+  // reply-as-data postscript; NOT the seq number, so reorders keep it honest.
+  seq_day?: number;
+  vote_up_url?: string;
+  vote_down_url?: string;
+  // Price-alert flow (pricealerts.ts)
+  code?: string;
+  offer_url?: string;
+  expires_line?: string;
+  today_url?: string;
+  week_url?: string;
+  month_url?: string;
+  someday_url?: string;
+  renew_url?: string;
+  // Quiet-five-days probe (brain.ts)
+  pause_url?: string;
+  keep_url?: string;
   // Per-recipient tracking context (brain fills it): the same HMAC signature
   // as the unsubscribe link. When present, the HTML body gets the open pixel
   // and every link routes through /api/email/click so opens/clicks attribute
@@ -97,11 +115,17 @@ ${contentHtml}
 </body></html>`;
 }
 
+// Side-effect links (a vote, a pause, an intent answer) are the user's answer,
+// not a visit: they bypass the click tracker so they never inflate CTR.
+function isAnswerLink(url: string): boolean {
+  return /\/api\/email\/(vote|pause|intent)\?/.test(url) || /\/api\/price-alert\/stop\?/.test(url);
+}
+
 function toHtmlParas(text: string, d: TemplateData): string {
   // Plain paragraphs; a [label -> url] line becomes a plain inline link.
   return text.split(/\n\n+/).map((p) => {
     const m = p.match(/^\[(.+?) -> (.+?)\]$/);
-    if (m) return `<p style="margin:0 0 16px"><a href="${trackUrl(d, m[2])}" style="color:#2056d2">${m[1]}</a></p>`;
+    if (m) return `<p style="margin:0 0 16px"><a href="${isAnswerLink(m[2]) ? m[2] : trackUrl(d, m[2])}" style="color:#2056d2">${m[1]}</a></p>`;
     return `<p style="margin:0 0 16px">${p.replace(/\n/g, "<br>")}</p>`;
   }).join("");
 }
@@ -227,6 +251,70 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     }),
   },
 };
+
+// 2026-08-29: the price-alert flow (pricealerts.ts) and the quiet-five-days
+// probe (brain.ts). Same shape, same editable-copy layer; the URL tokens are
+// signed per recipient and are answer links (never click-tracked).
+Object.assign(LIFECYCLE, {
+  "alert-confirm": {
+    key: "alert-confirm", category: "offers", reason: "you asked to hear about discounts",
+    linkTokens: ["today_url", "week_url", "month_url", "someday_url"],
+    required: ["today_url", "week_url", "month_url", "someday_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      today_url: d.today_url || SITE + "/pricing.html",
+      week_url: d.week_url || SITE + "/pricing.html",
+      month_url: d.month_url || SITE + "/pricing.html",
+      someday_url: d.someday_url || SITE + "/pricing.html",
+    }),
+  },
+  "alert-offer": {
+    key: "alert-offer", category: "offers", reason: "you asked to hear about discounts",
+    linkTokens: ["offer_url"], required: ["code", "offer_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      code: d.code || "",
+      offer_url: d.offer_url || SITE + "/pricing.html",
+      expires_line: d.expires_line || "the end of the week",
+    }),
+  },
+  "alert-reminder": {
+    key: "alert-reminder", category: "offers", reason: "you asked to hear about discounts",
+    linkTokens: ["offer_url"], required: ["code", "offer_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      code: d.code || "",
+      offer_url: d.offer_url || SITE + "/pricing.html",
+      expires_line: d.expires_line || "this time tomorrow",
+    }),
+  },
+  "alert-last30": {
+    key: "alert-last30", category: "offers", reason: "you asked to hear about discounts",
+    linkTokens: ["offer_url"], required: ["code", "offer_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      code: d.code || "",
+      offer_url: d.offer_url || SITE + "/pricing.html",
+    }),
+  },
+  "alert-closed": {
+    key: "alert-closed", category: "offers", reason: "you asked to hear about discounts",
+    linkTokens: ["renew_url"], required: ["renew_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      renew_url: d.renew_url || SITE + "/pricing.html",
+    }),
+  },
+  "quiet-probe": {
+    key: "quiet-probe", category: "nurture", reason: "you turned on the daily lesson series",
+    linkTokens: ["pause_url", "keep_url"], required: ["pause_url", "keep_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      pause_url: d.pause_url || PREFS_URL,
+      keep_url: d.keep_url || PREFS_URL,
+    }),
+  },
+} as Record<string, LifecycleMeta>);
 
 export const TEMPLATES: Record<string, true> = Object.fromEntries(
   Object.keys(LIFECYCLE).map((k) => [k, true as const]),

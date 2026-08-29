@@ -19,6 +19,8 @@ const SIGNALS = new Set([
   "pricing_view", "pricing_toggle", "checkout_start", "checkout_closed",
   "purchase_client", "checkout_lead", "paywall_hit", "signin_wall_hit",
   "lesson_start", "lesson_complete", "cert_view", "track_view",
+  // 2026-08-29: parity pricing + the price-alert flow
+  "parity_view", "offer_view", "price_alert",
 ]);
 
 let tableReady = false;
