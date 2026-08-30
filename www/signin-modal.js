@@ -72,6 +72,7 @@
     'html.dark .rs-sm-sub,html.dark .rs-sm-fine,html.dark .rs-sm-fine a{color:#b0b5bf}' +
     'html.dark .rs-sm-o,html.dark .rs-sm-o:hover:not(:disabled){background:#1a1d22;border-color:#2a2f38;color:#e8eaee}' +
     'html.dark .rs-sm-o:hover:not(:disabled){border-color:#b0b5bf}' +
+    'html.dark .rs-sm-o svg path[fill="#181717"]{fill:#e8eaee}' +
     'html.dark .rs-sm-or{color:#8a909b}html.dark .rs-sm-or::before,html.dark .rs-sm-or::after{background:#2a2f38}' +
     'html.dark .rs-sm-form input[type=email]{background:#0e0f12;border-color:#2a2f38;color:#e8eaee}' +
     'html.dark .rs-sm-opt{color:#b0b5bf!important}' +
