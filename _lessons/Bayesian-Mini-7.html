@@ -1,0 +1,527 @@
+---
+title: "Posterior predictive checks, in 5 minutes"
+description: "A fitted model can look calm and still be the wrong shape. Ask it to invent a thousand fake datasets, lay them over your real one, and see what it misses."
+keywords: "posterior predictive check, pp_check, posterior_predict, Bayesian model checking, posterior predictive p-value, replicated datasets, model misfit, bayesplot, brms"
+mathjax: true
+webr: true
+curriculum_id: "0.0.52"
+post_type: "LESSON"
+course_id: "bayesian-decisions"
+course_title: "Bayesian Decisions"
+course_lesson: "7"
+course_total: "9"
+course_landing: "/dashboard.html"
+course_next: ""
+course_prev: "Bayesian-Mini-6"
+lesson_access: "windowed"
+catalog_blurb: "How to tell whether your fitted model actually describes your data."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Bayesian Decisions</div>
+<h2>Posterior predictive checks, in 5 minutes</h2>
+
+<p>Let's say you fit a Bayesian model on your daily sales.</p>
+
+<p>The output comes back looking fine. It says about 43 units a day, with a tidy interval around that, and nothing in the summary would make you look twice.</p>
+
+<p>So, is the model any good?</p>
+
+<p>Nothing in that summary answers it. The summary tells you what the model believes about its own parameters. It says nothing at all about whether those beliefs resemble your shop.</p>
+
+<p>Here is a simple way to find out. If the model really describes your sales, then fake data invented by the model should look like your real sales. So you ask the fitted model to generate a few hundred fake datasets and you plot them over the real one.</p>
+
+<p>If your record sits comfortably among the fakes, the model has earned some trust. If it sticks out, more lopsided than any fake, or spikier, or busier at the top end, then the model is missing something. And the plot usually shows you what it is missing.</p>
+
+<p>That is a posterior predictive check, and it comes down to three moves.</p>
+
+<p>We are going to run it on Ravi's bakery, which is ninety days of loaves written down at the end of each day.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Take the draws","sub":"the fitted model leaves behind 1,000 plausible versions of the bakery"},{"title":"Let each one invent","sub":"every version writes out its own fake notebook of 90 days"},{"title":"Compare","sub":"put the thousand fake notebooks beside the real record and look"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Today you are going to make all three moves by hand, read the plots that come out, and finish with the one line of R that does the whole thing for you.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Ravi's ninety days at the bakery</h2>
+
+<p>Ravi runs a small bakery, and at the end of every day he writes down how many loaves he sold. We are working with ninety days of that notebook.</p>
+
+<p>Here it is, typed out, with the summary that goes with it. Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Ravi's notebook: 90 days of loaves sold, and the summary of that record
+loaves &lt;- c(109, 52, 45, 49, 52, 39, 55, 41, 69, 19,
+            18, 50, 46, 22, 38, 48, 40, 46, 27, 41,
+            38, 45, 22, 14, 112, 75, 48, 55, 50, 44,
+            35, 24, 36, 60, 21, 62, 32, 46, 25, 36,
+            29, 25, 32, 34, 76, 54, 51, 74, 49, 59,
+            48, 51, 39, 26, 63, 33, 68, 40, 53, 36,
+            57, 44, 36, 44, 30, 36, 34, 64, 24, 20,
+            33, 28, 38, 77, 46, 23, 20, 24, 32, 47,
+            25, 30, 36, 53, 33, 67, 30, 39, 44, 35)
+
+length(loaves)
+#&gt; [1] 90
+summary(loaves)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;   14.00   32.00   40.00   43.06   51.00  112.00
+round(sd(loaves), 1)
+#&gt; [1] 17.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An ordinary day at Ravi's is about 40 loaves. Notice that the mean, 43.06, sits above the median: a handful of very big days drag the average up and no small day drags it back, because the smallest day in ninety is still 14 loaves.</p>
+
+<p>The picture says it faster than the numbers do.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The shape of the record: where the ordinary days sit and how far the big ones run
+hist(loaves, breaks = 20, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;Ravi's bakery: loaves sold on 90 days&quot;,
+     xlab = &quot;Loaves sold in a day&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is a lump around 40 loaves, then a thin tail of market days running out to 112. Nothing sits to the left of 14, and of course nothing goes below zero.</p>
+
+<p>Hold on to those two facts about the record, because they are what the model is about to get wrong. Sales are always positive, and the tail runs one way only.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The fitted model, and the draws it leaves behind</h2>
+
+<p>The obvious thing to fit here is the ordinary normal model. It says every day is a draw from a single normal distribution: one mean, one spread, the same story for all ninety days.</p>
+
+<p>Fitting that the Bayesian way gives you back a posterior, which is the set of parameter values still plausible once the data has had its say. For a normal model with a flat prior, meaning you start out with no opinion about which mean or spread is more likely, the posterior has a closed form, so you can draw from it directly and skip the sampler.</p>
+
+<p>Three short lines do it. The variance draws come out of a scaled inverse chi-squared, which is what that flat prior gives you, and in R that is one division by <code>rchisq()</code>. The mean is then drawn around the sample mean, with its own uncertainty shrinking as the sample grows.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw 1,000 plausible (mu, sigma) pairs from the posterior of the normal model
+set.seed(11)
+n &lt;- length(loaves)
+
+sigma2 &lt;- (n - 1) * var(loaves) / rchisq(1000, df = n - 1)
+sigma  &lt;- sqrt(sigma2)
+mu     &lt;- rnorm(1000, mean = mean(loaves), sd = sqrt(sigma2 / n))
+
+round(c(mean = mean(mu), quantile(mu, c(0.025, 0.975))), 1)
+#&gt;  mean  2.5% 97.5%
+#&gt;  43.1  39.4  46.7
+round(c(mean = mean(sigma), quantile(sigma, c(0.025, 0.975))), 1)
+#&gt;  mean  2.5% 97.5%
+#&gt;  17.9  15.4  21.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that and you would sign it off. Ravi sells about 43 loaves a day, and the model puts the long-run average somewhere between 39.4 and 46.7. It is tidy and sensible, and there is nothing to argue with.</p>
+
+<p>And that is exactly the trouble. That summary is about the parameters, and the parameters are not the thing in doubt. What is in doubt is whether ninety days out of this model would look anything like Ravi's ninety days, and no interval on <code>mu</code> can tell you.</p>
+
+<p>The useful part is not the summary anyway. It is the thousand pairs sitting in <code>mu</code> and <code>sigma</code>. Each pair is one complete version of the bakery that the model still finds plausible, and a complete version of the bakery can be asked to invent a record of its own.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>A thousand fake notebooks, drawn over the real one</h2>
+
+<p>Take pair number one out of the posterior: a mean and a spread. That pair describes a whole bakery, so hand it ninety days and let it write out its own notebook.</p>
+
+<p>That is all <code>rnorm(90, mu[s], sigma[s])</code> does. Do it once for every one of the thousand pairs and you get a thousand fake notebooks, ninety days each, every one of them a record this model considers a perfectly reasonable thing to have seen.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Let every posterior draw write out its own fake notebook of 90 days
+set.seed(21)
+yrep &lt;- matrix(NA_real_, nrow = 1000, ncol = 90)
+
+for (s in 1:1000) {
+  yrep[s, ] &lt;- rnorm(90, mean = mu[s], sd = sigma[s])
+}
+
+dim(yrep)
+#&gt; [1] 1000   90
+round(yrep[1, 1:12])
+#&gt;  [1] 56 51 73 17 82 49 11 23 42 41 -2 55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every row is one fake notebook and every column is a day in it. These simulated datasets have a proper name: they are the <strong>replicates</strong>, usually written <code>yrep</code>, and they are the raw material for everything that follows.</p>
+
+<p>Now read the first twelve days of the very first fake notebook. It opens with fifty six loaves, then fifty one, then seventy three, and then on the eleventh day the shop sold minus two loaves.</p>
+
+<p>Minus two loaves, on the very first fake notebook we looked at.</p>
+
+<p>One strange day could be bad luck, so count how many of the thousand contain a day like it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># How many of the 1,000 fake notebooks contain a day of negative sales
+worst_day &lt;- apply(yrep, 1, min)
+
+sum(worst_day &lt; 0)
+#&gt; [1] 501
+round(min(yrep), 1)
+#&gt; [1] -37.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is half of them. And the worst fake day anywhere in the thousand notebooks is minus 37 loaves.</p>
+
+<p>That is the model telling you plainly what it does not know. Nobody ever told it that sales cannot go below zero, and nothing inside a normal distribution says so on its own.</p>
+
+<p>Now put the fakes and the real record on the same picture. Each grey curve is one fake notebook's ninety days, smoothed. The black curve is Ravi's ninety days, smoothed the same way, and the dashed red line is zero.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw 100 fake notebooks in grey, with the real record over them in black
+plot(density(loaves), col = &quot;black&quot;, lwd = 3,
+     xlim = c(-20, 130), ylim = c(0, 0.045),
+     main = &quot;100 fake notebooks (grey) against the real record (black)&quot;,
+     xlab = &quot;Loaves sold in a day&quot;)
+
+for (s in 1:100) lines(density(yrep[s, ]), col = &quot;grey75&quot;, lwd = 1)
+lines(density(loaves), col = &quot;black&quot;, lwd = 3)
+abline(v = 0, col = &quot;red&quot;, lty = 2, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two differences show up at once. The grey curves spill across the red line into negative sales, which the black curve never does. And the grey curves are symmetric, the same shape either side of about 43, while the black curve climbs steeply on the left, sits fat through the thirties and forties, then trails away to the right with a small bump near 110 where Ravi's market days sit.</p>
+
+<p>So the model has the wrong shape, and you can see it. What you cannot see yet is how badly, and turning that picture into a number is the next thing to do.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what is one grey curve?</h2>
+
+<p>The overlay drew a hundred grey curves and one black one. What exactly is a single grey curve made of?</p>
+<section class="exercise" data-exercise-id="Bayesian-Mini-7-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">One draw from the posterior, which is to say one plausible pair of a mean and a spread.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ravi's real ninety days, resampled with replacement.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A whole fake notebook: ninety days invented by one posterior draw, smoothed into a curve.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 95% interval around the model's fitted average.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">That is it. One draw fixes a mean and a spread, then ninety fresh days get simulated from that pair, and the curve is drawn from those ninety numbers.</div><div class="lesson-qfb lesson-qfb-no">A replicate is not a parameter, not a resample of the real data, and not an interval. It is a complete dataset the same size as yours, invented by the model, and the overlay holds a hundred of them.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Why the statistic you pick decides whether the check can fail</h2>
+
+<p>A picture is good for spotting trouble. To report it, or to compare two models, you want one number.</p>
+
+<p>Here is how you get one. Pick any summary of a dataset and call it a test statistic: the mean, the spread, the busiest day, the number of zeros, whatever feature of the data you care about. Compute it on the real record. Compute it on every one of the thousand fake notebooks. Then ask how often the fakes match or beat the real one.</p>
+
+<p>That share is the posterior predictive p-value.</p>
+
+<p>\[ p_B \;=\; P\bigl(\,T(y^{\mathrm{rep}}) \ge T(y) \;\big|\; y \,\bigr) \]</p>
+
+<p>Read it left to right. \(T\) is the statistic you picked, \(y\) is Ravi's record, \(y^{\mathrm{rep}}\) is one fake notebook, and the whole expression is the share of fake notebooks whose statistic reaches the real value or goes past it. Near 0.5 means the real value sits in the middle of what the model invents. Near 0 or near 1 means it sits out at an edge, where the model almost never goes. There is no line to clear here. The number tells you where your record sits among the model's inventions, and you read it the way you read the plot.</p>
+
+<p>Let's run three of them at once on the same replicates.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three checks on the same replicates: the mean, the spread, and the busiest day
+rep_mean &lt;- rowMeans(yrep)
+rep_sd   &lt;- apply(yrep, 1, sd)
+rep_max  &lt;- apply(yrep, 1, max)
+
+round(c(mean_check = mean(rep_mean &gt;= mean(loaves)),
+        sd_check   = mean(rep_sd   &gt;= sd(loaves)),
+        max_check  = mean(rep_max  &gt;= max(loaves))), 3)
+#&gt; mean_check   sd_check  max_check
+#&gt;      0.517      0.500      0.006
+sum(rep_max &gt;= max(loaves))
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean check comes back at 0.517 and the spread at 0.500. Both of them are dead centre. A model you just watched fail by eye has passed two checks about as cleanly as a model can.</p>
+
+<p>And it was always going to. This model was fitted by matching the mean and the spread of Ravi's data, so its fake notebooks are built to have that mean and that spread. Asking it to reproduce them is asking it to repeat what it was told. A check that cannot fail tells you nothing when it passes.</p>
+
+<p>The busiest day is a different kind of number. Nobody fitted the busiest day. The model has to produce it on its own, out of the shape it assumes, and only 6 of the thousand fake notebooks ever reach 112 loaves. That is a posterior predictive p-value of 0.006.</p>
+
+<p>Both of those facts sit on one picture.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put the observed value on each replicated distribution
+par(mfrow = c(1, 2))
+
+hist(rep_mean, breaks = 30, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;Mean loaves per day&quot;, xlab = &quot;Mean of a fake notebook&quot;)
+abline(v = mean(loaves), col = &quot;red&quot;, lwd = 3)
+
+hist(rep_max, breaks = 30, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;Busiest day&quot;, xlab = &quot;Busiest day in a fake notebook&quot;)
+abline(v = max(loaves), col = &quot;red&quot;, lwd = 3)
+
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the left panel the red line stands in the middle of the pile. In the right panel the same red line stands past nearly all of it: a typical fake bakery has a best day around 87 loaves, and Ravi's best day was 112.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A posterior predictive check can only fail on a feature the model was not fitted to reproduce. Check the mean of a model fitted on the mean and it will pass every time. Choosing the statistic is the skill.</div></div>
+
+<p>So pick statistics that press on whatever you actually doubt. Check the extremes if extremes matter to the decision, the number of zeros if zeros matter, and the gap between the quartiles if you doubt the shape.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>What the plot says the model is missing, and how to fix it</h2>
+
+<p>Look again at what the failure was made of, because it is unusually specific. The fakes went negative, and real sales cannot. The fakes were symmetric, and Ravi's record leans hard to the right. Both complaints are the same complaint: a normal distribution is symmetric and unbounded, and these sales are neither.</p>
+
+<p>So you want a shape that is positive and lopsided to the right. The quickest way there is to model the logarithm of the sales instead of the sales. Take logs, fit the identical normal model on that scale, then exponentiate the replicates back into loaves. No fake day can come out negative, because <code>exp()</code> of anything is positive, and the right tail stretches out on its own.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same model on the log scale, then bring the replicates back to loaves
+log_loaves &lt;- log(loaves)
+
+set.seed(12)
+sigma2_log &lt;- (n - 1) * var(log_loaves) / rchisq(1000, df = n - 1)
+sigma_log  &lt;- sqrt(sigma2_log)
+mu_log     &lt;- rnorm(1000, mean = mean(log_loaves), sd = sqrt(sigma2_log / n))
+
+set.seed(22)
+yrep_log &lt;- matrix(NA_real_, nrow = 1000, ncol = 90)
+
+for (s in 1:1000) {
+  yrep_log[s, ] &lt;- exp(rnorm(90, mean = mu_log[s], sd = sigma_log[s]))
+}
+
+round(mean(apply(yrep_log, 1, max) &gt;= max(loaves)), 3)
+#&gt; [1] 0.39
+sum(yrep_log &lt; 0)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It is the same data, the same statistic and the same check. 0.006 has become 0.39. Ravi's busiest day is now an ordinary thing for this model to invent, which is what passing looks like. And across all 90,000 simulated days there is not one negative.</p>
+
+<p>The overlay tells the same story.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Redraw the overlay with the replicates from the log-scale model
+plot(density(loaves), col = &quot;black&quot;, lwd = 3,
+     xlim = c(-20, 130), ylim = c(0, 0.045),
+     main = &quot;100 fake notebooks from the log-scale model&quot;,
+     xlab = &quot;Loaves sold in a day&quot;)
+
+for (s in 1:100) lines(density(yrep_log[s, ]), col = &quot;grey75&quot;, lwd = 1)
+lines(density(loaves), col = &quot;black&quot;, lwd = 3)
+abline(v = 0, col = &quot;red&quot;, lty = 2, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nothing crosses zero now, and the grey curves lean to the right the way the black one does. Through the shoulders and the whole of the right tail, the black curve sits inside the grey band.</p>
+
+<p>It is not a perfect fit, and it is worth saying so. Most of the fakes still peak a little higher than Ravi's record does, which means they pile more of their days right at the most common value, while his are spread a little more evenly through the middle. A check that comes back clean says the model reproduces the feature you tested. It never says the model is true.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A failed check is a lead, not a verdict. This one said the model invents negative days and cannot reach the big ones, which names the fault as shape, and shape was fixable in one line. Read what the failure is made of before reaching for a fancier model.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>What a passing check looks like beside a failing one</h2>
+
+<p>Ravi's model failed on one statistic and then passed on it, and that move is worth seeing once more on a different shop, because the two outcomes look so unlike each other side by side.</p>
+
+<p>This shop sells a specialist item, and on plenty of days it sells none at all. There are sixty days of counts, and fifteen of them are zeros. The statistic under check is that count: how many zero days does a fake dataset contain?</p>
+
+<p>Toggle between the two model families and watch where the observed line lands.</p>
+<div class="lesson-widget" data-widget-type="ppc-overlay" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Under the Normal fit the replicates average about eight zero days and hardly ever reach fifteen, so the observed line stands out in the tail and the p-value falls close to zero. Switch to the Poisson, which is a distribution built for counts, and the replicates cluster around eleven or twelve. Fifteen is now inside the crowd, and the p-value climbs into the ordinary middle of the range.</p>
+
+<p>It is the same data and the same statistic, with two model families. The check is not scoring the data. It is scoring the model's ability to invent data like it.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>The one line you would actually run: pp_check()</h2>
+
+<p>Everything so far was done by hand so you could watch what the check is made of. At work you would not write that loop. You would fit the model with <code>brms</code> and call one function.</p>
+
+<p><code>posterior_predict()</code> builds exactly the <code>yrep</code> matrix you built yourself: one row per posterior draw, one column per observation. <code>pp_check()</code> draws exactly the overlay you drew, and with <code>type = &quot;stat&quot;</code> it draws exactly the statistic histogram.</p>
+
+<p><code>brms</code> compiles a Stan program, which needs a real toolchain, so this block does not run on the page. Copy it into your own R session.</p>
+
+<pre><code class="language-r"># The same two checks on Ravi's loaves, done the way you would do them at work
+library(brms)
+
+bakery &lt;- data.frame(loaves = loaves)
+
+fit &lt;- brm(loaves ~ 1, data = bakery, family = gaussian(),
+           chains = 4, iter = 2000, seed = 11)
+
+yrep_brms &lt;- posterior_predict(fit)          # 4000 by 90, the same object as before
+dim(yrep_brms)
+
+pp_check(fit, ndraws = 100)                  # the grey over black overlay
+pp_check(fit, type = &quot;stat&quot;, stat = &quot;max&quot;)   # the busiest day check</code></pre>
+
+<p>The log scale version is <code>family = lognormal()</code> on the raw loaves, which takes the logs and brings the replicates back for you.</p>
+
+<p><code>pp_check()</code> takes a <code>type</code> argument with a long list of options behind it. Two of them carry most of the work: <code>dens_overlay</code>, which is the default and gives you the overall shape, and <code>stat</code>, which gives you one statistic you nominate. Nominate a statistic the model was not fitted on, and you get a check that can actually fail.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading a check that came back at 0.006</h2>
+
+<p>The busiest day check on the first, symmetric model came back at 0.006. What does that number tell you?</p>
+<section class="exercise" data-exercise-id="Bayesian-Mini-7-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 0.6% chance that the model is the wrong model.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only about 6 in 1,000 datasets the model invents hold a day as busy as Ravi's best, so what the model is missing is his long right tail.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ravi's 112 loaf day is an outlier and should be dropped before refitting.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The model fits badly overall, which the mean check would have shown just as well.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. It is a statement about what the model can produce, and the thing it cannot produce is the top end of the record.</div><div class="lesson-qfb lesson-qfb-no">A posterior predictive p-value is not the probability that the model is wrong, and it is not a reason to delete a real day of sales. It says how often the model invents a value as extreme as the one you measured. And the mean check would never have caught this: it came back at 0.517, because the model was fitted on the mean.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: how quiet is the quietest day in a fake bakery?</h2>
+
+<p>You have checked the busiest day. Now check the other end of the record.</p>
+
+<p><code>yrep</code> still holds the thousand fake notebooks from the first, symmetric model, ninety days to a row. Ravi's quietest day in ninety was 14 loaves. Count how many of the thousand fake notebooks contain a day at or below that.</p>
+
+<p>Watch the direction as you write it. For the busiest day, as extreme or worse meant at or above. For the quietest day it means at or below, so the comparison flips.</p>
+<section class="exercise" data-exercise-id="Bayesian-Mini-7-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="apply[(]\s*yrep\s*,\s*1\s*,\s*min[\s\S]*&lt;=\s*(min[(]loaves[)]|14)"><textarea class="lesson-tryit-input" spellcheck="false"># yrep holds 1,000 fake notebooks, 90 days to a row, from the first model.
+# Ravi's quietest day is min(loaves), which is 14 loaves.
+# Take the quietest day of every fake notebook, then count how many of those
+# come in at or below 14. Write that count as a share as well.
+# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: 985 of the 1,000, a share of 0.985. The quietest day in a typical fake bakery is 0 loaves, so being unable to stay busy enough and being unable to stay quiet enough turn out to be the same fault seen from opposite ends.</span><span class="lesson-tryit-fb lesson-tryit-no">Build the row minima first, then compare them: apply(yrep, 1, min) gives the quietest day of every fake notebook, and you want the ones at or below min(loaves).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Count the fake notebooks whose quietest day is at or below Ravi's quietest day
+rep_min &lt;- apply(yrep, 1, min)
+
+sum(rep_min &lt;= min(loaves))
+#&gt; [1] 985
+mean(rep_min &lt;= min(loaves))
+#&gt; [1] 0.985
+round(median(rep_min), 1)
+#&gt; [1] 0</code></pre></details></div>
+</section>
+<p>985 of the thousand invent a day quieter than Ravi ever had, and the median fake bakery has a quietest day of zero loaves. Written in the same direction as the earlier checks, as the share of fakes whose quietest day reaches 14 or higher, that is 1 minus 0.985, or 0.015.</p>
+
+<p>So the two ends agree: 0.006 at the top, 0.015 at the bottom. One symmetric distribution was stretched over sales that are neither symmetric nor free to go below zero, and it fails at both edges for the same reason.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="http://www.stat.columbia.edu/~gelman/research/published/A6n41.pdf">Posterior predictive assessment of model fitness via realized discrepancies</a> - Gelman, Meng and Stern (1996), Statistica Sinica 6(4), 733-807. The paper that defines the posterior predictive p-value you just computed.</li>
+
+<li><a href="https://www.stat.columbia.edu/~gelman/book/">Bayesian Data Analysis, third edition</a> - Gelman, Carlin, Stern, Dunson, Vehtari and Rubin (2013). Chapter 6, Model checking, and the source of the closed form normal posterior used here.</li>
+
+<li><a href="https://doi.org/10.1111/rssa.12378">Visualization in Bayesian workflow</a> - Gabry, Simpson, Vehtari, Betancourt and Gelman (2019), Journal of the Royal Statistical Society A 182(2), 389-402. What the overlay and the statistic plots show, and how to read them.</li>
+
+<li><a href="https://mc-stan.org/bayesplot/articles/graphical-ppcs.html">Graphical posterior predictive checks using the bayesplot package</a> - Gabry and Mahr. The full catalogue of plot types sitting behind <code>pp_check()</code>.</li>
+
+<li><a href="https://paul-buerkner.github.io/brms/reference/pp_check.brmsfit.html">pp_check.brmsfit</a> - Buerkner. The <code>type</code> argument and every option it accepts.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You started with a model whose summary looked perfectly healthy, and inside five minutes you knew it was the wrong shape for the data. The whole procedure was this:</p>
+
+<ul>
+
+<li>Take the posterior draws. Each one is a complete version of the bakery the model still finds plausible.</li>
+
+<li>Let every draw invent a full dataset the same size as yours. A thousand draws gave a thousand fake notebooks of ninety days each.</li>
+
+<li>Lay the fakes over the real record. Half of them held a day of negative sales. Ravi's record never did.</li>
+
+<li>Pick a statistic nobody fitted. The mean passed at 0.517 and the spread at 0.500 because the model was fitted on exactly those. The busiest day failed at 0.006.</li>
+
+<li>Read what the failure names. Negative days and a symmetric shape, set against sales that are positive and lopsided.</li>
+
+<li>Change the model and check again. On the log scale the same check came back at 0.39, with not one negative day in 90,000.</li>
+
+</ul>
+
+<p>At work that is <code>pp_check(fit)</code> for the overlay and <code>pp_check(fit, type = &quot;stat&quot;, stat = &quot;max&quot;)</code> for the statistic, on a model fitted with <code>brm()</code>.</p>
+
+<p>The habit worth keeping costs you almost nothing. After every fit, ask the model to invent some data, and look hard at what it invents. A model that cannot produce data like yours has not described your data, whatever its summary says.</p>
+</section>
+
+{% endraw %}
