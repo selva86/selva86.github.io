@@ -61,7 +61,12 @@ Subject: "{subject}"
 {email_body}
 ---
 The email's example and framing are the lesson's opening contract. Deliver
-exactly what it promises, in the owner's voice.
+exactly what it promises, in the owner's voice. Assume the reader did NOT
+read the email: the lesson stands alone from its first line and sets its own
+scene. But the cover is not the email reworded. Open on the running example
+and the first concrete thing the reader sees, in your own words and a
+different order, then say what they will be able to do by the end. No
+sentence of the email may reappear reworded anywhere in the lesson.
 
 SOURCE MATERIAL: selva86.github.io/_posts/{source}.html is the existing blog
 post. Raw material only.
@@ -438,6 +443,23 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         if refused or not api_death or attempt == 2:
             log('FAIL: reviewer flagged manual_review; stopping this lesson')
             restore_archive(); return None
+
+    # Cover vs email: the reader arrives from the email, so a cover that restates
+    # it is a defect (Bayesian-Mini-7, 2026-08-30). Sentence level: any cover
+    # sentence that is a near-copy of an email sentence fails the build.
+    if not voice_only:
+        import difflib
+        def _sents(t):
+            t = re.sub(r'```.*?```', ' ', t, flags=re.S)
+            t = '\n'.join(l for l in t.split('\n') if not l.startswith('::') and not l.startswith('#'))
+            return [x.strip() for x in re.split(r'(?<=[.!?])\s+', ' '.join(t.split())) if len(x.split()) >= 6]
+        _cover = re.split(r'^=== step ===.*$', io.open(lesson_md, encoding='utf-8').read(), flags=re.M)[1]
+        _cs, _es = _sents(_cover), _sents(body)
+        _worst = max([(difflib.SequenceMatcher(None, c.lower(), e.lower(), autojunk=False).ratio(), c) for c in _cs for e in _es] or [(0.0, '')])
+        log(f'cover vs email: worst sentence similarity = {_worst[0]:.2f}')
+        if _worst[0] > 0.6:
+            log(f'FAIL: the cover restates the email ("{_worst[1][:80]}")')
+            return None
 
     # Comparison builds: PROVE independence, never trust it. Diff every step
     # against the canonical lesson and hard-fail on copying (the seq-1 v2
