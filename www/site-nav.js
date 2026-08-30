@@ -1,5 +1,5 @@
 /* site-nav.js - companion to www/site-nav.css (the sitewide navbar).
-   1. Marks the current section link .on (Roadmap/Tutorials/Exercises/Tools).
+   1. Marks the current section link .on (Courses/Tutorials/Practice/Pricing/Tools).
    2. Provides a generic mobile nav drawer for pages that have no drawer of
       their own. Only burgers carrying [data-snav-burger] are wired here;
       tutorial pages (#mobile-menu-btn -> #mobile-sidebar overlay) and tool
@@ -83,6 +83,7 @@
         '<a class="snav-dlink" href="/roadmap/">Courses <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
         '<a class="snav-dlink" href="/tutorials/">Tutorials <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
         '<a class="snav-dlink" href="/exercises/">Practice <span class="ex-caret" aria-hidden="true">&#9662;</span></a>' +
+        '<a class="snav-dlink" href="/pricing.html">Pricing</a>' +
         '<a class="snav-dlink" href="/tools/">Tools</a>' +
         '<a class="snav-dcta" href="/pricing.html">Get Certified</a>' +
         '<a class="snav-dsignin" href="/signin.html">Sign in</a>' +

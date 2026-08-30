@@ -42,6 +42,7 @@
         if(h.charAt(0)!=='/')return; // '#curriculum' fallback: no gate
         if(document.body.classList.contains('state-anon')){
           e.preventDefault();
+          if(window.rsSignin){window.rsSignin.open({next:h,trigger:'start-free'});return;}
           window.location.href='/signin.html?next='+encodeURIComponent(h);
         }
       });

@@ -3224,6 +3224,7 @@ def patch_tool_pages(sections, asset_hrefs):
         '<a href="/tutorials/">Tutorials</a>'
         '<a href="/exercises/">Practice '
         '<span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
+        '<a href="/pricing.html">Pricing</a>'
         '<a href="/tools/" class="on">Tools</a>'
         '</div>'
         '<div class="snav-right">'
@@ -3312,6 +3313,12 @@ def patch_tool_pages(sections, asset_hrefs):
             new_html = re.sub(
                 r'</body>',
                 '<script defer src="/www/auth-hydrate.js?v=16"></script></body>',
+                new_html, count=1, flags=re.IGNORECASE,
+            )
+        if 'signin-modal.js' not in new_html:
+            new_html = re.sub(
+                r'</body>',
+                '<script defer src="/www/signin-modal.js?v=1"></script></body>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         # Refresh the chrome layout CSS so mobile-drawer rules land on tools
@@ -3453,6 +3460,8 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script defer src="/www/roadmap-nav.js?v=9"></script>'
             # Auth state (body.state-anon/.state-pro) + avatar dropdown.
             f'<script defer src="/www/auth-hydrate.js?v=16"></script>'
+            # Sign-in card as a modal over the page (sitewide).
+            f'<script defer src="/www/signin-modal.js?v=1"></script>'
         )
         # Add the shared site footer once (skip if already present, e.g. the
         # tools landing page already gets it from gen_tools_landing).
