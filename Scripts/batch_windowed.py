@@ -478,8 +478,19 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
             t = '\n'.join(l for l in t.split('\n') if not l.startswith('::') and not l.startswith('#'))
             return [x.strip() for x in re.split(r'(?<=[.!?])\s+', ' '.join(t.split())) if len(x.split()) >= 6]
         _cover = re.split(r'^=== step ===.*$', io.open(lesson_md, encoding='utf-8').read(), flags=re.M)[1]
+        # The cover may name its own topic even though the email names it too
+        # (both must). Strip the lesson title's words from both sides before
+        # scoring, so only restatement BEYOND the topic term can fail; a
+        # sentence with under 4 words left is just the topic name and is skipped.
+        _tw = set(re.findall(r"[a-z0-9']+", title.lower()))
+        def _bare(x):
+            return ' '.join(w for w in re.findall(r"[a-z0-9']+", x.lower())
+                            if w not in _tw and w.rstrip('s') not in _tw and (w + 's') not in _tw)
         _cs, _es = _sents(_cover), _sents(body)
-        _worst = max([(difflib.SequenceMatcher(None, c.lower(), e.lower(), autojunk=False).ratio(), c) for c in _cs for e in _es] or [(0.0, '')])
+        _pairs = [(difflib.SequenceMatcher(None, _bare(c), _bare(e), autojunk=False).ratio(), c)
+                  for c in _cs for e in _es
+                  if len(_bare(c).split()) >= 4 and len(_bare(e).split()) >= 4]
+        _worst = max(_pairs or [(0.0, '')])
         log(f'cover vs email: worst sentence similarity = {_worst[0]:.2f}')
         if _worst[0] > 0.6:
             log(f'FAIL: the cover restates the email ("{_worst[1][:80]}")')
