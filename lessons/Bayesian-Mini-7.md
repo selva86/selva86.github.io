@@ -33,7 +33,7 @@ Nobody sells minus one and a half bags.
 
 The fit never complained about it, because nobody had ever asked it to. So let's ask it now, and let the model answer on itself. There are three moves, and all three run on the shop's real numbers.
 
-::widget process-flow {"steps":[{"title":"Take the fitted model at its word","sub":"a cloud of mean and spread pairs, not one answer"},{"title":"Let it write its own day-books","sub":"each pair writes one made-up run of sixty days"},{"title":"Hold the real sixty days against them","sub":"what the real shop does and no fake does is the misfit"}]}
+::widget process-flow {"steps":[{"title":"Draw from the posterior","sub":"a cloud of mean and spread pairs, not one answer"},{"title":"Simulate a day-book from each draw","sub":"one made-up run of sixty days per draw"},{"title":"Compare the real data with the fakes","sub":"what the real shop shows and no fake does is the misfit"}]}
 
 So we will write those day-books ourselves, turn the mismatch into a single number you can report, and work out which statistic actually catches a broken model instead of quietly letting it through.
 
